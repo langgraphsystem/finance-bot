@@ -18,7 +18,7 @@ from src.core.models.user import User
 from src.core.profiles import ProfileLoader
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
-from src.gateway.types import OutgoingMessage
+from src.gateway.types import MessageType, OutgoingMessage
 
 logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
