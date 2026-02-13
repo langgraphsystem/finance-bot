@@ -5,17 +5,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.core.mcp import AnalyticsResponse, get_supabase_mcp_server, run_analytics_query
+from src.core.mcp import (
+    MCP_BASE_URL,
+    AnalyticsResponse,
+    _build_mcp_url,
+    get_supabase_mcp_server,
+    run_analytics_query,
+)
 
 # --- Helpers ---
 
 
 def _make_pydantic_ai_mock(agent_cls_mock=None):
-    """Create a mock pydantic_ai module with an optional Agent mock.
-
-    Used to intercept `from pydantic_ai import Agent` inside
-    run_analytics_query when pydantic-ai is not installed.
-    """
+    """Create a mock pydantic_ai module with an optional Agent mock."""
     mock_module = MagicMock()
     if agent_cls_mock is not None:
         mock_module.Agent = agent_cls_mock
@@ -23,11 +25,7 @@ def _make_pydantic_ai_mock(agent_cls_mock=None):
 
 
 def _patch_pydantic_ai_import(agent_cls_mock):
-    """Context-manager-style patch that intercepts `from pydantic_ai import Agent`.
-
-    Returns a patch on builtins.__import__ that supplies a mock module
-    for 'pydantic_ai' while letting all other imports pass through.
-    """
+    """Context-manager-style patch that intercepts `from pydantic_ai import Agent`."""
     original_import = builtins.__import__
     mock_module = _make_pydantic_ai_mock(agent_cls_mock)
 
@@ -73,6 +71,26 @@ class TestAnalyticsResponse:
         assert restored == resp
 
 
+# --- _build_mcp_url tests ---
+
+
+class TestBuildMcpUrl:
+    @patch("src.core.mcp.settings")
+    def test_url_with_project_ref(self, mock_settings):
+        mock_settings.mcp_project_ref = "my-project"
+        url = _build_mcp_url()
+        assert url.startswith(MCP_BASE_URL)
+        assert "read_only=true" in url
+        assert "project_ref=my-project" in url
+
+    @patch("src.core.mcp.settings")
+    def test_url_without_project_ref(self, mock_settings):
+        mock_settings.mcp_project_ref = ""
+        url = _build_mcp_url()
+        assert "read_only=true" in url
+        assert "project_ref" not in url
+
+
 # --- get_supabase_mcp_server tests ---
 
 
@@ -80,9 +98,8 @@ class TestGetSupabaseMcpServer:
     @patch("src.core.mcp.settings")
     def test_returns_none_when_import_fails(self, mock_settings):
         """When pydantic_ai.mcp is not importable, returns None."""
-        mock_settings.supabase_url = "https://example.supabase.co"
-        mock_settings.supabase_service_key = "test-key"
-        mock_settings.supabase_key = ""
+        mock_settings.supabase_access_token = "test-token"
+        mock_settings.mcp_project_ref = "ref"
 
         original_import = builtins.__import__
 
@@ -97,66 +114,38 @@ class TestGetSupabaseMcpServer:
         assert result is None
 
     @patch("src.core.mcp.settings")
-    def test_returns_none_when_url_missing(self, mock_settings):
-        """When supabase_url is empty, returns None."""
-        mock_settings.supabase_url = ""
-        mock_settings.supabase_service_key = "test-key"
-        mock_settings.supabase_key = ""
-        result = get_supabase_mcp_server()
-        assert result is None
-
-    @patch("src.core.mcp.settings")
-    def test_returns_none_when_key_missing(self, mock_settings):
-        """When both supabase_service_key and supabase_key are empty, returns None."""
-        mock_settings.supabase_url = "https://example.supabase.co"
-        mock_settings.supabase_service_key = ""
-        mock_settings.supabase_key = ""
+    def test_returns_none_when_token_missing(self, mock_settings):
+        """When supabase_access_token is empty, returns None."""
+        mock_settings.supabase_access_token = ""
         result = get_supabase_mcp_server()
         assert result is None
 
     @patch("src.core.mcp.settings")
     def test_returns_server_when_configured(self, mock_settings):
         """When settings are present and pydantic-ai is available, returns an MCP server."""
-        mock_settings.supabase_url = "https://example.supabase.co"
-        mock_settings.supabase_service_key = "test-service-key"
-        mock_settings.supabase_key = ""
+        mock_settings.supabase_access_token = "test-token"
+        mock_settings.mcp_project_ref = "test-ref"
 
         server = get_supabase_mcp_server()
         # If pydantic-ai is installed, we get a server object; otherwise None
-        # In test env without pydantic-ai, this gracefully returns None
         if server is not None:
-            from pydantic_ai.mcp import MCPServerStdio
+            from pydantic_ai.mcp import MCPServerStreamableHTTP
 
-            assert isinstance(server, MCPServerStdio)
-
-    @patch("src.core.mcp.settings")
-    def test_falls_back_to_supabase_key(self, mock_settings):
-        """Uses supabase_key when supabase_service_key is empty."""
-        mock_settings.supabase_url = "https://example.supabase.co"
-        mock_settings.supabase_service_key = ""
-        mock_settings.supabase_key = "regular-key"
-
-        server = get_supabase_mcp_server()
-        # If pydantic-ai is installed, we get a server; key fallback was used
-        if server is not None:
-            from pydantic_ai.mcp import MCPServerStdio
-
-            assert isinstance(server, MCPServerStdio)
+            assert isinstance(server, MCPServerStreamableHTTP)
 
     @patch("src.core.mcp.settings")
     def test_returns_none_on_creation_error(self, mock_settings):
-        """Returns None when MCPServerStdio constructor raises."""
-        mock_settings.supabase_url = "https://example.supabase.co"
-        mock_settings.supabase_service_key = "test-key"
-        mock_settings.supabase_key = ""
+        """Returns None when MCPServerStreamableHTTP constructor raises."""
+        mock_settings.supabase_access_token = "test-token"
+        mock_settings.mcp_project_ref = ""
 
-        mock_stdio = MagicMock(side_effect=RuntimeError("npx not found"))
+        mock_http = MagicMock(side_effect=RuntimeError("connection failed"))
         original_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
             if name == "pydantic_ai.mcp":
                 mod = MagicMock()
-                mod.MCPServerStdio = mock_stdio
+                mod.MCPServerStreamableHTTP = mock_http
                 return mod
             return original_import(name, *args, **kwargs)
 

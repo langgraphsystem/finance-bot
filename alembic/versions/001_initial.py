@@ -6,7 +6,7 @@ Create Date: 2026-02-12
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import ENUM, UUID, JSONB
 
 revision = "001"
 down_revision = None
@@ -15,28 +15,40 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── Enum types ──────────────────────────────────────────────
-    transaction_type = sa.Enum("income", "expense", name="transaction_type")
-    scope = sa.Enum("business", "family", "personal", name="scope")
-    user_role = sa.Enum("owner", "member", name="user_role")
-    document_type = sa.Enum(
-        "receipt", "invoice", "rate_confirmation", "fuel_receipt", "other",
-        name="document_type",
-    )
-    load_status = sa.Enum("pending", "delivered", "paid", "overdue", name="load_status")
-    message_role = sa.Enum("user", "assistant", name="message_role")
-    conversation_state = sa.Enum(
-        "onboarding", "normal", "correcting", "awaiting_confirm",
-        name="conversation_state",
-    )
-    payment_frequency = sa.Enum("weekly", "monthly", "quarterly", "yearly", name="payment_frequency")
-    budget_period = sa.Enum("weekly", "monthly", name="budget_period")
+    # ── Enum types (idempotent via DO/EXCEPTION) ────────────────
+    _enums = {
+        "transaction_type": "'income', 'expense'",
+        "scope": "'business', 'family', 'personal'",
+        "user_role": "'owner', 'member'",
+        "document_type": "'receipt', 'invoice', 'rate_confirmation', 'fuel_receipt', 'other'",
+        "load_status": "'pending', 'delivered', 'paid', 'overdue'",
+        "message_role": "'user', 'assistant'",
+        "conversation_state": "'onboarding', 'normal', 'correcting', 'awaiting_confirm'",
+        "payment_frequency": "'weekly', 'monthly', 'quarterly', 'yearly'",
+        "budget_period": "'weekly', 'monthly'",
+    }
+    for name, values in _enums.items():
+        op.execute(sa.text(
+            f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({values}); "
+            f"EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+        ))
 
-    for enum in (
-        transaction_type, scope, user_role, document_type, load_status,
-        message_role, conversation_state, payment_frequency, budget_period,
-    ):
-        enum.create(op.get_bind(), checkfirst=True)
+    # Reference existing types — postgresql.ENUM with create_type=False
+    transaction_type = ENUM("income", "expense", name="transaction_type", create_type=False)
+    scope = ENUM("business", "family", "personal", name="scope", create_type=False)
+    user_role = ENUM("owner", "member", name="user_role", create_type=False)
+    document_type = ENUM(
+        "receipt", "invoice", "rate_confirmation", "fuel_receipt", "other",
+        name="document_type", create_type=False,
+    )
+    load_status = ENUM("pending", "delivered", "paid", "overdue", name="load_status", create_type=False)
+    message_role = ENUM("user", "assistant", name="message_role", create_type=False)
+    conversation_state = ENUM(
+        "onboarding", "normal", "correcting", "awaiting_confirm",
+        name="conversation_state", create_type=False,
+    )
+    payment_frequency = ENUM("weekly", "monthly", "quarterly", "yearly", name="payment_frequency", create_type=False)
+    budget_period = ENUM("weekly", "monthly", name="budget_period", create_type=False)
 
     # 1. families
     op.create_table(

@@ -18,6 +18,22 @@ class Settings(BaseSettings):
     supabase_key: str = ""
     supabase_service_key: str = ""
 
+    # Supabase MCP (optional)
+    supabase_access_token: str = ""
+    supabase_project_ref: str = ""
+
+    @property
+    def mcp_project_ref(self) -> str:
+        """Return project ref — explicit setting or extracted from supabase_url."""
+        if self.supabase_project_ref:
+            return self.supabase_project_ref
+        # Extract from https://<ref>.supabase.co
+        if self.supabase_url:
+            host = self.supabase_url.split("//")[-1].split(".")[0]
+            if host and host != "supabase":
+                return host
+        return ""
+
     @property
     def async_database_url(self) -> str:
         """Return database URL with asyncpg driver for SQLAlchemy async."""

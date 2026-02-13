@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import func, select
 
 from src.core.charts import create_pie_chart
+from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.llm.clients import anthropic_client
@@ -18,6 +19,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.core.mcp import run_analytics_query
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -138,6 +140,15 @@ class QueryStatsSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         assembled = intent_data.get("_assembled")
+
+        # MCP fallback for complex/free-form analytics queries
+        if intent_data.get("complex_query") and settings.supabase_access_token:
+            try:
+                mcp_result = await run_analytics_query(message.text, context.family_id)
+                if "недоступен" not in mcp_result.answer:
+                    return SkillResult(response_text=mcp_result.answer)
+            except Exception as e:
+                logger.warning("MCP analytics fallback failed: %s", e)
 
         # Determine period from intent data
         period = intent_data.get("period", "month")
