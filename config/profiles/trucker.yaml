@@ -1,0 +1,70 @@
+name: "Трак-овнер"
+aliases: ["трак", "truck", "дальнобойщик", "owner operator", "трак-овнер"]
+currency: USD
+language: ru
+
+categories:
+  business:
+    - name: "Дизель"
+      icon: "⛽"
+      scope: business
+      merchants: ["Shell", "Love's", "Pilot", "Flying J", "TA", "Petro"]
+    - name: "Ремонт"
+      icon: "🔧"
+      scope: business
+    - name: "Страховка"
+      icon: "🛡️"
+      scope: business
+    - name: "Платёж трак"
+      icon: "🚛"
+      scope: business
+    - name: "Tolls"
+      icon: "🛣️"
+      scope: business
+    - name: "ELD/GPS"
+      icon: "📡"
+      scope: business
+    - name: "Пермиты"
+      icon: "📋"
+      scope: business
+    - name: "Lumper"
+      icon: "📦"
+      scope: business
+    - name: "Диспетч"
+      icon: "📞"
+      scope: business
+    - name: "Per diem"
+      icon: "🍽️"
+      scope: business
+    - name: "Парковка"
+      icon: "🅿️"
+      scope: business
+
+reports:
+  - type: monthly
+    name: "Месячный P&L"
+  - type: quarterly_ifta
+    name: "IFTA отчёт"
+  - type: schedule_c
+    name: "Schedule C (налоги)"
+
+metrics:
+  - key: cost_per_mile
+    label: "Cost/mile"
+    formula: "total_expenses / total_miles"
+  - key: revenue_per_mile
+    label: "Revenue/mile"
+    formula: "total_income / total_miles"
+  - key: net_profit_margin
+    label: "Чистая маржа"
+    formula: "(total_income - total_expenses) / total_income * 100"
+
+special_features:
+  ifta: true
+  per_diem: true
+  loads_tracking: true
+  fuel_by_state: true
+
+tax:
+  deductible_categories: ["Дизель", "Ремонт", "Страховка", "Tolls", "ELD/GPS", "Пермиты", "Lumper"]
+  per_diem_rate: 69

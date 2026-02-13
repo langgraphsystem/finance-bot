@@ -1,0 +1,44 @@
+name: "Маникюр / Салон красоты"
+aliases: ["manicure", "nails", "beauty", "маникюр", "ногти", "салон", "красота"]
+currency: RUB
+language: ru
+
+categories:
+  business:
+    - name: "Материалы"
+      icon: "💅"
+      scope: business
+    - name: "Аренда"
+      icon: "🏪"
+      scope: business
+    - name: "Оборудование"
+      icon: "🔧"
+      scope: business
+    - name: "Реклама"
+      icon: "📣"
+      scope: business
+    - name: "Коммунальные"
+      icon: "💡"
+      scope: business
+    - name: "Обучение/курсы"
+      icon: "📚"
+      scope: business
+    - name: "Уборка/санитария"
+      icon: "🧹"
+      scope: business
+
+reports:
+  - type: monthly
+    name: "Месячный отчёт"
+
+metrics:
+  - key: expense_ratio
+    label: "% расходов от дохода"
+    formula: "total_expenses / total_income * 100"
+  - key: net_profit_margin
+    label: "Чистая маржа"
+    formula: "(total_income - total_expenses) / total_income * 100"
+
+special_features:
+  ifta: false
+  loads_tracking: false

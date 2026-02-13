@@ -1,0 +1,34 @@
+family_categories:
+  - name: "Продукты"
+    icon: "🛒"
+    scope: family
+  - name: "Аренда/ипотека"
+    icon: "🏠"
+    scope: family
+  - name: "Коммунальные"
+    icon: "💡"
+    scope: family
+  - name: "Дети"
+    icon: "👶"
+    scope: family
+  - name: "Медицина"
+    icon: "🏥"
+    scope: family
+  - name: "Транспорт"
+    icon: "🚗"
+    scope: family
+  - name: "Одежда"
+    icon: "👕"
+    scope: family
+  - name: "Подписки"
+    icon: "📺"
+    scope: family
+  - name: "Переводы родным"
+    icon: "💸"
+    scope: family
+  - name: "Развлечения"
+    icon: "🎬"
+    scope: family
+  - name: "Прочее"
+    icon: "📦"
+    scope: family

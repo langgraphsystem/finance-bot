@@ -1,0 +1,49 @@
+name: "Строительство"
+aliases: ["construction", "contractor", "строительство", "подрядчик", "стройка", "ремонт"]
+currency: RUB
+language: ru
+
+categories:
+  business:
+    - name: "Материалы"
+      icon: "🧱"
+      scope: business
+    - name: "Инструменты"
+      icon: "🔧"
+      scope: business
+    - name: "Рабочие/подрядчики"
+      icon: "👷"
+      scope: business
+    - name: "Транспорт"
+      icon: "🚛"
+      scope: business
+    - name: "Разрешения/лицензии"
+      icon: "📋"
+      scope: business
+    - name: "Страховка"
+      icon: "🛡️"
+      scope: business
+    - name: "Топливо"
+      icon: "⛽"
+      scope: business
+    - name: "Аренда/офис"
+      icon: "🏢"
+      scope: business
+
+reports:
+  - type: monthly
+    name: "Месячный отчёт"
+  - type: quarterly
+    name: "Квартальный отчёт"
+
+metrics:
+  - key: expense_ratio
+    label: "% расходов от дохода"
+    formula: "total_expenses / total_income * 100"
+  - key: net_profit_margin
+    label: "Чистая маржа"
+    formula: "(total_income - total_expenses) / total_income * 100"
+
+special_features:
+  ifta: false
+  loads_tracking: false

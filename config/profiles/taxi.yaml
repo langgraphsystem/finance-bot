@@ -1,0 +1,41 @@
+name: "Таксист"
+aliases: ["такси", "taxi", "uber", "яндекс такси", "bolt"]
+currency: RUB
+language: ru
+
+categories:
+  business:
+    - name: "Бензин"
+      icon: "⛽"
+      scope: business
+    - name: "Мойка"
+      icon: "🚿"
+      scope: business
+    - name: "Страховка"
+      icon: "🛡️"
+      scope: business
+    - name: "ТО"
+      icon: "🔧"
+      scope: business
+    - name: "Амортизация"
+      icon: "📉"
+      scope: business
+    - name: "Телефон/связь"
+      icon: "📱"
+      scope: business
+
+reports:
+  - type: monthly
+    name: "Месячный отчёт"
+
+metrics:
+  - key: expense_ratio
+    label: "% расходов от дохода"
+    formula: "total_expenses / total_income * 100"
+  - key: net_daily
+    label: "Чистый заработок/день"
+    formula: "(total_income - total_expenses) / working_days"
+
+special_features:
+  ifta: false
+  loads_tracking: false

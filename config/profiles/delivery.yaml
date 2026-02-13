@@ -1,0 +1,49 @@
+name: "Доставка"
+aliases: ["delivery", "courier", "доставка", "курьер", "uber eats", "doordash"]
+currency: USD
+language: ru
+
+categories:
+  business:
+    - name: "Бензин"
+      icon: "⛽"
+      scope: business
+    - name: "Ремонт авто"
+      icon: "🔧"
+      scope: business
+    - name: "Телефон/связь"
+      icon: "📱"
+      scope: business
+    - name: "Сумки/оборудование"
+      icon: "🎒"
+      scope: business
+    - name: "Парковка"
+      icon: "🅿️"
+      scope: business
+    - name: "Tolls"
+      icon: "🛣️"
+      scope: business
+    - name: "Страховка"
+      icon: "🛡️"
+      scope: business
+    - name: "Еда в пути"
+      icon: "🍽️"
+      scope: business
+
+reports:
+  - type: monthly
+    name: "Месячный отчёт"
+  - type: quarterly
+    name: "Квартальный отчёт"
+
+metrics:
+  - key: expense_ratio
+    label: "% расходов от дохода"
+    formula: "total_expenses / total_income * 100"
+  - key: net_daily
+    label: "Чистый заработок/день"
+    formula: "(total_income - total_expenses) / working_days"
+
+special_features:
+  ifta: false
+  loads_tracking: false

@@ -1,0 +1,20 @@
+name: "Домохозяйство"
+aliases: ["дом", "семья", "домохозяйка", "домохозяйство", "просто расходы"]
+currency: RUB
+language: ru
+
+categories:
+  business: []
+
+reports:
+  - type: monthly
+    name: "Семейный бюджет"
+
+metrics:
+  - key: savings_rate
+    label: "% сбережений"
+    formula: "(total_income - total_expenses) / total_income * 100"
+
+special_features:
+  ifta: false
+  loads_tracking: false

@@ -1,0 +1,66 @@
+[project]
+name = "finance-bot"
+version = "0.1.0"
+description = "AI-powered Telegram finance assistant"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    # Telegram
+    "aiogram>=3.25.0",
+    # Database
+    "sqlalchemy[asyncio]>=2.0.36",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+    # Cache & Queue
+    "redis[hiredis]>=5.2.0",
+    "taskiq[redis]>=0.11.0",
+    "taskiq-redis>=1.0.0",
+    # AI / LLM
+    "anthropic>=0.43.0",
+    "openai>=1.60.0",
+    "google-genai>=1.5.0",
+    "instructor>=1.7.0",
+    "pydantic-ai>=0.0.36",
+    # Memory
+    "mem0ai>=0.1.30",
+    # Data validation
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    # Observability
+    "langfuse>=2.50.0",
+    # Safety
+    "nemoguardrails>=0.11.0",
+    # HTTP client
+    "httpx>=0.28.0",
+    # Config
+    "pyyaml>=6.0.2",
+    # Reports & Charts
+    "weasyprint>=63.0",
+    "jinja2>=3.1.4",
+    "quickchart-io>=2.0.0",
+    # Utils
+    "python-multipart>=0.0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
