@@ -1,6 +1,6 @@
 """Tests for chart generation."""
 
-from src.core.charts import create_pie_chart, create_bar_chart, create_line_chart
+from src.core.charts import create_bar_chart, create_line_chart, create_pie_chart
 
 
 def test_pie_chart_returns_url():

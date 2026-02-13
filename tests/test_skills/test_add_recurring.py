@@ -1,7 +1,7 @@
 """Tests for add_recurring skill."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,7 +15,6 @@ from src.skills.add_recurring.handler import (
     _compute_next_date,
     _resolve_frequency,
 )
-
 
 # ---- Fixtures ---------------------------------------------------------------
 
@@ -144,7 +143,9 @@ class TestAddRecurringSkill:
         assert "название" in result.response_text.lower()
 
     @pytest.mark.asyncio
-    async def test_unknown_category_shows_buttons(self, recurring_skill, sample_message, sample_ctx):
+    async def test_unknown_category_shows_buttons(
+        self, recurring_skill, sample_message, sample_ctx
+    ):
         intent_data = {"amount": 15, "description": "Netflix", "category": "Неизвестная"}
         result = await recurring_skill.execute(sample_message, sample_ctx, intent_data)
         assert "Не нашёл категорию" in result.response_text
@@ -172,8 +173,16 @@ class TestAddRecurringSkill:
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.skills.add_recurring.handler.async_session", return_value=mock_session_ctx), \
-             patch("src.skills.add_recurring.handler.log_action", new_callable=AsyncMock):
+        with (
+            patch(
+                "src.skills.add_recurring.handler.async_session",
+                return_value=mock_session_ctx,
+            ),
+            patch(
+                "src.skills.add_recurring.handler.log_action",
+                new_callable=AsyncMock,
+            ),
+        ):
             result = await recurring_skill.execute(sample_message, sample_ctx, intent_data)
 
         assert "Регулярный платёж создан" in result.response_text
@@ -201,8 +210,16 @@ class TestAddRecurringSkill:
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.skills.add_recurring.handler.async_session", return_value=mock_session_ctx), \
-             patch("src.skills.add_recurring.handler.log_action", new_callable=AsyncMock):
+        with (
+            patch(
+                "src.skills.add_recurring.handler.async_session",
+                return_value=mock_session_ctx,
+            ),
+            patch(
+                "src.skills.add_recurring.handler.log_action",
+                new_callable=AsyncMock,
+            ),
+        ):
             result = await recurring_skill.execute(sample_message, sample_ctx, intent_data)
 
         assert "еженедельно" in result.response_text
@@ -224,8 +241,16 @@ class TestAddRecurringSkill:
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.skills.add_recurring.handler.async_session", return_value=mock_session_ctx), \
-             patch("src.skills.add_recurring.handler.log_action", new_callable=AsyncMock) as mock_log:
+        with (
+            patch(
+                "src.skills.add_recurring.handler.async_session",
+                return_value=mock_session_ctx,
+            ),
+            patch(
+                "src.skills.add_recurring.handler.log_action",
+                new_callable=AsyncMock,
+            ) as mock_log,
+        ):
             await recurring_skill.execute(sample_message, sample_ctx, intent_data)
 
         mock_log.assert_awaited_once()
@@ -236,7 +261,9 @@ class TestAddRecurringSkill:
         assert call_kwargs["new_data"]["frequency"] == "monthly"
 
     @pytest.mark.asyncio
-    async def test_merchant_used_as_name_fallback(self, recurring_skill, sample_message, sample_ctx):
+    async def test_merchant_used_as_name_fallback(
+        self, recurring_skill, sample_message, sample_ctx
+    ):
         """When description is missing, merchant should be used as the name."""
         intent_data = {
             "amount": 10,
@@ -253,8 +280,16 @@ class TestAddRecurringSkill:
         mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("src.skills.add_recurring.handler.async_session", return_value=mock_session_ctx), \
-             patch("src.skills.add_recurring.handler.log_action", new_callable=AsyncMock):
+        with (
+            patch(
+                "src.skills.add_recurring.handler.async_session",
+                return_value=mock_session_ctx,
+            ),
+            patch(
+                "src.skills.add_recurring.handler.log_action",
+                new_callable=AsyncMock,
+            ),
+        ):
             result = await recurring_skill.execute(sample_message, sample_ctx, intent_data)
 
         assert "Spotify" in result.response_text

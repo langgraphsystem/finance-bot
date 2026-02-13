@@ -20,11 +20,14 @@ async def add_message(
 ) -> None:
     """Add a message to the sliding window."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"
-    message = json.dumps({
-        "role": role,
-        "content": content,
-        "intent": intent,
-    }, ensure_ascii=False)
+    message = json.dumps(
+        {
+            "role": role,
+            "content": content,
+            "intent": intent,
+        },
+        ensure_ascii=False,
+    )
 
     await redis.rpush(key, message)
     await redis.ltrim(key, -DEFAULT_WINDOW_SIZE, -1)

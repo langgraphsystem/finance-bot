@@ -7,13 +7,13 @@ from decimal import Decimal
 from sqlalchemy import select
 
 from src.core.db import async_session, rls_session
-from src.core.request_context import set_family_context, reset_family_context
 from src.core.models.enums import PaymentFrequency, Scope, TransactionType
 from src.core.models.family import Family
 from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.transaction import Transaction
 from src.core.models.user import User
 from src.core.notifications import collect_alerts, format_notification
+from src.core.request_context import reset_family_context, set_family_context
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -33,14 +33,16 @@ async def daily_notifications():
         try:
             alerts = await collect_alerts(family_id)
             if alerts:
-                notification_text = await format_notification(alerts)
+                await format_notification(alerts)
 
                 # Get family owner to send notification
                 async with rls_session(family_id) as session:
                     user_result = await session.execute(
-                        select(User).where(
+                        select(User)
+                        .where(
                             User.family_id == family.id,
-                        ).limit(1)
+                        )
+                        .limit(1)
                     )
                     user = user_result.scalar_one_or_none()
                     if user:
@@ -94,7 +96,7 @@ async def process_recurring_payments():
     async with async_session() as session:
         result = await session.execute(
             select(RecurringPayment).where(
-                RecurringPayment.is_active == True,
+                RecurringPayment.is_active.is_(True),
                 RecurringPayment.next_date <= today,
             )
         )

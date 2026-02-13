@@ -14,6 +14,7 @@ FAMILY_ID = str(uuid.uuid4())
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_tx_row(dt: date, category: str, merchant: str | None, description: str, amount: float):
     """Build a mock row matching the SELECT projection in detect_patterns."""
     row = MagicMock()
@@ -44,6 +45,7 @@ def _build_session_ctx(execute_return):
 # ---------------------------------------------------------------------------
 # detect_patterns — not enough data
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_detect_patterns_insufficient_data():
@@ -110,13 +112,13 @@ async def test_detect_patterns_success():
 # detect_patterns — JSON wrapped in markdown fences
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_detect_patterns_markdown_fences():
     """LLM response with markdown code fences around JSON is parsed correctly."""
     today = date.today()
     rows = [
-        _make_tx_row(today - timedelta(days=i), "Transport", "Uber", "ride", 15.0)
-        for i in range(7)
+        _make_tx_row(today - timedelta(days=i), "Transport", "Uber", "ride", 15.0) for i in range(7)
     ]
     ctx = _build_session_ctx(_rows_result(rows))
 
@@ -145,14 +147,12 @@ async def test_detect_patterns_markdown_fences():
 # detect_patterns — LLM returns no JSON
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_detect_patterns_no_json_in_response():
     """Returns None when LLM response contains no parseable JSON."""
     today = date.today()
-    rows = [
-        _make_tx_row(today - timedelta(days=i), "Food", "Shop", "food", 10.0)
-        for i in range(6)
-    ]
+    rows = [_make_tx_row(today - timedelta(days=i), "Food", "Shop", "food", 10.0) for i in range(6)]
     ctx = _build_session_ctx(_rows_result(rows))
 
     response_mock = MagicMock()
@@ -176,14 +176,12 @@ async def test_detect_patterns_no_json_in_response():
 # detect_patterns — LLM call raises exception
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_detect_patterns_llm_exception():
     """Returns None when the LLM call raises an exception."""
     today = date.today()
-    rows = [
-        _make_tx_row(today - timedelta(days=i), "Food", "Shop", "food", 10.0)
-        for i in range(6)
-    ]
+    rows = [_make_tx_row(today - timedelta(days=i), "Food", "Shop", "food", 10.0) for i in range(6)]
     ctx = _build_session_ctx(_rows_result(rows))
 
     client_mock = MagicMock()
@@ -203,6 +201,7 @@ async def test_detect_patterns_llm_exception():
 # ---------------------------------------------------------------------------
 # detect_patterns — merchant fallback to description
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_detect_patterns_merchant_fallback():
@@ -239,6 +238,7 @@ async def test_detect_patterns_merchant_fallback():
 # store_patterns
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_store_patterns_calls_add_memory():
     """store_patterns persists patterns via Mem0 add_memory."""
@@ -248,9 +248,7 @@ async def test_store_patterns_calls_add_memory():
         "recommendations": ["r1"],
     }
 
-    with patch(
-        "src.core.memory.mem0_client.add_memory", new_callable=AsyncMock
-    ) as mock_add:
+    with patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add:
         from src.core.patterns import store_patterns
 
         await store_patterns(FAMILY_ID, patterns)
@@ -271,9 +269,7 @@ async def test_store_patterns_empty():
     """store_patterns does not call add_memory when all lists are empty."""
     patterns = {"patterns": [], "anomalies": [], "recommendations": []}
 
-    with patch(
-        "src.core.memory.mem0_client.add_memory", new_callable=AsyncMock
-    ) as mock_add:
+    with patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add:
         from src.core.patterns import store_patterns
 
         await store_patterns(FAMILY_ID, patterns)

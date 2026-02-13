@@ -36,15 +36,9 @@ def _build_valid_init_data(telegram_id: int = 123456) -> str:
         "auth_date": str(auth_date),
         "user": json.dumps(user),
     }
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(params.items())
-    )
-    secret_key = hmac.new(
-        b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256
-    ).digest()
-    calculated_hash = hmac.new(
-        secret_key, data_check_string.encode(), hashlib.sha256
-    ).hexdigest()
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
+    secret_key = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+    calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     params["hash"] = calculated_hash
     return urlencode(params)
 
@@ -87,9 +81,7 @@ def test_transaction_item_schema():
 
 def test_transaction_list_response_schema():
     """TransactionListResponse with pagination."""
-    resp = TransactionListResponse(
-        items=[], total=0, page=1, per_page=20
-    )
+    resp = TransactionListResponse(items=[], total=0, page=1, per_page=20)
     assert resp.total == 0
     assert resp.page == 1
 
@@ -133,9 +125,7 @@ def test_settings_response_schema():
         language="ru",
         currency="USD",
         business_type="trucker",
-        categories=[
-            {"id": str(uuid.uuid4()), "name": "Fuel", "icon": "⛽", "scope": "business"}
-        ],
+        categories=[{"id": str(uuid.uuid4()), "name": "Fuel", "icon": "⛽", "scope": "business"}],
     )
     assert resp.language == "ru"
     assert len(resp.categories) == 1
@@ -190,9 +180,7 @@ class TestGetStatsEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             # First execute call: expense categories
@@ -224,9 +212,7 @@ class TestGetStatsEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             exp_result = MagicMock()
@@ -266,9 +252,7 @@ class TestListTransactionsEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             # First: count query
@@ -278,9 +262,7 @@ class TestListTransactionsEndpoint:
             data_result = MagicMock()
             data_result.all.return_value = [(mock_tx, "Fuel")]
 
-            mock_session.execute = AsyncMock(
-                side_effect=[count_result, data_result]
-            )
+            mock_session.execute = AsyncMock(side_effect=[count_result, data_result])
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)
@@ -302,9 +284,7 @@ class TestListTransactionsEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             count_result = MagicMock()
@@ -312,9 +292,7 @@ class TestListTransactionsEndpoint:
             data_result = MagicMock()
             data_result.all.return_value = []
 
-            mock_session.execute = AsyncMock(
-                side_effect=[count_result, data_result]
-            )
+            mock_session.execute = AsyncMock(side_effect=[count_result, data_result])
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)
@@ -347,9 +325,7 @@ class TestCreateTransactionEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             mock_session.add = MagicMock()
@@ -415,9 +391,7 @@ class TestUpdateSettingsEndpoint:
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
-            mock_session_maker.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
             # First execute: select User
@@ -427,9 +401,7 @@ class TestUpdateSettingsEndpoint:
             cats_result = MagicMock()
             cats_result.scalars.return_value = [mock_cat]
 
-            mock_session.execute = AsyncMock(
-                side_effect=[user_result, cats_result]
-            )
+            mock_session.execute = AsyncMock(side_effect=[user_result, cats_result])
             mock_session.commit = AsyncMock()
 
             app = _create_test_app(auth_user_override=mock_user)

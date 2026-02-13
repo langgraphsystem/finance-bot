@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 
 from sqlalchemy import Date, ForeignKey, Numeric, String
-from sqlalchemy.dialects.postgresql import UUID, ENUM
+from sqlalchemy.dialects.postgresql import ENUM, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.core.models.base import Base

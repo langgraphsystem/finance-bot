@@ -7,12 +7,11 @@ import pytest
 
 from src.core.categorization import (
     CategoryPrediction,
-    categorize_transaction,
+    _classify_with_llm,
     _match_by_rules,
     _match_by_similarity,
-    _classify_with_llm,
+    categorize_transaction,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -32,6 +31,7 @@ CATEGORIES = [
 # CategoryPrediction unit tests
 # ---------------------------------------------------------------------------
 
+
 def test_category_prediction_fields():
     """CategoryPrediction has all expected fields."""
     pred = CategoryPrediction(
@@ -49,7 +49,10 @@ def test_category_prediction_fields():
 def test_category_prediction_repr():
     """CategoryPrediction repr is readable."""
     pred = CategoryPrediction(
-        category_id="x", category_name="Дизель", confidence=0.85, method="rag",
+        category_id="x",
+        category_name="Дизель",
+        confidence=0.85,
+        method="rag",
     )
     r = repr(pred)
     assert "Дизель" in r
@@ -60,6 +63,7 @@ def test_category_prediction_repr():
 # ---------------------------------------------------------------------------
 # Step 1: Rule-based matching
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_match_by_rules_found():
@@ -107,11 +111,11 @@ async def test_match_by_rules_not_found():
 # Step 2: Vector similarity search (graceful degradation)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_match_by_similarity_pgvector_not_available():
     """Vector search returns None gracefully when pgvector is unavailable."""
     mock_openai = MagicMock()
-    mock_embeddings = AsyncMock()
     mock_embedding_data = MagicMock()
     mock_embedding_data.embedding = [0.1] * 1536
     mock_embeddings_response = MagicMock()
@@ -175,10 +179,10 @@ async def test_match_by_similarity_openai_fails():
 # Step 3: LLM classification
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_classify_with_llm_success():
     """LLM classification returns a valid prediction."""
-    from pydantic import BaseModel, Field
 
     mock_llm_result = MagicMock()
     mock_llm_result.category_name = "Продукты"
@@ -249,7 +253,10 @@ async def test_classify_with_llm_failure():
 async def test_classify_with_llm_with_rag_context():
     """LLM classification includes RAG context in prompt when provided."""
     rag_ctx = CategoryPrediction(
-        category_id=CAT_ID_FUEL, category_name="Дизель", confidence=0.65, method="rag",
+        category_id=CAT_ID_FUEL,
+        category_name="Дизель",
+        confidence=0.65,
+        method="rag",
     )
 
     mock_llm_result = MagicMock()
@@ -283,17 +290,31 @@ async def test_classify_with_llm_with_rag_context():
 # Full pipeline integration tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_pipeline_rule_match_short_circuits():
     """When rule-based match succeeds, RAG and LLM are not called."""
     rule_pred = CategoryPrediction(
-        category_id=CAT_ID_FUEL, category_name="Дизель", confidence=0.85, method="rule",
+        category_id=CAT_ID_FUEL,
+        category_name="Дизель",
+        confidence=0.85,
+        method="rule",
     )
 
     with (
-        patch("src.core.categorization._match_by_rules", new_callable=AsyncMock, return_value=rule_pred) as mock_rules,
-        patch("src.core.categorization._match_by_similarity", new_callable=AsyncMock) as mock_rag,
-        patch("src.core.categorization._classify_with_llm", new_callable=AsyncMock) as mock_llm,
+        patch(
+            "src.core.categorization._match_by_rules",
+            new_callable=AsyncMock,
+            return_value=rule_pred,
+        ) as mock_rules,
+        patch(
+            "src.core.categorization._match_by_similarity",
+            new_callable=AsyncMock,
+        ) as mock_rag,
+        patch(
+            "src.core.categorization._classify_with_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm,
     ):
         result = await categorize_transaction(
             description="Shell diesel",
@@ -313,13 +334,27 @@ async def test_pipeline_rule_match_short_circuits():
 async def test_pipeline_no_rule_falls_through_to_rag():
     """When rules fail and RAG has high confidence, RAG result is returned."""
     rag_pred = CategoryPrediction(
-        category_id=CAT_ID_FOOD, category_name="Продукты", confidence=0.8, method="rag",
+        category_id=CAT_ID_FOOD,
+        category_name="Продукты",
+        confidence=0.8,
+        method="rag",
     )
 
     with (
-        patch("src.core.categorization._match_by_rules", new_callable=AsyncMock, return_value=None),
-        patch("src.core.categorization._match_by_similarity", new_callable=AsyncMock, return_value=rag_pred) as mock_rag,
-        patch("src.core.categorization._classify_with_llm", new_callable=AsyncMock) as mock_llm,
+        patch(
+            "src.core.categorization._match_by_rules",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.core.categorization._match_by_similarity",
+            new_callable=AsyncMock,
+            return_value=rag_pred,
+        ) as mock_rag,
+        patch(
+            "src.core.categorization._classify_with_llm",
+            new_callable=AsyncMock,
+        ) as mock_llm,
     ):
         result = await categorize_transaction(
             description="Walmart groceries",
@@ -339,16 +374,34 @@ async def test_pipeline_no_rule_falls_through_to_rag():
 async def test_pipeline_low_rag_confidence_falls_through_to_llm():
     """When RAG confidence is below threshold, LLM is called with RAG context."""
     rag_pred = CategoryPrediction(
-        category_id=CAT_ID_FOOD, category_name="Продукты", confidence=0.5, method="rag",
+        category_id=CAT_ID_FOOD,
+        category_name="Продукты",
+        confidence=0.5,
+        method="rag",
     )
     llm_pred = CategoryPrediction(
-        category_id=CAT_ID_FOOD, category_name="Продукты", confidence=0.82, method="llm",
+        category_id=CAT_ID_FOOD,
+        category_name="Продукты",
+        confidence=0.82,
+        method="llm",
     )
 
     with (
-        patch("src.core.categorization._match_by_rules", new_callable=AsyncMock, return_value=None),
-        patch("src.core.categorization._match_by_similarity", new_callable=AsyncMock, return_value=rag_pred),
-        patch("src.core.categorization._classify_with_llm", new_callable=AsyncMock, return_value=llm_pred) as mock_llm,
+        patch(
+            "src.core.categorization._match_by_rules",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.core.categorization._match_by_similarity",
+            new_callable=AsyncMock,
+            return_value=rag_pred,
+        ),
+        patch(
+            "src.core.categorization._classify_with_llm",
+            new_callable=AsyncMock,
+            return_value=llm_pred,
+        ) as mock_llm,
     ):
         result = await categorize_transaction(
             description="grocery store purchase",
@@ -368,13 +421,27 @@ async def test_pipeline_low_rag_confidence_falls_through_to_llm():
 async def test_pipeline_no_merchant_skips_rules():
     """When merchant is None, rule-based matching is skipped entirely."""
     llm_pred = CategoryPrediction(
-        category_id=CAT_ID_FOOD, category_name="Продукты", confidence=0.75, method="llm",
+        category_id=CAT_ID_FOOD,
+        category_name="Продукты",
+        confidence=0.75,
+        method="llm",
     )
 
     with (
-        patch("src.core.categorization._match_by_rules", new_callable=AsyncMock) as mock_rules,
-        patch("src.core.categorization._match_by_similarity", new_callable=AsyncMock, return_value=None),
-        patch("src.core.categorization._classify_with_llm", new_callable=AsyncMock, return_value=llm_pred),
+        patch(
+            "src.core.categorization._match_by_rules",
+            new_callable=AsyncMock,
+        ) as mock_rules,
+        patch(
+            "src.core.categorization._match_by_similarity",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.core.categorization._classify_with_llm",
+            new_callable=AsyncMock,
+            return_value=llm_pred,
+        ),
     ):
         result = await categorize_transaction(
             description="bought food",
@@ -391,9 +458,21 @@ async def test_pipeline_no_merchant_skips_rules():
 async def test_pipeline_all_steps_fail_returns_none():
     """When all steps fail, pipeline returns None."""
     with (
-        patch("src.core.categorization._match_by_rules", new_callable=AsyncMock, return_value=None),
-        patch("src.core.categorization._match_by_similarity", new_callable=AsyncMock, return_value=None),
-        patch("src.core.categorization._classify_with_llm", new_callable=AsyncMock, return_value=None),
+        patch(
+            "src.core.categorization._match_by_rules",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.core.categorization._match_by_similarity",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.core.categorization._classify_with_llm",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         result = await categorize_transaction(
             description="???",

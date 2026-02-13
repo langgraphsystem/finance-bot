@@ -1,24 +1,24 @@
 """Tests for Layer 5 — Incremental dialog summarization."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.core.models.enums import MessageRole
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_message(role: MessageRole, content: str) -> MagicMock:
     """Create a mock ConversationMessage."""
     msg = MagicMock()
     msg.role = role
     msg.content = content
-    msg.created_at = datetime.now(timezone.utc)
+    msg.created_at = datetime.now(UTC)
     return msg
 
 
@@ -28,13 +28,14 @@ def _make_summary(summary_text: str, message_count: int) -> MagicMock:
     s.summary = summary_text
     s.message_count = message_count
     s.token_count = len(summary_text.split())
-    s.updated_at = datetime.now(timezone.utc)
+    s.updated_at = datetime.now(UTC)
     return s
 
 
 # ---------------------------------------------------------------------------
 # Tests for summarize_dialog
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_summarize_below_threshold_returns_none():
@@ -223,6 +224,7 @@ async def test_summarize_no_new_messages_returns_existing():
 # Tests for get_session_summary
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_get_session_summary_returns_existing():
     """get_session_summary should return the most recent summary."""
@@ -320,9 +322,7 @@ async def test_summarize_handles_gemini_error():
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
     mock_google = MagicMock()
-    mock_google.aio.models.generate_content = AsyncMock(
-        side_effect=Exception("Gemini API error")
-    )
+    mock_google.aio.models.generate_content = AsyncMock(side_effect=Exception("Gemini API error"))
 
     with (
         patch("src.core.memory.summarization.async_session", return_value=mock_session_ctx),

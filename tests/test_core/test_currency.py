@@ -1,8 +1,9 @@
 """Tests for currency conversion."""
 
-import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 
 @pytest.mark.asyncio

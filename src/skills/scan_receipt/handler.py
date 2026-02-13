@@ -9,11 +9,11 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.llm.clients import google_client, anthropic_client
-from src.core.observability import observe
+from src.core.llm.clients import anthropic_client, google_client
 from src.core.models.document import Document
 from src.core.models.enums import DocumentType, Scope, TransactionType
 from src.core.models.transaction import Transaction
+from src.core.observability import observe
 from src.core.schemas.receipt import ReceiptData
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -118,14 +118,27 @@ class ScanReceiptSkill:
             tx = Transaction(
                 family_id=uuid.UUID(context.family_id),
                 user_id=uuid.UUID(context.user_id),
-                category_id=uuid.UUID(category_id) if category_id else uuid.UUID(context.categories[0]["id"]),
+                category_id=(
+                    uuid.UUID(category_id)
+                    if category_id
+                    else uuid.UUID(context.categories[0]["id"])
+                ),
                 type=TransactionType.expense,
                 amount=receipt.total,
                 merchant=receipt.merchant,
                 date=date.fromisoformat(receipt.date) if receipt.date else date.today(),
                 scope=Scope.business if context.business_type else Scope.family,
                 state=receipt.state,
-                meta={"gallons": receipt.gallons, "price_per_gallon": float(receipt.price_per_gallon)} if receipt.gallons else None,
+                meta=(
+                    {
+                        "gallons": receipt.gallons,
+                        "price_per_gallon": float(
+                            receipt.price_per_gallon,
+                        ),
+                    }
+                    if receipt.gallons
+                    else None
+                ),
                 document_id=doc.id,
                 ai_confidence=Decimal("0.9"),
             )
@@ -151,12 +164,15 @@ class ScanReceiptSkill:
         parts = [OCR_PROMPT]
         if message.photo_bytes:
             import base64
-            parts.append({
-                "inline_data": {
-                    "mime_type": "image/jpeg",
-                    "data": base64.b64encode(message.photo_bytes).decode(),
+
+            parts.append(
+                {
+                    "inline_data": {
+                        "mime_type": "image/jpeg",
+                        "data": base64.b64encode(message.photo_bytes).decode(),
+                    }
                 }
-            })
+            )
 
         response = await client.aio.models.generate_content(
             model="gemini-2.0-flash",
@@ -173,14 +189,18 @@ class ScanReceiptSkill:
         content = [{"type": "text", "text": OCR_PROMPT}]
         if message.photo_bytes:
             import base64
-            content.insert(0, {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": base64.b64encode(message.photo_bytes).decode(),
+
+            content.insert(
+                0,
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": base64.b64encode(message.photo_bytes).decode(),
+                    },
                 },
-            })
+            )
 
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",

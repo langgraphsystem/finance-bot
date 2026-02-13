@@ -1,8 +1,7 @@
-from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
-from google import genai
-
 import instructor
+from anthropic import AsyncAnthropic
+from google import genai
+from openai import AsyncOpenAI
 
 from src.core.config import settings
 

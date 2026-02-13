@@ -62,12 +62,12 @@ class SetBudgetSkill:
             # Check if budget already exists for this category
             query = select(Budget).where(
                 Budget.family_id == uuid.UUID(context.family_id),
-                Budget.is_active == True,
+                Budget.is_active.is_(True),
             )
             if category_id:
                 query = query.where(Budget.category_id == category_id)
             else:
-                query = query.where(Budget.category_id == None)
+                query = query.where(Budget.category_id.is_(None))
 
             result = await session.execute(query)
             existing = result.scalar_one_or_none()
@@ -96,7 +96,7 @@ class SetBudgetSkill:
 
         return SkillResult(
             response_text=f"Бюджет {action}: {cat_text} — ${amount} {period_text}\n"
-                         f"Уведомлю при 80% и 100% использования."
+            f"Уведомлю при 80% и 100% использования."
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:

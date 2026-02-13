@@ -1,6 +1,6 @@
 """Tests for guardrails refusal detection."""
 
-from src.core.guardrails import _is_refusal, REFUSAL_MESSAGE
+from src.core.guardrails import REFUSAL_MESSAGE, _is_refusal
 
 
 def test_refusal_detected_russian():

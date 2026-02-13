@@ -1,7 +1,7 @@
 """Telegram Gateway — aiogram v3 implementation."""
 
 import logging
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import BufferedInputFile
@@ -54,9 +54,7 @@ class TelegramGateway:
         kwargs = {"chat_id": int(message.chat_id), "parse_mode": message.parse_mode}
 
         if message.document:
-            file = BufferedInputFile(
-                message.document, filename=message.document_name or "file"
-            )
+            file = BufferedInputFile(message.document, filename=message.document_name or "file")
             await self.bot.send_document(
                 **kwargs, document=file, caption=message.text, reply_markup=reply_markup
             )
@@ -66,9 +64,7 @@ class TelegramGateway:
                 **kwargs, photo=photo, caption=message.text, reply_markup=reply_markup
             )
         else:
-            await self.bot.send_message(
-                **kwargs, text=message.text, reply_markup=reply_markup
-            )
+            await self.bot.send_message(**kwargs, text=message.text, reply_markup=reply_markup)
 
     async def send_typing(self, chat_id: str) -> None:
         await self.bot.send_chat_action(chat_id=int(chat_id), action="typing")

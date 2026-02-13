@@ -1,8 +1,6 @@
 """Tests for SessionContext.filter_query()."""
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock, call
-import uuid
+from unittest.mock import MagicMock
 
 
 def test_owner_filter_query_callable(sample_context):
@@ -26,7 +24,7 @@ def test_owner_filter_query_adds_family_filter(sample_context):
     mock_model.family_id = MagicMock()
     mock_model.scope = MagicMock()
 
-    result = sample_context.filter_query(mock_stmt, mock_model)
+    sample_context.filter_query(mock_stmt, mock_model)
     # Owner: only one .where() call (family_id), no scope restriction
     mock_stmt.where.assert_called_once()
 
@@ -40,7 +38,7 @@ def test_member_filter_query_adds_scope_filter(member_context):
     mock_model.family_id = MagicMock()
     mock_model.scope = MagicMock()
 
-    result = member_context.filter_query(mock_stmt, mock_model)
+    member_context.filter_query(mock_stmt, mock_model)
     # Member: two .where() calls (family_id + scope restriction)
     assert mock_stmt.where.call_count == 2
 

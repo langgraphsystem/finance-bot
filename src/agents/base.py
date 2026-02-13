@@ -117,9 +117,7 @@ class AgentRouter:
             skill = self._registry.get("general_chat")
 
         if not skill:
-            return SkillResult(
-                response_text="Произошла ошибка маршрутизации. Попробуйте ещё раз."
-            )
+            return SkillResult(response_text="Произошла ошибка маршрутизации. Попробуйте ещё раз.")
 
         return await skill.execute(message, context, intent_data)
 

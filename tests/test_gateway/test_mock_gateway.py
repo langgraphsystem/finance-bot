@@ -30,9 +30,9 @@ async def test_mock_gateway_simulate():
         received.append(msg)
 
     gw.on_message(handler)
-    await gw.simulate_message(IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="hi"
-    ))
+    await gw.simulate_message(
+        IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="hi")
+    )
     assert len(received) == 1
     assert received[0].text == "hi"
 

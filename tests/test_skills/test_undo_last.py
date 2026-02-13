@@ -1,4 +1,5 @@
 """Tests for undo_last skill."""
+
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -93,8 +94,16 @@ async def test_deletes_last_transaction(undo_skill, sample_message, sample_ctx):
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("src.skills.undo_last.handler.async_session", return_value=mock_session_ctx), \
-         patch("src.skills.undo_last.handler.log_action", new_callable=AsyncMock) as mock_log:
+    with (
+        patch(
+            "src.skills.undo_last.handler.async_session",
+            return_value=mock_session_ctx,
+        ),
+        patch(
+            "src.skills.undo_last.handler.log_action",
+            new_callable=AsyncMock,
+        ),
+    ):
         result = await undo_skill.execute(sample_message, sample_ctx, {})
 
     assert "Отменено" in result.response_text
@@ -124,8 +133,10 @@ async def test_audit_log_called_on_undo(undo_skill, sample_message, sample_ctx):
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("src.skills.undo_last.handler.async_session", return_value=mock_session_ctx), \
-         patch("src.skills.undo_last.handler.log_action", new_callable=AsyncMock) as mock_log:
+    with (
+        patch("src.skills.undo_last.handler.async_session", return_value=mock_session_ctx),
+        patch("src.skills.undo_last.handler.log_action", new_callable=AsyncMock) as mock_log,
+    ):
         await undo_skill.execute(sample_message, sample_ctx, {})
 
     mock_log.assert_awaited_once()

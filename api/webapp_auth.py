@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import parse_qs, unquote
 
 from fastapi import HTTPException, Request
@@ -61,8 +61,8 @@ async def validate_webapp_data(request: Request) -> dict:
         # Check auth_date freshness (allow up to 1 hour)
         auth_date_str = parsed.get("auth_date", [None])[0]
         if auth_date_str:
-            auth_date = datetime.fromtimestamp(int(auth_date_str), tz=timezone.utc)
-            now = datetime.now(timezone.utc)
+            auth_date = datetime.fromtimestamp(int(auth_date_str), tz=UTC)
+            now = datetime.now(UTC)
             if (now - auth_date).total_seconds() > 3600:
                 raise HTTPException(status_code=401, detail="Auth data expired")
 

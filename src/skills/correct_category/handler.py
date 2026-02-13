@@ -47,7 +47,9 @@ class CorrectCategorySkill:
                 break
 
         if not new_cat_id:
-            return SkillResult(response_text=f"Категория \u00ab{new_category_name}\u00bb не найдена.")
+            return SkillResult(
+                response_text=(f"Категория \u00ab{new_category_name}\u00bb не найдена."),
+            )
 
         # Get last transaction
         async with async_session() as session:
@@ -63,9 +65,7 @@ class CorrectCategorySkill:
 
             old_category_name = "Unknown"
             # Get old category name
-            old_cat = await session.execute(
-                select(Category).where(Category.id == tx.category_id)
-            )
+            old_cat = await session.execute(select(Category).where(Category.id == tx.category_id))
             old_cat_obj = old_cat.scalar_one_or_none()
             if old_cat_obj:
                 old_category_name = old_cat_obj.name
@@ -103,9 +103,7 @@ class CorrectCategorySkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        categories = "\n".join(
-            f"- {c['name']} ({c.get('scope', '')})" for c in context.categories
-        )
+        categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
         return f"Ты исправляешь категорию транзакции.\n\nКатегории:\n{categories}"
 
 

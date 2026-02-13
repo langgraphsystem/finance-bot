@@ -16,8 +16,11 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-RECURRING_SYSTEM_PROMPT = """Ты записываешь регулярный платёж пользователя (подписки, аренда и т.д.).
-Извлеки из сообщения: название, сумму, периодичность (weekly/monthly/quarterly/yearly), категорию.
+RECURRING_SYSTEM_PROMPT = """\
+Ты записываешь регулярный платёж пользователя \
+(подписки, аренда и т.д.).
+Извлеки: название, сумму, периодичность \
+(weekly/monthly/quarterly/yearly), категорию.
 
 Категории пользователя:
 {categories}
@@ -116,7 +119,9 @@ class AddRecurringSkill:
 
         if not name:
             return SkillResult(
-                response_text="Укажите название регулярного платежа (например: аренда, Netflix, спортзал)."
+                response_text=(
+                    "Укажите название регулярного платежа (например: аренда, Netflix, спортзал)."
+                )
             )
 
         # Resolve category
@@ -184,9 +189,7 @@ class AddRecurringSkill:
         return None
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        categories = "\n".join(
-            f"- {c['name']} ({c.get('scope', '')})" for c in context.categories
-        )
+        categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
         return RECURRING_SYSTEM_PROMPT.format(categories=categories)
 
 

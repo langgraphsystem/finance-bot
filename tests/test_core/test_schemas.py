@@ -1,7 +1,8 @@
 """Tests for Pydantic schemas."""
 
-import pytest
 from decimal import Decimal
+
+import pytest
 from pydantic import ValidationError
 
 from src.core.schemas.intent import IntentDetectionResult
@@ -36,6 +37,7 @@ def test_receipt_data_creation():
 def test_transaction_create_validation():
     import uuid
     from datetime import date
+
     tx = TransactionCreate(
         category_id=uuid.uuid4(),
         type="expense",
@@ -49,6 +51,7 @@ def test_transaction_create_validation():
 def test_transaction_amount_must_be_positive():
     import uuid
     from datetime import date
+
     with pytest.raises(ValidationError):
         TransactionCreate(
             category_id=uuid.uuid4(),

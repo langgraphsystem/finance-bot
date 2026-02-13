@@ -1,6 +1,5 @@
 """Multi-currency support via Frankfurter API + Redis cache."""
 
-import json
 import logging
 from decimal import Decimal
 

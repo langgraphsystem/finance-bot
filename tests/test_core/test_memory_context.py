@@ -10,18 +10,15 @@ Tests cover:
 - Lost-in-the-Middle positioning
 """
 
-import asyncio
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.core.memory.context import (
-    QUERY_CONTEXT_MAP,
-    AssembledContext,
     BUDGET_RATIO,
     MAX_CONTEXT_TOKENS,
-    MIN_SLIDING_WINDOW,
+    QUERY_CONTEXT_MAP,
+    AssembledContext,
     _apply_overflow_trimming,
     _format_memories_block,
     _format_sql_block,
@@ -237,17 +234,15 @@ class TestQueryContextMap:
 # ---------------------------------------------------------------------------
 class TestOverflowTrimming:
     def test_no_trimming_when_within_budget(self):
-        mem_block, sql_block, summary_block, history, memories = (
-            _apply_overflow_trimming(
-                system_prompt_tokens=10,
-                user_msg_tokens=5,
-                mem_block="mem",
-                sql_block="sql",
-                summary_block="sum",
-                history_messages=[],
-                memories=[{"memory": "test"}],
-                total_budget=10000,
-            )
+        mem_block, sql_block, summary_block, history, memories = _apply_overflow_trimming(
+            system_prompt_tokens=10,
+            user_msg_tokens=5,
+            mem_block="mem",
+            sql_block="sql",
+            summary_block="sum",
+            history_messages=[],
+            memories=[{"memory": "test"}],
+            total_budget=10000,
         )
         assert mem_block == "mem"
         assert sql_block == "sql"
@@ -255,21 +250,16 @@ class TestOverflowTrimming:
 
     def test_drops_old_history_first(self):
         # Large history to trigger overflow
-        history = [
-            {"role": "user", "content": "x" * 400}
-            for _ in range(10)
-        ]
-        mem_block, sql_block, summary_block, trimmed_history, memories = (
-            _apply_overflow_trimming(
-                system_prompt_tokens=10,
-                user_msg_tokens=5,
-                mem_block="",
-                sql_block="",
-                summary_block="",
-                history_messages=history,
-                memories=[],
-                total_budget=500,  # tight budget
-            )
+        history = [{"role": "user", "content": "x" * 400} for _ in range(10)]
+        mem_block, sql_block, summary_block, trimmed_history, memories = _apply_overflow_trimming(
+            system_prompt_tokens=10,
+            user_msg_tokens=5,
+            mem_block="",
+            sql_block="",
+            summary_block="",
+            history_messages=history,
+            memories=[],
+            total_budget=500,  # tight budget
         )
         # Should have fewer messages
         assert len(trimmed_history) < 10
@@ -294,20 +284,15 @@ class TestOverflowTrimming:
 
     def test_never_drops_system_and_user(self):
         # Even with extremely tight budget, we should not crash
-        mem_block, sql_block, summary_block, history, memories = (
-            _apply_overflow_trimming(
-                system_prompt_tokens=50,
-                user_msg_tokens=50,
-                mem_block="m" * 1000,
-                sql_block="s" * 1000,
-                summary_block="u" * 1000,
-                history_messages=[
-                    {"role": "user", "content": "x" * 500}
-                    for _ in range(10)
-                ],
-                memories=[{"memory": "test"}],
-                total_budget=100,  # exactly system + user, no room for anything else
-            )
+        mem_block, sql_block, summary_block, history, memories = _apply_overflow_trimming(
+            system_prompt_tokens=50,
+            user_msg_tokens=50,
+            mem_block="m" * 1000,
+            sql_block="s" * 1000,
+            summary_block="u" * 1000,
+            history_messages=[{"role": "user", "content": "x" * 500} for _ in range(10)],
+            memories=[{"memory": "test"}],
+            total_budget=100,  # exactly system + user, no room for anything else
         )
         # Everything else should be trimmed away
         assert len(history) == 0
@@ -398,9 +383,7 @@ class TestAssembleContext:
 
     @pytest.mark.asyncio
     async def test_add_expense_loads_mappings(self, mock_deps):
-        mock_deps["mem0"].search_memories.return_value = [
-            {"memory": "Shell -> Diesel"}
-        ]
+        mock_deps["mem0"].search_memories.return_value = [{"memory": "Shell -> Diesel"}]
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -479,9 +462,7 @@ class TestAssembleContext:
     async def test_lost_in_middle_mem_at_end_of_system(self, mock_deps):
         """Mem0 block should be at the END of the system prompt
         (closer to recent messages = higher attention)."""
-        mock_deps["mem0"].search_memories.return_value = [
-            {"memory": "user likes cats"}
-        ]
+        mock_deps["mem0"].search_memories.return_value = [{"memory": "user likes cats"}]
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -499,8 +480,7 @@ class TestAssembleContext:
     async def test_tight_budget_trims_content(self, mock_deps):
         """With a very small max_tokens, content should be trimmed."""
         mock_deps["sliding_window"].get_recent_messages.return_value = [
-            {"role": "user", "content": "x" * 200}
-            for _ in range(10)
+            {"role": "user", "content": "x" * 200} for _ in range(10)
         ]
         result = await assemble_context(
             user_id="user-1",
@@ -556,9 +536,7 @@ class TestAssembleContext:
     @pytest.mark.asyncio
     async def test_sliding_window_failure_graceful(self, mock_deps):
         """If Redis is down, context assembly should still succeed."""
-        mock_deps["sliding_window"].get_recent_messages.side_effect = Exception(
-            "Redis down"
-        )
+        mock_deps["sliding_window"].get_recent_messages.side_effect = Exception("Redis down")
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -573,9 +551,7 @@ class TestAssembleContext:
     @pytest.mark.asyncio
     async def test_query_stats_loads_budgets_mem(self, mock_deps):
         """query_stats should use 'budgets' mem type."""
-        mock_deps["mem0"].search_memories.return_value = [
-            {"memory": "budget limit 50000"}
-        ]
+        mock_deps["mem0"].search_memories.return_value = [{"memory": "budget limit 50000"}]
         # Also need to mock _load_sql_stats since query_stats has sql=True
         with patch(
             "src.core.memory.context._load_sql_stats",
@@ -589,7 +565,7 @@ class TestAssembleContext:
                 "prev_month_expense": 0,
             },
         ):
-            result = await assemble_context(
+            await assemble_context(
                 user_id="user-1",
                 family_id="family-1",
                 current_message="stats",

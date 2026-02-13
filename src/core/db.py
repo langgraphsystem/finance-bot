@@ -1,15 +1,15 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from redis.asyncio import Redis
 
 from src.core.config import settings
 from src.core.request_context import get_current_family_id
 
 engine = create_async_engine(
-    settings.database_url,
+    settings.async_database_url,
     echo=settings.app_env == "development",
     pool_size=10,
     max_overflow=20,

@@ -2,7 +2,6 @@
 
 import os
 import uuid
-from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -22,7 +21,6 @@ from src.agents.graph_agent import (
     get_spending_trend,
     run_complex_query,
 )
-
 
 FAMILY_ID = str(uuid.uuid4())
 
@@ -167,9 +165,7 @@ class TestGetBudgetStatus:
         cat_result = MagicMock()
         cat_result.scalar.return_value = "Еда"
 
-        session.execute = AsyncMock(
-            side_effect=[budgets_result, spent_result, cat_result]
-        )
+        session.execute = AsyncMock(side_effect=[budgets_result, spent_result, cat_result])
 
         with patch("src.agents.graph_agent.async_session", return_value=ctx):
             result = await get_budget_status(FAMILY_ID)

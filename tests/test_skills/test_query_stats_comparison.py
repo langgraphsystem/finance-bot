@@ -1,7 +1,7 @@
 """Tests for query_stats period comparison logic."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -99,9 +99,7 @@ class TestGetComparisonData:
 
         mock_session = AsyncMock()
         # First execute call = current period, second = previous period
-        mock_session.execute = AsyncMock(
-            side_effect=[mock_current_result, mock_prev_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[mock_current_result, mock_prev_result])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
@@ -141,9 +139,7 @@ class TestGetComparisonData:
         mock_prev_result.all.return_value = mock_prev_rows
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(
-            side_effect=[mock_current_result, mock_prev_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[mock_current_result, mock_prev_result])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
@@ -175,9 +171,7 @@ class TestGetComparisonData:
         mock_prev_result.all.return_value = []
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(
-            side_effect=[mock_current_result, mock_prev_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[mock_current_result, mock_prev_result])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
@@ -210,9 +204,7 @@ class TestGetComparisonData:
         mock_prev_result.all.return_value = mock_prev_rows
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(
-            side_effect=[mock_current_result, mock_prev_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[mock_current_result, mock_prev_result])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 
@@ -247,9 +239,7 @@ class TestGetComparisonData:
         mock_prev_result.all.return_value = mock_prev_rows
 
         mock_session = AsyncMock()
-        mock_session.execute = AsyncMock(
-            side_effect=[mock_current_result, mock_prev_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[mock_current_result, mock_prev_result])
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=False)
 

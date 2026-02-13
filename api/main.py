@@ -4,8 +4,10 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
+from api.miniapp import router as miniapp_router
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session, redis
@@ -28,17 +30,13 @@ profile_loader = ProfileLoader("config/profiles")
 async def build_session_context(telegram_id: str) -> SessionContext | None:
     """Build SessionContext from database for a telegram user."""
     async with async_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == int(telegram_id))
-        )
+        result = await session.execute(select(User).where(User.telegram_id == int(telegram_id)))
         user = result.scalar_one_or_none()
         if not user:
             return None
 
         # Load family for currency
-        fam_result = await session.execute(
-            select(Family).where(Family.id == user.family_id)
-        )
+        fam_result = await session.execute(select(Family).where(Family.id == user.family_id))
         family = fam_result.scalar_one()
 
         # Load categories
@@ -84,33 +82,40 @@ async def on_message(incoming):
 
     if not context:
         # Unregistered user — trigger onboarding with FSM state
-        from src.core.router import get_registry, _get_onboarding_state, _clear_onboarding_state
+        from src.core.router import _clear_onboarding_state, _get_onboarding_state, get_registry
+
         registry = get_registry()
         onboarding = registry.get("onboarding")
 
         onboarding_state = await _get_onboarding_state(incoming.user_id)
         intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
 
-        result = await onboarding.execute(incoming, SessionContext(
-            user_id=incoming.user_id,
-            family_id="",
-            role="owner",
-            language="ru",
-            currency="USD",
-            business_type=None,
-            categories=[],
-            merchant_mappings=[],
-        ), intent_data)
+        result = await onboarding.execute(
+            incoming,
+            SessionContext(
+                user_id=incoming.user_id,
+                family_id="",
+                role="owner",
+                language="ru",
+                currency="USD",
+                business_type=None,
+                categories=[],
+                merchant_mappings=[],
+            ),
+            intent_data,
+        )
 
         # If onboarding completed (no buttons = done), clear state
         if not result.buttons:
             await _clear_onboarding_state(incoming.user_id)
 
-        await gateway.send(OutgoingMessage(
-            text=result.response_text,
-            chat_id=incoming.chat_id,
-            buttons=result.buttons,
-        ))
+        await gateway.send(
+            OutgoingMessage(
+                text=result.response_text,
+                chat_id=incoming.chat_id,
+                buttons=result.buttons,
+            )
+        )
         return
 
     await gateway.send_typing(incoming.chat_id)
@@ -140,7 +145,14 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Finance Bot", lifespan=lifespan)
 
-from api.miniapp import router as miniapp_router
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(miniapp_router)
 
 

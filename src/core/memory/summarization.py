@@ -6,14 +6,14 @@ summarization. Stores results in session_summaries table.
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.llm.clients import google_client
-from src.core.models.session_summary import SessionSummary
 from src.core.models.conversation import ConversationMessage
+from src.core.models.session_summary import SessionSummary
 from src.core.observability import observe
 
 logger = logging.getLogger(__name__)
@@ -117,7 +117,7 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
                 existing.summary = summary_text
                 existing.message_count = msg_count
                 existing.token_count = len(summary_text.split())  # rough estimate
-                existing.updated_at = datetime.now(timezone.utc)
+                existing.updated_at = datetime.now(UTC)
             else:
                 new_summary = SessionSummary(
                     user_id=uuid.UUID(user_id),

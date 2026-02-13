@@ -9,8 +9,8 @@ from typing import Any
 from src.core.audit import log_action
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.models.transaction import Transaction
 from src.core.models.enums import Scope, TransactionType
+from src.core.models.transaction import Transaction
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -40,9 +40,7 @@ class AddIncomeSkill:
         tx_date = intent_data.get("date", date.today().isoformat())
 
         if not amount:
-            return SkillResult(
-                response_text="Не удалось определить сумму дохода. Укажите сумму."
-            )
+            return SkillResult(response_text="Не удалось определить сумму дохода. Укажите сумму.")
 
         # Find income category
         category_id = None
@@ -78,7 +76,11 @@ class AddIncomeSkill:
                 action="create",
                 entity_type="transaction",
                 entity_id=str(tx.id),
-                new_data={"amount": float(tx.amount), "description": description, "type": "income"},
+                new_data={
+                    "amount": float(tx.amount),
+                    "description": description,
+                    "type": "income",
+                },
             )
 
             await session.commit()
@@ -97,9 +99,7 @@ class AddIncomeSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        categories = "\n".join(
-            f"- {c['name']} ({c.get('scope', '')})" for c in context.categories
-        )
+        categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
         return INCOME_SYSTEM_PROMPT.format(categories=categories)
 
 

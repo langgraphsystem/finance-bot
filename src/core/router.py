@@ -7,18 +7,16 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 
+from src.agents import AGENTS, AgentRouter
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.family import create_family
 from src.core.guardrails import check_input
 from src.core.intent import detect_intent
 from src.core.memory import sliding_window
-from src.core.memory.context import assemble_context
 from src.core.memory.summarization import summarize_dialog
-from src.core.rate_limit import check_rate_limit
-from src.core.request_context import set_family_context, reset_family_context
 from src.core.models.conversation import ConversationMessage
 from src.core.models.enums import (
     ConversationState,
@@ -28,8 +26,9 @@ from src.core.models.enums import (
 )
 from src.core.models.transaction import Transaction
 from src.core.models.user_context import UserContext
+from src.core.rate_limit import check_rate_limit
+from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
-from src.agents import AGENTS, AgentRouter
 from src.skills import create_registry
 from src.skills.base import SkillRegistry, SkillResult
 
@@ -148,7 +147,10 @@ async def _dispatch_message(
             is_safe, refusal_text = await check_input(message.text)
             if not is_safe:
                 return OutgoingMessage(
-                    text=refusal_text or "Я финансовый помощник. Могу помочь с учётом расходов и доходов.",
+                    text=(
+                        refusal_text
+                        or "Я финансовый помощник. Могу помочь с учётом расходов и доходов."
+                    ),
                     chat_id=message.chat_id,
                 )
 
@@ -167,14 +169,24 @@ async def _dispatch_message(
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}
         intent_data["confidence"] = result.confidence
-        logger.info("Intent: %s (%.2f) for user %s", intent_name, result.confidence, context.user_id)
+        logger.info(
+            "Intent: %s (%.2f) for user %s",
+            intent_name,
+            result.confidence,
+            context.user_id,
+        )
 
     # Route through AgentRouter (agent -> context assembly -> skill)
     agent_router = get_agent_router()
     try:
         skill_result = await agent_router.route(intent_name, message, context, intent_data)
     except Exception as e:
-        logger.error("AgentRouter failed for %s: %s, falling back to direct skill", intent_name, e, exc_info=True)
+        logger.error(
+            "AgentRouter failed for %s: %s, falling back to direct skill",
+            intent_name,
+            e,
+            exc_info=True,
+        )
         # Fallback: direct skill dispatch (backward compatibility)
         try:
             skill = registry.get(intent_name)
@@ -183,9 +195,7 @@ async def _dispatch_message(
             skill_result = await skill.execute(message, context, intent_data)
         except Exception as inner_e:
             logger.error("Fallback skill %s also failed: %s", intent_name, inner_e, exc_info=True)
-            skill_result = SkillResult(
-                response_text="Произошла ошибка. Попробуйте ещё раз."
-            )
+            skill_result = SkillResult(response_text="Произошла ошибка. Попробуйте ещё раз.")
 
     # Save to sliding window (Redis) AND persist to PostgreSQL
     if message.text:
@@ -240,8 +250,10 @@ async def _handle_slash_command(
     text = (message.text or "").strip()
 
     if text == "/export":
-        from src.core.gdpr import MemoryGDPR
         import json
+
+        from src.core.gdpr import MemoryGDPR
+
         gdpr = MemoryGDPR()
         try:
             async with async_session() as session:
@@ -259,6 +271,7 @@ async def _handle_slash_command(
 
     elif text == "/delete_all":
         from src.core.gdpr import MemoryGDPR
+
         gdpr = MemoryGDPR()
         try:
             async with async_session() as session:
@@ -280,6 +293,7 @@ async def _handle_slash_command(
             )
         invite_code = parts[1].strip()
         from src.core.family import join_family
+
         try:
             telegram_id = int(message.user_id)
             owner_name = "User"
@@ -320,6 +334,7 @@ async def _set_onboarding_state(
     """Store onboarding sub-state in Redis for unregistered users."""
     try:
         from src.core.db import redis
+
         key = f"onboarding_state:{telegram_id}"
         await redis.set(key, state.value, ex=3600)  # 1 hour TTL
     except Exception as e:
@@ -330,6 +345,7 @@ async def _get_onboarding_state(telegram_id: str) -> str:
     """Retrieve onboarding sub-state from Redis for unregistered users."""
     try:
         from src.core.db import redis
+
         key = f"onboarding_state:{telegram_id}"
         value = await redis.get(key)
         return value.decode() if value else ""
@@ -342,6 +358,7 @@ async def _clear_onboarding_state(telegram_id: str) -> None:
     """Clear onboarding sub-state from Redis."""
     try:
         from src.core.db import redis
+
         key = f"onboarding_state:{telegram_id}"
         await redis.delete(key)
     except Exception as e:
@@ -384,15 +401,14 @@ async def _handle_callback(
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
     elif action == "correct":
-        # Set conversation state to "correcting" so the next message is treated as a category correction
+        # Set conversation state to "correcting" so the next
+        # message is treated as a category correction
         tx_id = parts[1] if len(parts) > 1 else None
         if tx_id:
             try:
                 async with async_session() as session:
                     result = await session.execute(
-                        select(UserContext).where(
-                            UserContext.user_id == uuid.UUID(context.user_id)
-                        )
+                        select(UserContext).where(UserContext.user_id == uuid.UUID(context.user_id))
                     )
                     user_ctx = result.scalar_one_or_none()
                     if user_ctx:
@@ -401,9 +417,7 @@ async def _handle_callback(
                         await session.commit()
             except Exception as e:
                 logger.error("Failed to set correcting state for user %s: %s", context.user_id, e)
-        return OutgoingMessage(
-            text="Введите правильную категорию:", chat_id=message.chat_id
-        )
+        return OutgoingMessage(text="Введите правильную категорию:", chat_id=message.chat_id)
 
     elif action == "onboard":
         sub_action = parts[1] if len(parts) > 1 else "household"
@@ -449,7 +463,9 @@ async def _handle_callback(
                     )
                 logger.info(
                     "Onboarded user %s into family %s with profile '%s'",
-                    user.id, family.id, profile_name,
+                    user.id,
+                    family.id,
+                    profile_name,
                 )
             except Exception as e:
                 logger.error("Onboarding failed for user %s: %s", message.user_id, e)
@@ -516,9 +532,9 @@ async def _handle_callback(
                 from src.core.models.category import Category
 
                 cat_result = await session.execute(
-                    select(Category).where(
-                        Category.family_id == uuid.UUID(context.family_id)
-                    ).limit(1)
+                    select(Category)
+                    .where(Category.family_id == uuid.UUID(context.family_id))
+                    .limit(1)
                 )
                 category = cat_result.scalar_one_or_none()
                 category_id = category.id if category else uuid.uuid4()
@@ -540,7 +556,9 @@ async def _handle_callback(
                 await session.commit()
             logger.info(
                 "Receipt transaction created: merchant=%s total=%s for user %s",
-                merchant, total, context.user_id,
+                merchant,
+                total,
+                context.user_id,
             )
         except Exception as e:
             logger.error("Failed to create receipt transaction: %s", e)

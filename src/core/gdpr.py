@@ -1,6 +1,5 @@
 """GDPR compliance — export, delete, rectify user data."""
 
-import json
 import logging
 import uuid
 
@@ -25,9 +24,7 @@ class MemoryGDPR:
         uid = uuid.UUID(user_id)
 
         # Transactions
-        tx_result = await session.execute(
-            select(Transaction).where(Transaction.user_id == uid)
-        )
+        tx_result = await session.execute(select(Transaction).where(Transaction.user_id == uid))
         transactions = [
             {
                 "id": str(t.id),
@@ -71,18 +68,10 @@ class MemoryGDPR:
         uid = uuid.UUID(user_id)
 
         # Delete from PostgreSQL
-        await session.execute(
-            delete(ConversationMessage).where(ConversationMessage.user_id == uid)
-        )
-        await session.execute(
-            delete(Transaction).where(Transaction.user_id == uid)
-        )
-        await session.execute(
-            delete(AuditLog).where(AuditLog.user_id == uid)
-        )
-        await session.execute(
-            delete(UserContext).where(UserContext.user_id == uid)
-        )
+        await session.execute(delete(ConversationMessage).where(ConversationMessage.user_id == uid))
+        await session.execute(delete(Transaction).where(Transaction.user_id == uid))
+        await session.execute(delete(AuditLog).where(AuditLog.user_id == uid))
+        await session.execute(delete(UserContext).where(UserContext.user_id == uid))
         await session.commit()
 
         # Delete from Mem0

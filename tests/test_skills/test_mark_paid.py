@@ -1,4 +1,5 @@
 """Tests for mark_paid skill."""
+
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -122,8 +123,16 @@ async def test_delivered_load_marked_paid(mark_paid_skill, sample_message, sampl
     category = _make_category(sample_ctx.family_id)
     mock_session, mock_session_ctx = _create_mock_session(load=load, category=category)
 
-    with patch("src.skills.mark_paid.handler.async_session", return_value=mock_session_ctx), \
-         patch("src.skills.mark_paid.handler.log_action", new_callable=AsyncMock) as mock_log:
+    with (
+        patch(
+            "src.skills.mark_paid.handler.async_session",
+            return_value=mock_session_ctx,
+        ),
+        patch(
+            "src.skills.mark_paid.handler.log_action",
+            new_callable=AsyncMock,
+        ),
+    ):
         result = await mark_paid_skill.execute(sample_message, sample_ctx, {})
 
     # Load status should be updated
@@ -153,8 +162,10 @@ async def test_audit_log_called_on_mark_paid(mark_paid_skill, sample_message, sa
     category = _make_category(sample_ctx.family_id)
     mock_session, mock_session_ctx = _create_mock_session(load=load, category=category)
 
-    with patch("src.skills.mark_paid.handler.async_session", return_value=mock_session_ctx), \
-         patch("src.skills.mark_paid.handler.log_action", new_callable=AsyncMock) as mock_log:
+    with (
+        patch("src.skills.mark_paid.handler.async_session", return_value=mock_session_ctx),
+        patch("src.skills.mark_paid.handler.log_action", new_callable=AsyncMock) as mock_log,
+    ):
         await mark_paid_skill.execute(sample_message, sample_ctx, {})
 
     mock_log.assert_awaited_once()

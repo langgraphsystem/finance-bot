@@ -8,13 +8,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, desc
+from sqlalchemy import desc, func, select
 
 from api.webapp_auth import validate_webapp_data
 from src.core.db import async_session
-from src.core.models.budget import Budget
 from src.core.models.category import Category
-from src.core.models.enums import TransactionType, Scope, BudgetPeriod
+from src.core.models.enums import Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.core.models.user import User
 
@@ -88,9 +87,7 @@ async def get_current_user(
     if not telegram_id:
         raise HTTPException(status_code=401, detail="No telegram ID")
     async with async_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == int(telegram_id))
-        )
+        result = await session.execute(select(User).where(User.telegram_id == int(telegram_id)))
         user = result.scalar_one_or_none()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -183,15 +180,11 @@ async def list_transactions(
             query = query.where(Transaction.type == TransactionType(type))
 
         # Count total
-        count_q = select(func.count(Transaction.id)).where(
-            Transaction.family_id == user.family_id
-        )
+        count_q = select(func.count(Transaction.id)).where(Transaction.family_id == user.family_id)
         total = (await session.execute(count_q)).scalar() or 0
 
         # Fetch page
-        query = query.order_by(desc(Transaction.date)).offset(
-            (page - 1) * per_page
-        ).limit(per_page)
+        query = query.order_by(desc(Transaction.date)).offset((page - 1) * per_page).limit(per_page)
         result = await session.execute(query)
         rows = result.all()
 
@@ -208,9 +201,7 @@ async def list_transactions(
         for tx, cat_name in rows
     ]
 
-    return TransactionListResponse(
-        items=items, total=total, page=page, per_page=per_page
-    )
+    return TransactionListResponse(items=items, total=total, page=page, per_page=per_page)
 
 
 @router.post("/transactions", response_model=TransactionItem)
@@ -241,9 +232,7 @@ async def create_transaction(
         await session.refresh(tx)
 
         # Get category name
-        cat = await session.execute(
-            select(Category.name).where(Category.id == tx.category_id)
-        )
+        cat = await session.execute(select(Category.name).where(Category.id == tx.category_id))
         cat_name = cat.scalar() or ""
 
     return TransactionItem(
@@ -272,9 +261,7 @@ async def update_settings(
         if data.currency:
             from src.core.models.family import Family
 
-            fam = await session.execute(
-                select(Family).where(Family.id == db_user.family_id)
-            )
+            fam = await session.execute(select(Family).where(Family.id == db_user.family_id))
             family = fam.scalar_one()
             family.currency = data.currency
 

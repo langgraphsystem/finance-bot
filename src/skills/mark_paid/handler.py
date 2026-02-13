@@ -1,16 +1,17 @@
 """Mark load as paid skill — trucking load payment tracking."""
+
 import logging
 import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 
+from src.core.audit import log_action
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.audit import log_action
-from src.core.models.enums import LoadStatus, TransactionType, Scope
+from src.core.models.enums import LoadStatus, Scope, TransactionType
 from src.core.models.load import Load
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
@@ -63,9 +64,7 @@ class MarkPaidSkill:
                 load = result2.scalar_one_or_none()
 
             if not load:
-                return SkillResult(
-                    response_text="Нет неоплаченных грузов для отметки."
-                )
+                return SkillResult(response_text="Нет неоплаченных грузов для отметки.")
 
             # Mark as paid
             old_status = load.status.value
@@ -76,10 +75,12 @@ class MarkPaidSkill:
             from src.core.models.category import Category
 
             cat_result = await session.execute(
-                select(Category).where(
+                select(Category)
+                .where(
                     Category.family_id == uuid.UUID(context.family_id),
                     Category.scope == Scope.business,
-                ).limit(1)
+                )
+                .limit(1)
             )
             category = cat_result.scalar_one_or_none()
 
@@ -90,7 +91,9 @@ class MarkPaidSkill:
                     category_id=category.id,
                     type=TransactionType.income,
                     amount=load.rate,
-                    description=f"Оплата груза: {load.broker or ''} {load.origin}\u2192{load.destination}",
+                    description=(
+                        f"Оплата груза: {load.broker or ''} {load.origin}\u2192{load.destination}"
+                    ),
                     date=date.today(),
                     scope=Scope.business,
                     ai_confidence=Decimal("1.0"),
@@ -112,13 +115,15 @@ class MarkPaidSkill:
 
             await session.commit()
 
-        route_info = f"{load.origin} \u2192 {load.destination}" if load.origin and load.destination else ""
+        route_info = (
+            f"{load.origin} \u2192 {load.destination}" if load.origin and load.destination else ""
+        )
         rate_info = f"${float(load.rate):.2f}" if load.rate else ""
 
         return SkillResult(
             response_text=f"\u2705 Груз отмечен как оплаченный!\n"
-                         f"{'Маршрут: ' + route_info if route_info else ''}\n"
-                         f"{'Сумма: ' + rate_info if rate_info else ''}"
+            f"{'Маршрут: ' + route_info if route_info else ''}\n"
+            f"{'Сумма: ' + rate_info if rate_info else ''}"
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:

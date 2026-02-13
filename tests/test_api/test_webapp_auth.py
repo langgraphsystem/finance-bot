@@ -4,8 +4,8 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import AsyncMock, patch
-from urllib.parse import quote, urlencode
+from unittest.mock import AsyncMock
+from urllib.parse import urlencode
 
 import pytest
 from fastapi import HTTPException
@@ -40,17 +40,11 @@ def _build_init_data(
         params["user"] = json.dumps(user)
 
     # Build data-check-string
-    data_check_string = "\n".join(
-        f"{k}={v}" for k, v in sorted(params.items())
-    )
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(params.items()))
 
     # Calculate HMAC
-    secret_key = hmac.new(
-        b"WebAppData", bot_token.encode(), hashlib.sha256
-    ).digest()
-    calculated_hash = hmac.new(
-        secret_key, data_check_string.encode(), hashlib.sha256
-    ).hexdigest()
+    secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 
     if not omit_hash:
         params["hash"] = tamper_hash if tamper_hash else calculated_hash

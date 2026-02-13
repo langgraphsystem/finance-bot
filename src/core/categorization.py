@@ -1,15 +1,14 @@
 """Hybrid RAG categorization: rules -> vector search -> LLM."""
+
 import logging
 import uuid
-from decimal import Decimal
 
-from sqlalchemy import select, func, text
+from sqlalchemy import func, select, text
 
 from src.core.db import async_session
-from src.core.llm.clients import openai_client, get_instructor_anthropic
+from src.core.llm.clients import get_instructor_anthropic, openai_client
 from src.core.models.category import Category
 from src.core.models.merchant_mapping import MerchantMapping
-from src.core.models.transaction import Transaction
 from src.core.observability import observe
 
 logger = logging.getLogger(__name__)
@@ -174,9 +173,7 @@ async def _classify_with_llm(
         category_name: str = Field(description="Category name from the list")
         confidence: float = Field(ge=0, le=1, description="Confidence 0-1")
 
-    categories_text = "\n".join(
-        f"- {c['name']} (id: {c['id']})" for c in available_categories
-    )
+    categories_text = "\n".join(f"- {c['name']} (id: {c['id']})" for c in available_categories)
 
     context = ""
     if rag_context:

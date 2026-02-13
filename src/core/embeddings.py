@@ -1,4 +1,5 @@
 """Embedding generation for transactions (text-embedding-3-small)."""
+
 import logging
 
 from src.core.llm.clients import openai_client

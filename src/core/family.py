@@ -8,11 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.models.category import Category
-from src.core.models.enums import Scope, UserRole
+from src.core.models.enums import ConversationState, Scope, UserRole
 from src.core.models.family import Family
 from src.core.models.user import User
 from src.core.models.user_context import UserContext
-from src.core.models.enums import ConversationState
 
 
 def generate_invite_code() -> str:
@@ -78,17 +77,13 @@ async def join_family(
     language: str = "ru",
 ) -> tuple[Family, User] | None:
     """Join existing family by invite code."""
-    result = await session.execute(
-        select(Family).where(Family.invite_code == invite_code)
-    )
+    result = await session.execute(select(Family).where(Family.invite_code == invite_code))
     family = result.scalar_one_or_none()
     if not family:
         return None
 
     # Check if user already exists
-    existing = await session.execute(
-        select(User).where(User.telegram_id == telegram_id)
-    )
+    existing = await session.execute(select(User).where(User.telegram_id == telegram_id))
     if existing.scalar_one_or_none():
         return None
 

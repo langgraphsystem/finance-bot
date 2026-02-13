@@ -8,17 +8,22 @@ from pydantic import ValidationError
 
 from src.core.schemas.intent import IntentData, IntentDetectionResult
 
-
 # ---------------------------------------------------------------------------
 # Schema-level tests
 # ---------------------------------------------------------------------------
+
 
 def test_intent_detection_result_full():
     """IntentDetectionResult with all fields populated."""
     result = IntentDetectionResult(
         intent="add_expense",
         confidence=0.95,
-        data=IntentData(amount=Decimal("50"), merchant="Shell", category="Дизель", scope="business"),
+        data=IntentData(
+            amount=Decimal("50"),
+            merchant="Shell",
+            category="Дизель",
+            scope="business",
+        ),
         response="Записал расход 50 на дизель",
     )
     assert result.intent == "add_expense"
@@ -44,6 +49,7 @@ def test_intent_detection_result_rejects_bad_confidence():
 # ---------------------------------------------------------------------------
 # _detect_with_claude – Instructor integration
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_detect_with_claude_returns_validated_model():
@@ -114,14 +120,22 @@ async def test_detect_with_claude_instructor_retry_on_validation_error():
 # detect_intent – fallback chain
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_detect_intent_gemini_success():
     """When Gemini succeeds, Claude is not called."""
     expected = IntentDetectionResult(intent="add_expense", confidence=0.95, response="OK")
 
     with (
-        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock, return_value=expected) as mock_gemini,
-        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as mock_gemini,
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+        ) as mock_claude,
     ):
         from src.core.intent import detect_intent
 
@@ -138,8 +152,16 @@ async def test_detect_intent_falls_back_to_claude():
     expected = IntentDetectionResult(intent="add_expense", confidence=0.90, response="OK")
 
     with (
-        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock, side_effect=RuntimeError("Gemini down")),
-        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock, return_value=expected) as mock_claude,
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("Gemini down"),
+        ),
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as mock_claude,
     ):
         from src.core.intent import detect_intent
 
@@ -153,8 +175,16 @@ async def test_detect_intent_falls_back_to_claude():
 async def test_detect_intent_both_fail_returns_default():
     """When both Gemini and Claude fail, a safe default is returned."""
     with (
-        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock, side_effect=RuntimeError("fail")),
-        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock, side_effect=RuntimeError("fail")),
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("fail"),
+        ),
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("fail"),
+        ),
     ):
         from src.core.intent import detect_intent
 

@@ -1,6 +1,7 @@
 """Rate limiting — Redis-based per-user message throttle."""
 
 import logging
+
 from src.core.config import settings
 from src.core.db import redis
 

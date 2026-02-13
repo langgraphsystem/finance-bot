@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.core.context import SessionContext
-from src.core.models.enums import BudgetPeriod, Scope
+from src.core.models.enums import BudgetPeriod
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.set_budget.handler import SetBudgetSkill
 
@@ -70,7 +70,10 @@ async def test_budget_created_successfully(budget_skill, sample_message, sample_
         "period": "monthly",
     }
 
-    with patch("src.skills.set_budget.handler.async_session", return_value=_mock_session_context(mock_session)):
+    with patch(
+        "src.skills.set_budget.handler.async_session",
+        return_value=_mock_session_context(mock_session),
+    ):
         result = await budget_skill.execute(sample_message, sample_ctx, intent_data)
 
     assert "установлен" in result.response_text
@@ -101,7 +104,10 @@ async def test_budget_updated_when_exists(budget_skill, sample_message, sample_c
         "period": "weekly",
     }
 
-    with patch("src.skills.set_budget.handler.async_session", return_value=_mock_session_context(mock_session)):
+    with patch(
+        "src.skills.set_budget.handler.async_session",
+        return_value=_mock_session_context(mock_session),
+    ):
         result = await budget_skill.execute(sample_message, sample_ctx, intent_data)
 
     assert "обновлён" in result.response_text
@@ -142,7 +148,10 @@ async def test_category_not_found_creates_general_budget(budget_skill, sample_me
         "period": "monthly",
     }
 
-    with patch("src.skills.set_budget.handler.async_session", return_value=_mock_session_context(mock_session)):
+    with patch(
+        "src.skills.set_budget.handler.async_session",
+        return_value=_mock_session_context(mock_session),
+    ):
         result = await budget_skill.execute(sample_message, sample_ctx, intent_data)
 
     assert "установлен" in result.response_text

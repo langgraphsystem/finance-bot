@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import BigInteger, Boolean, ForeignKey, String
-from sqlalchemy.dialects.postgresql import UUID, ENUM
+from sqlalchemy.dialects.postgresql import ENUM, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.models.base import Base, TimestampMixin

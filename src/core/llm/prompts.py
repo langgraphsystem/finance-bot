@@ -1,6 +1,5 @@
 from typing import Any
 
-
 SYSTEM_PROMPT_TEMPLATE = """<role>
 Ты — финансовый помощник в Telegram-боте.
 Ты помогаешь {user_name} ({business_type}) вести учёт доходов и расходов.
@@ -72,7 +71,10 @@ class PromptAdapter:
         return {
             "system_instruction": system,
             "contents": [
-                {"role": m["role"] if m["role"] != "assistant" else "model", "parts": [{"text": m["content"]}]}
+                {
+                    "role": (m["role"] if m["role"] != "assistant" else "model"),
+                    "parts": [{"text": m["content"]}],
+                }
                 for m in messages
             ],
         }

@@ -19,9 +19,7 @@ async def test_transcribe_voice_success(mock_openai_client):
     """Test successful transcription with gpt-4o-transcribe."""
     transcript_response = MagicMock()
     transcript_response.text = "Потратил 500 рублей на продукты"
-    mock_openai_client.audio.transcriptions.create = AsyncMock(
-        return_value=transcript_response
-    )
+    mock_openai_client.audio.transcriptions.create = AsyncMock(return_value=transcript_response)
 
     with patch("src.core.voice.openai_client", return_value=mock_openai_client):
         result = await transcribe_voice(b"fake_audio_bytes")
@@ -62,9 +60,7 @@ async def test_transcribe_voice_fallback_to_whisper(mock_openai_client):
 @pytest.mark.asyncio
 async def test_transcribe_voice_both_models_fail(mock_openai_client):
     """Test that empty string is returned when both models fail."""
-    mock_openai_client.audio.transcriptions.create = AsyncMock(
-        side_effect=Exception("API error")
-    )
+    mock_openai_client.audio.transcriptions.create = AsyncMock(side_effect=Exception("API error"))
 
     with patch("src.core.voice.openai_client", return_value=mock_openai_client):
         result = await transcribe_voice(b"fake_audio_bytes")
@@ -78,9 +74,7 @@ async def test_transcribe_voice_custom_filename(mock_openai_client):
     """Test transcription with a custom filename."""
     transcript_response = MagicMock()
     transcript_response.text = "Привет"
-    mock_openai_client.audio.transcriptions.create = AsyncMock(
-        return_value=transcript_response
-    )
+    mock_openai_client.audio.transcriptions.create = AsyncMock(return_value=transcript_response)
 
     with patch("src.core.voice.openai_client", return_value=mock_openai_client):
         result = await transcribe_voice(b"fake_audio_bytes", filename="custom.ogg")

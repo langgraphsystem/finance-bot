@@ -18,7 +18,6 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.base import SkillRegistry, SkillResult
 
-
 # --- Fixtures ---
 
 
@@ -54,9 +53,7 @@ def _make_mock_skill(name: str, intents: list[str]) -> MagicMock:
     skill.intents = intents
     skill.model = "test-model"
     skill.get_system_prompt = MagicMock(return_value="test prompt")
-    skill.execute = AsyncMock(
-        return_value=SkillResult(response_text=f"Response from {name}")
-    )
+    skill.execute = AsyncMock(return_value=SkillResult(response_text=f"Response from {name}"))
     return skill
 
 
@@ -148,12 +145,8 @@ class TestFallbackBehavior:
         """Unknown intent should fall back to general_chat skill via onboarding agent."""
         # Patch assemble_context to avoid DB/Redis calls
         mock_assemble = AsyncMock(return_value=MagicMock())
-        monkeypatch.setattr(
-            "src.agents.base.assemble_context", mock_assemble
-        )
-        result = await agent_router.route(
-            "totally_unknown", text_message, sample_context, {}
-        )
+        monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
+        result = await agent_router.route("totally_unknown", text_message, sample_context, {})
         assert result.response_text == "Response from general_chat"
 
 
@@ -164,15 +157,11 @@ class TestRouteCallsCorrectSkill:
     """Test that route() dispatches to the correct skill."""
 
     @pytest.mark.asyncio
-    async def test_route_add_expense(
-        self, agent_router, text_message, sample_context, monkeypatch
-    ):
+    async def test_route_add_expense(self, agent_router, text_message, sample_context, monkeypatch):
         mock_assemble = AsyncMock(return_value=MagicMock())
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
-        result = await agent_router.route(
-            "add_expense", text_message, sample_context, {}
-        )
+        result = await agent_router.route("add_expense", text_message, sample_context, {})
         assert result.response_text == "Response from add_expense"
 
     @pytest.mark.asyncio
@@ -182,33 +171,23 @@ class TestRouteCallsCorrectSkill:
         mock_assemble = AsyncMock(return_value=MagicMock())
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
-        result = await agent_router.route(
-            "scan_receipt", text_message, sample_context, {}
-        )
+        result = await agent_router.route("scan_receipt", text_message, sample_context, {})
         assert result.response_text == "Response from scan_receipt"
 
     @pytest.mark.asyncio
-    async def test_route_query_stats(
-        self, agent_router, text_message, sample_context, monkeypatch
-    ):
+    async def test_route_query_stats(self, agent_router, text_message, sample_context, monkeypatch):
         mock_assemble = AsyncMock(return_value=MagicMock())
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
-        result = await agent_router.route(
-            "query_stats", text_message, sample_context, {}
-        )
+        result = await agent_router.route("query_stats", text_message, sample_context, {})
         assert result.response_text == "Response from query_stats"
 
     @pytest.mark.asyncio
-    async def test_route_onboarding(
-        self, agent_router, text_message, sample_context, monkeypatch
-    ):
+    async def test_route_onboarding(self, agent_router, text_message, sample_context, monkeypatch):
         mock_assemble = AsyncMock(return_value=MagicMock())
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
-        result = await agent_router.route(
-            "onboarding", text_message, sample_context, {}
-        )
+        result = await agent_router.route("onboarding", text_message, sample_context, {})
         assert result.response_text == "Response from onboarding"
 
     @pytest.mark.asyncio
@@ -220,9 +199,7 @@ class TestRouteCallsCorrectSkill:
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
         intent_data: dict = {}
-        await agent_router.route(
-            "add_expense", text_message, sample_context, intent_data
-        )
+        await agent_router.route("add_expense", text_message, sample_context, intent_data)
         assert intent_data.get("_agent") == "chat"
         assert intent_data.get("_model") == "claude-haiku-4-5-20251001"
 
@@ -291,9 +268,7 @@ class TestContextAssemblyErrorHandling:
         mock_assemble = AsyncMock(side_effect=RuntimeError("DB down"))
         monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
 
-        result = await agent_router.route(
-            "add_expense", text_message, sample_context, {}
-        )
+        result = await agent_router.route("add_expense", text_message, sample_context, {})
         # Skill should still execute (via fallback which also fails, but skill runs)
         assert result.response_text == "Response from add_expense"
 

@@ -24,7 +24,7 @@ def get_rails():
         return _rails
 
     try:
-        from nemoguardrails import RailsConfig, LLMRails
+        from nemoguardrails import LLMRails, RailsConfig
 
         config = RailsConfig.from_content(
             colang_content="""

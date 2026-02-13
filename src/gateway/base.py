@@ -1,4 +1,5 @@
-from typing import Awaitable, Callable, Protocol
+from collections.abc import Awaitable, Callable
+from typing import Protocol
 
 from src.gateway.types import IncomingMessage, OutgoingMessage
 

@@ -1,12 +1,11 @@
 """Tests for MCP (Model Context Protocol) integration."""
 
 import builtins
-from unittest.mock import MagicMock, AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.core.mcp import AnalyticsResponse, get_supabase_mcp_server, run_analytics_query
-
 
 # --- Helpers ---
 

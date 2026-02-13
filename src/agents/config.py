@@ -61,7 +61,15 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="chat",
         system_prompt=CHAT_AGENT_PROMPT,
-        skills=["add_expense", "add_income", "correct_category", "undo_last", "set_budget", "mark_paid", "add_recurring"],
+        skills=[
+            "add_expense",
+            "add_income",
+            "correct_category",
+            "undo_last",
+            "set_budget",
+            "mark_paid",
+            "add_recurring",
+        ],
         default_model="claude-haiku-4-5-20251001",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     ),

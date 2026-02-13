@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -46,6 +46,7 @@ class SessionContext:
     def filter_query(self, stmt, model):
         """Add family_id and scope filters to a SQLAlchemy select."""
         import uuid
+
         stmt = stmt.where(model.family_id == uuid.UUID(self.family_id))
         if self.role != "owner":
             stmt = stmt.where(model.scope.in_(self.get_visible_scopes()))

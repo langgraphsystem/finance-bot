@@ -27,7 +27,8 @@ async def async_update_merchant_mapping(
     scope: str,
 ) -> None:
     """Background: update merchant → category mapping."""
-    from sqlalchemy import select, update as sa_update
+    from sqlalchemy import select
+
     from src.core.db import async_session
     from src.core.models.merchant_mapping import MerchantMapping
 
@@ -45,6 +46,7 @@ async def async_update_merchant_mapping(
                 mapping.confidence = min(1.0, mapping.confidence + 0.05)
             else:
                 import uuid
+
                 new_mapping = MerchantMapping(
                     family_id=uuid.UUID(family_id),
                     merchant_pattern=merchant,
@@ -63,12 +65,14 @@ async def async_update_merchant_mapping(
 @broker.task
 async def async_check_budget(family_id: str, category_id: str) -> None:
     """Background: check if category spending exceeds budget."""
-    from sqlalchemy import select, func
+    from datetime import date, timedelta
+
+    from sqlalchemy import func, select
+
     from src.core.db import async_session
     from src.core.models.budget import Budget
-    from src.core.models.transaction import Transaction
     from src.core.models.enums import TransactionType
-    from datetime import date, timedelta
+    from src.core.models.transaction import Transaction
 
     try:
         async with async_session() as session:
@@ -104,7 +108,11 @@ async def async_check_budget(family_id: str, category_id: str) -> None:
             if ratio >= float(budget.alert_at):
                 logger.warning(
                     "Budget alert: family %s, category %s at %.0f%% (%.2f/%.2f)",
-                    family_id, category_id, ratio * 100, spent, float(budget.amount),
+                    family_id,
+                    category_id,
+                    ratio * 100,
+                    spent,
+                    float(budget.amount),
                 )
     except Exception as e:
         logger.error("Budget check failed: %s", e)

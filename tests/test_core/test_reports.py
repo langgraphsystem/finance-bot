@@ -9,7 +9,6 @@ import pytest
 
 from src.core.reports import generate_monthly_report, render_report_html
 
-
 # ---------------------------------------------------------------------------
 # render_report_html — template rendering (no WeasyPrint needed)
 # ---------------------------------------------------------------------------
@@ -123,9 +122,7 @@ async def test_generate_monthly_report_with_data():
         patch("src.core.reports.async_session", return_value=mock_session_ctx),
         patch("src.core.reports.html_to_pdf", return_value=fake_pdf) as mock_to_pdf,
     ):
-        pdf_bytes, filename = await generate_monthly_report(
-            family_id=family_id, year=2026, month=1
-        )
+        pdf_bytes, filename = await generate_monthly_report(family_id=family_id, year=2026, month=1)
 
     assert pdf_bytes == fake_pdf
     assert filename == "report_2026_01.pdf"
@@ -155,9 +152,7 @@ async def test_generate_monthly_report_empty_data():
         patch("src.core.reports.async_session", return_value=mock_session_ctx),
         patch("src.core.reports.html_to_pdf", return_value=fake_pdf) as mock_to_pdf,
     ):
-        pdf_bytes, filename = await generate_monthly_report(
-            family_id=family_id, year=2026, month=2
-        )
+        pdf_bytes, filename = await generate_monthly_report(family_id=family_id, year=2026, month=2)
 
     assert pdf_bytes == fake_pdf
     assert filename == "report_2026_02.pdf"

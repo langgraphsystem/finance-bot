@@ -8,8 +8,12 @@ def test_registry_has_all_skills(skill_registry):
 
 def test_registry_routes_intents(skill_registry):
     intents = [
-        "add_expense", "add_income", "onboarding",
-        "scan_receipt", "query_stats", "general_chat",
+        "add_expense",
+        "add_income",
+        "onboarding",
+        "scan_receipt",
+        "query_stats",
+        "general_chat",
         "correct_category",
         "undo_last",
         "query_report",

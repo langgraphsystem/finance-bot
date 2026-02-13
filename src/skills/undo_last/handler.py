@@ -1,13 +1,14 @@
 """Undo last transaction skill."""
+
 import logging
 import uuid
 from typing import Any
 
-from sqlalchemy import select, delete, desc
+from sqlalchemy import delete, desc, select
 
+from src.core.audit import log_action
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.audit import log_action
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -50,15 +51,12 @@ class UndoLastSkill:
 
             # Store info before deletion for the response
             tx_info = (
-                f"{tx.type.value}: {tx.amount} "
-                f"({tx.merchant or tx.description or 'без описания'})"
+                f"{tx.type.value}: {tx.amount} ({tx.merchant or tx.description or 'без описания'})"
             )
             tx_id = str(tx.id)
 
             # Delete the transaction
-            await session.execute(
-                delete(Transaction).where(Transaction.id == tx.id)
-            )
+            await session.execute(delete(Transaction).where(Transaction.id == tx.id))
 
             # Log to audit
             await log_action(

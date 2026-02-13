@@ -12,10 +12,9 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/1")
 os.environ.setdefault("APP_ENV", "testing")
 
 from src.core.context import SessionContext
-from src.core.profiles import ProfileConfig, ProfileLoader
+from src.core.profiles import ProfileLoader
 from src.gateway.mock import MockGateway
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.base import SkillRegistry
 
 
 @pytest.fixture
@@ -109,4 +108,5 @@ def profile_loader():
 def skill_registry():
     """Populated skill registry."""
     from src.skills import create_registry
+
     return create_registry()

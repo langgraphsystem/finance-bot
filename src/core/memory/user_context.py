@@ -6,8 +6,8 @@ from typing import Any
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.models.user_context import UserContext
 from src.core.models.enums import ConversationState
+from src.core.models.user_context import UserContext
 
 
 async def get_user_context(session: AsyncSession, user_id: str) -> UserContext | None:
@@ -23,9 +23,7 @@ async def update_user_context(
     **kwargs: Any,
 ) -> None:
     await session.execute(
-        update(UserContext)
-        .where(UserContext.user_id == uuid.UUID(user_id))
-        .values(**kwargs)
+        update(UserContext).where(UserContext.user_id == uuid.UUID(user_id)).values(**kwargs)
     )
     await session.commit()
 

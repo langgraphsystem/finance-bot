@@ -115,13 +115,15 @@ async def get_budget_status(family_id: str) -> list[dict]:
                 )
                 cat_name = cat.scalar() or "Категория"
 
-            results.append({
-                "category": cat_name,
-                "limit": float(b.amount),
-                "spent": float(spent),
-                "percent": float(spent / b.amount * 100) if b.amount > 0 else 0,
-                "period": b.period.value,
-            })
+            results.append(
+                {
+                    "category": cat_name,
+                    "limit": float(b.amount),
+                    "spent": float(spent),
+                    "percent": float(spent / b.amount * 100) if b.amount > 0 else 0,
+                    "period": b.period.value,
+                }
+            )
 
     return results
 
@@ -209,9 +211,7 @@ async def _fallback_analysis(query: str, family_id: str) -> FinancialInsight:
     if income > 0:
         summary_parts.append(f"Доходы: ${income:.2f}, баланс: ${income - total:.2f}")
     if top_cats:
-        summary_parts.append(
-            "Топ категории: " + ", ".join(f"{c} (${v:.2f})" for c, v in top_cats)
-        )
+        summary_parts.append("Топ категории: " + ", ".join(f"{c} (${v:.2f})" for c, v in top_cats))
 
     recommendations = []
     for b in budgets:

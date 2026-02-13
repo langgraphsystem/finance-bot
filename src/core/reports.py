@@ -4,8 +4,8 @@ import logging
 import uuid
 from datetime import date
 
-from jinja2 import Environment, BaseLoader
-from sqlalchemy import select, func
+from jinja2 import BaseLoader, Environment
+from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.models.category import Category
@@ -34,7 +34,8 @@ MONTHLY_REPORT_TEMPLATE = """
         .summary { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; }
         .income { color: #27ae60; }
         .expense { color: #e74c3c; }
-        .footer { margin-top: 40px; font-size: 0.8em; color: #999; border-top: 1px solid #ddd; padding-top: 10px; }
+        .footer { margin-top: 40px; font-size: 0.8em; color: #999;
+                  border-top: 1px solid #ddd; padding-top: 10px; }
     </style>
 </head>
 <body>
@@ -215,20 +216,24 @@ async def generate_monthly_report(
     # Format categories with percentages
     expense_categories = []
     for name, icon, total in expense_rows:
-        expense_categories.append({
-            "name": name,
-            "icon": icon or "",
-            "total": float(total),
-            "percent": (float(total) / total_expense * 100) if total_expense > 0 else 0,
-        })
+        expense_categories.append(
+            {
+                "name": name,
+                "icon": icon or "",
+                "total": float(total),
+                "percent": (float(total) / total_expense * 100) if total_expense > 0 else 0,
+            }
+        )
 
     income_categories = []
     for name, icon, total in income_rows:
-        income_categories.append({
-            "name": name,
-            "icon": icon or "",
-            "total": float(total),
-        })
+        income_categories.append(
+            {
+                "name": name,
+                "icon": icon or "",
+                "total": float(total),
+            }
+        )
 
     # Render HTML
     html_content = render_report_html(

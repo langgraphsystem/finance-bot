@@ -18,14 +18,23 @@ def create_pie_chart(
         "type": "pie",
         "data": {
             "labels": labels,
-            "datasets": [{
-                "data": values,
-                "backgroundColor": [
-                    "#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0",
-                    "#9966FF", "#FF9F40", "#C9CBCF", "#7BC8A4",
-                    "#E7E9ED", "#FF99CC",
-                ],
-            }],
+            "datasets": [
+                {
+                    "data": values,
+                    "backgroundColor": [
+                        "#FF6384",
+                        "#36A2EB",
+                        "#FFCE56",
+                        "#4BC0C0",
+                        "#9966FF",
+                        "#FF9F40",
+                        "#C9CBCF",
+                        "#7BC8A4",
+                        "#E7E9ED",
+                        "#FF99CC",
+                    ],
+                }
+            ],
         },
         "options": {
             "title": {"display": bool(title), "text": title},
@@ -55,11 +64,13 @@ def create_bar_chart(
         "type": "bar",
         "data": {
             "labels": labels,
-            "datasets": [{
-                "label": title,
-                "data": values,
-                "backgroundColor": "#36A2EB",
-            }],
+            "datasets": [
+                {
+                    "label": title,
+                    "data": values,
+                    "backgroundColor": "#36A2EB",
+                }
+            ],
         },
         "options": {
             "title": {"display": bool(title), "text": title},

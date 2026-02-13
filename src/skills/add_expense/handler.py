@@ -7,13 +7,16 @@ from decimal import Decimal
 from typing import Any
 
 from src.core.audit import log_action
-from src.core.categorization import categorize_transaction, CategoryPrediction
+from src.core.categorization import categorize_transaction
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.llm.clients import anthropic_client
-from src.core.models.transaction import Transaction
 from src.core.models.enums import Scope, TransactionType
-from src.core.tasks.memory_tasks import async_mem0_update, async_update_merchant_mapping, async_check_budget
+from src.core.models.transaction import Transaction
+from src.core.tasks.memory_tasks import (
+    async_check_budget,
+    async_mem0_update,
+    async_update_merchant_mapping,
+)
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -88,7 +91,11 @@ class AddExpenseSkill:
                     action="create",
                     entity_type="transaction",
                     entity_id=str(tx.id),
-                    new_data={"amount": float(tx.amount), "category": category_name, "type": "expense"},
+                    new_data={
+                        "amount": float(tx.amount),
+                        "category": category_name,
+                        "type": "expense",
+                    },
                 )
 
                 await session.commit()
@@ -110,7 +117,9 @@ class AddExpenseSkill:
                     lambda: (
                         async_update_merchant_mapping.kiq(
                             context.family_id, merchant, category_id, scope
-                        ) if merchant else None
+                        )
+                        if merchant
+                        else None
                     ),
                     lambda: async_check_budget.kiq(context.family_id, category_id),
                 ],
@@ -166,9 +175,7 @@ class AddExpenseSkill:
         return None, category_name, 0.0
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        categories = "\n".join(
-            f"- {c['name']} ({c.get('scope', '')})" for c in context.categories
-        )
+        categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
         mappings = "\n".join(
             f"- {m.get('merchant_pattern', '')} → {m.get('category_name', '')}"
             for m in context.merchant_mappings

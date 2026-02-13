@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from src.core.memory import sliding_window, mem0_client
+from src.core.memory import mem0_client, sliding_window
 from src.core.memory.summarization import get_session_summary
 from src.core.observability import observe
 
@@ -23,12 +23,12 @@ MAX_CONTEXT_TOKENS = 200_000
 BUDGET_RATIO = 0.75  # S + M + A + H + U <= W * 0.75
 
 # Per-layer budget caps (share of max_tokens)
-BUDGET_SYSTEM_PROMPT = 0.10   # 5-10% -> cap at 10%
-BUDGET_MEM0 = 0.15            # 10-15%
-BUDGET_SQL = 0.15             # 10-15%
-BUDGET_SUMMARY = 0.10         # 10%
-BUDGET_HISTORY = 0.20         # 15-20%
-BUDGET_USER_MSG = 0.05        # 5%
+BUDGET_SYSTEM_PROMPT = 0.10  # 5-10% -> cap at 10%
+BUDGET_MEM0 = 0.15  # 10-15%
+BUDGET_SQL = 0.15  # 10-15%
+BUDGET_SUMMARY = 0.10  # 10%
+BUDGET_HISTORY = 0.20  # 15-20%
+BUDGET_USER_MSG = 0.05  # 5%
 
 # Overflow priority (lower number = NEVER drop)
 # Priority 1: Current user message   — NEVER drop
@@ -47,18 +47,18 @@ MAX_SLIDING_WINDOW = 10
 # QUERY_CONTEXT_MAP — what to load per intent
 # ---------------------------------------------------------------------------
 QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
-    "add_expense":      {"mem": "mappings", "hist": 3,  "sql": False, "sum": False},
-    "add_income":       {"mem": "mappings", "hist": 3,  "sql": False, "sum": False},
-    "scan_receipt":     {"mem": "mappings", "hist": 1,  "sql": False, "sum": False},
-    "query_stats":      {"mem": "budgets",  "hist": 0,  "sql": True,  "sum": False},
-    "query_report":     {"mem": "profile",  "hist": 0,  "sql": True,  "sum": False},
-    "correct_category": {"mem": "mappings", "hist": 5,  "sql": False, "sum": False},
-    "correct_cat":      {"mem": "mappings", "hist": 5,  "sql": False, "sum": False},
-    "complex_query":    {"mem": "all",      "hist": 5,  "sql": True,  "sum": True},
-    "general_chat":     {"mem": False,      "hist": 5,  "sql": False, "sum": False},
-    "undo_last":        {"mem": False,      "hist": 5,  "sql": False, "sum": False},
-    "budget_advice":    {"mem": "all",      "hist": 5,  "sql": True,  "sum": True},
-    "onboarding":       {"mem": "profile",  "hist": 10, "sql": False, "sum": False},
+    "add_expense": {"mem": "mappings", "hist": 3, "sql": False, "sum": False},
+    "add_income": {"mem": "mappings", "hist": 3, "sql": False, "sum": False},
+    "scan_receipt": {"mem": "mappings", "hist": 1, "sql": False, "sum": False},
+    "query_stats": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
+    "query_report": {"mem": "profile", "hist": 0, "sql": True, "sum": False},
+    "correct_category": {"mem": "mappings", "hist": 5, "sql": False, "sum": False},
+    "correct_cat": {"mem": "mappings", "hist": 5, "sql": False, "sum": False},
+    "complex_query": {"mem": "all", "hist": 5, "sql": True, "sum": True},
+    "general_chat": {"mem": False, "hist": 5, "sql": False, "sum": False},
+    "undo_last": {"mem": False, "hist": 5, "sql": False, "sum": False},
+    "budget_advice": {"mem": "all", "hist": 5, "sql": True, "sum": True},
+    "onboarding": {"mem": "profile", "hist": 10, "sql": False, "sum": False},
 }
 
 
@@ -101,13 +101,14 @@ class AssembledContext:
 # ---------------------------------------------------------------------------
 async def _load_sql_stats(family_id: str) -> dict[str, Any]:
     """Layer 4: Load SQL aggregates for current month."""
+    import uuid
+
     from sqlalchemy import func, select
 
     from src.core.db import async_session
     from src.core.models.category import Category
     from src.core.models.enums import TransactionType
     from src.core.models.transaction import Transaction
-    import uuid
 
     today = date.today()
     month_start = today.replace(day=1)
@@ -214,14 +215,18 @@ async def _load_memories(
             return await mem0_client.search_memories(current_message, user_id, limit=20)
         elif mem_type == "mappings":
             return await mem0_client.search_memories(
-                current_message, user_id, limit=10,
+                current_message,
+                user_id,
+                limit=10,
                 filters={"category": "merchant_mapping"},
             )
         elif mem_type == "profile":
             return await mem0_client.get_all_memories(user_id)
         elif mem_type == "budgets":
             return await mem0_client.search_memories(
-                "budget limits goals", user_id, limit=10,
+                "budget limits goals",
+                user_id,
+                limit=10,
             )
         else:
             return []
@@ -282,6 +287,7 @@ def _apply_overflow_trimming(
       3. Mem0 memory (trim top-K)
       1-2. User message + System prompt (NEVER drop)
     """
+
     def _current_total() -> int:
         total = system_prompt_tokens + user_msg_tokens
         if mem_block:
@@ -467,25 +473,21 @@ async def assemble_context(
     )
 
     if total_used > total_budget:
-        mem_block, sql_block, summary_block, history_messages, memories = (
-            _apply_overflow_trimming(
-                system_prompt_tokens=system_tokens,
-                user_msg_tokens=user_msg_tokens,
-                mem_block=mem_block,
-                sql_block=sql_block,
-                summary_block=summary_block,
-                history_messages=history_messages,
-                memories=memories,
-                total_budget=total_budget,
-            )
+        mem_block, sql_block, summary_block, history_messages, memories = _apply_overflow_trimming(
+            system_prompt_tokens=system_tokens,
+            user_msg_tokens=user_msg_tokens,
+            mem_block=mem_block,
+            sql_block=sql_block,
+            summary_block=summary_block,
+            history_messages=history_messages,
+            memories=memories,
+            total_budget=total_budget,
         )
         # Recalculate usage after trimming
         token_usage["mem0"] = count_tokens(mem_block) if mem_block else 0
         token_usage["sql"] = count_tokens(sql_block) if sql_block else 0
         token_usage["summary"] = count_tokens(summary_block) if summary_block else 0
-        token_usage["history"] = sum(
-            count_tokens(m["content"]) for m in history_messages
-        )
+        token_usage["history"] = sum(count_tokens(m["content"]) for m in history_messages)
 
     token_usage["total"] = (
         token_usage["system_prompt"]
@@ -538,11 +540,13 @@ async def assemble_context(
     messages.append({"role": "user", "content": current_message})
 
     logger.debug(
-        "Assembled context for intent=%s: %d messages, %d memories, "
-        "sql=%s, tokens=%d/%d",
-        intent, len(messages), len(memories),
+        "Assembled context for intent=%s: %d messages, %d memories, sql=%s, tokens=%d/%d",
+        intent,
+        len(messages),
+        len(memories),
         sql_stats is not None,
-        token_usage["total"], total_budget,
+        token_usage["total"],
+        total_budget,
     )
 
     return AssembledContext(

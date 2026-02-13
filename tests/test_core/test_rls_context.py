@@ -1,7 +1,7 @@
 """Tests for RLS (Row Level Security) context propagation."""
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch, call
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,7 +10,6 @@ from src.core.request_context import (
     reset_family_context,
     set_family_context,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. request_context module: ContextVar behaviour
@@ -174,6 +173,7 @@ async def test_handle_message_sets_family_context(sample_context):
     async def fake_dispatch(message, context, registry):
         captured_family_ids.append(get_current_family_id())
         from src.gateway.types import OutgoingMessage
+
         return OutgoingMessage(text="ok", chat_id=message.chat_id)
 
     with (
@@ -203,6 +203,7 @@ async def test_handle_message_sets_family_context(sample_context):
 @pytest.mark.asyncio
 async def test_handle_message_resets_context_on_exception(sample_context):
     """Family context must be reset even if skill dispatch raises."""
+
     async def failing_dispatch(message, context, registry):
         raise RuntimeError("boom")
 

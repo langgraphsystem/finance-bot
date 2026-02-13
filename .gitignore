@@ -37,8 +37,8 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 
-# uv
-uv.lock
+# Claude Code
+.claude/
 
 # Alembic
 alembic/versions/*.pyc

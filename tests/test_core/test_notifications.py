@@ -1,7 +1,6 @@
 """Tests for smart notification system (anomalies, budgets, collect, format)."""
 
 import uuid
-from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -44,6 +43,7 @@ def _rows_result(rows):
 # check_anomalies
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_check_anomalies_normal_spending():
     """No alert when today's spending is within normal range."""
@@ -51,9 +51,7 @@ async def test_check_anomalies_normal_spending():
     avg_rows = [_make_row("Food", Decimal("15"))]  # ratio = 1.33, below 2.5
 
     session_mock = AsyncMock()
-    session_mock.execute = AsyncMock(
-        side_effect=[_rows_result(today_rows), _rows_result(avg_rows)]
-    )
+    session_mock.execute = AsyncMock(side_effect=[_rows_result(today_rows), _rows_result(avg_rows)])
 
     ctx = AsyncMock()
     ctx.__aenter__ = AsyncMock(return_value=session_mock)
@@ -74,9 +72,7 @@ async def test_check_anomalies_high_spending():
     avg_rows = [_make_row("Restaurants", Decimal("100"))]  # ratio = 3.4
 
     session_mock = AsyncMock()
-    session_mock.execute = AsyncMock(
-        side_effect=[_rows_result(today_rows), _rows_result(avg_rows)]
-    )
+    session_mock.execute = AsyncMock(side_effect=[_rows_result(today_rows), _rows_result(avg_rows)])
 
     ctx = AsyncMock()
     ctx.__aenter__ = AsyncMock(return_value=session_mock)
@@ -99,9 +95,7 @@ async def test_check_anomalies_no_average():
     avg_rows = []  # no history
 
     session_mock = AsyncMock()
-    session_mock.execute = AsyncMock(
-        side_effect=[_rows_result(today_rows), _rows_result(avg_rows)]
-    )
+    session_mock.execute = AsyncMock(side_effect=[_rows_result(today_rows), _rows_result(avg_rows)])
 
     ctx = AsyncMock()
     ctx.__aenter__ = AsyncMock(return_value=session_mock)
@@ -119,6 +113,7 @@ async def test_check_anomalies_no_average():
 # check_budgets
 # ---------------------------------------------------------------------------
 
+
 def _make_budget(amount, spent, alert_at=0.8, period="monthly", category_id=None, cat_name=None):
     """Return (budget_mock, expected_execute_side_effects)."""
     budget = MagicMock()
@@ -131,7 +126,7 @@ def _make_budget(amount, spent, alert_at=0.8, period="monthly", category_id=None
     budget.period.value = period
 
     effects = [
-        _scalars_result([budget]),          # budgets query
+        _scalars_result([budget]),  # budgets query
         _scalar_result(Decimal(str(spent))),  # spending query
     ]
     if category_id:
@@ -232,6 +227,7 @@ async def test_check_budgets_no_category():
 # collect_alerts
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_collect_alerts_combines():
     """collect_alerts combines anomaly and budget alerts."""
@@ -302,6 +298,7 @@ async def test_collect_alerts_budget_failure():
 # format_notification
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_format_notification_empty():
     """Empty alerts list produces empty string."""
@@ -317,7 +314,7 @@ async def test_format_notification_with_alerts():
     from src.core.notifications import format_notification
 
     result = await format_notification(["alert1", "alert2"])
-    assert "\u0424\u0438\u043d\u0430\u043d\u0441\u043e\u0432\u044b\u0435 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f" in result
+    assert "Финансовые уведомления" in result
     assert "alert1" in result
     assert "alert2" in result
 

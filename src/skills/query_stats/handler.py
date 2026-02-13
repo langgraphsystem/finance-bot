@@ -113,12 +113,14 @@ class QueryStatsSkill:
                 change_pct = 100.0
             else:
                 change_pct = 0.0
-            comparison.append({
-                "category": cat,
-                "current": curr,
-                "previous": prev,
-                "change_pct": change_pct,
-            })
+            comparison.append(
+                {
+                    "category": cat,
+                    "current": curr,
+                    "previous": prev,
+                    "change_pct": change_pct,
+                }
+            )
 
         comparison.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
 
@@ -155,10 +157,7 @@ class QueryStatsSkill:
         if period == "month" and assembled and assembled.sql_stats:
             sql_stats = assembled.sql_stats
             total = Decimal(str(sql_stats["total_expense"]))
-            stats = [
-                (cat["name"], Decimal(str(cat["total"])))
-                for cat in sql_stats["by_category"]
-            ]
+            stats = [(cat["name"], Decimal(str(cat["total"]))) for cat in sql_stats["by_category"]]
         else:
             # SQL query — LLM NEVER calculates
             async with async_session() as session:
@@ -191,9 +190,7 @@ class QueryStatsSkill:
             return SkillResult(response_text=f"За {period_label} расходов не найдено.")
 
         # Format data for LLM
-        stats_text = "\n".join(
-            f"- {name}: ${float(amount):.2f}" for name, amount in stats
-        )
+        stats_text = "\n".join(f"- {name}: ${float(amount):.2f}" for name, amount in stats)
 
         user_content = (
             f"Данные за {period_label}:\n"
@@ -220,10 +217,18 @@ class QueryStatsSkill:
                     * 100
                 )
                 arrow = "\U0001f4c8" if total_change > 0 else "\U0001f4c9"
-                comparison_text = "\n\u0421\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435 \u0441 \u043f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0438\u043c \u043f\u0435\u0440\u0438\u043e\u0434\u043e\u043c:\n"
+                comparison_text = (
+                    "\n\u0421\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u0435 "
+                    "\u0441 \u043f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0438\u043c "
+                    "\u043f\u0435\u0440\u0438\u043e\u0434\u043e\u043c:\n"
+                )
+                cur = comparison["current_total"]
+                prev = comparison["previous_total"]
                 comparison_text += (
-                    f"\u0422\u0435\u043a\u0443\u0449\u0438\u0439: ${comparison['current_total']:.2f}, "
-                    f"\u041f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0438\u0439: ${comparison['previous_total']:.2f} "
+                    f"\u0422\u0435\u043a\u0443\u0449\u0438\u0439: "
+                    f"${cur:.2f}, "
+                    f"\u041f\u0440\u0435\u0434\u044b\u0434\u0443\u0449\u0438\u0439: "
+                    f"${prev:.2f} "
                     f"({arrow}{total_change:+.1f}%)\n"
                 )
 
@@ -275,7 +280,10 @@ class QueryStatsSkill:
             response_text=response_text,
             chart_url=chart_url,
             buttons=[
-                {"text": "\U0001f4ca \u041f\u043e \u043d\u0435\u0434\u0435\u043b\u044f\u043c", "callback": "stats:weekly"},
+                {
+                    "text": "\U0001f4ca \u041f\u043e \u043d\u0435\u0434\u0435\u043b\u044f\u043c",
+                    "callback": "stats:weekly",
+                },
                 {"text": "\U0001f4c8 \u0422\u0440\u0435\u043d\u0434", "callback": "stats:trend"},
             ],
         )

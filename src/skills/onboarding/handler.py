@@ -18,7 +18,6 @@ from src.core.family import create_family, join_family
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.models.enums import ConversationState
-from src.core.models.user_context import UserContext
 from src.core.observability import observe
 from src.core.profiles import ProfileLoader
 from src.gateway.types import IncomingMessage
@@ -39,6 +38,7 @@ delivery (доставка), flowers (цветы), manicure (маникюр), co
 Ответь ОДНИМ СЛОВОМ — тип деятельности на английском."""
 
 # ---- helpers ---------------------------------------------------------------
+
 
 def _extract_owner_name(message: IncomingMessage) -> str:
     """Try to get the user's first name from the Telegram message object."""
@@ -110,6 +110,7 @@ def _format_categories_text(profile) -> str:
 
 # ---- main skill ------------------------------------------------------------
 
+
 class OnboardingSkill:
     name = "onboarding"
     intents = ["onboarding"]
@@ -159,7 +160,12 @@ class OnboardingSkill:
         # Default: try to match profile from text (legacy / direct text flow)
         profile = self._profile_loader.match(text)
         if profile:
-            return await self._create_owner_account(message, context, self._find_profile_key(profile) or "household")
+            profile_key = self._find_profile_key(profile) or "household"
+            return await self._create_owner_account(
+                message,
+                context,
+                profile_key,
+            )
 
         # Nothing matched — show welcome again
         return _welcome_result()
@@ -240,7 +246,11 @@ class OnboardingSkill:
                 ),
             )
         except Exception as e:
-            logger.exception("Onboarding create_family failed for telegram_id=%s: %s", message.user_id, e)
+            logger.exception(
+                "Onboarding create_family failed for telegram_id=%s: %s",
+                message.user_id,
+                e,
+            )
             return SkillResult(
                 response_text="Произошла ошибка при настройке профиля. Попробуйте ещё раз /start.",
             )

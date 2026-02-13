@@ -4,7 +4,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -35,7 +35,8 @@ def _make_recurring_payment(
 def _build_session_and_factory(payments):
     """Build mock async_session (for initial query) and rls_session (per-payment work).
 
-    Returns (mock_query_session, mock_rls_session, mock_async_session_factory, mock_rls_session_factory).
+    Returns (mock_query_session, mock_rls_session,
+    mock_async_session_factory, mock_rls_session_factory).
     The mock_rls_session is the session yielded inside rls_session context manager.
     """
     # --- async_session: used for the initial SELECT of due payments ---
@@ -93,12 +94,15 @@ async def test_process_recurring_creates_transaction():
     payment = _make_recurring_payment()
     _, mock_rls_sess, mock_async_factory, mock_rls_factory = _build_session_and_factory([payment])
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
     ):
         from src.core.tasks.notification_tasks import process_recurring_payments
 
@@ -127,12 +131,15 @@ async def test_process_recurring_updates_next_date_weekly():
     payment = _make_recurring_payment(frequency=PaymentFrequency.weekly, next_date=today)
     _, mock_rls_sess, mock_async_factory, mock_rls_factory = _build_session_and_factory([payment])
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
     ):
         from src.core.tasks.notification_tasks import process_recurring_payments
 
@@ -148,15 +155,19 @@ async def test_process_recurring_updates_next_date_monthly():
     payment = _make_recurring_payment(frequency=PaymentFrequency.monthly, next_date=today)
     _, mock_rls_sess, mock_async_factory, mock_rls_factory = _build_session_and_factory([payment])
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.date",
-    ) as mock_date:
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.date",
+        ) as mock_date,
+    ):
         mock_date.today.return_value = today
         mock_date.side_effect = lambda *args, **kwargs: date(*args, **kwargs)
 
@@ -174,15 +185,19 @@ async def test_process_recurring_updates_next_date_yearly():
     payment = _make_recurring_payment(frequency=PaymentFrequency.yearly, next_date=today)
     _, mock_rls_sess, mock_async_factory, mock_rls_factory = _build_session_and_factory([payment])
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.date",
-    ) as mock_date:
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.date",
+        ) as mock_date,
+    ):
         mock_date.today.return_value = today
         mock_date.side_effect = lambda *args, **kwargs: date(*args, **kwargs)
 
@@ -198,12 +213,15 @@ async def test_process_recurring_no_payments():
     """When no payments are due, nothing should happen."""
     _, mock_rls_sess, mock_async_factory, mock_rls_factory = _build_session_and_factory([])
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
     ):
         from src.core.tasks.notification_tasks import process_recurring_payments
 
@@ -240,12 +258,15 @@ async def test_process_recurring_error_rolls_back():
         mock_sess.execute = AsyncMock()
         yield mock_sess
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        failing_rls_factory,
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            failing_rls_factory,
+        ),
     ):
         from src.core.tasks.notification_tasks import process_recurring_payments
 
@@ -262,12 +283,15 @@ async def test_process_recurring_multiple_payments():
         [payment1, payment2]
     )
 
-    with patch(
-        "src.core.tasks.notification_tasks.async_session",
-        mock_async_factory,
-    ), patch(
-        "src.core.tasks.notification_tasks.rls_session",
-        mock_rls_factory,
+    with (
+        patch(
+            "src.core.tasks.notification_tasks.async_session",
+            mock_async_factory,
+        ),
+        patch(
+            "src.core.tasks.notification_tasks.rls_session",
+            mock_rls_factory,
+        ),
     ):
         from src.core.tasks.notification_tasks import process_recurring_payments
 

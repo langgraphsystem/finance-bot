@@ -18,6 +18,16 @@ class Settings(BaseSettings):
     supabase_key: str = ""
     supabase_service_key: str = ""
 
+    @property
+    def async_database_url(self) -> str:
+        """Return database URL with asyncpg driver for SQLAlchemy async."""
+        url = self.database_url
+        if url.startswith("postgresql://"):
+            return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        if url.startswith("postgres://"):
+            return url.replace("postgres://", "postgresql+asyncpg://", 1)
+        return url
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
