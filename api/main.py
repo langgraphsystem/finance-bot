@@ -81,8 +81,45 @@ async def on_message(incoming):
     context = await build_session_context(incoming.user_id)
 
     if not context:
-        # Unregistered user — trigger onboarding with FSM state
-        from src.core.router import _clear_onboarding_state, _get_onboarding_state, get_registry
+        # Unregistered user — handle onboarding callbacks and FSM state
+        from src.core.router import (
+            _clear_onboarding_state,
+            _get_onboarding_state,
+            _set_onboarding_state,
+            get_registry,
+        )
+        from src.core.models.enums import ConversationState
+
+        # Handle callback buttons (onboard:new / onboard:join)
+        if incoming.type == MessageType.callback and incoming.callback_data:
+            parts = incoming.callback_data.split(":")
+            if len(parts) >= 2 and parts[0] == "onboard":
+                if parts[1] == "new":
+                    await _set_onboarding_state(
+                        incoming.user_id, ConversationState.onboarding_awaiting_activity
+                    )
+                    await gateway.send(
+                        OutgoingMessage(
+                            text=(
+                                "Расскажите о своей деятельности — чем занимаетесь?\n\n"
+                                "Например: «я таксист», «у меня трак», "
+                                "«просто хочу следить за расходами»"
+                            ),
+                            chat_id=incoming.chat_id,
+                        )
+                    )
+                    return
+                elif parts[1] == "join":
+                    await _set_onboarding_state(
+                        incoming.user_id, ConversationState.onboarding_awaiting_invite_code
+                    )
+                    await gateway.send(
+                        OutgoingMessage(
+                            text="Введите код приглашения, который вам прислал владелец аккаунта:",
+                            chat_id=incoming.chat_id,
+                        )
+                    )
+                    return
 
         registry = get_registry()
         onboarding = registry.get("onboarding")
