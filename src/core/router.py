@@ -348,7 +348,7 @@ async def _get_onboarding_state(telegram_id: str) -> str:
 
         key = f"onboarding_state:{telegram_id}"
         value = await redis.get(key)
-        return value.decode() if value else ""
+        return value if value else ""
     except Exception as e:
         logger.warning("Failed to get onboarding state from Redis: %s", e)
         return ""
