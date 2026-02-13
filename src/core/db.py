@@ -13,6 +13,7 @@ engine = create_async_engine(
     echo=settings.app_env == "development",
     pool_size=10,
     max_overflow=20,
+    connect_args={"statement_cache_size": 0},
 )
 
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
