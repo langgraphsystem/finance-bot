@@ -102,7 +102,7 @@ async def _detect_with_gemini(user_prompt: str, language: str) -> IntentDetectio
 async def _detect_with_claude(user_prompt: str, language: str) -> IntentDetectionResult:
     client = get_instructor_anthropic()
     result = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model="claude-haiku-4-5",
         max_tokens=256,
         response_model=IntentDetectionResult,
         max_retries=2,

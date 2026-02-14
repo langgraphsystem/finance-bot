@@ -25,7 +25,7 @@ BUDGET_SYSTEM_PROMPT = """Ты помогаешь пользователю уп�
 class SetBudgetSkill:
     name = "set_budget"
     intents = ["set_budget"]
-    model = "claude-haiku-4-5-20251001"
+    model = "claude-haiku-4-5"
 
     @observe(name="set_budget")
     async def execute(

@@ -15,7 +15,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="google",
         model_id="gemini-3-flash-preview",
         fallback_provider="anthropic",
-        fallback_model_id="claude-haiku-4-5-20251001",
+        fallback_model_id="claude-haiku-4-5",
     ),
     "ocr": ModelConfig(
         provider="google",
@@ -25,13 +25,13 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "chat": ModelConfig(
         provider="anthropic",
-        model_id="claude-haiku-4-5-20251001",
+        model_id="claude-haiku-4-5",
         fallback_provider="google",
         fallback_model_id="gemini-3-flash-preview",
     ),
     "analytics": ModelConfig(
         provider="anthropic",
-        model_id="claude-sonnet-4-5-20250929",
+        model_id="claude-sonnet-4-5",
         fallback_provider="openai",
         fallback_model_id="gpt-5.2",
     ),
@@ -45,11 +45,11 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="google",
         model_id="gemini-3-flash-preview",
         fallback_provider="anthropic",
-        fallback_model_id="claude-haiku-4-5-20251001",
+        fallback_model_id="claude-haiku-4-5",
     ),
     "onboarding": ModelConfig(
         provider="anthropic",
-        model_id="claude-sonnet-4-5-20250929",
+        model_id="claude-sonnet-4-5",
     ),
 }
 

@@ -95,7 +95,7 @@ async def run_analytics_query(query: str, family_id: str) -> AnalyticsResponse:
 
     try:
         agent = Agent(
-            "anthropic:claude-sonnet-4-5-20250929",
+            "anthropic:claude-sonnet-4-5",
             result_type=AnalyticsResponse,
             mcp_servers=[mcp_server],
             system_prompt=(

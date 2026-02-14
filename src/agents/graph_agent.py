@@ -159,7 +159,7 @@ async def run_complex_query(
         from pydantic_ai import Agent
 
         agent = Agent(
-            "anthropic:claude-sonnet-4-5-20250929",
+            "anthropic:claude-sonnet-4-5",
             result_type=FinancialInsight,
             system_prompt=(
                 "Ты — финансовый аналитик. Используй доступные инструменты "

@@ -25,7 +25,7 @@ CHAT_SYSTEM_PROMPT = """Ты — финансовый помощник в Telegr
 class GeneralChatSkill:
     name = "general_chat"
     intents = ["general_chat"]
-    model = "claude-haiku-4-5-20251001"
+    model = "claude-haiku-4-5"
 
     @observe(name="general_chat")
     async def execute(

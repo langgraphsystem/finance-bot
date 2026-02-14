@@ -99,7 +99,7 @@ def _compute_next_date(from_date: date, frequency: PaymentFrequency) -> date:
 class AddRecurringSkill:
     name = "add_recurring"
     intents = ["add_recurring"]
-    model = "claude-haiku-4-5-20251001"
+    model = "claude-haiku-4-5"
 
     async def execute(
         self,

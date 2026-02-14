@@ -192,7 +192,7 @@ async def _classify_with_llm(
     try:
         client = get_instructor_anthropic()
         result = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
+            model="claude-haiku-4-5",
             max_tokens=128,
             response_model=CategoryChoice,
             max_retries=2,

@@ -55,7 +55,7 @@ AGENTS: list[AgentConfig] = [
         name="analytics",
         system_prompt=ANALYTICS_AGENT_PROMPT,
         skills=["query_stats", "complex_query"],
-        default_model="claude-sonnet-4-5-20250929",
+        default_model="claude-sonnet-4-5",
         context_config={"mem": "budgets", "hist": 0, "sql": True, "sum": True},
     ),
     AgentConfig(
@@ -70,14 +70,14 @@ AGENTS: list[AgentConfig] = [
             "mark_paid",
             "add_recurring",
         ],
-        default_model="claude-haiku-4-5-20251001",
+        default_model="claude-haiku-4-5",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="onboarding",
         system_prompt=ONBOARDING_AGENT_PROMPT,
         skills=["onboarding", "general_chat"],
-        default_model="claude-sonnet-4-5-20250929",
+        default_model="claude-sonnet-4-5",
         context_config={"mem": "profile", "hist": 10, "sql": False, "sum": False},
     ),
 ]

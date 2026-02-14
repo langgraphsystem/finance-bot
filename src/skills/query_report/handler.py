@@ -17,7 +17,7 @@ REPORT_SYSTEM_PROMPT = """Ты помогаешь с генерацией фин
 class QueryReportSkill:
     name = "query_report"
     intents = ["query_report"]
-    model = "claude-sonnet-4-5-20250929"
+    model = "claude-sonnet-4-5"
 
     @observe(name="query_report")
     async def execute(

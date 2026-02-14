@@ -201,7 +201,7 @@ class TestRouteCallsCorrectSkill:
         intent_data: dict = {}
         await agent_router.route("add_expense", text_message, sample_context, intent_data)
         assert intent_data.get("_agent") == "chat"
-        assert intent_data.get("_model") == "claude-haiku-4-5-20251001"
+        assert intent_data.get("_model") == "claude-haiku-4-5"
 
 
 # --- Tests: agent configurations completeness ---
