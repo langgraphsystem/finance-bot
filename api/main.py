@@ -82,13 +82,13 @@ async def on_message(incoming):
 
     if not context:
         # Unregistered user — handle onboarding callbacks and FSM state
+        from src.core.models.enums import ConversationState
         from src.core.router import (
             _clear_onboarding_state,
             _get_onboarding_state,
             _set_onboarding_state,
             get_registry,
         )
-        from src.core.models.enums import ConversationState
 
         # Handle callback buttons (onboard:new / onboard:join)
         if incoming.type == MessageType.callback and incoming.callback_data:

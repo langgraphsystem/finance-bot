@@ -376,11 +376,13 @@ class TestResolvePeriod:
 
     def test_custom_range(self):
         """period=custom with date_from and date_to."""
-        start, end, label = _resolve_period({
-            "period": "custom",
-            "date_from": "2026-01-15",
-            "date_to": "2026-02-10",
-        })
+        start, end, label = _resolve_period(
+            {
+                "period": "custom",
+                "date_from": "2026-01-15",
+                "date_to": "2026-02-10",
+            }
+        )
         assert start == date(2026, 1, 15)
         assert end == date(2026, 2, 11)  # exclusive
         assert "15.01" in label
@@ -388,10 +390,12 @@ class TestResolvePeriod:
 
     def test_custom_only_date_from(self):
         """period=custom with only date_from."""
-        start, end, label = _resolve_period({
-            "period": "custom",
-            "date_from": "2026-01-01",
-        })
+        start, end, label = _resolve_period(
+            {
+                "period": "custom",
+                "date_from": "2026-01-01",
+            }
+        )
         assert start == date(2026, 1, 1)
         assert "01.01.2026" in label
 

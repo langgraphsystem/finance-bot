@@ -43,8 +43,7 @@ class GeneralChatSkill:
         if assembled:
             # Use assembled context: enriched system prompt + history + memories
             non_system = [
-                m for m in assembled.messages
-                if m["role"] != "system" and m.get("content")
+                m for m in assembled.messages if m["role"] != "system" and m.get("content")
             ]
             if not non_system:
                 non_system = [{"role": "user", "content": message.text or "Привет"}]

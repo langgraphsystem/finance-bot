@@ -1,23 +1,23 @@
 import enum
 
 
-class TransactionType(str, enum.Enum):
+class TransactionType(enum.StrEnum):
     income = "income"
     expense = "expense"
 
 
-class Scope(str, enum.Enum):
+class Scope(enum.StrEnum):
     business = "business"
     family = "family"
     personal = "personal"
 
 
-class UserRole(str, enum.Enum):
+class UserRole(enum.StrEnum):
     owner = "owner"
     member = "member"
 
 
-class DocumentType(str, enum.Enum):
+class DocumentType(enum.StrEnum):
     receipt = "receipt"
     invoice = "invoice"
     rate_confirmation = "rate_confirmation"
@@ -25,19 +25,19 @@ class DocumentType(str, enum.Enum):
     other = "other"
 
 
-class LoadStatus(str, enum.Enum):
+class LoadStatus(enum.StrEnum):
     pending = "pending"
     delivered = "delivered"
     paid = "paid"
     overdue = "overdue"
 
 
-class MessageRole(str, enum.Enum):
+class MessageRole(enum.StrEnum):
     user = "user"
     assistant = "assistant"
 
 
-class ConversationState(str, enum.Enum):
+class ConversationState(enum.StrEnum):
     onboarding = "onboarding"
     onboarding_awaiting_choice = "onboarding_awaiting_choice"
     onboarding_awaiting_activity = "onboarding_awaiting_activity"
@@ -47,13 +47,13 @@ class ConversationState(str, enum.Enum):
     awaiting_confirm = "awaiting_confirm"
 
 
-class PaymentFrequency(str, enum.Enum):
+class PaymentFrequency(enum.StrEnum):
     weekly = "weekly"
     monthly = "monthly"
     quarterly = "quarterly"
     yearly = "yearly"
 
 
-class BudgetPeriod(str, enum.Enum):
+class BudgetPeriod(enum.StrEnum):
     weekly = "weekly"
     monthly = "monthly"

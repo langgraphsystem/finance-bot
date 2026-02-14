@@ -141,9 +141,7 @@ class ScanDocumentSkill:
     ) -> SkillResult:
         image_bytes = message.photo_bytes or message.document_bytes
         if not image_bytes:
-            return SkillResult(
-                response_text="Отправьте фото или документ для распознавания."
-            )
+            return SkillResult(response_text="Отправьте фото или документ для распознавания.")
 
         mime_type = message.document_mime_type or "image/jpeg"
         fallback_used = False
@@ -217,9 +215,7 @@ class ScanDocumentSkill:
         return "other"
 
     @observe(name="doc_extract_gemini")
-    async def _extract(
-        self, image_bytes: bytes, mime_type: str, doc_type: str
-    ) -> dict:
+    async def _extract(self, image_bytes: bytes, mime_type: str, doc_type: str) -> dict:
         """Extract structured data using Gemini 3 Flash."""
         client = google_client()
         prompt = PROMPT_MAP.get(doc_type, GENERIC_OCR_PROMPT)
@@ -240,9 +236,7 @@ class ScanDocumentSkill:
         return json.loads(response.text)
 
     @observe(name="doc_extract_claude")
-    async def _extract_claude(
-        self, image_bytes: bytes, mime_type: str, doc_type: str
-    ) -> dict:
+    async def _extract_claude(self, image_bytes: bytes, mime_type: str, doc_type: str) -> dict:
         """Fallback extraction using Claude Haiku."""
         client = anthropic_client()
         prompt = PROMPT_MAP.get(doc_type, GENERIC_OCR_PROMPT)
@@ -267,9 +261,7 @@ class ScanDocumentSkill:
         end = text.rfind("}") + 1
         return json.loads(text[start:end])
 
-    def _format_receipt(
-        self, data: dict, doc_type: str, pending_id: str
-    ) -> SkillResult:
+    def _format_receipt(self, data: dict, doc_type: str, pending_id: str) -> SkillResult:
         """Format receipt/fuel receipt response."""
         try:
             receipt = ReceiptData(**data)
@@ -290,8 +282,7 @@ class ScanDocumentSkill:
             response += f"\U0001f4c5 <b>Дата:</b> {receipt.date}\n"
         if receipt.gallons:
             response += (
-                f"\u26fd <b>Топливо:</b> {receipt.gallons} gal "
-                f"@ ${receipt.price_per_gallon}/gal\n"
+                f"\u26fd <b>Топливо:</b> {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
             )
         if receipt.state:
             response += f"\U0001f4cd <b>Штат:</b> {receipt.state}\n"

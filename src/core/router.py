@@ -617,7 +617,7 @@ async def _save_scanned_document(
 
     ocr_model = "claude-haiku-4-5" if fallback_used else "gemini-3-flash-preview"
 
-    DOC_TYPE_ENUM_MAP = {
+    doc_type_enum_map = {
         "receipt": DocumentType.receipt,
         "fuel_receipt": DocumentType.fuel_receipt,
         "invoice": DocumentType.invoice,
@@ -633,7 +633,7 @@ async def _save_scanned_document(
             doc = Document(
                 family_id=uuid.UUID(context.family_id),
                 user_id=uuid.UUID(context.user_id),
-                type=DOC_TYPE_ENUM_MAP.get(doc_type, DocumentType.other),
+                type=doc_type_enum_map.get(doc_type, DocumentType.other),
                 storage_path=f"inline:{mime_type}",
                 ocr_model=ocr_model,
                 ocr_raw={"image_b64": image_b64, "mime_type": mime_type},
@@ -680,7 +680,10 @@ async def _save_scanned_document(
                 rate_val = ocr_data.get("rate", 0)
                 logger.info(
                     "Load saved: broker=%s rate=%s doc_id=%s user=%s",
-                    broker, rate_val, doc.id, context.user_id,
+                    broker,
+                    rate_val,
+                    doc.id,
+                    context.user_id,
                 )
                 return OutgoingMessage(
                     text=(
@@ -750,7 +753,11 @@ async def _save_scanned_document(
                 await delete_pending_doc(pending_id)
                 logger.info(
                     "Document saved: type=%s merchant=%s amount=%s doc_id=%s user=%s",
-                    doc_type, merchant, amount, doc.id, context.user_id,
+                    doc_type,
+                    merchant,
+                    amount,
+                    doc.id,
+                    context.user_id,
                 )
                 return OutgoingMessage(
                     text=(

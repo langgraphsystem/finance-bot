@@ -1,8 +1,8 @@
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     text = "text"
     photo = "photo"
     voice = "voice"

@@ -1,6 +1,5 @@
 """Tests for intent detection with Instructor structured output."""
 
-from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 

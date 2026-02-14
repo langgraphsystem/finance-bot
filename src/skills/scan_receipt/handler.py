@@ -62,7 +62,7 @@ class ScanReceiptSkill:
                 )
 
         # Format detailed response for user
-        response = f"🧾 **Чек распознан**\n\n"
+        response = "🧾 **Чек распознан**\n\n"
         response += f"🏪 **Магазин:** {receipt.merchant}\n"
         response += f"💵 **Сумма:** ${receipt.total}"
         if receipt.tax:

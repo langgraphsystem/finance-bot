@@ -25,7 +25,12 @@ def context():
         currency="USD",
         business_type="trucking",
         categories=[
-            {"id": "00000000-0000-0000-0000-000000000010", "name": "Fuel", "scope": "business", "icon": "⛽"}
+            {
+                "id": "00000000-0000-0000-0000-000000000010",
+                "name": "Fuel",
+                "scope": "business",
+                "icon": "⛽",
+            }
         ],
         merchant_mappings=[],
     )
@@ -132,18 +137,18 @@ async def test_execute_receipt(skill, context, photo_message, mock_redis):
     classify_resp.text = "receipt"
 
     extract_resp = MagicMock()
-    extract_resp.text = json.dumps({
-        "merchant": "Walmart",
-        "total": 42.50,
-        "date": "2026-02-13",
-        "items": [{"name": "Milk", "quantity": 1, "price": 3.50}],
-        "tax": 2.50,
-    })
+    extract_resp.text = json.dumps(
+        {
+            "merchant": "Walmart",
+            "total": 42.50,
+            "date": "2026-02-13",
+            "items": [{"name": "Milk", "quantity": 1, "price": 3.50}],
+            "tax": 2.50,
+        }
+    )
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(photo_message, context, {})
@@ -172,18 +177,18 @@ async def test_execute_invoice(skill, context, photo_message, mock_redis):
     classify_resp.text = "invoice"
 
     extract_resp = MagicMock()
-    extract_resp.text = json.dumps({
-        "vendor": "AWS",
-        "invoice_number": "INV-2026-001",
-        "total": 150.00,
-        "date": "2026-02-01",
-        "due_date": "2026-03-01",
-    })
+    extract_resp.text = json.dumps(
+        {
+            "vendor": "AWS",
+            "invoice_number": "INV-2026-001",
+            "total": 150.00,
+            "date": "2026-02-01",
+            "due_date": "2026-03-01",
+        }
+    )
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(photo_message, context, {})
@@ -204,18 +209,18 @@ async def test_execute_rate_conf(skill, context, photo_message, mock_redis):
     classify_resp.text = "rate_confirmation"
 
     extract_resp = MagicMock()
-    extract_resp.text = json.dumps({
-        "broker": "XPO Logistics",
-        "origin": "Los Angeles, CA",
-        "destination": "Chicago, IL",
-        "rate": 2500.00,
-        "ref_number": "REF-12345",
-    })
+    extract_resp.text = json.dumps(
+        {
+            "broker": "XPO Logistics",
+            "origin": "Los Angeles, CA",
+            "destination": "Chicago, IL",
+            "rate": 2500.00,
+            "ref_number": "REF-12345",
+        }
+    )
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(photo_message, context, {})
@@ -238,20 +243,20 @@ async def test_execute_generic_document(skill, context, photo_message, mock_redi
     classify_resp.text = "other"
 
     extract_resp = MagicMock()
-    extract_resp.text = json.dumps({
-        "title": "Contract Agreement",
-        "doc_type": "contract",
-        "summary": "Agreement between parties for services",
-        "key_values": {"Party A": "Company X", "Party B": "Company Y"},
-        "dates": ["2026-01-01"],
-        "amounts": ["$5000"],
-        "extracted_text": "Full contract text here...",
-    })
+    extract_resp.text = json.dumps(
+        {
+            "title": "Contract Agreement",
+            "doc_type": "contract",
+            "summary": "Agreement between parties for services",
+            "key_values": {"Party A": "Company X", "Party B": "Company Y"},
+            "dates": ["2026-01-01"],
+            "amounts": ["$5000"],
+            "extracted_text": "Full contract text here...",
+        }
+    )
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(photo_message, context, {})
@@ -275,9 +280,7 @@ async def test_claude_fallback_on_gemini_failure(skill, context, photo_message, 
     )
 
     claude_response = MagicMock()
-    claude_response.content = [
-        MagicMock(text=json.dumps({"merchant": "Target", "total": 25.00}))
-    ]
+    claude_response.content = [MagicMock(text=json.dumps({"merchant": "Target", "total": 25.00}))]
     mock_anthropic = MagicMock()
     mock_anthropic.messages.create = AsyncMock(return_value=claude_response)
 
@@ -305,9 +308,7 @@ async def test_all_ocr_fails(skill, context, photo_message, mock_redis):
     )
 
     mock_anthropic = MagicMock()
-    mock_anthropic.messages.create = AsyncMock(
-        side_effect=RuntimeError("Claude down")
-    )
+    mock_anthropic.messages.create = AsyncMock(side_effect=RuntimeError("Claude down"))
 
     with (
         patch("src.skills.scan_document.handler.google_client", return_value=mock_google),
@@ -327,16 +328,16 @@ async def test_document_message_with_bytes(skill, context, document_message, moc
     classify_resp.text = "invoice"
 
     extract_resp = MagicMock()
-    extract_resp.text = json.dumps({
-        "vendor": "Google Cloud",
-        "total": 300.00,
-        "invoice_number": "GCP-001",
-    })
+    extract_resp.text = json.dumps(
+        {
+            "vendor": "Google Cloud",
+            "total": 300.00,
+            "invoice_number": "GCP-001",
+        }
+    )
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(document_message, context, {})
@@ -358,9 +359,7 @@ async def test_callback_contains_pending_id(skill, context, photo_message, mock_
     extract_resp.text = json.dumps({"merchant": "Shell", "total": 50.00})
 
     mock_client = MagicMock()
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[classify_resp, extract_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
     with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
         result = await skill.execute(photo_message, context, {})

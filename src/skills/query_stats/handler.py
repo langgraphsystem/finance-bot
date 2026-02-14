@@ -14,12 +14,12 @@ from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
+from src.core.mcp import run_analytics_query
 from src.core.models.category import Category
 from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.core.mcp import run_analytics_query
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
