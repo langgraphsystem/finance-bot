@@ -7,6 +7,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.types import BufferedInputFile
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from src.core.formatting import md_to_telegram_html
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,10 @@ class TelegramGateway:
                 builder.button(text=btn["text"], callback_data=btn["callback"])
             builder.adjust(2)
             reply_markup = builder.as_markup()
+
+        # Convert LLM Markdown to Telegram HTML
+        if message.parse_mode == "HTML" and message.text:
+            message.text = md_to_telegram_html(message.text)
 
         kwargs = {"chat_id": int(message.chat_id), "parse_mode": message.parse_mode}
 

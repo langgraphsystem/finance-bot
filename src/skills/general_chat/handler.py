@@ -19,7 +19,10 @@ CHAT_SYSTEM_PROMPT = """Ты — финансовый помощник в Telegr
 Если вопрос частично связан, ответь кратко и предложи:
 - Записать расход/доход
 - Посмотреть статистику
-- Отсканировать чек"""
+- Отсканировать чек
+
+Форматирование: используй HTML-теги для Telegram (<b>жирный</b>, <i>курсив</i>, <code>код</code>).
+НЕ используй Markdown (**, *, ```). Списки оформляй через • (bullet)."""
 
 
 class GeneralChatSkill:
@@ -59,7 +62,7 @@ class GeneralChatSkill:
 
         response = await client.messages.create(
             model=self.model,
-            max_tokens=256,
+            max_tokens=1024,
             **prompt_data,
         )
         return SkillResult(response_text=response.content[0].text)
