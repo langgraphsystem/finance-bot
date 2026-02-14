@@ -80,7 +80,7 @@ Finance Bot — это чат-бот в Telegram с AI-ядром, которы�
 | **Аналитика/отчёты** | Claude Sonnet 4.5 | GPT-5.2 | Лучший баланс качество/цена |
 | **Сложные задачи** | Claude Opus 4.6 | GPT-5.2 Thinking | Максимальный интеллект, adaptive thinking |
 | **Summarization** | Gemini 3 Flash | Claude Haiku 4.5 | Дешёвый, быстрый |
-| **STT (голос)** | `gpt-4o-transcribe` | Whisper API | Лучший WER, $0.006/мин |
+| **STT (голос)** | `gpt-4o-mini-transcribe` | `whisper-1` | Лучший WER, $0.003/мин |
 
 ### 2.3 Мульти-модельный роутер
 
@@ -137,6 +137,95 @@ response = await anthropic_client.messages.create(
     messages=[...]
 )
 ```
+
+#### GPT-5.2 (выпущен 11.12.2025)
+
+| Фича | Описание | Для нас |
+|------|----------|---------|
+| **Thinking (`reasoning.effort`)** | 5 уровней: `none` (Instant), `low`, `medium`, `high`, `xhigh` (Pro) | Fallback с адаптивной глубиной рассуждений |
+| **400K контекст** | 3x больше GPT-4o (128K). Макс. output — 128K токенов | Длинные финансовые отчёты и документы |
+| **Vision (улучшенный)** | Ошибки на chart reasoning сокращены вдвое vs GPT-4o | Лучший fallback для OCR чеков и инвойсов |
+| **Tool calling 98.7%** | Лучшая точность на Tau2-bench, streaming + grammar constraints | Надёжный вызов инструментов в агентных сценариях |
+| **Context Compaction** | Серверное сжатие контекста на лету | Длинные агентные сессии без потери контекста |
+| **Cached Input (90% скидка)** | $0.175/1M для кэшированного input (vs $1.75 стандарт) | Экономия при повторных запросах |
+
+Варианты GPT-5.2:
+
+| Вариант | Model ID | Reasoning | Назначение |
+|---------|----------|-----------|------------|
+| **Instant** | `gpt-5.2` + `reasoning.effort: none` | Нет | Быстрые задачи, fallback для чата |
+| **Thinking** | `gpt-5.2` + `reasoning.effort: low-high` | Да | Аналитика, сложные вопросы |
+| **Pro** | `gpt-5.2-pro` | Максимум (`xhigh`) | Исследования, критические задачи |
+
+```python
+# GPT-5.2 Thinking mode
+response = await openai_client.chat.completions.create(
+    model="gpt-5.2",
+    reasoning={"effort": "medium"},  # none / low / medium / high
+    max_tokens=16000,
+    messages=[...]
+)
+
+# GPT-5.2 Structured output (JSON Schema)
+response = await openai_client.chat.completions.create(
+    model="gpt-5.2",
+    response_format={
+        "type": "json_schema",
+        "json_schema": {"name": "receipt", "schema": ReceiptData.model_json_schema()}
+    },
+    messages=[...]
+)
+```
+
+#### Gemini 3 Pro (выпущен 18.11.2025)
+
+| Фича | Описание | Для нас |
+|------|----------|---------|
+| **Dynamic Thinking** | `thinking_level`: `minimal`, `low`, `medium`, `high` (default) | Адаптивная глубина рассуждений |
+| **1M контекст** | Input 1M токенов, output до 64K | Обработка длинных документов, PDF |
+| **Thought Signatures** | Зашифрованные представления цепочки рассуждений между вызовами | Multi-step агентные workflow с сохранением контекста |
+| **Multimodal (text/image/audio/video)** | Все модальности в одном transformer pass | Универсальная обработка документов |
+| **Vision SOTA** | MMMU-Pro 81%, Video-MMMU 87.6%, настраиваемый `media_resolution` | OCR, распознавание чеков и документов |
+| **Streaming function calling** | Partial argument streaming + multimodal responses | UX: пользователь видит прогресс |
+| **ARC-AGI-2: 31.1%** | 6.3x улучшение vs Gemini 2.5 Pro (4.9%) | Качественный скачок в рассуждениях |
+
+Ценообразование с учётом контекста:
+
+| Контекст | Input/1M | Output/1M |
+|----------|----------|-----------|
+| До 200K токенов | $2.00 | $12.00 |
+| Свыше 200K токенов | $4.00 | $18.00 |
+
+```python
+# Gemini 3 Pro с dynamic thinking
+from google import genai
+
+client = genai.Client()
+response = await client.aio.models.generate_content(
+    model="gemini-3-pro-preview",
+    contents="Проанализируй финансовые данные...",
+    config=genai.types.GenerateContentConfig(
+        thinking_config=genai.types.ThinkingConfig(
+            thinking_level="high"  # minimal / low / medium / high
+        ),
+        response_mime_type="application/json",
+        response_schema=FinancialInsight,
+    ),
+)
+```
+
+#### Gemini 3 Flash vs Pro
+
+| Метрика | Flash | Pro | Вывод |
+|---------|-------|-----|-------|
+| **GPQA Diamond** | 90.4% | 91.9% | Pro +1.5% |
+| **SWE-bench Verified** | 78.0% | 76.2% | Flash лучше на коде |
+| **Input/1M** | $0.50 | $2.00 | Flash 4x дешевле |
+| **Output/1M** | $3.00 | $12.00 | Flash 4x дешевле |
+| **Скорость** | 3x быстрее | Baseline | Flash для throughput |
+| **Назначение** | Intent, OCR, summarization | Сложный анализ, deep reasoning | Разные задачи |
+
+> **Решение**: Flash для 90% задач (intent, OCR, summarization), Pro — только для сложного анализа, где нужна максимальная точность рассуждений.
 
 #### КРИТИЧЕСКОЕ ПРАВИЛО: LLM НИКОГДА не считает числа
 
