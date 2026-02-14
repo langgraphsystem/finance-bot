@@ -2,6 +2,9 @@ family_categories:
   - name: "Продукты"
     icon: "🛒"
     scope: family
+  - name: "Рестораны/Кафе"
+    icon: "🍽️"
+    scope: family
   - name: "Аренда/ипотека"
     icon: "🏠"
     scope: family
