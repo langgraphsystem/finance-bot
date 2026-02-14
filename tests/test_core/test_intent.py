@@ -1,5 +1,6 @@
 """Tests for intent detection with Instructor structured output."""
 
+from datetime import date
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,6 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 from src.core.schemas.intent import IntentData, IntentDetectionResult
+
+_TEST_SYSTEM_PROMPT = "test system prompt"
 
 # ---------------------------------------------------------------------------
 # Schema-level tests
@@ -69,7 +72,7 @@ async def test_detect_with_claude_returns_validated_model():
     with patch("src.core.intent.get_instructor_anthropic", return_value=mock_client):
         from src.core.intent import _detect_with_claude
 
-        result = await _detect_with_claude("Сообщение: заправился на 50", "ru")
+        result = await _detect_with_claude(_TEST_SYSTEM_PROMPT, "Сообщение: заправился на 50", "ru")
 
     assert isinstance(result, IntentDetectionResult)
     assert result.intent == "add_expense"
@@ -109,10 +112,10 @@ async def test_detect_with_claude_instructor_retry_on_validation_error():
 
         # First call raises — the caller (detect_intent) would catch this
         with pytest.raises(ValidationError):
-            await _detect_with_claude("Сообщение: получил зарплату", "ru")
+            await _detect_with_claude(_TEST_SYSTEM_PROMPT, "Сообщение: получил зарплату", "ru")
 
         # Second call succeeds (simulates retry succeeding)
-        result = await _detect_with_claude("Сообщение: получил зарплату", "ru")
+        result = await _detect_with_claude(_TEST_SYSTEM_PROMPT, "Сообщение: получил зарплату", "ru")
         assert result.intent == "add_income"
 
 

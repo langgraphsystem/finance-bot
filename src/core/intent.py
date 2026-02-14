@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import date
 
 from src.core.llm.clients import get_instructor_anthropic, google_client
 from src.core.observability import observe
@@ -34,11 +35,19 @@ rate confirmation, или другого изображения
 "анализ трат за 3 месяца", "что происходит с финансами")
 - general_chat: общий вопрос, не связанный с финансами напрямую
 
+Правила извлечения даты:
+- Сегодня: {today}
+- "вчера" → вчерашняя дата
+- "позавчера" → позавчерашняя дата
+- "в понедельник", "во вторник" и т.д. → ближайший прошедший день недели
+- "10 февраля", "February 10" → конкретная дата
+- Если дата НЕ указана в тексте → null (НЕ подставляй сегодня, это сделает код)
+
 Ответь ТОЛЬКО валидным JSON:
-{
+{{
   "intent": "имя_интента",
   "confidence": 0.0-1.0,
-  "data": {
+  "data": {{
     "amount": число или null,
     "merchant": "название" или null,
     "category": "предполагаемая категория" или null,
@@ -46,9 +55,9 @@ rate confirmation, или другого изображения
     "date": "YYYY-MM-DD" или null,
     "description": "описание" или null,
     "currency": "валюта" или null
-  },
+  }},
   "response": "краткий ответ для пользователя"
-}"""
+}}"""
 
 
 @observe(name="detect_intent")
@@ -70,15 +79,17 @@ async def detect_intent(
         else f"Сообщение: {text}"
     )
 
+    system_prompt = INTENT_DETECTION_PROMPT.format(today=date.today().isoformat())
+
     # Primary: Gemini Flash
     try:
-        return await _detect_with_gemini(user_prompt, language)
+        return await _detect_with_gemini(system_prompt, user_prompt, language)
     except Exception as e:
         logger.warning("Gemini intent detection failed: %s, falling back to Claude", e)
 
     # Fallback: Claude Haiku
     try:
-        return await _detect_with_claude(user_prompt, language)
+        return await _detect_with_claude(system_prompt, user_prompt, language)
     except Exception as e:
         logger.error("Claude intent detection also failed: %s", e)
         return IntentDetectionResult(
@@ -89,11 +100,13 @@ async def detect_intent(
 
 
 @observe(name="intent_gemini")
-async def _detect_with_gemini(user_prompt: str, language: str) -> IntentDetectionResult:
+async def _detect_with_gemini(
+    system_prompt: str, user_prompt: str, language: str
+) -> IntentDetectionResult:
     client = google_client()
     response = await client.aio.models.generate_content(
         model="gemini-3-flash-preview",
-        contents=f"{INTENT_DETECTION_PROMPT}\n\nЯзык ответа: {language}\n\n{user_prompt}",
+        contents=f"{system_prompt}\n\nЯзык ответа: {language}\n\n{user_prompt}",
         config={"response_mime_type": "application/json"},
     )
     data = json.loads(response.text)
@@ -101,14 +114,16 @@ async def _detect_with_gemini(user_prompt: str, language: str) -> IntentDetectio
 
 
 @observe(name="intent_claude")
-async def _detect_with_claude(user_prompt: str, language: str) -> IntentDetectionResult:
+async def _detect_with_claude(
+    system_prompt: str, user_prompt: str, language: str
+) -> IntentDetectionResult:
     client = get_instructor_anthropic()
     result = await client.messages.create(
         model="claude-haiku-4-5",
         max_tokens=256,
         response_model=IntentDetectionResult,
         max_retries=2,
-        system=f"{INTENT_DETECTION_PROMPT}\n\nЯзык ответа: {language}",
+        system=f"{system_prompt}\n\nЯзык ответа: {language}",
         messages=[{"role": "user", "content": user_prompt}],
     )
     return result
