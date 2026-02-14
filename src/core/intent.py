@@ -13,6 +13,8 @@ INTENT_DETECTION_PROMPT = """Определи намерение пользов�
 - add_expense: запись расхода ("заправился на 50", "купил продукты 87.50")
 - add_income: запись дохода ("заработал 185", "получил зарплату")
 - scan_receipt: пользователь отправил фото чека
+- scan_document: пользователь отправил фото документа, инвойса, \
+rate confirmation, или другого изображения
 - query_stats: запрос статистики ("сколько потратил за неделю", "сравни с прошлым месяцем")
 - query_report: генерация PDF-отчёта ("отчёт", "report", \
 "покажи итоги", "PDF", "сгенерируй отчёт", "месячный отчёт")
@@ -88,7 +90,7 @@ async def detect_intent(
 async def _detect_with_gemini(user_prompt: str, language: str) -> IntentDetectionResult:
     client = google_client()
     response = await client.aio.models.generate_content(
-        model="gemini-2.0-flash",
+        model="gemini-3-flash-preview",
         contents=f"{INTENT_DETECTION_PROMPT}\n\nЯзык ответа: {language}\n\n{user_prompt}",
         config={"response_mime_type": "application/json"},
     )

@@ -47,8 +47,8 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
         system_prompt=RECEIPT_AGENT_PROMPT,
-        skills=["scan_receipt"],
-        default_model="gemini-2.0-flash",
+        skills=["scan_receipt", "scan_document"],
+        default_model="gemini-3-flash-preview",
         context_config={"mem": "mappings", "hist": 2, "sql": False, "sum": False},
     ),
     AgentConfig(

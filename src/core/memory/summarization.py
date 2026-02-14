@@ -1,6 +1,6 @@
 """Layer 5 — Incremental dialog summarization.
 
-Triggers when message_count > 15. Uses Gemini 2.0 Flash for cheap, fast
+Triggers when message_count > 15. Uses Gemini 3 Flash for cheap, fast
 summarization. Stores results in session_summaries table.
 """
 
@@ -99,7 +99,7 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
                 f"{m.role.value}: {m.content}" for m in reversed(list(new_messages))
             )
 
-            # Call Gemini 2.0 Flash for summarization
+            # Call Gemini 3 Flash for summarization
             prompt = FINANCIAL_SUMMARY_PROMPT.format(
                 existing_summary=existing_text,
                 new_messages=messages_text,
@@ -107,7 +107,7 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
 
             client = google_client()
             response = await client.aio.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-3-flash-preview",
                 contents=prompt,
             )
             summary_text = response.text

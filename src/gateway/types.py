@@ -24,6 +24,9 @@ class IncomingMessage:
     voice_url: str | None = None
     voice_bytes: bytes | None = None
     document_url: str | None = None
+    document_bytes: bytes | None = None
+    document_mime_type: str | None = None
+    document_file_name: str | None = None
     callback_data: str | None = None
     raw: object = None
 

@@ -18,12 +18,16 @@ from src.core.intent import detect_intent
 from src.core.memory import sliding_window
 from src.core.memory.summarization import summarize_dialog
 from src.core.models.conversation import ConversationMessage
+from src.core.models.document import Document
 from src.core.models.enums import (
     ConversationState,
+    DocumentType,
+    LoadStatus,
     MessageRole,
     Scope,
     TransactionType,
 )
+from src.core.models.load import Load
 from src.core.models.transaction import Transaction
 from src.core.models.user_context import UserContext
 from src.core.rate_limit import check_rate_limit
@@ -137,9 +141,9 @@ async def _dispatch_message(
             raw=message.raw,
         )
 
-    # Handle photos directly as receipt scan
-    if message.type == MessageType.photo:
-        intent_name = "scan_receipt"
+    # Handle photos and documents as scan_document
+    if message.type in (MessageType.photo, MessageType.document):
+        intent_name = "scan_document"
         intent_data: dict[str, Any] = {}
     else:
         # --- Guardrails check BEFORE intent detection ---
@@ -522,6 +526,11 @@ async def _handle_callback(
                 )
         return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
 
+    elif action == "doc_save":
+        # Retrieve full data from Redis: doc_save:<pending_id>
+        pending_id = parts[1] if len(parts) > 1 else ""
+        return await _save_scanned_document(pending_id, message, context)
+
     elif action == "receipt_confirm":
         # Create a Transaction from the receipt data
         merchant = parts[1] if len(parts) > 1 else "Unknown"
@@ -569,6 +578,201 @@ async def _handle_callback(
         return OutgoingMessage(text="✅ Чек записан!", chat_id=message.chat_id)
 
     elif action == "receipt_cancel":
-        return OutgoingMessage(text="❌ Чек отменён.", chat_id=message.chat_id)
+        # Also clean up any pending doc from Redis
+        cancel_pending_id = parts[1] if len(parts) > 1 else ""
+        if cancel_pending_id:
+            from src.skills.scan_document.handler import delete_pending_doc
+
+            await delete_pending_doc(cancel_pending_id)
+        return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+
+
+async def _save_scanned_document(
+    pending_id: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Save a scanned document from Redis pending data to DB.
+
+    Creates Document record (with OCR data + image) and either
+    a Transaction (receipt/invoice) or Load (rate_confirmation).
+    """
+    from src.skills.scan_document.handler import delete_pending_doc, get_pending_doc
+
+    pending = await get_pending_doc(pending_id)
+    if not pending:
+        return OutgoingMessage(
+            text="Данные документа истекли. Отправьте фото ещё раз.",
+            chat_id=message.chat_id,
+        )
+
+    doc_type = pending["doc_type"]
+    ocr_data = pending["ocr_data"]
+    image_b64 = pending["image_b64"]
+    mime_type = pending["mime_type"]
+    fallback_used = pending["fallback_used"]
+
+    ocr_model = "claude-haiku-4-5-20251001" if fallback_used else "gemini-3-flash-preview"
+
+    DOC_TYPE_ENUM_MAP = {
+        "receipt": DocumentType.receipt,
+        "fuel_receipt": DocumentType.fuel_receipt,
+        "invoice": DocumentType.invoice,
+        "rate_confirmation": DocumentType.rate_confirmation,
+        "other": DocumentType.other,
+    }
+
+    try:
+        async with async_session() as session:
+            from src.core.models.category import Category
+
+            # 1. Create Document record with full OCR data + image
+            doc = Document(
+                family_id=uuid.UUID(context.family_id),
+                user_id=uuid.UUID(context.user_id),
+                type=DOC_TYPE_ENUM_MAP.get(doc_type, DocumentType.other),
+                storage_path=f"inline:{mime_type}",
+                ocr_model=ocr_model,
+                ocr_raw={"image_b64": image_b64, "mime_type": mime_type},
+                ocr_parsed=ocr_data,
+                ocr_confidence=Decimal("0.9"),
+                ocr_fallback_used=fallback_used,
+            )
+            session.add(doc)
+            await session.flush()
+
+            if doc_type == "rate_confirmation":
+                # 2a. Save as Load record with all extracted fields
+                pickup = None
+                if ocr_data.get("pickup_date"):
+                    try:
+                        pickup = date.fromisoformat(ocr_data["pickup_date"])
+                    except (ValueError, TypeError):
+                        pickup = date.today()
+
+                delivery = None
+                if ocr_data.get("delivery_date"):
+                    try:
+                        delivery = date.fromisoformat(ocr_data["delivery_date"])
+                    except (ValueError, TypeError):
+                        pass
+
+                load = Load(
+                    family_id=uuid.UUID(context.family_id),
+                    broker=ocr_data.get("broker", "Unknown"),
+                    origin=ocr_data.get("origin", ""),
+                    destination=ocr_data.get("destination", ""),
+                    rate=Decimal(str(ocr_data.get("rate", 0))),
+                    ref_number=ocr_data.get("ref_number"),
+                    pickup_date=pickup or date.today(),
+                    delivery_date=delivery,
+                    status=LoadStatus.pending,
+                    document_id=doc.id,
+                )
+                session.add(load)
+                await session.commit()
+
+                await delete_pending_doc(pending_id)
+                broker = ocr_data.get("broker", "")
+                rate_val = ocr_data.get("rate", 0)
+                logger.info(
+                    "Load saved: broker=%s rate=%s doc_id=%s user=%s",
+                    broker, rate_val, doc.id, context.user_id,
+                )
+                return OutgoingMessage(
+                    text=(
+                        f"\u2705 Груз сохранён: {broker}, ${rate_val}\n"
+                        f"\U0001f4c4 Документ ID: {doc.id}"
+                    ),
+                    chat_id=message.chat_id,
+                )
+
+            elif doc_type in ("receipt", "fuel_receipt", "invoice"):
+                # 2b. Save as expense Transaction with full extracted data
+                cat_result = await session.execute(
+                    select(Category)
+                    .where(Category.family_id == uuid.UUID(context.family_id))
+                    .limit(1)
+                )
+                category = cat_result.scalar_one_or_none()
+                category_id = category.id if category else uuid.uuid4()
+
+                if doc_type == "invoice":
+                    merchant = ocr_data.get("vendor", "Unknown")
+                    amount = Decimal(str(ocr_data.get("total", 0)))
+                    tx_date_str = ocr_data.get("date")
+                    description = f"Invoice: {merchant}"
+                    if ocr_data.get("invoice_number"):
+                        description += f" #{ocr_data['invoice_number']}"
+                else:
+                    merchant = ocr_data.get("merchant", "Unknown")
+                    amount = Decimal(str(ocr_data.get("total", 0)))
+                    tx_date_str = ocr_data.get("date")
+                    description = f"Receipt: {merchant}"
+
+                tx_date = date.today()
+                if tx_date_str:
+                    try:
+                        tx_date = date.fromisoformat(tx_date_str)
+                    except (ValueError, TypeError):
+                        pass
+
+                meta = {"source": f"scan_{doc_type}"}
+                if ocr_data.get("gallons"):
+                    meta["gallons"] = ocr_data["gallons"]
+                    meta["price_per_gallon"] = ocr_data.get("price_per_gallon")
+                if ocr_data.get("items"):
+                    meta["items"] = ocr_data["items"]
+                if ocr_data.get("tax"):
+                    meta["tax"] = str(ocr_data["tax"])
+
+                tx = Transaction(
+                    family_id=uuid.UUID(context.family_id),
+                    user_id=uuid.UUID(context.user_id),
+                    category_id=category_id,
+                    type=TransactionType.expense,
+                    amount=amount,
+                    merchant=merchant,
+                    description=description,
+                    date=tx_date,
+                    scope=Scope.business if context.business_type else Scope.family,
+                    state=ocr_data.get("state"),
+                    document_id=doc.id,
+                    ai_confidence=Decimal("0.9"),
+                    meta=meta,
+                )
+                session.add(tx)
+                await session.commit()
+
+                await delete_pending_doc(pending_id)
+                logger.info(
+                    "Document saved: type=%s merchant=%s amount=%s doc_id=%s user=%s",
+                    doc_type, merchant, amount, doc.id, context.user_id,
+                )
+                return OutgoingMessage(
+                    text=(
+                        f"\u2705 {doc_type.replace('_', ' ').capitalize()} "
+                        f"сохранён: {merchant}, ${amount}\n"
+                        f"\U0001f4c4 Документ ID: {doc.id}"
+                    ),
+                    chat_id=message.chat_id,
+                )
+
+            else:
+                # 2c. Generic document — Document record only (no transaction)
+                await session.commit()
+                await delete_pending_doc(pending_id)
+                logger.info("Generic document saved: doc_id=%s user=%s", doc.id, context.user_id)
+                return OutgoingMessage(
+                    text=f"\u2705 Документ сохранён\n\U0001f4c4 ID: {doc.id}",
+                    chat_id=message.chat_id,
+                )
+
+    except Exception as e:
+        logger.error("Failed to save scanned document: %s", e, exc_info=True)
+        return OutgoingMessage(
+            text="Ошибка при сохранении. Попробуйте ещё раз.",
+            chat_id=message.chat_id,
+        )

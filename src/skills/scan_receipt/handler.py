@@ -37,7 +37,7 @@ OCR_PROMPT = """Проанализируй фото чека и извлеки �
 class ScanReceiptSkill:
     name = "scan_receipt"
     intents = ["scan_receipt"]
-    model = "gemini-2.0-flash"
+    model = "gemini-3-flash-preview"
 
     async def execute(
         self,
@@ -61,12 +61,31 @@ class ScanReceiptSkill:
                     response_text="Не удалось распознать чек. Попробуйте сделать фото более чётким."
                 )
 
-        # Format response
-        response = f"{receipt.merchant}, ${receipt.total}"
+        # Format detailed response for user
+        response = f"🧾 **Чек распознан**\n\n"
+        response += f"🏪 **Магазин:** {receipt.merchant}\n"
+        response += f"💵 **Сумма:** ${receipt.total}"
+        if receipt.tax:
+            response += f" (налог: ${receipt.tax})"
+        response += "\n"
+        if receipt.date:
+            response += f"📅 **Дата:** {receipt.date}\n"
         if receipt.gallons:
-            response += f"\n{receipt.gallons} gal @ ${receipt.price_per_gallon}"
+            response += f"⛽ **Топливо:** {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
         if receipt.state:
-            response += f", {receipt.state}"
+            response += f"📍 **Штат:** {receipt.state}\n"
+        if receipt.items:
+            response += "\n📋 **Товары:**\n"
+            for item in receipt.items[:10]:
+                name = item.get("name", "—")
+                qty = item.get("quantity", 1)
+                price = item.get("price", 0)
+                line = f"  • {name}"
+                if qty and qty > 1:
+                    line += f" ×{qty}"
+                if price:
+                    line += f" — ${price}"
+                response += line + "\n"
 
         # High-confidence result — auto-save to DB
         confidence = Decimal("0.9")
@@ -104,7 +123,7 @@ class ScanReceiptSkill:
                 user_id=uuid.UUID(context.user_id),
                 type=DocumentType.receipt,
                 storage_path="pending",  # TODO: Supabase upload
-                ocr_model="gemini-2.0-flash",
+                ocr_model="gemini-3-flash-preview",
                 ocr_parsed=receipt.model_dump(mode="json"),
                 ocr_confidence=Decimal("0.9"),
             )
@@ -175,7 +194,7 @@ class ScanReceiptSkill:
             )
 
         response = await client.aio.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-3-flash-preview",
             contents=parts,
             config={"response_mime_type": "application/json"},
         )

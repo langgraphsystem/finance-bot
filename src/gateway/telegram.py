@@ -110,6 +110,28 @@ class TelegramGateway:
                 logger.error("Failed to download voice from Telegram: %s", e)
         elif msg.document:
             msg_type = MessageType.document
+            document_bytes = None
+            document_mime_type = msg.document.mime_type
+            document_file_name = msg.document.file_name
+            # Download documents that are images or PDFs (up to 20MB Telegram limit)
+            try:
+                file = await self.bot.get_file(msg.document.file_id)
+                data = await self.bot.download_file(file.file_path)
+                document_bytes = data.read()
+            except Exception as e:
+                logger.error("Failed to download document from Telegram: %s", e)
+
+            return IncomingMessage(
+                id=str(msg.message_id),
+                user_id=str(msg.from_user.id),
+                chat_id=str(msg.chat.id),
+                type=msg_type,
+                text=msg.text or msg.caption,
+                document_bytes=document_bytes,
+                document_mime_type=document_mime_type,
+                document_file_name=document_file_name,
+                raw=msg,
+            )
 
         return IncomingMessage(
             id=str(msg.message_id),
