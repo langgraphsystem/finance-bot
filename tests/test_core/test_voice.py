@@ -16,7 +16,7 @@ def mock_openai_client():
 
 @pytest.mark.asyncio
 async def test_transcribe_voice_success(mock_openai_client):
-    """Test successful transcription with gpt-4o-transcribe."""
+    """Test successful transcription with gpt-4o-mini-transcribe."""
     transcript_response = MagicMock()
     transcript_response.text = "Потратил 500 рублей на продукты"
     mock_openai_client.audio.transcriptions.create = AsyncMock(return_value=transcript_response)
@@ -26,7 +26,7 @@ async def test_transcribe_voice_success(mock_openai_client):
 
     assert result == "Потратил 500 рублей на продукты"
     mock_openai_client.audio.transcriptions.create.assert_awaited_once_with(
-        model="gpt-4o-transcribe",
+        model="gpt-4o-mini-transcribe",
         file=("voice.ogg", b"fake_audio_bytes"),
         language="ru",
     )
@@ -34,11 +34,11 @@ async def test_transcribe_voice_success(mock_openai_client):
 
 @pytest.mark.asyncio
 async def test_transcribe_voice_fallback_to_whisper(mock_openai_client):
-    """Test fallback to whisper-1 when gpt-4o-transcribe fails."""
+    """Test fallback to whisper-1 when gpt-4o-mini-transcribe fails."""
     transcript_response = MagicMock()
     transcript_response.text = "Записать расход 200 рублей"
 
-    # First call (gpt-4o-transcribe) fails, second call (whisper-1) succeeds
+    # First call (gpt-4o-mini-transcribe) fails, second call (whisper-1) succeeds
     mock_openai_client.audio.transcriptions.create = AsyncMock(
         side_effect=[
             Exception("Model unavailable"),
@@ -81,7 +81,7 @@ async def test_transcribe_voice_custom_filename(mock_openai_client):
 
     assert result == "Привет"
     mock_openai_client.audio.transcriptions.create.assert_awaited_once_with(
-        model="gpt-4o-transcribe",
+        model="gpt-4o-mini-transcribe",
         file=("custom.ogg", b"fake_audio_bytes"),
         language="ru",
     )
