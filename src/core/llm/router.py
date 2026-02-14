@@ -21,7 +21,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="google",
         model_id="gemini-3-flash-preview",
         fallback_provider="openai",
-        fallback_model_id="gpt-4.1",
+        fallback_model_id="gpt-5.2",
     ),
     "chat": ModelConfig(
         provider="anthropic",
@@ -33,13 +33,13 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="anthropic",
         model_id="claude-sonnet-4-5-20250929",
         fallback_provider="openai",
-        fallback_model_id="gpt-4.1",
+        fallback_model_id="gpt-5.2",
     ),
     "complex": ModelConfig(
         provider="anthropic",
         model_id="claude-opus-4-6",
         fallback_provider="openai",
-        fallback_model_id="gpt-4.1",
+        fallback_model_id="gpt-5.2",
     ),
     "summarization": ModelConfig(
         provider="google",
