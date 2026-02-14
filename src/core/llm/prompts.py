@@ -42,7 +42,7 @@ class PromptAdapter:
         """Format for Anthropic Claude API with 1h TTL prompt caching."""
         system_blocks = [{"type": "text", "text": system}]
         if cache:
-            system_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": 3600}
+            system_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
 
         return {
             "system": system_blocks,
