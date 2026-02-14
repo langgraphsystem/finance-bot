@@ -30,26 +30,100 @@ STATS_SYSTEM_PROMPT = """Ты формируешь ответ о финансо�
 Добавь сравнения и проценты, если данные позволяют."""
 
 
+def _parse_date(value: str | None) -> date | None:
+    """Parse YYYY-MM-DD string to date, return None on failure."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _resolve_period(
+    intent_data: dict[str, Any],
+) -> tuple[date, date, str]:
+    """Resolve period from intent data into (start_date, end_date, label).
+
+    Returns inclusive start and exclusive end (end = day after last included day).
+    """
+    today = date.today()
+    period = intent_data.get("period") or "month"
+
+    if period == "today":
+        return today, today + timedelta(days=1), "сегодня"
+
+    if period == "day":
+        # Specific day from intent (e.g. "вчера", "15 января")
+        day = _parse_date(intent_data.get("date")) or today
+        return day, day + timedelta(days=1), day.strftime("%d.%m.%Y")
+
+    if period == "week":
+        start = today - timedelta(days=today.weekday())
+        return start, today + timedelta(days=1), "эту неделю"
+
+    if period == "prev_week":
+        end = today - timedelta(days=today.weekday())  # Monday of this week
+        start = end - timedelta(days=7)
+        return start, end, "прошлую неделю"
+
+    if period == "month":
+        start = today.replace(day=1)
+        return start, today + timedelta(days=1), "этот месяц"
+
+    if period == "prev_month":
+        first_this_month = today.replace(day=1)
+        last_month_end = first_this_month
+        if today.month == 1:
+            start = today.replace(year=today.year - 1, month=12, day=1)
+        else:
+            start = today.replace(month=today.month - 1, day=1)
+        return start, last_month_end, "прошлый месяц"
+
+    if period == "year":
+        start = today.replace(month=1, day=1)
+        return start, today + timedelta(days=1), "этот год"
+
+    if period == "custom":
+        date_from = _parse_date(intent_data.get("date_from"))
+        date_to = _parse_date(intent_data.get("date_to"))
+        if date_from and date_to:
+            label = f"{date_from.strftime('%d.%m')} – {date_to.strftime('%d.%m.%Y')}"
+            return date_from, date_to + timedelta(days=1), label
+        if date_from:
+            return date_from, today + timedelta(days=1), f"с {date_from.strftime('%d.%m.%Y')}"
+
+    # Default: current month
+    start = today.replace(day=1)
+    return start, today + timedelta(days=1), "этот месяц"
+
+
 def _calculate_previous_period(
     start_date: date,
     end_date: date,
     period: str,
 ) -> tuple[date, date]:
     """Calculate previous period boundaries based on current period type."""
-    if period == "week":
-        delta = timedelta(days=7)
-        prev_start = start_date - delta
-        prev_end = end_date - delta
+    delta = end_date - start_date
+
+    if period in ("today", "day"):
+        prev_start = start_date - timedelta(days=1)
+        prev_end = start_date
+    elif period in ("week", "prev_week"):
+        prev_start = start_date - timedelta(days=7)
+        prev_end = start_date
     elif period == "year":
         prev_start = start_date.replace(year=start_date.year - 1)
         prev_end = end_date.replace(year=end_date.year - 1)
+    elif period == "custom":
+        prev_start = start_date - delta
+        prev_end = start_date
     else:
-        # month: go back one month
+        # month / prev_month
         if start_date.month == 1:
             prev_start = start_date.replace(year=start_date.year - 1, month=12)
         else:
             prev_start = start_date.replace(month=start_date.month - 1)
-        # Previous period end = current period start
         prev_end = start_date
     return prev_start, prev_end
 
@@ -151,18 +225,8 @@ class QueryStatsSkill:
                 logger.warning("MCP analytics fallback failed: %s", e)
 
         # Determine period from intent data
-        period = intent_data.get("period", "month")
-        today = date.today()
-
-        if period == "week":
-            start_date = today - timedelta(days=today.weekday())
-            period_label = "эту неделю"
-        elif period == "year":
-            start_date = today.replace(month=1, day=1)
-            period_label = "этот год"
-        else:
-            start_date = today.replace(day=1)
-            period_label = "этот месяц"
+        start_date, end_date, period_label = _resolve_period(intent_data)
+        period = intent_data.get("period") or "month"
 
         # Use assembled SQL stats for current month, own query for other periods
         if period == "month" and assembled and assembled.sql_stats:
@@ -181,6 +245,7 @@ class QueryStatsSkill:
                     .where(
                         Transaction.family_id == uuid.UUID(context.family_id),
                         Transaction.date >= start_date,
+                        Transaction.date < end_date,
                         Transaction.type == TransactionType.expense,
                     )
                     .group_by(Category.name)
@@ -192,6 +257,7 @@ class QueryStatsSkill:
                     select(func.sum(Transaction.amount)).where(
                         Transaction.family_id == uuid.UUID(context.family_id),
                         Transaction.date >= start_date,
+                        Transaction.date < end_date,
                         Transaction.type == TransactionType.expense,
                     )
                 )
@@ -211,12 +277,12 @@ class QueryStatsSkill:
         )
 
         # --- Period comparison ---
-        prev_start, prev_end = _calculate_previous_period(start_date, today, period)
+        prev_start, prev_end = _calculate_previous_period(start_date, end_date, period)
         try:
             comparison = await self._get_comparison_data(
                 family_id=context.family_id,
                 current_start=start_date,
-                current_end=today,
+                current_end=end_date,
                 prev_start=prev_start,
                 prev_end=prev_end,
             )

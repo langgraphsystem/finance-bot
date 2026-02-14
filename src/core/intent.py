@@ -43,6 +43,18 @@ rate confirmation, или другого изображения
 - "10 февраля", "February 10" → конкретная дата
 - Если дата НЕ указана в тексте → null (НЕ подставляй сегодня, это сделает код)
 
+Правила извлечения периода (для query_stats, query_report, complex_query):
+- "сегодня", "за сегодня" → period: "today"
+- "за неделю", "эту неделю", "на этой неделе" → period: "week"
+- "за месяц", "этот месяц", "в этом месяце" → period: "month"
+- "за год", "этот год", "в этом году" → period: "year"
+- "за вчера", "вчера" (если query_stats) → period: "day", date: вчерашняя дата
+- "за 15 января", "10 февраля" (конкретный день) → period: "day", date: дата
+- "с 1 по 15 февраля", "за первую неделю марта" → period: "custom", \
+date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
+- "за прошлый месяц", "прошлую неделю" → period: "prev_month" / "prev_week"
+- Если период НЕ указан → period: null (код подставит "month")
+
 Ответь ТОЛЬКО валидным JSON:
 {{
   "intent": "имя_интента",
@@ -54,7 +66,11 @@ rate confirmation, или другого изображения
     "scope": "business" или "family" или null,
     "date": "YYYY-MM-DD" или null,
     "description": "описание" или null,
-    "currency": "валюта" или null
+    "currency": "валюта" или null,
+    "period": "today" или "day" или "week" или "month" или "year" \
+или "prev_week" или "prev_month" или "custom" или null,
+    "date_from": "YYYY-MM-DD" или null,
+    "date_to": "YYYY-MM-DD" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""
