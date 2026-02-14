@@ -86,7 +86,7 @@ class AgentRouter:
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,
-                    current_message=message.text or "",
+                    current_message=message.text or ".",
                     intent=intent,
                     system_prompt=agent.system_prompt,
                 )
@@ -138,7 +138,7 @@ class AgentRouter:
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,
-                    current_message=message.text or "",
+                    current_message=message.text or ".",
                     intent=intent,
                     system_prompt=system_prompt,
                 )

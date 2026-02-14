@@ -213,15 +213,16 @@ async def _dispatch_message(
                 intent_name,
             )
         )
-    await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
-    asyncio.create_task(
-        _persist_message(
-            context.user_id,
-            context.family_id,
-            MessageRole.assistant,
-            skill_result.response_text,
+    if skill_result.response_text:
+        await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
+        asyncio.create_task(
+            _persist_message(
+                context.user_id,
+                context.family_id,
+                MessageRole.assistant,
+                skill_result.response_text,
+            )
         )
-    )
 
     # Layer 5: Trigger incremental dialog summarization in the background
     asyncio.create_task(summarize_dialog(context.user_id, context.family_id))

@@ -447,7 +447,10 @@ async def assemble_context(
         try:
             recent = await sliding_window.get_recent_messages(user_id, limit=hist_limit)
             for msg in recent:
-                msg_entry = {"role": msg["role"], "content": msg["content"]}
+                content = msg.get("content", "")
+                if not content:
+                    continue
+                msg_entry = {"role": msg["role"], "content": content}
                 history_messages.append(msg_entry)
 
             # Pre-trim history to per-layer budget

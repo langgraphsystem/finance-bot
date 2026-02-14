@@ -39,16 +39,22 @@ class GeneralChatSkill:
 
         if assembled:
             # Use assembled context: enriched system prompt + history + memories
-            non_system = [m for m in assembled.messages if m["role"] != "system"]
+            non_system = [
+                m for m in assembled.messages
+                if m["role"] != "system" and m.get("content")
+            ]
+            if not non_system:
+                non_system = [{"role": "user", "content": message.text or "Привет"}]
             prompt_data = PromptAdapter.for_claude(
                 system=assembled.system_prompt,
                 messages=non_system,
             )
         else:
             # Fallback: direct call without assembled context
+            user_text = message.text or "Привет"
             prompt_data = PromptAdapter.for_claude(
                 system=CHAT_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": message.text or ""}],
+                messages=[{"role": "user", "content": user_text}],
             )
 
         response = await client.messages.create(
