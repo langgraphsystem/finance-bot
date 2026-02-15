@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: uv sync --frozen
+      - run: uv sync --frozen --dev
       - run: uv run ruff check src/ api/ tests/
       - run: uv run ruff format --check src/ api/ tests/
 
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: uv sync --frozen
+      - run: uv sync --frozen --dev
       - run: uv run pytest tests/ -x --tb=short -q
       - run: uv run pytest tests/ --cov=src --cov-report=xml
       - uses: actions/upload-artifact@v4
