@@ -28,6 +28,7 @@ class UserContext(Base):
     )
     session_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), default=uuid.uuid4)
     message_count: Mapped[int] = mapped_column(Integer, default=0)
+    preferences: Mapped[dict | None] = mapped_column(JSONB, server_default="{}", nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

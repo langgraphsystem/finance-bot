@@ -59,6 +59,14 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "undo_last": {"mem": False, "hist": 5, "sql": False, "sum": False},
     "budget_advice": {"mem": "all", "hist": 5, "sql": True, "sum": True},
     "onboarding": {"mem": "profile", "hist": 10, "sql": False, "sum": False},
+    "quick_capture":  {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "track_food":     {"mem": "life", "hist": 2, "sql": False, "sum": False},
+    "track_drink":    {"mem": False,  "hist": 0, "sql": False, "sum": False},
+    "mood_checkin":   {"mem": "life", "hist": 2, "sql": False, "sum": False},
+    "day_plan":       {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "day_reflection": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "life_search":    {"mem": "life", "hist": 0, "sql": False, "sum": False},
+    "set_comm_mode":  {"mem": False,  "hist": 0, "sql": False, "sum": False},
 }
 
 
@@ -228,6 +236,15 @@ async def _load_memories(
                 user_id,
                 limit=10,
             )
+        elif mem_type == "life":
+            memories = await mem0_client.search_memories(
+                current_message, user_id, limit=10,
+            )
+            # Filter to life-related memories
+            return [
+                m for m in memories
+                if m.get("metadata", {}).get("category", "").startswith("life_")
+            ]
         else:
             return []
     except Exception as e:

@@ -15,6 +15,21 @@ class IntentData(BaseModel):
     date_from: str | None = None  # YYYY-MM-DD for custom range
     date_to: str | None = None  # YYYY-MM-DD for custom range
 
+    # Life-tracking fields
+    tags: list[str] | None = None
+    project: str | None = None
+    food_item: str | None = None
+    meal_type: str | None = None
+    drink_type: str | None = None
+    drink_count: int | None = None
+    mood: int | None = None
+    energy: int | None = None
+    stress: int | None = None
+    sleep_hours: float | None = None
+    tasks: list[str] | None = None
+    comm_mode: str | None = None
+    search_query: str | None = None
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

@@ -57,3 +57,12 @@ class PaymentFrequency(enum.StrEnum):
 class BudgetPeriod(enum.StrEnum):
     weekly = "weekly"
     monthly = "monthly"
+
+
+class LifeEventType(enum.StrEnum):
+    note = "note"
+    food = "food"
+    drink = "drink"
+    mood = "mood"
+    task = "task"
+    reflection = "reflection"

@@ -8,6 +8,7 @@ from src.core.models.enums import (
     BudgetPeriod,
     ConversationState,
     DocumentType,
+    LifeEventType,
     LoadStatus,
     MessageRole,
     PaymentFrequency,
@@ -16,6 +17,7 @@ from src.core.models.enums import (
     UserRole,
 )
 from src.core.models.family import Family
+from src.core.models.life_event import LifeEvent
 from src.core.models.load import Load
 from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.recurring_payment import RecurringPayment
@@ -29,6 +31,7 @@ __all__ = [
     "BudgetPeriod",
     "ConversationState",
     "DocumentType",
+    "LifeEventType",
     "LoadStatus",
     "MessageRole",
     "PaymentFrequency",
@@ -41,6 +44,7 @@ __all__ = [
     "Transaction",
     "Document",
     "MerchantMapping",
+    "LifeEvent",
     "Load",
     "ConversationMessage",
     "UserContext",

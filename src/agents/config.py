@@ -1,6 +1,6 @@
 """Agent configurations for Finance Bot.
 
-Defines 4 specialized agents, each with a narrow system prompt,
+Defines 5 specialized agents, each with a narrow system prompt,
 model selection, and context configuration. This yields 60-70%
 token savings compared to a monolith approach.
 """
@@ -41,6 +41,14 @@ ONBOARDING_AGENT_PROMPT = """\
 Для общих вопросов — объясни возможности бота.
 Отвечай на русском языке."""
 
+LIFE_AGENT_PROMPT = """\
+Ты персональный life-assistant в Telegram-боте.
+Задача: фиксировать заметки, отслеживать еду/напитки/настроение, \
+планировать день и проводить рефлексию.
+Будь краток. Уважай режим общения пользователя (silent/receipt/coaching).
+Отвечай на русском. Используй HTML-теги для Telegram.
+НИКОГДА не выдумывай данные — записывай только то, что пользователь явно сказал."""
+
 # --- Agent configurations ---
 
 AGENTS: list[AgentConfig] = [
@@ -79,5 +87,15 @@ AGENTS: list[AgentConfig] = [
         skills=["onboarding", "general_chat"],
         default_model="claude-sonnet-4-5",
         context_config={"mem": "profile", "hist": 10, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="life",
+        system_prompt=LIFE_AGENT_PROMPT,
+        skills=[
+            "quick_capture", "track_food", "track_drink", "mood_checkin",
+            "day_plan", "day_reflection", "life_search", "set_comm_mode",
+        ],
+        default_model="claude-haiku-4-5",
+        context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},
     ),
 ]
