@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 from urllib.parse import urlencode
 
 import pytest
@@ -12,7 +12,14 @@ from fastapi import HTTPException
 
 from api.webapp_auth import validate_webapp_data
 
-BOT_TOKEN = "test_token"
+BOT_TOKEN = "test-token"
+
+
+@pytest.fixture(autouse=True)
+def _mock_bot_token():
+    with patch("api.webapp_auth.settings") as mock_settings:
+        mock_settings.telegram_bot_token = BOT_TOKEN
+        yield
 
 
 def _build_init_data(
