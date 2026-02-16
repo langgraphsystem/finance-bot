@@ -63,7 +63,7 @@ async def test_mood_energy_stress_sleep_recorded(skill, message, ctx):
         "mood": 7,
         "energy": 6,
         "stress": 4,
-        "sleep": 8,
+        "sleep_hours": 8,
     }
     p_save, p_mode = _patch_helpers()
 
@@ -76,7 +76,7 @@ async def test_mood_energy_stress_sleep_recorded(skill, message, ctx):
     assert data["mood"] == 7
     assert data["energy"] == 6
     assert data["stress"] == 4
-    assert data["sleep"] == 8
+    assert data["sleep_hours"] == 8.0
     assert "настроение" in call_kwargs["text"]
     assert result.response_text
 
@@ -184,5 +184,5 @@ async def test_partial_metrics_accepted(skill, message, ctx):
     assert "mood" in data
     assert "energy" not in data
     assert "stress" not in data
-    assert "sleep" not in data
+    assert "sleep_hours" not in data
     assert result.response_text

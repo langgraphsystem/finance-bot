@@ -17,8 +17,8 @@ from src.skills.base import SkillResult
 logger = logging.getLogger(__name__)
 
 MOOD_CHECKIN_SYSTEM_PROMPT = """Ты помогаешь пользователю оценить своё состояние.
-Параметры: mood (настроение), energy (энергия), stress (стресс), sleep (сон).
-Каждый параметр — число от 1 до 10."""
+Параметры: mood (настроение), energy (энергия), stress (стресс) — шкала 1-10.
+sleep_hours — количество часов сна (напр. 7.5)."""
 
 
 class MoodCheckinSkill:
@@ -36,10 +36,10 @@ class MoodCheckinSkill:
         mood = intent_data.get("mood")
         energy = intent_data.get("energy")
         stress = intent_data.get("stress")
-        sleep = intent_data.get("sleep")
+        sleep_hours = intent_data.get("sleep_hours")
 
         # If no metrics provided at all, return interactive buttons
-        if not any([mood, energy, stress, sleep]):
+        if not any([mood, energy, stress, sleep_hours]):
             return SkillResult(
                 response_text="Как дела? Оцените от 1 до 10:",
                 buttons=[
@@ -67,9 +67,9 @@ class MoodCheckinSkill:
         if stress is not None:
             data["stress"] = max(1, min(10, int(stress)))
             parts.append(f"стресс: {data['stress']}/10")
-        if sleep is not None:
-            data["sleep"] = max(1, min(10, int(sleep)))
-            parts.append(f"сон: {data['sleep']}/10")
+        if sleep_hours is not None:
+            data["sleep_hours"] = round(float(sleep_hours), 1)
+            parts.append(f"сон: {data['sleep_hours']}ч")
 
         summary = ", ".join(parts)
 
@@ -85,7 +85,8 @@ class MoodCheckinSkill:
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
-            avg = sum(data.values()) / len(data) if data else 0
+            scale_vals = [v for k, v in data.items() if k != "sleep_hours"]
+            avg = sum(scale_vals) / len(scale_vals) if scale_vals else 5
             tip = (
                 "Отличный день! Так держать."
                 if avg >= 7

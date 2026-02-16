@@ -72,7 +72,7 @@ async def test_empty_query_from_intent_data(skill, ctx):
     """Empty query in intent_data falls through to message text."""
     msg = _msg("")
 
-    result = await skill.execute(msg, ctx, {"query": "  "})
+    result = await skill.execute(msg, ctx, {"search_query": "  "})
 
     assert "Что искать" in result.response_text
 
@@ -81,7 +81,7 @@ async def test_empty_query_from_intent_data(skill, ctx):
 async def test_sql_and_mem0_results_merged(skill, ctx):
     """SQL and Mem0 results are merged without duplicates."""
     msg = _msg("кофе")
-    intent_data = {"query": "кофе"}
+    intent_data = {"search_query": "кофе"}
 
     sql_events = [
         _make_life_event("кофе утром", LifeEventType.drink),
@@ -125,7 +125,7 @@ async def test_sql_and_mem0_results_merged(skill, ctx):
 async def test_no_results_found(skill, ctx):
     """No results found returns an informative message."""
     msg = _msg("несуществующее")
-    intent_data = {"query": "несуществующее"}
+    intent_data = {"search_query": "несуществующее"}
 
     with (
         patch(
@@ -148,7 +148,7 @@ async def test_no_results_found(skill, ctx):
 async def test_mem0_failure_does_not_crash(skill, ctx):
     """Mem0 search failure is handled gracefully."""
     msg = _msg("заметка")
-    intent_data = {"query": "заметка"}
+    intent_data = {"search_query": "заметка"}
 
     sql_events = [_make_life_event("заметка про идею")]
 
@@ -201,7 +201,7 @@ async def test_query_from_message_text(skill, ctx):
 async def test_timeline_header_contains_query(skill, ctx):
     """Response header includes the search query."""
     msg = _msg("кофе")
-    intent_data = {"query": "кофе"}
+    intent_data = {"search_query": "кофе"}
     events = [_make_life_event("кофе утром")]
 
     with (

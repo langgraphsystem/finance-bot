@@ -44,7 +44,7 @@ class DayReflectionSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        text = intent_data.get("reflection") or intent_data.get("text") or message.text or ""
+        text = intent_data.get("reflection") or intent_data.get("description") or message.text or ""
         text_stripped = text.strip()
 
         # If the message is just a bare trigger word, ask a guiding question

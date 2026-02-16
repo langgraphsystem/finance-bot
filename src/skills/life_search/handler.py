@@ -29,7 +29,7 @@ class LifeSearchSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        query = intent_data.get("query") or intent_data.get("search") or message.text or ""
+        query = intent_data.get("search_query") or message.text or ""
 
         if not query.strip():
             return SkillResult(response_text="Что искать? Напишите запрос.")

@@ -18,10 +18,13 @@ class IntentData(BaseModel):
     # Life-tracking fields
     tags: list[str] | None = None
     project: str | None = None
+    note: str | None = None
+    reflection: str | None = None
     food_item: str | None = None
     meal_type: str | None = None
     drink_type: str | None = None
     drink_count: int | None = None
+    drink_volume_ml: int | None = None
     mood: int | None = None
     energy: int | None = None
     stress: int | None = None

@@ -34,7 +34,7 @@ class QuickCaptureSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        text = intent_data.get("note") or intent_data.get("text") or message.text or ""
+        text = intent_data.get("note") or intent_data.get("description") or message.text or ""
 
         if not text.strip():
             return SkillResult(response_text="Что записать? Отправьте текст заметки.")

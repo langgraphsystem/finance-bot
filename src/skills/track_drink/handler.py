@@ -64,10 +64,10 @@ class TrackDrinkSkill:
         text = message.text or ""
         text_lower = text.lower()
 
-        # Fast path: keyword matching
-        item = intent_data.get("item")
-        volume_ml = intent_data.get("volume_ml")
-        count = intent_data.get("count", 1)
+        # Fast path: use intent extraction data
+        item = intent_data.get("drink_type")
+        volume_ml = intent_data.get("drink_volume_ml")
+        count = intent_data.get("drink_count") or 1
 
         if not item:
             for keyword, drink_name in DRINK_KEYWORDS.items():

@@ -100,7 +100,7 @@ async def test_keyword_tea_detected(skill, ctx):
 async def test_count_from_intent_data(skill, ctx):
     """Count is extracted from intent_data."""
     msg = _msg("2 кофе")
-    intent_data = {"count": 2}
+    intent_data = {"drink_count": 2}
     p_save, p_mode = _patch_helpers()
 
     with p_save as mock_save, p_mode:
