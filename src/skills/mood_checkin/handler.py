@@ -98,9 +98,7 @@ class MoodCheckinSkill:
                 + f"\n\U0001f4a1 {tip}"
             )
         else:
-            return SkillResult(
-                response_text=format_receipt(LifeEventType.mood, summary, None)
-            )
+            return SkillResult(response_text=format_receipt(LifeEventType.mood, summary, None))
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return MOOD_CHECKIN_SYSTEM_PROMPT

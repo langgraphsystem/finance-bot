@@ -195,9 +195,7 @@ async def test_llm_fallback_when_no_keyword(skill, ctx):
     msg = _msg("какой-то напиток")
 
     mock_response = MagicMock()
-    mock_response.content = [
-        MagicMock(text='{"item": "juice", "volume_ml": 200, "count": 1}')
-    ]
+    mock_response.content = [MagicMock(text='{"item": "juice", "volume_ml": 200, "count": 1}')]
 
     mock_client = MagicMock()
     mock_client.messages.create = AsyncMock(return_value=mock_response)
@@ -225,9 +223,7 @@ async def test_llm_fallback_error_defaults_to_drink(skill, ctx):
     msg = _msg("что-то непонятное")
 
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(
-        side_effect=RuntimeError("API error")
-    )
+    mock_client.messages.create = AsyncMock(side_effect=RuntimeError("API error"))
 
     p_save, p_mode = _patch_helpers()
 

@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 async def _get_family_users() -> list[tuple[str, str, int]]:
     """Get (family_id, user_id, telegram_id) for all users."""
     async with async_session() as session:
-        result = await session.execute(
-            select(User.family_id, User.id, User.telegram_id)
-        )
+        result = await session.execute(select(User.family_id, User.id, User.telegram_id))
         return [(str(r[0]), str(r[1]), r[2]) for r in result.all()]
 
 
@@ -106,12 +104,11 @@ async def weekly_life_digest() -> None:
             task_events = [e for e in events if e.type == LifeEventType.task]
             if task_events:
                 done = sum(
-                    1 for te in task_events
+                    1
+                    for te in task_events
                     if te.data and isinstance(te.data, dict) and te.data.get("done")
                 )
-                summary_parts.append(
-                    f"\u2705 Задачи: {done}/{len(task_events)} выполнено"
-                )
+                summary_parts.append(f"\u2705 Задачи: {done}/{len(task_events)} выполнено")
 
             # AI analysis via Claude Sonnet
             try:
@@ -146,10 +143,7 @@ async def _generate_digest_analysis(events: list) -> str:
     """Generate AI analysis of weekly life events using Claude Sonnet."""
     from src.core.llm.clients import anthropic_client
 
-    events_text = "\n".join(
-        f"- [{e.type.value}] {e.date}: {e.text or ''}"
-        for e in events[:50]
-    )
+    events_text = "\n".join(f"- [{e.type.value}] {e.date}: {e.text or ''}" for e in events[:50])
 
     client = anthropic_client()
     response = await client.messages.create(

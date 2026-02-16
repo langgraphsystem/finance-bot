@@ -83,9 +83,7 @@ class DayPlanSkill:
                 f"\n\n\U0001f4a1 Фокус на первой задаче — остальное подождёт."
             )
         else:
-            return SkillResult(
-                response_text=f"<b>План на день:</b>\n{plan_text}"
-            )
+            return SkillResult(response_text=f"<b>План на день:</b>\n{plan_text}")
 
     @staticmethod
     def _clean_task_lines(lines: list[str]) -> list[str]:

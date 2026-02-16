@@ -13,12 +13,8 @@ class LifeEvent(Base, TimestampMixin):
     __tablename__ = "life_events"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id")
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("families.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     type: Mapped[LifeEventType] = mapped_column(
         ENUM(LifeEventType, name="life_event_type", create_type=False)
     )

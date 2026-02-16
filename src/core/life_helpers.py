@@ -22,9 +22,7 @@ async def get_communication_mode(user_id: str) -> str:
     try:
         async with async_session() as session:
             result = await session.execute(
-                select(UserContext.preferences).where(
-                    UserContext.user_id == uuid.UUID(user_id)
-                )
+                select(UserContext.preferences).where(UserContext.user_id == uuid.UUID(user_id))
             )
             prefs = result.scalar_one_or_none()
             if prefs and isinstance(prefs, dict):

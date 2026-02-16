@@ -62,14 +62,10 @@ class LifeSearchSkill:
         for mem in mem0_results:
             mem_text = mem.get("memory") or mem.get("text") or ""
             if mem_text and mem_text not in sql_texts:
-                timeline_events.append(
-                    _mem0_to_pseudo_event(mem)
-                )
+                timeline_events.append(_mem0_to_pseudo_event(mem))
 
         if not timeline_events:
-            return SkillResult(
-                response_text=f"По запросу <b>«{query}»</b> ничего не найдено."
-            )
+            return SkillResult(response_text=f"По запросу <b>«{query}»</b> ничего не найдено.")
 
         formatted = format_timeline(timeline_events)
         header = f"<b>Результаты по «{query}»:</b>\n"
