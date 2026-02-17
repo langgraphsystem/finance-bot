@@ -173,6 +173,11 @@ async def _dispatch_message(
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}
         intent_data["confidence"] = result.confidence
+
+        # Registered user should never hit onboarding — redirect to general_chat
+        if intent_name == "onboarding" and context.family_id:
+            intent_name = "general_chat"
+
         logger.info(
             "Intent: %s (%.2f) for user %s",
             intent_name,
