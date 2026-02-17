@@ -1,6 +1,6 @@
 """Agent configurations for Finance Bot.
 
-Defines 5 specialized agents, each with a narrow system prompt,
+Defines specialized agents, each with a narrow system prompt,
 model selection, and context configuration. This yields 60-70%
 token savings compared to a monolith approach.
 """
@@ -51,6 +51,12 @@ LIFE_AGENT_PROMPT = """\
 
 # --- Agent configurations ---
 
+RESEARCH_AGENT_PROMPT = """\
+You answer questions, search the web, and compare options.
+Lead with the answer. Be concise: 1-5 sentences for facts, bullet points for comparisons.
+Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+Respond in the user's preferred language (from context.language). Default: English."""
+
 TASKS_AGENT_PROMPT = """\
 You help users manage tasks, reminders, and to-do lists.
 Create tasks, show the task list, mark tasks done, and set reminders.
@@ -100,6 +106,13 @@ AGENTS: list[AgentConfig] = [
         skills=["create_task", "list_tasks", "set_reminder", "complete_task"],
         default_model="claude-haiku-4-5",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="research",
+        system_prompt=RESEARCH_AGENT_PROMPT,
+        skills=["quick_answer", "web_search", "compare_options"],
+        default_model="gemini-3-flash-preview",
+        context_config={"mem": False, "hist": 3, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="life",

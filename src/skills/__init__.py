@@ -2,6 +2,7 @@ from src.skills.add_expense.handler import skill as add_expense_skill
 from src.skills.add_income.handler import skill as add_income_skill
 from src.skills.add_recurring.handler import skill as add_recurring_skill
 from src.skills.base import SkillRegistry
+from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
@@ -16,6 +17,7 @@ from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
 from src.skills.query_report.handler import skill as query_report_skill
 from src.skills.query_stats.handler import skill as query_stats_skill
+from src.skills.quick_answer.handler import skill as quick_answer_skill
 from src.skills.quick_capture.handler import skill as quick_capture_skill
 from src.skills.scan_document.handler import skill as scan_document_skill
 from src.skills.scan_receipt.handler import skill as scan_receipt_skill
@@ -25,6 +27,7 @@ from src.skills.set_reminder.handler import skill as set_reminder_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
+from src.skills.web_search.handler import skill as web_search_skill
 
 
 def create_registry() -> SkillRegistry:
@@ -56,4 +59,7 @@ def create_registry() -> SkillRegistry:
     registry.register(list_tasks_skill)
     registry.register(set_reminder_skill)
     registry.register(complete_task_skill)
+    registry.register(quick_answer_skill)
+    registry.register(web_search_skill)
+    registry.register(compare_options_skill)
     return registry

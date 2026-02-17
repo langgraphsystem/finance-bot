@@ -57,6 +57,12 @@ rate confirmation, или другого изображения
 "напоминание: ...", "remind me to pick up Emma at 3:15")
 - complete_task: отметить задачу выполненной ("done with ...", "готово: ...", \
 "выполнил ...", "задача выполнена", "mark done: ...")
+- quick_answer: фактический вопрос, ответ из знаний ("сколько чашек в галлоне?", \
+"what's the capital of France?", "как перевести фунты в кг?")
+- web_search: поиск в интернете, текущая информация ("what time does Costco close?", \
+"расценки на ремонт ванной в Queens", "лучший ресторан рядом", "погода завтра")
+- compare_options: сравнение двух+ вариантов ("compare PEX vs copper", \
+"Costco vs Sam's Club", "Toyota Camry или Honda Accord", "что лучше: X или Y?")
 - general_chat: общий вопрос, не связанный с финансами напрямую
 
 Правила приоритета (задачи vs life-tracking):
@@ -65,6 +71,12 @@ rate confirmation, или другого изображения
 - "мои задачи" или "what's on my list" → list_tasks
 - "готово" или "done with ..." → complete_task
 - "план дня" (без конкретной задачи) → day_plan (life-tracking)
+
+Правила приоритета (research vs general_chat):
+- Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
+- "search ...", "найди ...", "загугли ...", текущие данные → web_search
+- "compare", "vs", "или ... или", "что лучше" → compare_options
+- Приветствие, болтовня без конкретного вопроса → general_chat
 
 Правила приоритета (финансы vs life-tracking):
 - Если в сообщении есть СУММА + финансовый контекст -> add_expense / add_income (приоритет)
@@ -141,7 +153,8 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
 или "reflection" или "note" или null,
     "task_title": "название задачи" или null,
     "task_deadline": "YYYY-MM-DDTHH:MM:SS" или null,
-    "task_priority": "low" или "medium" или "high" или "urgent" или null
+    "task_priority": "low" или "medium" или "high" или "urgent" или null,
+    "search_topic": "тема поиска/вопроса" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

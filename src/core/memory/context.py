@@ -74,6 +74,10 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "list_tasks": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "set_reminder": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "complete_task": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    # Research intents
+    "quick_answer": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "web_search": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "compare_options": {"mem": False, "hist": 3, "sql": False, "sum": False},
 }
 
 
