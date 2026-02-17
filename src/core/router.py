@@ -532,6 +532,28 @@ async def _handle_callback(
                 )
         return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
 
+    elif action == "life_search":
+        # Period shortcut buttons from life_search results
+        period = parts[1] if len(parts) > 1 else "today"
+        registry = get_registry()
+        skill = registry.get("life_search")
+        if skill:
+            search_msg = IncomingMessage(
+                id=message.id,
+                user_id=message.user_id,
+                chat_id=message.chat_id,
+                type=MessageType.text,
+                text="",
+            )
+            intent_data: dict[str, Any] = {"period": period, "search_query": ""}
+            skill_result = await skill.execute(search_msg, context, intent_data)
+            return OutgoingMessage(
+                text=skill_result.response_text,
+                chat_id=message.chat_id,
+                buttons=skill_result.buttons,
+            )
+        return OutgoingMessage(text="Поиск недоступен.", chat_id=message.chat_id)
+
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>
         pending_id = parts[1] if len(parts) > 1 else ""

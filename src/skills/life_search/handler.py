@@ -47,11 +47,12 @@ class LifeSearchSkill:
     ) -> SkillResult:
         query = intent_data.get("search_query") or message.text or ""
 
-        if not query.strip():
-            return SkillResult(response_text="Что искать? Напишите запрос.")
-
         # Parse period from intent_data
         date_from, date_to, period_label = resolve_life_period(intent_data)
+
+        # If no query AND no period filter, ask what to search for
+        if not query.strip() and not date_from:
+            return SkillResult(response_text="Что искать? Напишите запрос.")
 
         # Parse event type filter
         event_type = _resolve_event_type(intent_data.get("life_event_type"))
