@@ -71,6 +71,25 @@ rate confirmation, или другого изображения
 "напиши ответ на отзыв", "write an Instagram caption", "write a post about...")
 - proofread: проверить текст на ошибки ("proofread this", "check my text", \
 "проверь грамматику", "fix my spelling")
+- read_inbox: проверить почту, сводка по входящим ("check my email", "what's in my inbox", \
+"проверь почту", "новые письма")
+- send_email: написать и отправить email ("email John about the meeting", \
+"отправь письмо", "email Mrs. Rodriguez")
+- draft_reply: ответить на письмо ("reply to that email", "ответь на письмо от школы")
+- follow_up_email: проверить неотвеченные письма ("any emails I haven't replied to?", \
+"на какие письма не ответил?")
+- summarize_thread: кратко пересказать переписку ("summarize the thread with Sarah", \
+"перескажи переписку с врачом")
+- list_events: показать расписание ("what's on my calendar?", "расписание на завтра", \
+"что на сегодня?", "my schedule")
+- create_event: создать событие ("schedule a meeting tomorrow at 3pm", \
+"запиши встречу на пятницу 10:00", "schedule estimate for Mrs. Chen")
+- find_free_slots: найти свободное время ("when am I free?", "когда я свободен?", \
+"am I free Thursday morning?")
+- reschedule_event: перенести событие ("move the dentist to Thursday", \
+"перенеси встречу на 15:00", "push Mike's job to 11am")
+- morning_brief: утренняя сводка ("morning brief", "what's my day look like?", \
+"план на сегодня", "утренняя сводка")
 - general_chat: общий вопрос, не связанный с финансами напрямую
 
 Правила приоритета (задачи vs life-tracking):
@@ -92,6 +111,20 @@ rate confirmation, или другого изображения
 - "review response/ответ на отзыв/caption/пост" → write_post
 - "proofread/check/проверь/fix grammar/исправь" → proofread
 - Общая болтовня без запроса на написание → general_chat
+
+Правила приоритета (email):
+- "check email/inbox/почта/письма" → read_inbox
+- "email [кому] about..." / "отправь письмо" → send_email
+- "reply to..." / "ответь на письмо" → draft_reply
+- "unanswered/не ответил/follow up" → follow_up_email
+- "summarize thread/переписка" → summarize_thread
+
+Правила приоритета (calendar):
+- "schedule/calendar/расписание/what's on my..." → list_events
+- "schedule/create/запиши встречу/назначь" + время → create_event
+- "when am I free/свободен" → find_free_slots
+- "move/reschedule/перенеси" + событие → reschedule_event
+- "morning brief/утренняя сводка/what's my day" → morning_brief
 
 Правила приоритета (финансы vs life-tracking):
 - Если в сообщении есть СУММА + финансовый контекст -> add_expense / add_income (приоритет)
@@ -172,7 +205,14 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
     "search_topic": "тема поиска/вопроса" или null,
     "writing_topic": "тема/текст для написания" или null,
     "target_language": "целевой язык перевода" или null,
-    "target_platform": "платформа для поста (google, instagram, etc.)" или null
+    "target_platform": "платформа для поста (google, instagram, etc.)" или null,
+    "email_to": "адресат email" или null,
+    "email_subject": "тема письма" или null,
+    "email_body_hint": "подсказка для тела письма" или null,
+    "event_title": "название события" или null,
+    "event_datetime": "YYYY-MM-DDTHH:MM:SS" или null,
+    "event_duration_minutes": число минут или null,
+    "event_attendees": ["участник1"] или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""
@@ -287,9 +327,7 @@ DOMAIN_INTENT_PROMPTS: dict[str, str] = {
 async def _classify_domain(text: str, language: str = "ru") -> str:
     """Stage 1: classify message into a domain using Gemini Flash."""
     client = google_client()
-    prompt = (
-        f"{DOMAIN_CLASSIFICATION_PROMPT}\n\nЯзык: {language}\n\nСообщение: {text}"
-    )
+    prompt = f"{DOMAIN_CLASSIFICATION_PROMPT}\n\nЯзык: {language}\n\nСообщение: {text}"
     try:
         response = await client.aio.models.generate_content(
             model="gemini-3-flash-preview",

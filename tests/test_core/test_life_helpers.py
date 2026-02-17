@@ -274,11 +274,13 @@ def test_resolve_life_period_day_with_date():
 
 def test_resolve_life_period_custom_range():
     """Period 'custom' with both dates returns the range."""
-    d_from, d_to, label = resolve_life_period({
-        "period": "custom",
-        "date_from": "2026-02-01",
-        "date_to": "2026-02-10",
-    })
+    d_from, d_to, label = resolve_life_period(
+        {
+            "period": "custom",
+            "date_from": "2026-02-01",
+            "date_to": "2026-02-10",
+        }
+    )
     assert d_from == date(2026, 2, 1)
     assert d_to == date(2026, 2, 10)
     assert "01.02" in label
@@ -288,10 +290,12 @@ def test_resolve_life_period_custom_range():
 def test_resolve_life_period_custom_only_from():
     """Period 'custom' with only date_from falls back to today for date_to."""
     today = date.today()
-    d_from, d_to, label = resolve_life_period({
-        "period": "custom",
-        "date_from": "2026-01-15",
-    })
+    d_from, d_to, label = resolve_life_period(
+        {
+            "period": "custom",
+            "date_from": "2026-01-15",
+        }
+    )
     assert d_from == date(2026, 1, 15)
     assert d_to == today
 
@@ -383,10 +387,7 @@ def test_format_event_text_long_note_truncated():
 def test_format_timeline_truncation():
     """Timeline shows truncation hint when events exceed max."""
     now = datetime.now()
-    events = [
-        _make_event(f"event {i}", event_date=date.today(), created_at=now)
-        for i in range(25)
-    ]
+    events = [_make_event(f"event {i}", event_date=date.today(), created_at=now) for i in range(25)]
     result = format_timeline(events, max_events=10)
     assert "ещё 15 записей" in result
 

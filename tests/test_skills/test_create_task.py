@@ -48,9 +48,7 @@ async def test_create_task_basic(skill, message, ctx):
         "src.skills.create_task.handler.save_task",
         new_callable=AsyncMock,
     ) as mock_save:
-        result = await skill.execute(
-            message, ctx, {"task_title": "buy groceries"}
-        )
+        result = await skill.execute(message, ctx, {"task_title": "buy groceries"})
 
     mock_save.assert_awaited_once()
     task = mock_save.call_args.args[0]
@@ -74,9 +72,7 @@ async def test_create_task_high_priority(skill, message, ctx):
             type=MessageType.text,
             text="urgent task: fix the leak",
         )
-        result = await skill.execute(
-            msg, ctx, {"task_title": "fix the leak"}
-        )
+        result = await skill.execute(msg, ctx, {"task_title": "fix the leak"})
 
     task = mock_save.call_args.args[0]
     assert task.priority == TaskPriority.urgent

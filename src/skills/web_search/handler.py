@@ -41,10 +41,7 @@ class WebSearchSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         query = (
-            intent_data.get("search_topic")
-            or intent_data.get("search_query")
-            or message.text
-            or ""
+            intent_data.get("search_topic") or intent_data.get("search_query") or message.text or ""
         )
         query = query.strip()
 
@@ -55,9 +52,7 @@ class WebSearchSkill:
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return WEB_SEARCH_SYSTEM_PROMPT.format(
-            language=context.language or "en"
-        )
+        return WEB_SEARCH_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 async def search_and_answer(query: str, language: str) -> str:

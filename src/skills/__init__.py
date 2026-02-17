@@ -6,26 +6,36 @@ from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
+from src.skills.create_event.handler import skill as create_event_skill
 from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
+from src.skills.draft_reply.handler import skill as draft_reply_skill
+from src.skills.find_free_slots.handler import skill as find_free_slots_skill
+from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.life_search.handler import skill as life_search_skill
+from src.skills.list_events.handler import skill as list_events_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
+from src.skills.morning_brief.handler import skill as morning_brief_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
 from src.skills.proofread.handler import skill as proofread_skill
 from src.skills.query_report.handler import skill as query_report_skill
 from src.skills.query_stats.handler import skill as query_stats_skill
 from src.skills.quick_answer.handler import skill as quick_answer_skill
 from src.skills.quick_capture.handler import skill as quick_capture_skill
+from src.skills.read_inbox.handler import skill as read_inbox_skill
+from src.skills.reschedule_event.handler import skill as reschedule_event_skill
 from src.skills.scan_document.handler import skill as scan_document_skill
 from src.skills.scan_receipt.handler import skill as scan_receipt_skill
+from src.skills.send_email.handler import skill as send_email_skill
 from src.skills.set_budget.handler import skill as set_budget_skill
 from src.skills.set_comm_mode.handler import skill as set_comm_mode_skill
 from src.skills.set_reminder.handler import skill as set_reminder_skill
+from src.skills.summarize_thread.handler import skill as summarize_thread_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.translate_text.handler import skill as translate_text_skill
@@ -70,4 +80,14 @@ def create_registry() -> SkillRegistry:
     registry.register(translate_text_skill)
     registry.register(write_post_skill)
     registry.register(proofread_skill)
+    registry.register(read_inbox_skill)
+    registry.register(send_email_skill)
+    registry.register(draft_reply_skill)
+    registry.register(follow_up_email_skill)
+    registry.register(summarize_thread_skill)
+    registry.register(list_events_skill)
+    registry.register(create_event_skill)
+    registry.register(find_free_slots_skill)
+    registry.register(reschedule_event_skill)
+    registry.register(morning_brief_skill)
     return registry

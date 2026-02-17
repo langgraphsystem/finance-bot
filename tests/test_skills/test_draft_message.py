@@ -79,9 +79,7 @@ async def test_draft_from_message_text(skill, ctx):
     ) as mock_gen:
         result = await skill.execute(msg, ctx, {})
 
-    mock_gen.assert_awaited_once_with(
-        "draft a text to Mike about tomorrow's schedule", "en"
-    )
+    mock_gen.assert_awaited_once_with("draft a text to Mike about tomorrow's schedule", "en")
     assert "Mike" in result.response_text
 
 

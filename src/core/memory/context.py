@@ -83,6 +83,18 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "translate_text": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "write_post": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "proofread": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    # Email intents
+    "read_inbox": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "send_email": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    "draft_reply": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    "follow_up_email": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    "summarize_thread": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    # Calendar intents
+    "list_events": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    "create_event": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "find_free_slots": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "morning_brief": {"mem": "life", "hist": 0, "sql": False, "sum": False},
 }
 
 

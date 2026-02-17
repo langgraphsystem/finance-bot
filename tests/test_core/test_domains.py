@@ -6,8 +6,17 @@ from src.core.domains import INTENT_DOMAIN_MAP, Domain
 def test_domain_enum_has_all_domains():
     """All expected domains exist."""
     expected = {
-        "finance", "email", "calendar", "tasks", "research",
-        "writing", "contacts", "web", "monitor", "general", "onboarding",
+        "finance",
+        "email",
+        "calendar",
+        "tasks",
+        "research",
+        "writing",
+        "contacts",
+        "web",
+        "monitor",
+        "general",
+        "onboarding",
     }
     actual = {d.value for d in Domain}
     assert expected == actual
@@ -16,9 +25,18 @@ def test_domain_enum_has_all_domains():
 def test_all_finance_intents_map_to_finance():
     """All finance intents should map to Domain.finance."""
     finance_intents = [
-        "add_expense", "add_income", "scan_receipt", "scan_document",
-        "query_stats", "query_report", "correct_category", "undo_last",
-        "mark_paid", "set_budget", "add_recurring", "complex_query",
+        "add_expense",
+        "add_income",
+        "scan_receipt",
+        "scan_document",
+        "query_stats",
+        "query_report",
+        "correct_category",
+        "undo_last",
+        "mark_paid",
+        "set_budget",
+        "add_recurring",
+        "complex_query",
     ]
     for intent in finance_intents:
         assert INTENT_DOMAIN_MAP[intent] == Domain.finance, f"{intent} not in finance"
@@ -47,12 +65,28 @@ def test_onboarding_maps_to_onboarding():
 def test_all_current_intents_are_mapped():
     """All 22 current intents should be in the map."""
     current_intents = {
-        "add_expense", "add_income", "scan_receipt", "scan_document",
-        "query_stats", "query_report", "correct_category", "undo_last",
-        "mark_paid", "set_budget", "add_recurring", "complex_query",
-        "quick_capture", "track_food", "track_drink", "mood_checkin",
-        "day_plan", "day_reflection", "life_search", "set_comm_mode",
-        "general_chat", "onboarding",
+        "add_expense",
+        "add_income",
+        "scan_receipt",
+        "scan_document",
+        "query_stats",
+        "query_report",
+        "correct_category",
+        "undo_last",
+        "mark_paid",
+        "set_budget",
+        "add_recurring",
+        "complex_query",
+        "quick_capture",
+        "track_food",
+        "track_drink",
+        "mood_checkin",
+        "day_plan",
+        "day_reflection",
+        "life_search",
+        "set_comm_mode",
+        "general_chat",
+        "onboarding",
     }
     for intent in current_intents:
         assert intent in INTENT_DOMAIN_MAP, f"{intent} missing from INTENT_DOMAIN_MAP"

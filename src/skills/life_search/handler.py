@@ -107,9 +107,7 @@ class LifeSearchSkill:
             header += f" за {period_label}"
         header += f"</b>  ({len(timeline_events)})\n"
         if event_type:
-            header += (
-                f"Фильтр: {_type_icon(event_type)} {event_type.value}\n"
-            )
+            header += f"Фильтр: {_type_icon(event_type)} {event_type.value}\n"
 
         formatted = format_timeline(timeline_events, max_events=20)
 

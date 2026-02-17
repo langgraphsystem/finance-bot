@@ -22,9 +22,7 @@ Respond in the user's preferred language: {language}.
 If no preference is set, detect and match the language of their message."""
 
 
-def _parse_reminder_time(
-    intent_data: dict[str, Any], timezone: str
-) -> datetime | None:
+def _parse_reminder_time(intent_data: dict[str, Any], timezone: str) -> datetime | None:
     """Parse reminder time from intent_data fields."""
     raw = (
         intent_data.get("task_deadline")
@@ -56,10 +54,7 @@ class SetReminderSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         title = (
-            intent_data.get("task_title")
-            or intent_data.get("description")
-            or message.text
-            or ""
+            intent_data.get("task_title") or intent_data.get("description") or message.text or ""
         )
         title = title.strip()
 
@@ -85,12 +80,8 @@ class SetReminderSkill:
 
         if reminder_time:
             time_str = reminder_time.strftime("%I:%M %p").lstrip("0")
-            return SkillResult(
-                response_text=f"Reminder set for {time_str}: {title}"
-            )
-        return SkillResult(
-            response_text=f"Reminder saved: {title} (no specific time set)"
-        )
+            return SkillResult(response_text=f"Reminder set for {time_str}: {title}")
+        return SkillResult(response_text=f"Reminder saved: {title} (no specific time set)")
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return SET_REMINDER_SYSTEM_PROMPT.format(language=context.language or "en")

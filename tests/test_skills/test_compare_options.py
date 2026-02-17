@@ -53,9 +53,7 @@ async def test_compare_basic(skill, message, ctx):
         new_callable=AsyncMock,
         return_value=comparison,
     ):
-        result = await skill.execute(
-            message, ctx, {"search_topic": "PEX vs copper pipe"}
-        )
+        result = await skill.execute(message, ctx, {"search_topic": "PEX vs copper pipe"})
 
     assert "PEX" in result.response_text
     assert "Copper" in result.response_text

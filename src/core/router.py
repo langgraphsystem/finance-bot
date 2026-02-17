@@ -68,6 +68,14 @@ def get_domain_router() -> DomainRouter:
     global _domain_router
     if _domain_router is None:
         _domain_router = DomainRouter(get_agent_router())
+
+        # Register LangGraph orchestrators for complex domains
+        from src.core.domains import Domain
+        from src.orchestrators.email.graph import EmailOrchestrator
+
+        _domain_router.register_orchestrator(
+            Domain.email, EmailOrchestrator(agent_router=get_agent_router())
+        )
     return _domain_router
 
 
@@ -165,10 +173,7 @@ async def _dispatch_message(
             is_safe, refusal_text = await check_input(message.text)
             if not is_safe:
                 return OutgoingMessage(
-                    text=(
-                        refusal_text
-                        or "Я не могу помочь с этим запросом."
-                    ),
+                    text=(refusal_text or "Я не могу помочь с этим запросом."),
                     chat_id=message.chat_id,
                 )
 

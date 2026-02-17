@@ -117,7 +117,9 @@ class TrackDrinkSkill:
 
         mode = await get_communication_mode(context.user_id)
         response = format_save_response(
-            LifeEventType.drink, item, data=data,
+            LifeEventType.drink,
+            item,
+            data=data,
         )
         if mode == "silent":
             return SkillResult(response_text="")

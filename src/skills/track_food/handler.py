@@ -79,7 +79,9 @@ class TrackFoodSkill:
 
         mode = await get_communication_mode(context.user_id)
         response = format_save_response(
-            LifeEventType.food, food_item, data=data,
+            LifeEventType.food,
+            food_item,
+            data=data,
         )
         if mode == "silent":
             return SkillResult(response_text="")

@@ -48,9 +48,7 @@ async def test_web_search_grounded(skill, message, ctx):
         new_callable=AsyncMock,
         return_value="Costco closes at 8:30 PM on weekdays.",
     ):
-        result = await skill.execute(
-            message, ctx, {"search_topic": "Costco closing time"}
-        )
+        result = await skill.execute(message, ctx, {"search_topic": "Costco closing time"})
 
     assert "8:30 PM" in result.response_text
 

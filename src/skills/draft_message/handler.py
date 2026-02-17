@@ -50,8 +50,7 @@ class DraftMessageSkill:
         if not topic:
             return SkillResult(
                 response_text=(
-                    "What would you like me to write? "
-                    "Give me the topic and who it's for."
+                    "What would you like me to write? Give me the topic and who it's for."
                 )
             )
 

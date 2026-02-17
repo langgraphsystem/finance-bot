@@ -81,9 +81,7 @@ async def test_set_reminder_without_time(skill, ctx):
         "src.skills.set_reminder.handler.save_reminder",
         new_callable=AsyncMock,
     ) as mock_save:
-        result = await skill.execute(
-            msg, ctx, {"task_title": "call the dentist"}
-        )
+        result = await skill.execute(msg, ctx, {"task_title": "call the dentist"})
 
     task = mock_save.call_args.args[0]
     assert task.reminder_at is None

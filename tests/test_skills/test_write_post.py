@@ -78,10 +78,12 @@ async def test_write_post_with_platform(skill, ctx):
         return_value="New project alert! Fresh bathroom remodel just completed.",
     ) as mock_gen:
         result = await skill.execute(
-            msg, ctx, {
+            msg,
+            ctx,
+            {
                 "writing_topic": "new project completed",
                 "target_platform": "instagram",
-            }
+            },
         )
 
     # Platform should be prepended to the topic
@@ -107,9 +109,7 @@ async def test_write_post_from_message_text(skill, ctx):
     ) as mock_gen:
         result = await skill.execute(msg, ctx, {})
 
-    mock_gen.assert_awaited_once_with(
-        "write a Google review response thanking the customer", "en"
-    )
+    mock_gen.assert_awaited_once_with("write a Google review response thanking the customer", "en")
     assert "Thank you" in result.response_text
 
 

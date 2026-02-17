@@ -81,10 +81,7 @@ class CreateTaskSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         title = (
-            intent_data.get("task_title")
-            or intent_data.get("description")
-            or message.text
-            or ""
+            intent_data.get("task_title") or intent_data.get("description") or message.text or ""
         )
         title = title.strip()
 

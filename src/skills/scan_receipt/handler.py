@@ -78,8 +78,7 @@ class ScanReceiptSkill:
             response += f"📅 <b>Дата:</b> {receipt.date}\n"
         if is_fuel:
             response += (
-                f"⛽️ <b>Топливо:</b> {receipt.gallons} gal"
-                f" @ ${receipt.price_per_gallon}/gal\n"
+                f"⛽️ <b>Топливо:</b> {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
             )
         if receipt.state:
             response += f"📍 <b>Штат:</b> {receipt.state}\n"

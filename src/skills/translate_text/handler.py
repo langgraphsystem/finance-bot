@@ -51,28 +51,18 @@ class TranslateTextSkill:
         text = text.strip()
 
         if not text:
-            return SkillResult(
-                response_text="What would you like me to translate?"
-            )
+            return SkillResult(response_text="What would you like me to translate?")
 
-        target_language = (
-            intent_data.get("target_language")
-            or context.language
-            or "en"
-        )
+        target_language = intent_data.get("target_language") or context.language or "en"
 
-        translation = await generate_translation(
-            text, target_language, context.language or "en"
-        )
+        translation = await generate_translation(text, target_language, context.language or "en")
         return SkillResult(response_text=translation)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return TRANSLATE_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
-async def generate_translation(
-    text: str, target_language: str, system_language: str
-) -> str:
+async def generate_translation(text: str, target_language: str, system_language: str) -> str:
     """Translate text using Claude Sonnet."""
     client = anthropic_client()
     system = TRANSLATE_SYSTEM_PROMPT.format(language=system_language)

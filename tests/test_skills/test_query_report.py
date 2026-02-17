@@ -109,9 +109,7 @@ async def test_skill_passes_prev_month_period(report_skill, sample_message, samp
         new_callable=AsyncMock,
         return_value=(fake_pdf, "report.pdf"),
     ) as mock_gen:
-        await report_skill.execute(
-            sample_message, sample_ctx, {"period": "prev_month"}
-        )
+        await report_skill.execute(sample_message, sample_ctx, {"period": "prev_month"})
 
     mock_gen.assert_awaited_once_with(
         family_id=sample_ctx.family_id,

@@ -48,17 +48,13 @@ class ProofreadSkill:
         text = text.strip()
 
         if not text:
-            return SkillResult(
-                response_text="Send me the text you'd like me to proofread."
-            )
+            return SkillResult(response_text="Send me the text you'd like me to proofread.")
 
         result = await check_text(text, context.language or "en")
         return SkillResult(response_text=result)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return PROOFREAD_SYSTEM_PROMPT.format(
-            language=context.language or "en"
-        )
+        return PROOFREAD_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 async def check_text(text: str, language: str) -> str:

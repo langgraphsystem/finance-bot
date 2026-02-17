@@ -40,9 +40,7 @@ def ctx():
 
 @pytest.fixture
 def msg():
-    return IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="test"
-    )
+    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="test")
 
 
 def test_get_domain_finance(domain_router):

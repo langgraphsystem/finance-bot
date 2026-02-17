@@ -49,10 +49,12 @@ async def test_translate_basic(skill, message, ctx):
         return_value="Emma tiene una cita con el dentista mañana",
     ):
         result = await skill.execute(
-            message, ctx, {
+            message,
+            ctx,
+            {
                 "writing_topic": "Emma has a dentist appointment tomorrow",
                 "target_language": "Spanish",
-            }
+            },
         )
 
     assert "Emma" in result.response_text

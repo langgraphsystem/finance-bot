@@ -57,11 +57,23 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "quick_answer": Domain.research,
     "web_search": Domain.research,
     "compare_options": Domain.research,
-    # Writing Assistance (4 new intents)
+    # Writing Assistance (4 intents)
     "draft_message": Domain.writing,
     "translate_text": Domain.writing,
     "write_post": Domain.writing,
     "proofread": Domain.writing,
+    # Email (5 intents)
+    "read_inbox": Domain.email,
+    "send_email": Domain.email,
+    "draft_reply": Domain.email,
+    "follow_up_email": Domain.email,
+    "summarize_thread": Domain.email,
+    # Calendar (5 intents)
+    "list_events": Domain.calendar,
+    "create_event": Domain.calendar,
+    "find_free_slots": Domain.calendar,
+    "reschedule_event": Domain.calendar,
+    "morning_brief": Domain.calendar,
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,

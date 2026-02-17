@@ -44,7 +44,7 @@ def ctx():
 async def test_proofread_basic(skill, message, ctx):
     """Returns corrected text with explanations."""
     corrected = (
-        '"We\'re coming to fix the pipe tomorrow between 10-12. '
+        "\"We're coming to fix the pipe tomorrow between 10-12. "
         'Make sure someone is home."\n\n'
         "• Were → We're (contraction)\n"
         "• tommorrow → tomorrow (spelling)\n"
@@ -80,9 +80,7 @@ async def test_proofread_from_writing_topic(skill, ctx):
             msg, ctx, {"writing_topic": "The project is complete and ready for review."}
         )
 
-    mock_check.assert_awaited_once_with(
-        "The project is complete and ready for review.", "en"
-    )
+    mock_check.assert_awaited_once_with("The project is complete and ready for review.", "en")
     assert "no changes needed" in result.response_text
 
 
@@ -121,8 +119,7 @@ async def test_proofread_uses_language(skill, message):
         await skill.execute(message, ctx, {})
 
     mock_check.assert_awaited_once_with(
-        "Were coming to fix the pipe tommorrow between 10-12, "
-        "make sure someone is home",
+        "Were coming to fix the pipe tommorrow between 10-12, make sure someone is home",
         "ru",
     )
 

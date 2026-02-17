@@ -32,9 +32,7 @@ async def create_family(
     If a user with this telegram_id already exists, returns their existing family+user.
     """
     # Check if user already exists (prevents UniqueViolationError)
-    existing = await session.execute(
-        select(User).where(User.telegram_id == owner_telegram_id)
-    )
+    existing = await session.execute(select(User).where(User.telegram_id == owner_telegram_id))
     existing_user = existing.scalar_one_or_none()
     if existing_user:
         family_result = await session.execute(

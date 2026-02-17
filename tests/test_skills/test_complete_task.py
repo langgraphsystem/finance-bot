@@ -64,9 +64,7 @@ async def test_complete_task_found(skill, message, ctx):
             return_value=3,
         ),
     ):
-        result = await skill.execute(
-            message, ctx, {"task_title": "dentist call"}
-        )
+        result = await skill.execute(message, ctx, {"task_title": "dentist call"})
 
     assert "Marked done: call dentist" in result.response_text
     assert "3 tasks left" in result.response_text
@@ -80,9 +78,7 @@ async def test_complete_task_not_found(skill, message, ctx):
         new_callable=AsyncMock,
         return_value=None,
     ):
-        result = await skill.execute(
-            message, ctx, {"task_title": "nonexistent task"}
-        )
+        result = await skill.execute(message, ctx, {"task_title": "nonexistent task"})
 
     assert "No open task matching" in result.response_text
 
@@ -117,9 +113,7 @@ async def test_complete_task_singular_remaining(skill, message, ctx):
             return_value=1,
         ),
     ):
-        result = await skill.execute(
-            message, ctx, {"task_title": "groceries"}
-        )
+        result = await skill.execute(message, ctx, {"task_title": "groceries"})
 
     assert "1 task left" in result.response_text
 
@@ -140,8 +134,6 @@ async def test_complete_task_zero_remaining(skill, message, ctx):
             return_value=0,
         ),
     ):
-        result = await skill.execute(
-            message, ctx, {"task_title": "last task"}
-        )
+        result = await skill.execute(message, ctx, {"task_title": "last task"})
 
     assert "0 tasks left" in result.response_text

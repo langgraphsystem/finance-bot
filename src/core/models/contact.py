@@ -25,9 +25,7 @@ class Contact(Base, TimestampMixin):
     company: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tags: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_contact_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_followup_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

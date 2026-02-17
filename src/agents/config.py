@@ -69,6 +69,19 @@ Match the tone to the context (formal email vs casual text vs professional revie
 Write the content directly — no preamble. Use HTML tags for Telegram (<b>bold</b>). No Markdown.
 Respond in the user's preferred language (from context.language). Default: English."""
 
+EMAIL_AGENT_PROMPT = """\
+You are an email assistant. Help the user manage their Gmail inbox.
+Read, summarize, draft, reply, and send emails.
+Show email content in a clean format. For sending: ALWAYS ask for user confirmation.
+Use HTML tags for Telegram (<b>bold</b>). No Markdown.
+Respond in the user's preferred language (from context.language). Default: English."""
+
+CALENDAR_AGENT_PROMPT = """\
+You are a calendar assistant. Help the user manage their Google Calendar.
+Show schedule, create events, find free slots, reschedule. Check for conflicts before creating.
+For creating/modifying: confirm the details. Use HTML tags for Telegram (<b>bold</b>). No Markdown.
+Respond in the user's preferred language (from context.language). Default: English."""
+
 AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
@@ -126,6 +139,32 @@ AGENTS: list[AgentConfig] = [
         skills=["draft_message", "translate_text", "write_post", "proofread"],
         default_model="claude-sonnet-4-5",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="email",
+        system_prompt=EMAIL_AGENT_PROMPT,
+        skills=[
+            "read_inbox",
+            "send_email",
+            "draft_reply",
+            "follow_up_email",
+            "summarize_thread",
+        ],
+        default_model="claude-sonnet-4-5",
+        context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="calendar",
+        system_prompt=CALENDAR_AGENT_PROMPT,
+        skills=[
+            "list_events",
+            "create_event",
+            "find_free_slots",
+            "reschedule_event",
+            "morning_brief",
+        ],
+        default_model="claude-haiku-4-5",
+        context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="life",

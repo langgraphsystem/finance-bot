@@ -30,6 +30,7 @@ from src.core.models.life_event import LifeEvent
 from src.core.models.load import Load
 from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.monitor import Monitor
+from src.core.models.oauth_token import OAuthToken
 from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.session_summary import SessionSummary
 from src.core.models.subscription import Subscription
@@ -76,6 +77,7 @@ __all__ = [
     "Contact",
     "EmailCache",
     "Monitor",
+    "OAuthToken",
     "Subscription",
     "Task",
     "UsageLog",

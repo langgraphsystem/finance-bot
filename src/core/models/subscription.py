@@ -23,9 +23,7 @@ class Subscription(Base, TimestampMixin):
         ENUM(SubscriptionStatus, name="subscription_status", create_type=False),
         default=SubscriptionStatus.trial,
     )
-    trial_ends_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_period_end: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

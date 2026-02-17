@@ -330,12 +330,14 @@ def _build_life_summary(events: list) -> dict:
         tag_str = ""
         if event.tags:
             tag_str = " ".join(f"#{t}" for t in event.tags)
-        recent.append({
-            "date": event.date.strftime("%d.%m"),
-            "icon": icon,
-            "text": text,
-            "tags": tag_str,
-        })
+        recent.append(
+            {
+                "date": event.date.strftime("%d.%m"),
+                "icon": icon,
+                "text": text,
+                "tags": tag_str,
+            }
+        )
 
     return {
         "total": len(events),

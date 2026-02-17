@@ -285,15 +285,12 @@ class QueryStatsSkill:
         user_content = f"Данные за {period_label}:\n"
         if total_income > 0:
             user_content += f"Итого доходов: ${float(total_income):.2f}\n"
-        user_content += (
-            f"Итого расходов: ${float(total):.2f}\n"
-        )
+        user_content += f"Итого расходов: ${float(total):.2f}\n"
         if total_income > 0:
             balance = total_income - total
             user_content += f"Баланс: ${float(balance):.2f}\n"
         user_content += (
-            f"\nПо категориям расходов:\n{stats_text}\n\n"
-            f"Вопрос пользователя: {message.text}"
+            f"\nПо категориям расходов:\n{stats_text}\n\nВопрос пользователя: {message.text}"
         )
 
         # --- Period comparison ---

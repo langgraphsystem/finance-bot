@@ -45,6 +45,9 @@ dependencies = [
     "quickchart-io>=2.0.0",
     # Utils
     "python-multipart>=0.0.18",
+    "aiogoogle>=5.17.0",
+    "cryptography>=46.0.5",
+    "langgraph>=1.0.8",
 ]
 
 [dependency-groups]

@@ -29,6 +29,22 @@ wheels = [
 ]
 
 [[package]]
+name = "aiogoogle"
+version = "5.17.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "aiohttp" },
+    { name = "async-timeout" },
+    { name = "google-auth" },
+    { name = "tonyg-rfc3339" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/5f/d89710cbacee158de2ca10eaf2e434fcd9cd8f79f9aa1a9b2e50d69289bf/aiogoogle-5.17.0.tar.gz", hash = "sha256:3206674d953478599d47587e19db0fc831119abb31ce5f1acde8807e0f0a48c6", size = 48822, upload-time = "2025-08-26T10:16:14.664Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/62/5d789619e5f514790c66ddd87ebf1ddb742ba1fa6000faa370306f4ca194/aiogoogle-5.17.0-py3-none-any.whl", hash = "sha256:75f69810969bd16521896fb4dab784ee7a184ba84b898d7da6370a0682fc9179", size = 55122, upload-time = "2025-08-26T10:16:13.526Z" },
+]
+
+[[package]]
 name = "aiogram"
 version = "3.25.0"
 source = { registry = "https://pypi.org/simple" }
@@ -238,6 +254,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/38/61/0b9ae6399dd4a58d8c1b1dc5a27d6f2808023d0b5dd3104bb99f45a33ff6/argcomplete-3.6.3.tar.gz", hash = "sha256:62e8ed4fd6a45864acc8235409461b72c9a28ee785a2011cc5eb78318786c89c", size = 73754, upload-time = "2025-10-20T03:33:34.741Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/74/f5/9373290775639cb67a2fce7f629a1c240dce9f12fe927bc32b2736e16dfc/argcomplete-3.6.3-py3-none-any.whl", hash = "sha256:f5007b3a600ccac5d25bbce33089211dfd49eab4a7718da3f10e3082525a92ce", size = 43846, upload-time = "2025-10-20T03:33:33.021Z" },
+]
+
+[[package]]
+name = "async-timeout"
+version = "5.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/ae/136395dfbfe00dfc94da3f3e136d0b13f394cba8f4841120e34226265780/async_timeout-5.0.1.tar.gz", hash = "sha256:d9321a7a3d5a6a5e187e824d2fa0793ce379a202935782d555d6e9d2735677d3", size = 9274, upload-time = "2024-11-06T16:41:39.6Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/ba/e2081de779ca30d473f21f5b30e0e737c438205440784c7dfc81efc2b029/async_timeout-5.0.1-py3-none-any.whl", hash = "sha256:39e3809566ff85354557ec2398b55e096c8364bacac9405a7a1fa429e77fe76c", size = 6233, upload-time = "2024-11-06T16:41:37.9Z" },
 ]
 
 [[package]]
@@ -994,10 +1019,12 @@ name = "finance-bot"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiogoogle" },
     { name = "aiogram" },
     { name = "alembic" },
     { name = "anthropic" },
     { name = "asyncpg" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "google-genai" },
     { name = "httpx" },
@@ -1005,6 +1032,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "langchain-anthropic" },
     { name = "langfuse" },
+    { name = "langgraph" },
     { name = "mem0ai" },
     { name = "nemoguardrails" },
     { name = "openai" },
@@ -1035,10 +1063,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiogoogle", specifier = ">=5.17.0" },
     { name = "aiogram", specifier = ">=3.25.0" },
     { name = "alembic", specifier = ">=1.14.0" },
     { name = "anthropic", specifier = ">=0.43.0" },
     { name = "asyncpg", specifier = ">=0.30.0" },
+    { name = "cryptography", specifier = ">=46.0.5" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "google-genai", specifier = ">=1.5.0" },
     { name = "httpx", specifier = ">=0.28.0" },
@@ -1046,6 +1076,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1.4" },
     { name = "langchain-anthropic", specifier = ">=0.3.0" },
     { name = "langfuse", specifier = ">=2.50.0" },
+    { name = "langgraph", specifier = ">=1.0.8" },
     { name = "mem0ai", specifier = ">=0.1.30" },
     { name = "nemoguardrails", specifier = ">=0.11.0" },
     { name = "openai", specifier = ">=1.60.0" },
@@ -4574,6 +4605,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl", hash = "sha256:c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48", size = 2747786, upload-time = "2026-01-05T10:45:18.411Z" },
     { url = "https://files.pythonhosted.org/packages/72/f4/0de46cfa12cdcbcd464cc59fde36912af405696f687e53a091fb432f694c/tokenizers-0.22.2-cp39-abi3-win_arm64.whl", hash = "sha256:9ce725d22864a1e965217204946f830c37876eee3b2ba6fc6255e8e903d5fcbc", size = 2612133, upload-time = "2026-01-05T10:45:17.232Z" },
 ]
+
+[[package]]
+name = "tonyg-rfc3339"
+version = "0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/ed/9dd309dcbee8eb745d242302adae94e70e45340d91dd47887b3ef4822cd2/tonyg-rfc3339-0.1.tar.gz", hash = "sha256:e424e7b4ddf2a2f5c70d7317faecf9b69b7da099c9fc08d046c3ac679dd30d3d", size = 4756, upload-time = "2015-12-05T00:28:10.966Z" }
 
 [[package]]
 name = "tqdm"

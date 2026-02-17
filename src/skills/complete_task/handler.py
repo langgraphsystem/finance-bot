@@ -36,30 +36,22 @@ class CompleteTaskSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         query = (
-            intent_data.get("task_title")
-            or intent_data.get("description")
-            or message.text
-            or ""
+            intent_data.get("task_title") or intent_data.get("description") or message.text or ""
         )
         query = query.strip()
 
         if not query:
             return SkillResult(response_text="Which task did you complete?")
 
-        task = await find_and_complete_task(
-            context.family_id, context.user_id, query
-        )
+        task = await find_and_complete_task(context.family_id, context.user_id, query)
 
         if task is None:
-            return SkillResult(
-                response_text=f"No open task matching \"{query}\". Check your list?"
-            )
+            return SkillResult(response_text=f'No open task matching "{query}". Check your list?')
 
         remaining = await count_open_tasks(context.family_id, context.user_id)
         return SkillResult(
             response_text=(
-                f"Marked done: {task.title}. "
-                f"{remaining} task{'s' if remaining != 1 else ''} left."
+                f"Marked done: {task.title}. {remaining} task{'s' if remaining != 1 else ''} left."
             )
         )
 
@@ -67,9 +59,7 @@ class CompleteTaskSkill:
         return COMPLETE_TASK_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
-async def find_and_complete_task(
-    family_id: str, user_id: str, query: str
-) -> Task | None:
+async def find_and_complete_task(family_id: str, user_id: str, query: str) -> Task | None:
     """Find the best matching open task and mark it done."""
     query_lower = query.lower()
 
@@ -110,9 +100,7 @@ async def find_and_complete_task(
 
     # Mark as done
     async with async_session() as session:
-        result = await session.execute(
-            select(Task).where(Task.id == best.id)
-        )
+        result = await session.execute(select(Task).where(Task.id == best.id))
         task = result.scalar_one_or_none()
         if task:
             task.status = TaskStatus.done

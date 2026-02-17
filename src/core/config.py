@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_host: str = "http://localhost:3000"
 
+    # Google OAuth (Phase 2 — Gmail + Calendar)
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+    oauth_encryption_key: str = ""
+
     # Mem0
     mem0_api_key: str = ""
     mem0_base_url: str = ""

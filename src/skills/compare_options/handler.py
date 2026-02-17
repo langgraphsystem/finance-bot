@@ -40,25 +40,18 @@ class CompareOptionsSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         query = (
-            intent_data.get("search_topic")
-            or intent_data.get("search_query")
-            or message.text
-            or ""
+            intent_data.get("search_topic") or intent_data.get("search_query") or message.text or ""
         )
         query = query.strip()
 
         if not query:
-            return SkillResult(
-                response_text="What would you like me to compare?"
-            )
+            return SkillResult(response_text="What would you like me to compare?")
 
         answer = await generate_comparison(query, context.language or "en")
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return COMPARE_SYSTEM_PROMPT.format(
-            language=context.language or "en"
-        )
+        return COMPARE_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 async def generate_comparison(query: str, language: str) -> str:

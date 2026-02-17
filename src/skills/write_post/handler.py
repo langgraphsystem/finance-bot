@@ -51,10 +51,7 @@ class WritePostSkill:
 
         if not topic:
             return SkillResult(
-                response_text=(
-                    "What would you like me to write? "
-                    "Tell me the topic and platform."
-                )
+                response_text=("What would you like me to write? Tell me the topic and platform.")
             )
 
         platform = intent_data.get("target_platform") or ""
@@ -65,9 +62,7 @@ class WritePostSkill:
         return SkillResult(response_text=post)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return WRITE_POST_SYSTEM_PROMPT.format(
-            language=context.language or "en"
-        )
+        return WRITE_POST_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 async def generate_post(topic: str, language: str) -> str:
