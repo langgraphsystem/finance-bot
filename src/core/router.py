@@ -153,7 +153,7 @@ async def _dispatch_message(
                 return OutgoingMessage(
                     text=(
                         refusal_text
-                        or "Я финансовый помощник. Могу помочь с учётом расходов и доходов."
+                        or "Я не могу помочь с этим запросом."
                     ),
                     chat_id=message.chat_id,
                 )

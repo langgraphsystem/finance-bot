@@ -5,7 +5,7 @@ from src.core.guardrails import REFUSAL_MESSAGE, _is_refusal
 
 def test_refusal_detected_russian():
     """Russian refusal message should be detected."""
-    assert _is_refusal("Я финансовый помощник") is True
+    assert _is_refusal("Я не могу помочь с этим запросом") is True
 
 
 def test_refusal_detected_full_message():
@@ -35,7 +35,7 @@ def test_english_refusal_sorry():
 
 def test_refusal_case_insensitive():
     """Refusal detection should be case-insensitive."""
-    assert _is_refusal("ФИНАНСОВЫЙ ПОМОЩНИК") is True
+    assert _is_refusal("НЕ МОГУ ПОМОЧЬ С ЭТИМ") is True
     assert _is_refusal("i CAN'T HELP WITH THAT") is True
 
 
