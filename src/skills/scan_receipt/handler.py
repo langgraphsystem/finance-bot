@@ -14,7 +14,7 @@ from src.core.models.document import Document
 from src.core.models.enums import DocumentType, Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
-from src.core.schemas.receipt import ReceiptData
+from src.core.schemas.receipt import ReceiptData, ReceiptItem
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -61,29 +61,41 @@ class ScanReceiptSkill:
                     response_text="Не удалось распознать чек. Попробуйте сделать фото более чётким."
                 )
 
-        # Format detailed response for user
-        response = "🧾 **Чек распознан**\n\n"
-        response += f"🏪 **Магазин:** {receipt.merchant}\n"
-        response += f"💵 **Сумма:** ${receipt.total}"
+        # Format detailed response for user (Telegram HTML)
+        is_fuel = bool(receipt.gallons and receipt.price_per_gallon)
+
+        if is_fuel:
+            response = "⛽️ <b>Заправочный чек распознан</b>\n\n"
+        else:
+            response = "🧾 <b>Чек распознан</b>\n\n"
+
+        response += f"🏪 <b>Магазин:</b> {receipt.merchant}\n"
+        response += f"💵 <b>Сумма:</b> ${receipt.total}"
         if receipt.tax:
             response += f" (налог: ${receipt.tax})"
         response += "\n"
         if receipt.date:
-            response += f"📅 **Дата:** {receipt.date}\n"
-        if receipt.gallons:
-            response += f"⛽ **Топливо:** {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
+            response += f"📅 <b>Дата:</b> {receipt.date}\n"
+        if is_fuel:
+            response += (
+                f"⛽️ <b>Топливо:</b> {receipt.gallons} gal"
+                f" @ ${receipt.price_per_gallon}/gal\n"
+            )
         if receipt.state:
-            response += f"📍 **Штат:** {receipt.state}\n"
-        if receipt.items:
-            response += "\n📋 **Товары:**\n"
+            response += f"📍 <b>Штат:</b> {receipt.state}\n"
+
+        # Show items only for non-fuel receipts (fuel info is already above)
+        if receipt.items and not is_fuel:
+            response += "\n📋 <b>Товары:</b>\n"
             for item in receipt.items[:10]:
-                name = item.get("name", "—")
-                qty = item.get("quantity", 1)
-                price = item.get("price", 0)
+                name = item.name if isinstance(item, ReceiptItem) else item.get("name", "—")
+                qty = item.quantity if isinstance(item, ReceiptItem) else item.get("quantity", 1)
+                price = item.price if isinstance(item, ReceiptItem) else item.get("price", 0)
                 line = f"  • {name}"
-                if qty and qty > 1:
-                    line += f" ×{qty}"
-                if price:
+                if qty and float(qty) != 1:
+                    total_price = float(price) * float(qty)
+                    line += f" ×{qty} — ${total_price:.2f}"
+                elif price:
                     line += f" — ${price}"
                 response += line + "\n"
 
