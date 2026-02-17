@@ -53,9 +53,10 @@ def _welcome_result() -> SkillResult:
     """Step 1 response: welcome message with two inline buttons."""
     return SkillResult(
         response_text=(
-            "Привет! Я твой финансовый помощник.\n\n"
-            "Я помогу с учётом расходов и доходов, "
-            "сканированием чеков и аналитикой.\n\n"
+            "Привет! Я твой AI-помощник для финансов и жизни.\n\n"
+            "Я помогу с учётом расходов и доходов, сканированием чеков, "
+            "аналитикой, а также трекингом питания, настроения, заметок "
+            "и планированием дня.\n\n"
             "Выберите вариант:"
         ),
         buttons=[
@@ -135,6 +136,16 @@ class OnboardingSkill:
     ) -> SkillResult:
         """Multi-step onboarding wizard driven by conversation state."""
         text = (message.text or "").strip()
+
+        # If user is already registered, don't re-onboard
+        if context.family_id and text != "/start":
+            return SkillResult(
+                response_text=(
+                    "Вы уже зарегистрированы! Просто напишите, чем могу помочь.\n\n"
+                    "Примеры: «кофе 150», «настроение 7», фото чека, "
+                    "«статистика за неделю»."
+                ),
+            )
 
         # Determine current onboarding sub-state from intent_data
         # (set by api/main.py or router callback handler)

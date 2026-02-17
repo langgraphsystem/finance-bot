@@ -27,7 +27,23 @@ async def create_family(
     language: str = "ru",
     currency: str = "USD",
 ) -> tuple[Family, User]:
-    """Create a new family with owner and default categories."""
+    """Create a new family with owner and default categories.
+
+    If a user with this telegram_id already exists, returns their existing family+user.
+    """
+    # Check if user already exists (prevents UniqueViolationError)
+    existing = await session.execute(
+        select(User).where(User.telegram_id == owner_telegram_id)
+    )
+    existing_user = existing.scalar_one_or_none()
+    if existing_user:
+        family_result = await session.execute(
+            select(Family).where(Family.id == existing_user.family_id)
+        )
+        existing_family = family_result.scalar_one_or_none()
+        if existing_family:
+            return existing_family, existing_user
+
     family = Family(
         name=f"Семья {owner_name}",
         invite_code=generate_invite_code(),

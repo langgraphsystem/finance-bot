@@ -119,7 +119,7 @@ class TestHelpers:
 
     def test_welcome_result_text(self):
         result = _welcome_result()
-        assert "финансовый помощник" in result.response_text
+        assert "AI-помощник" in result.response_text
 
     def test_ask_activity_result(self):
         result = _ask_activity_result()
@@ -178,7 +178,7 @@ class TestStartCommand:
         result = await onboarding_skill.execute(start_message, empty_context, {})
         assert result.buttons is not None
         assert len(result.buttons) == 2
-        assert "финансовый помощник" in result.response_text
+        assert "AI-помощник" in result.response_text
 
     @pytest.mark.asyncio
     async def test_start_buttons_have_correct_callbacks(
@@ -412,6 +412,87 @@ class TestInviteCode:
                 )
 
         assert "ошибка" in result.response_text.lower()
+
+
+# ---- Awaiting choice state --------------------------------------------------
+
+
+class TestAlreadyRegistered:
+    @pytest.mark.asyncio
+    async def test_registered_user_greeting_not_reonboard(self, onboarding_skill):
+        """Registered user sending 'привет' should NOT see onboarding flow."""
+        ctx = SessionContext(
+            user_id="11111111-1111-1111-1111-111111111111",
+            family_id="22222222-2222-2222-2222-222222222222",
+            role="owner",
+            language="ru",
+            currency="USD",
+            business_type="trucker",
+            categories=[],
+            merchant_mappings=[],
+        )
+        msg = IncomingMessage(
+            id="100",
+            user_id="999999999",
+            chat_id="chat_999",
+            type=MessageType.text,
+            text="привет",
+        )
+        result = await onboarding_skill.execute(msg, ctx, {})
+        assert "уже зарегистрированы" in result.response_text
+        assert result.buttons is None
+
+    @pytest.mark.asyncio
+    async def test_registered_user_start_still_works(self, onboarding_skill):
+        """Registered user sending /start should still see welcome."""
+        ctx = SessionContext(
+            user_id="11111111-1111-1111-1111-111111111111",
+            family_id="22222222-2222-2222-2222-222222222222",
+            role="owner",
+            language="ru",
+            currency="USD",
+            business_type="trucker",
+            categories=[],
+            merchant_mappings=[],
+        )
+        msg = IncomingMessage(
+            id="101",
+            user_id="999999999",
+            chat_id="chat_999",
+            type=MessageType.text,
+            text="/start",
+        )
+        result = await onboarding_skill.execute(msg, ctx, {})
+        assert result.buttons is not None
+        assert len(result.buttons) == 2
+
+
+class TestDuplicateUser:
+    @pytest.mark.asyncio
+    async def test_existing_user_returns_success_not_error(
+        self, onboarding_skill, trucker_message, empty_context
+    ):
+        """When user already exists, onboarding returns success (existing family)."""
+        intent_data = {"onboarding_state": ConversationState.onboarding_awaiting_activity.value}
+        mock_family = MagicMock()
+        mock_family.invite_code = "EXISTING"
+        mock_user = MagicMock()
+
+        with patch("src.skills.onboarding.handler.async_session") as mock_session_ctx:
+            mock_session = AsyncMock()
+            mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch(
+                "src.skills.onboarding.handler.create_family",
+                new_callable=AsyncMock,
+                return_value=(mock_family, mock_user),
+            ):
+                result = await onboarding_skill.execute(trucker_message, empty_context, intent_data)
+
+        # Should succeed, NOT return error
+        assert "Отлично!" in result.response_text
+        assert "EXISTING" in result.response_text
 
 
 # ---- Awaiting choice state --------------------------------------------------
