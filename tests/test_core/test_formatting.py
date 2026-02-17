@@ -66,6 +66,34 @@ def test_mixed_formatting():
     assert "*правило" not in result
 
 
+def test_preserve_existing_html_bold():
+    """Pre-existing <b> tags should not be escaped."""
+    result = md_to_telegram_html("<b>Заметка</b>\n  текст")
+    assert "<b>Заметка</b>" in result
+    assert "&lt;" not in result
+
+
+def test_preserve_existing_html_italic():
+    """Pre-existing <i> tags should not be escaped."""
+    result = md_to_telegram_html("<i>#тег</i>")
+    assert "<i>#тег</i>" in result
+
+
+def test_preserve_mixed_html_and_markdown():
+    """Mix of pre-existing HTML and Markdown should work."""
+    result = md_to_telegram_html("<b>Заголовок</b>\n**жирный**")
+    assert "<b>Заголовок</b>" in result
+    assert "<b>жирный</b>" in result
+
+
+def test_preserve_html_with_bare_angle_brackets():
+    """Bare < > should be escaped but <b>, <i> preserved."""
+    result = md_to_telegram_html("<b>ok</b> 3 < 5 > 1")
+    assert "<b>ok</b>" in result
+    assert "&lt;" in result
+    assert "&gt;" in result
+
+
 def test_real_llm_response():
     """Test with a real Claude-style response that was getting cut off."""
     text = (

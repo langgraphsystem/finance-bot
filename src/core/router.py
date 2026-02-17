@@ -153,7 +153,7 @@ async def _dispatch_message(
                 return OutgoingMessage(
                     text=(
                         refusal_text
-                        or "Я финансовый помощник. Могу помочь с учётом расходов и доходов."
+                        or "Я не могу помочь с этим запросом."
                     ),
                     chat_id=message.chat_id,
                 )
@@ -173,6 +173,11 @@ async def _dispatch_message(
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}
         intent_data["confidence"] = result.confidence
+
+        # Registered user should never hit onboarding — redirect to general_chat
+        if intent_name == "onboarding" and context.family_id:
+            intent_name = "general_chat"
+
         logger.info(
             "Intent: %s (%.2f) for user %s",
             intent_name,
@@ -526,6 +531,28 @@ async def _handle_callback(
                     chart_url=skill_result.chart_url,
                 )
         return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+
+    elif action == "life_search":
+        # Period shortcut buttons from life_search results
+        period = parts[1] if len(parts) > 1 else "today"
+        registry = get_registry()
+        skill = registry.get("life_search")
+        if skill:
+            search_msg = IncomingMessage(
+                id=message.id,
+                user_id=message.user_id,
+                chat_id=message.chat_id,
+                type=MessageType.text,
+                text="",
+            )
+            intent_data: dict[str, Any] = {"period": period, "search_query": ""}
+            skill_result = await skill.execute(search_msg, context, intent_data)
+            return OutgoingMessage(
+                text=skill_result.response_text,
+                chat_id=message.chat_id,
+                buttons=skill_result.buttons,
+            )
+        return OutgoingMessage(text="Поиск недоступен.", chat_id=message.chat_id)
 
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>

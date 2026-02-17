@@ -67,17 +67,28 @@ rate confirmation, или другого изображения
 - "10 февраля", "February 10" → конкретная дата
 - Если дата НЕ указана в тексте → null (НЕ подставляй сегодня, это сделает код)
 
-Правила извлечения периода (для query_stats, query_report, complex_query):
+Правила извлечения периода (для query_stats, query_report, complex_query, life_search):
 - "сегодня", "за сегодня" → period: "today"
 - "за неделю", "эту неделю", "на этой неделе" → period: "week"
 - "за месяц", "этот месяц", "в этом месяце" → period: "month"
 - "за год", "этот год", "в этом году" → period: "year"
-- "за вчера", "вчера" (если query_stats) → period: "day", date: вчерашняя дата
+- "вчера", "за вчера" → period: "day", date: вчерашняя дата
 - "за 15 января", "10 февраля" (конкретный день) → period: "day", date: дата
 - "с 1 по 15 февраля", "за первую неделю марта" → period: "custom", \
 date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
+- "последние N дней" → period: "custom", date_from: today-N, date_to: today
+- "между ДАТА1 и ДАТА2" → period: "custom", date_from: ДАТА1, date_to: ДАТА2
 - "за прошлый месяц", "прошлую неделю" → period: "prev_month" / "prev_week"
 - Если период НЕ указан → period: null (код подставит "month")
+
+Правила извлечения типа записи (для life_search):
+- "что я ел", "еда", "питание" → life_event_type: "food"
+- "кофе", "вода", "чай", "напитки", "что пил" → life_event_type: "drink"
+- "настроение", "mood", "как себя чувствовал" → life_event_type: "mood"
+- "задачи", "план", "планы", "tasks" → life_event_type: "task"
+- "рефлексия", "итоги", "дневник" → life_event_type: "reflection"
+- "заметки", "идеи", "мысли", "notes" → life_event_type: "note"
+- Если тип не очевиден → life_event_type: null (искать все типы)
 
 Ответь ТОЛЬКО валидным JSON:
 {{
@@ -110,7 +121,9 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
     "sleep_hours": число часов или null,
     "tasks": ["задача1", "задача2"] или null,
     "comm_mode": "receipt" или "silent" или "coaching" или null,
-    "search_query": "текст поиска" или null
+    "search_query": "текст поиска" или null,
+    "life_event_type": "food" или "drink" или "mood" или "task" \
+или "reflection" или "note" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from collections import Counter
 from datetime import date
 
 from jinja2 import BaseLoader, Environment
@@ -9,7 +10,8 @@ from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.models.category import Category
-from src.core.models.enums import TransactionType
+from src.core.models.enums import LifeEventType, TransactionType
+from src.core.models.life_event import LifeEvent
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 
@@ -81,6 +83,34 @@ MONTHLY_REPORT_TEMPLATE = """
     </table>
     {% endif %}
 
+    {% if life_summary %}
+    <h2>Записи и заметки</h2>
+    <div class="summary">
+        <p><strong>Всего записей:</strong> {{ life_summary.total }}</p>
+        {% if life_summary.by_type %}
+        <table>
+            <tr><th>Тип</th><th class="amount">Кол-во</th></tr>
+            {% for item in life_summary.by_type %}
+            <tr>
+                <td>{{ item.icon }} {{ item.label }}</td>
+                <td class="amount">{{ item.count }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% endif %}
+        {% if life_summary.recent %}
+        <h3 style="margin-top: 20px;">Последние записи</h3>
+        {% for event in life_summary.recent %}
+        <p style="margin: 4px 0;">
+            <span style="color: #999;">{{ event.date }}</span>
+            {{ event.icon }} {{ event.text }}
+            {% if event.tags %}<span style="color: #3498db;">{{ event.tags }}</span>{% endif %}
+        </p>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endif %}
+
     <div class="footer">
         Сгенерировано FinBot | {{ generated_date }}
     </div>
@@ -114,6 +144,7 @@ def render_report_html(
     total_expense: float,
     expense_categories: list[dict],
     income_categories: list[dict],
+    life_summary: dict | None = None,
     generated_date: str,
 ) -> str:
     """Render the monthly report HTML from template and data."""
@@ -125,6 +156,7 @@ def render_report_html(
         total_expense=total_expense,
         expense_categories=expense_categories,
         income_categories=income_categories,
+        life_summary=life_summary,
         generated_date=generated_date,
     )
 
@@ -213,6 +245,21 @@ async def generate_monthly_report(
         )
         total_income = float(total_inc_result.scalar() or 0)
 
+        # Get life events for the period
+        life_result = await session.execute(
+            select(LifeEvent)
+            .where(
+                LifeEvent.family_id == uuid.UUID(family_id),
+                LifeEvent.date >= start_date,
+                LifeEvent.date < end_date,
+            )
+            .order_by(LifeEvent.date.desc())
+        )
+        life_events = list(life_result.scalars().all())
+
+    # Build life events summary
+    life_summary = _build_life_summary(life_events) if life_events else None
+
     # Format categories with percentages
     expense_categories = []
     for name, icon, total in expense_rows:
@@ -243,6 +290,7 @@ async def generate_monthly_report(
         total_expense=total_expense,
         expense_categories=expense_categories,
         income_categories=income_categories,
+        life_summary=life_summary,
         generated_date=today.isoformat(),
     )
 
@@ -251,6 +299,49 @@ async def generate_monthly_report(
     filename = f"report_{year}_{month:02d}.pdf"
 
     return pdf_bytes, filename
+
+
+_LIFE_TYPE_LABELS = {
+    LifeEventType.note: ("📝", "Заметки"),
+    LifeEventType.food: ("🍽", "Питание"),
+    LifeEventType.drink: ("☕", "Напитки"),
+    LifeEventType.mood: ("😊", "Настроение"),
+    LifeEventType.task: ("✅", "Задачи"),
+    LifeEventType.reflection: ("🌙", "Рефлексия"),
+}
+
+
+def _build_life_summary(events: list) -> dict:
+    """Build a summary dict of life events for the report template."""
+    type_counts = Counter(e.type for e in events)
+
+    by_type = []
+    for event_type, count in type_counts.most_common():
+        icon, label = _LIFE_TYPE_LABELS.get(event_type, ("📌", str(event_type)))
+        by_type.append({"icon": icon, "label": label, "count": count})
+
+    # Recent events (last 10)
+    recent = []
+    for event in events[:10]:
+        icon, _ = _LIFE_TYPE_LABELS.get(event.type, ("📌", ""))
+        text = (event.text or "")[:80]
+        if len(event.text or "") > 80:
+            text += "..."
+        tag_str = ""
+        if event.tags:
+            tag_str = " ".join(f"#{t}" for t in event.tags)
+        recent.append({
+            "date": event.date.strftime("%d.%m"),
+            "icon": icon,
+            "text": text,
+            "tags": tag_str,
+        })
+
+    return {
+        "total": len(events),
+        "by_type": by_type,
+        "recent": recent,
+    }
 
 
 def html_to_pdf(html_content: str) -> bytes:

@@ -229,9 +229,11 @@ class QueryStatsSkill:
         period = intent_data.get("period") or "month"
 
         # Use assembled SQL stats for current month, own query for other periods
+        total_income = Decimal("0")
         if period == "month" and assembled and assembled.sql_stats:
             sql_stats = assembled.sql_stats
             total = Decimal(str(sql_stats["total_expense"]))
+            total_income = Decimal(str(sql_stats.get("total_income", 0)))
             stats = [(cat["name"], Decimal(str(cat["total"]))) for cat in sql_stats["by_category"]]
         else:
             # SQL query — LLM NEVER calculates
@@ -263,16 +265,34 @@ class QueryStatsSkill:
                 )
                 total = total_result.scalar() or Decimal("0")
 
-        if not stats:
-            return SkillResult(response_text=f"За {period_label} расходов не найдено.")
+                # Income query
+                income_result = await session.execute(
+                    select(func.sum(Transaction.amount)).where(
+                        Transaction.family_id == uuid.UUID(context.family_id),
+                        Transaction.date >= start_date,
+                        Transaction.date < end_date,
+                        Transaction.type == TransactionType.income,
+                    )
+                )
+                total_income = income_result.scalar() or Decimal("0")
+
+        if not stats and total_income == 0:
+            return SkillResult(response_text=f"За {period_label} данных не найдено.")
 
         # Format data for LLM
         stats_text = "\n".join(f"- {name}: ${float(amount):.2f}" for name, amount in stats)
 
-        user_content = (
-            f"Данные за {period_label}:\n"
-            f"Итого расходов: ${float(total):.2f}\n\n"
-            f"По категориям:\n{stats_text}\n\n"
+        user_content = f"Данные за {period_label}:\n"
+        if total_income > 0:
+            user_content += f"Итого доходов: ${float(total_income):.2f}\n"
+        user_content += (
+            f"Итого расходов: ${float(total):.2f}\n"
+        )
+        if total_income > 0:
+            balance = total_income - total
+            user_content += f"Баланс: ${float(balance):.2f}\n"
+        user_content += (
+            f"\nПо категориям расходов:\n{stats_text}\n\n"
             f"Вопрос пользователя: {message.text}"
         )
 

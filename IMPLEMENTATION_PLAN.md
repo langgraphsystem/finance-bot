@@ -1,94 +1,188 @@
-# AI Life Assistant — Implementation Plan (Variant 3: Hybrid)
+# AI Life Assistant — Implementation Plan
 
-## Version: 1.0 | Date: 2026-02-17
+## Version: 2.0 | Date: 2026-02-17
 
-**Approach**: Python core (75%) + OpenClaw TypeScript sidecar (25%)
-**Base**: Existing Finance Bot codebase (17K lines, 22 skills, 5 agents)
+**Approach**: 100% Python — no TypeScript sidecar, no external orchestration frameworks for channel management
+**Base**: Existing Finance Bot codebase (17K lines, 22 skills, 5 agents, deployed on Railway + Supabase)
 
 ---
 
 ## TABLE OF CONTENTS
 
-1. [Phase Overview](#1-phase-overview)
-2. [Phase 1: Core Generalization](#2-phase-1-core-generalization-weeks-1-2)
-3. [Phase 2: Email + Calendar](#3-phase-2-email--calendar-weeks-3-4)
-4. [Phase 3: Tasks + Research + Writing + CRM](#4-phase-3-tasks--research--writing--crm-weeks-5-6)
-5. [Phase 4: Channels + Billing](#5-phase-4-channels--billing-weeks-7-8)
-6. [Phase 5: Proactivity + Polish](#6-phase-5-proactivity--polish-weeks-9-10)
-7. [Current Bugs to Fix First](#7-current-bugs-to-fix-first)
-8. [File-by-File Change Map](#8-file-by-file-change-map)
+1. [Current State](#1-current-state)
+2. [Target State](#2-target-state)
+3. [Architecture Decisions](#3-architecture-decisions)
+4. [Phase Overview](#4-phase-overview)
+5. [Phase 0: Bug Fixes](#5-phase-0-bug-fixes)
+6. [Phase 1: Core Generalization](#6-phase-1-core-generalization-weeks-1-2)
+7. [Phase 2: Email + Calendar](#7-phase-2-email--calendar-weeks-3-4)
+8. [Phase 3: Tasks + Research + Writing + CRM](#8-phase-3-tasks--research--writing--crm-weeks-5-6)
+9. [Phase 4: Channels + Billing](#9-phase-4-channels--billing-weeks-7-8)
+10. [Phase 5: Proactivity + Browser Automation + Polish](#10-phase-5-proactivity--browser-automation--polish-weeks-9-10)
+11. [File-by-File Change Map](#11-file-by-file-change-map)
+12. [Risk Register](#12-risk-register)
+13. [Final Metrics](#13-final-metrics)
 
 ---
 
-## 1. PHASE OVERVIEW
+## 1. CURRENT STATE
 
 ```
-Phase 1 (wk 1-2)  │ Python only │ Generalize core: multi-domain router, new DB tables
-Phase 2 (wk 3-4)  │ Python only │ Email + Calendar orchestrators via Google API (direct)
-Phase 3 (wk 5-6)  │ Python only │ Tasks + Research + Writing + CRM orchestrators
-Phase 4 (wk 7-8)  │ + TypeScript│ OpenClaw sidecar: WhatsApp, iMessage, Slack + Stripe billing
-Phase 5 (wk 9-10) │ Hybrid      │ Proactivity engine, browser automation, monitors, polish
+Codebase:       ~170 Python files, 17K lines
+Skills:         22 (14 finance + 8 life-tracking)
+Agents:         5 (receipt, analytics, chat, onboarding, life)
+Orchestrators:  0
+DB Tables:      15 (SQLAlchemy 2.0 async + asyncpg)
+Channels:       1 (Telegram via aiogram 3.25)
+Tests:          503 passing
+Deploy:         Railway + Supabase (PostgreSQL + pgvector)
+Packages:       234 (managed with uv)
+CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
+```
+
+### Model Routing (current)
+
+| Model | ID | Role |
+|-------|-----|------|
+| Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
+| Claude Sonnet 4.5 | `claude-sonnet-4-5` | Analytics, reports, onboarding |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, fallback |
+| GPT-5.2 | `gpt-5.2` | Fallback (analytics, OCR, complex) |
+| Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization |
+| Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
+
+### Current Skills (22)
+
+**Finance (14):** add_expense, add_income, scan_receipt, scan_document, query_stats, query_report, complex_query, onboarding, general_chat, correct_category, undo_last, set_budget, add_recurring, mark_paid
+
+**Life-tracking (8):** quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode
+
+---
+
+## 2. TARGET STATE
+
+```
+Product:        AI Life Assistant ($49/month)
+Market:         US consumers and small business owners
+Interface:      Conversation only — no app, no dashboard
+Skills:         47+
+Agents:         12
+Orchestrators:  4 LangGraph (email, research, writing, browser) + simple domains via AgentRouter
+DB Tables:      24
+Channels:       4 (Telegram, WhatsApp, Slack, SMS)
+Cost target:    $3-8/month API cost per user
+```
+
+### Test Personas
+
+Every feature decision is validated against two personas:
+
+- **Maria** — Brooklyn mom, 2 kids (Emma 8, Noah 5). School schedules, doctors, groceries, meal planning, family calendar.
+- **David** — Queens plumber, 5 employees (Mike, Jose, Alex + 2). Job scheduling, client follow-ups, invoices, supply orders, Google reviews.
+
+---
+
+## 3. ARCHITECTURE DECISIONS
+
+Key technical decisions based on research, with rationale.
+
+### 3.1 No OpenClaw dependency
+
+**Decision:** Build all channel integrations in Python directly.
+
+**Why:** OpenClaw has 512 known vulnerabilities (Snyk/OSV), its plugin marketplace (ClawHub) suffered 341 malicious skill uploads, the project's founder left for OpenAI, and there is no dedicated security team. Using it for a customer-facing SaaS handling email, calendar, and financial data is an unacceptable risk.
+
+**Instead:**
+- Slack → `slack-bolt` (official Slack Python SDK, actively maintained)
+- WhatsApp → WhatsApp Business Cloud API via `httpx` (Meta-hosted, no phone needed)
+- SMS → Twilio Python SDK
+- iMessage → Deferred indefinitely (Apple provides no public API)
+
+### 3.2 `aiogoogle` for Google APIs (not `google-api-python-client`)
+
+**Decision:** Use `aiogoogle` for Gmail + Calendar integration.
+
+**Why:** Native async support (our entire codebase is async), lighter weight, better fits our FastAPI/asyncpg stack. The official `google-api-python-client` is synchronous and requires `run_in_executor()` wrapping.
+
+**Cost:** $0/user — Google APIs are free for per-user OAuth access. No third-party API aggregator needed (Nylas $15+/mo, Composio $29+/mo, Nango $50+/mo all rejected as over-budget).
+
+### 3.3 Internal PostgreSQL for Tasks (not Google Tasks API)
+
+**Decision:** Store tasks in our own `tasks` table.
+
+**Why:** Google Tasks API is too limited — no priorities, no assignment, no custom fields, no recurring tasks. Our internal table supports all features and keeps data under our control with RLS.
+
+### 3.4 DomainRouter over AgentRouter (not LangGraph for everything)
+
+**Decision:** Wrap existing `AgentRouter` with a `DomainRouter`. Use LangGraph only for complex multi-step domains with conditional branching and revision loops.
+
+**Why:** 80% of the architecture is already built. Simple CRUD domains don't need graph-based orchestration. The DomainRouter is a thin wrapper that routes by domain, delegating to either a LangGraph orchestrator (for complex flows) or the existing AgentRouter (for simple flows).
+
+**LangGraph domains (4):** email, research, writing, browser automation — these have multi-step workflows with branching, revision loops, and human-in-the-loop approval.
+
+**skill.execute() domains (6):** finance, life-tracking, calendar, tasks, contacts, monitor — these are linear CRUD operations or cron-driven tasks.
+
+### 3.5 2-stage intent detection
+
+**Decision:** When intents exceed ~25, split into domain classification (Stage 1) → intent detection within domain (Stage 2).
+
+**Why:** Gemini Flash accuracy degrades with >25 options in a single classification prompt. Two-stage keeps each prompt focused: Stage 1 classifies into ~12 domains, Stage 2 classifies into ~5-8 intents within that domain. Latency adds ~80ms but accuracy stays >95%.
+
+### 3.6 Browser-Use for AI browser automation (Phase 5+)
+
+**Decision:** Use Browser-Use library for browser automation tasks.
+
+**Why:** 77K GitHub stars, MIT license, Python-native, 89.1% on WebVoyager benchmark. Combined with Steel.dev for isolated Chrome containers in production. Deferred to Phase 5 because it requires the rest of the system to be stable first.
+
+### 3.7 Per-user Google OAuth
+
+**Decision:** Each user authorizes their own Gmail + Calendar via OAuth 2.0 through a Telegram deep link flow.
+
+**Flow:**
+1. User says "connect my email" → bot generates unique state token
+2. Bot sends deep link: `https://our-api.com/oauth/google/start?state=TOKEN`
+3. User clicks → Google consent screen → grants Gmail + Calendar scopes
+4. Callback exchanges code for tokens → encrypted storage in `oauth_tokens` table
+5. Tokens auto-refresh via `aiogoogle` before expiry
+
+---
+
+## 4. PHASE OVERVIEW
+
+```
+Phase 0 (pre)      │ Python only │ Fix 7 bugs in current codebase
+Phase 1 (wk 1-2)   │ Python only │ Generalize core: domain router, 2-stage intent, new DB tables
+Phase 2 (wk 3-4)   │ Python only │ Email + Calendar via aiogoogle + Google OAuth
+Phase 3 (wk 5-6)   │ Python only │ Tasks + Research + Writing + CRM
+Phase 4 (wk 7-8)   │ Python only │ Slack (slack-bolt), WhatsApp (Business API), SMS (Twilio) + Stripe
+Phase 5 (wk 9-10)  │ Python only │ Proactivity engine, Browser-Use automation, polish
 ```
 
 ---
 
-## 2. PHASE 1: CORE GENERALIZATION (Weeks 1-2)
+## 5. PHASE 0: BUG FIXES
 
-### 2.1 Fix existing bugs
+Fix before any new development. All changes are in 2 files.
 
-Before any new development, fix issues in the current codebase.
-
-#### 2.1.1 Add `query_report` to analytics agent
-
-**File**: `src/agents/config.py:62-67`
-
-```python
-# BEFORE:
-AgentConfig(
-    name="analytics",
-    system_prompt=ANALYTICS_AGENT_PROMPT,
-    skills=["query_stats", "complex_query"],
-    ...
-)
-
-# AFTER:
-AgentConfig(
-    name="analytics",
-    system_prompt=ANALYTICS_AGENT_PROMPT,
-    skills=["query_stats", "complex_query", "query_report"],
-    ...
-)
-```
-
-#### 2.1.2 Add missing QUERY_CONTEXT_MAP entries
-
-**File**: `src/core/memory/context.py:49-69`
-
-Add these 4 missing entries to `QUERY_CONTEXT_MAP`:
-
-```python
-"mark_paid":      {"mem": False,      "hist": 3, "sql": False, "sum": False},
-"set_budget":     {"mem": "budgets",  "hist": 3, "sql": True,  "sum": False},
-"add_recurring":  {"mem": "mappings", "hist": 3, "sql": False, "sum": False},
-"scan_document":  {"mem": "mappings", "hist": 1, "sql": False, "sum": False},
-```
-
-#### 2.1.3 Remove dead `budget_advice` entry
-
-**File**: `src/core/memory/context.py:60`
-
-Delete the line:
-```python
-"budget_advice": {"mem": "all", "hist": 5, "sql": True, "sum": True},
-```
+| # | Bug | File | Fix |
+|---|-----|------|-----|
+| 1 | `query_report` skill not assigned to any agent | `src/agents/config.py:65` | Add `"query_report"` to analytics agent's skills list |
+| 2 | `mark_paid` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": False, "hist": 3, "sql": False, "sum": False}` |
+| 3 | `set_budget` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "budgets", "hist": 3, "sql": True, "sum": False}` |
+| 4 | `add_recurring` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "mappings", "hist": 3, "sql": False, "sum": False}` |
+| 5 | `scan_document` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "mappings", "hist": 1, "sql": False, "sum": False}` |
+| 6 | Dead `budget_advice` entry in QUERY_CONTEXT_MAP | `src/core/memory/context.py:60` | Remove line |
+| 7 | Duplicate `correct_cat` alias in QUERY_CONTEXT_MAP | `src/core/memory/context.py:56` | Remove `correct_cat` (keep only `correct_category`) |
 
 ---
 
-### 2.2 Introduce domain concept
+## 6. PHASE 1: CORE GENERALIZATION (Weeks 1-2)
 
-The core change: intents get a `domain` prefix for routing. Current finance intents remain backward-compatible.
+### 6.1 Introduce domain concept
 
-#### 2.2.1 New file: `src/core/domains.py`
+The core architectural change: intents get a `domain` for routing. Current finance intents remain backward-compatible.
+
+#### 6.1.1 New file: `src/core/domains.py`
 
 ```python
 """Domain definitions for multi-domain routing."""
@@ -178,13 +272,140 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
 }
 ```
 
-#### 2.2.2 Expand intent detection
+#### 6.1.2 Domain router wrapper
 
-**File**: `src/core/intent.py`
+**File**: `src/core/domain_router.py` (NEW)
 
-Add new intents to `INTENT_DETECTION_PROMPT`. The prompt currently lists 22 intents. We add new intents **incrementally per phase** (not all at once).
+Wraps the existing `AgentRouter` with domain-level routing. The existing `router.py` delegates to this instead of directly to `AgentRouter`.
 
-Phase 1 change — add domain hint to `IntentDetectionResult`:
+```python
+"""Domain-level router — sits between master_router and AgentRouter."""
+
+from src.core.domains import Domain, INTENT_DOMAIN_MAP
+from src.agents.base import AgentRouter
+
+
+class DomainRouter:
+    """Routes intents through domain → agent → skill pipeline.
+
+    Phase 1: thin wrapper around AgentRouter.
+    Phase 2+: complex domains get LangGraph orchestrators.
+    """
+
+    def __init__(self, agent_router: AgentRouter):
+        self._agent_router = agent_router
+        self._orchestrators: dict[Domain, object] = {}
+
+    def register_orchestrator(self, domain: Domain, orchestrator: object) -> None:
+        self._orchestrators[domain] = orchestrator
+
+    def get_domain(self, intent: str) -> Domain:
+        return INTENT_DOMAIN_MAP.get(intent, Domain.general)
+
+    async def route(self, intent, message, context, intent_data):
+        domain = self.get_domain(intent)
+        orchestrator = self._orchestrators.get(domain)
+
+        if orchestrator:
+            return await orchestrator.invoke(intent, message, context, intent_data)
+
+        # Fallback: delegate to existing AgentRouter
+        return await self._agent_router.route(intent, message, context, intent_data)
+```
+
+#### 6.1.3 Update `router.py` to use `DomainRouter`
+
+**File**: `src/core/router.py`
+
+Minimal change — replace `get_agent_router()` usage with `DomainRouter`:
+
+```python
+# BEFORE (line 52-57):
+def get_agent_router() -> AgentRouter:
+    global _agent_router
+    if _agent_router is None:
+        _agent_router = AgentRouter(AGENTS, get_registry())
+    return _agent_router
+
+# AFTER:
+_domain_router: DomainRouter | None = None
+
+def get_domain_router() -> DomainRouter:
+    global _domain_router
+    if _domain_router is None:
+        agent_router = AgentRouter(AGENTS, get_registry())
+        _domain_router = DomainRouter(agent_router)
+    return _domain_router
+```
+
+All call sites in `router.py` that use `get_agent_router().route(...)` change to `get_domain_router().route(...)`. Behavior is identical in Phase 1 — `DomainRouter` passes everything through to `AgentRouter`.
+
+---
+
+### 6.2 Two-stage intent detection
+
+#### 6.2.1 Design
+
+Current: single prompt with 22 intents → Gemini Flash classifies.
+Target: when intent count > 25, use two stages.
+
+**Stage 1 — Domain Classification:**
+
+```
+Classify the user's message into one domain:
+- finance (expenses, income, receipts, budgets, reports)
+- email (inbox, send, reply, draft, follow-up)
+- calendar (events, schedule, meetings, free slots)
+- tasks (to-do, reminders, deadlines)
+- research (search, compare, analyze)
+- writing (draft, translate, proofread)
+- contacts (people, CRM, follow-ups)
+- general (life tracking, chat, mood, food, drinks)
+- onboarding (setup, connect accounts)
+```
+
+Model: Gemini 3 Flash (`gemini-3-flash-preview`) — fast, cheap.
+
+**Stage 2 — Intent within Domain:**
+
+Each domain has its own focused prompt with 4-14 intents. Same model.
+
+**Implementation:**
+
+```python
+# src/core/intent.py — add:
+
+DOMAIN_CLASSIFICATION_PROMPT = """..."""  # Stage 1
+
+DOMAIN_INTENT_PROMPTS: dict[str, str] = {
+    "finance": """...""",   # 14 intents
+    "email": """...""",     # 5 intents
+    "calendar": """...""",  # 5 intents
+    "tasks": """...""",     # 4 intents
+    "research": """...""",  # 3 intents
+    "writing": """...""",   # 4 intents
+    "contacts": """...""",  # 2 intents
+    "general": """...""",   # 9 intents (life + chat)
+    "onboarding": """...""" # 1 intent
+}
+
+
+async def detect_intent_v2(message, context) -> IntentDetectionResult:
+    """Two-stage intent detection for >25 intents."""
+
+    # Stage 1: classify domain
+    domain = await _classify_domain(message, context)
+
+    # Stage 2: classify intent within domain
+    result = await _classify_intent(message, context, domain)
+    result.data.domain = domain
+
+    return result
+```
+
+**Activation:** `detect_intent_v2()` is used when total registered intents > 25. Until then, the existing single-stage `detect_intent()` remains active. This is controlled by a simple check in `router.py`.
+
+#### 6.2.2 Expand `IntentDetectionResult`
 
 **File**: `src/core/schemas/intent.py`
 
@@ -192,7 +413,6 @@ Phase 1 change — add domain hint to `IntentDetectionResult`:
 # ADD to IntentData:
     domain: str | None = None  # finance, email, calendar, tasks, etc.
 
-# ADD new fields for future phases:
     # Email fields (Phase 2)
     email_to: str | None = None
     email_subject: str | None = None
@@ -223,80 +443,11 @@ Phase 1 change — add domain hint to `IntentDetectionResult`:
     contact_email: str | None = None
 ```
 
-#### 2.2.3 Domain router wrapper
-
-**File**: `src/core/domain_router.py` (NEW)
-
-This wraps the existing `AgentRouter` with domain-level routing. The existing `router.py` delegates to this instead of directly to `AgentRouter`.
-
-```python
-"""Domain-level router — sits between master_router and AgentRouter."""
-
-from src.core.domains import Domain, INTENT_DOMAIN_MAP
-from src.agents.base import AgentRouter
-
-
-class DomainRouter:
-    """Routes intents through domain → agent → skill pipeline.
-
-    Phase 1: thin wrapper around AgentRouter.
-    Phase 2+: each domain gets its own LangGraph orchestrator.
-    """
-
-    def __init__(self, agent_router: AgentRouter):
-        self._agent_router = agent_router
-        self._orchestrators: dict[Domain, object] = {}
-
-    def register_orchestrator(self, domain: Domain, orchestrator: object) -> None:
-        self._orchestrators[domain] = orchestrator
-
-    def get_domain(self, intent: str) -> Domain:
-        return INTENT_DOMAIN_MAP.get(intent, Domain.general)
-
-    async def route(self, intent, message, context, intent_data):
-        domain = self.get_domain(intent)
-        orchestrator = self._orchestrators.get(domain)
-
-        if orchestrator:
-            # Phase 2+: delegate to LangGraph orchestrator
-            return await orchestrator.invoke(intent, message, context, intent_data)
-
-        # Phase 1: delegate to existing AgentRouter
-        return await self._agent_router.route(intent, message, context, intent_data)
-```
-
-#### 2.2.4 Update `router.py` to use `DomainRouter`
-
-**File**: `src/core/router.py`
-
-Minimal change — replace `get_agent_router()` usage with `DomainRouter`:
-
-```python
-# BEFORE (line 52-57):
-def get_agent_router() -> AgentRouter:
-    global _agent_router
-    if _agent_router is None:
-        _agent_router = AgentRouter(AGENTS, get_registry())
-    return _agent_router
-
-# AFTER:
-_domain_router: DomainRouter | None = None
-
-def get_domain_router() -> DomainRouter:
-    global _domain_router
-    if _domain_router is None:
-        agent_router = AgentRouter(AGENTS, get_registry())
-        _domain_router = DomainRouter(agent_router)
-    return _domain_router
-```
-
-All call sites in `router.py` that use `get_agent_router().route(...)` change to `get_domain_router().route(...)`. The behavior is identical in Phase 1 — `DomainRouter` passes everything through to `AgentRouter`.
-
 ---
 
-### 2.3 New database models
+### 6.3 New database models
 
-#### 2.3.1 New enums
+#### 6.3.1 New enums
 
 **File**: `src/core/models/enums.py` — add:
 
@@ -337,14 +488,11 @@ class SubscriptionStatus(StrEnum):
 class ChannelType(StrEnum):
     telegram = "telegram"
     whatsapp = "whatsapp"
-    imessage = "imessage"
     slack = "slack"
-    discord = "discord"
     sms = "sms"
-    webchat = "webchat"
 ```
 
-#### 2.3.2 New model files
+#### 6.3.2 New model files
 
 Each file follows the existing pattern from `src/core/models/base.py` (TimestampMixin, UUID PK, family_id FK).
 
@@ -355,29 +503,29 @@ Each file follows the existing pattern from `src/core/models/base.py` (Timestamp
 | `src/core/models/email_cache.py` | `email_cache` | gmail_id, thread_id, from_email, subject, snippet, is_read, is_important, followup_needed |
 | `src/core/models/calendar_cache.py` | `calendar_cache` | google_event_id, title, start_at, end_at, attendees (JSONB), prep_notes |
 | `src/core/models/monitor.py` | `monitors` | type, name, config (JSONB), check_interval_minutes, last_value (JSONB), is_active |
-| `src/core/models/user_profile.py` | `user_profiles` | display_name, timezone, occupation, tone_preference, response_length, active_hours_start/end, learned_patterns (JSONB) |
+| `src/core/models/user_profile.py` | `user_profiles` | display_name, timezone, preferred_language (default "en"), occupation, tone_preference, response_length, active_hours_start/end, learned_patterns (JSONB) |
 | `src/core/models/usage_log.py` | `usage_logs` | domain, skill, model, tokens_input, tokens_output, cost_usd, duration_ms, success |
 | `src/core/models/subscription.py` | `subscriptions` | stripe_customer_id, stripe_subscription_id, plan, status, trial_ends_at |
 
-#### 2.3.3 Alembic migration
+#### 6.3.3 Alembic migration
 
 **File**: `alembic/versions/005_multi_domain_tables.py`
 
-Creates all 8 new tables + RLS policies for each. Pattern from existing `002_rls_policies.py`.
+Creates all 8 new tables + RLS policies for each. Uses raw SQL pattern from existing `004_life_events.py` (no `sa.Enum(create_type=False)` — use `CREATE TYPE IF NOT EXISTS` instead).
 
-#### 2.3.4 Update `src/core/models/__init__.py`
+#### 6.3.4 Update `src/core/models/__init__.py`
 
 Import all new models so Alembic autogenerate picks them up.
 
 ---
 
-### 2.4 Extend `SessionContext`
+### 6.4 Extend `SessionContext`
 
 **File**: `src/core/context.py`
 
 ```python
 # ADD fields to SessionContext:
-    channel: str = "telegram"                  # telegram | whatsapp | imessage | slack | sms
+    channel: str = "telegram"                  # telegram | whatsapp | slack | sms
     channel_user_id: str | None = None         # original platform user ID
     timezone: str = "America/New_York"         # user timezone
     active_domain: str | None = None           # current conversation domain
@@ -386,7 +534,7 @@ Import all new models so Alembic autogenerate picks them up.
 
 ---
 
-### 2.5 Extend `IncomingMessage`
+### 6.5 Extend gateway types
 
 **File**: `src/gateway/types.py`
 
@@ -400,15 +548,7 @@ Import all new models so Alembic autogenerate picks them up.
 
 # ADD to MessageType enum:
     location = "location"
-```
 
----
-
-### 2.6 Extend `OutgoingMessage`
-
-**File**: `src/gateway/types.py`
-
-```python
 # ADD fields to OutgoingMessage:
     channel: str = "telegram"
     requires_approval: bool = False     # user must confirm before side-effect
@@ -418,47 +558,63 @@ Import all new models so Alembic autogenerate picks them up.
 
 ---
 
-### 2.7 New dependencies (Phase 1 only)
+### 6.6 Gateway abstraction
 
-**File**: `pyproject.toml`
+**File**: `src/gateway/base.py` (NEW)
 
-```toml
-# ADD under [project.dependencies]:
-langgraph = ">=0.3.0"      # Graph-based orchestrators (Phase 2 uses it)
+```python
+"""Base gateway protocol for multi-channel support."""
+
+from typing import Protocol
+
+class MessageGateway(Protocol):
+    """All channel gateways implement this protocol."""
+
+    channel_type: str
+
+    async def send_message(self, chat_id: str, message: OutgoingMessage) -> None: ...
+    async def send_document(self, chat_id: str, document: bytes, filename: str) -> None: ...
+    async def send_photo(self, chat_id: str, photo: bytes | str) -> None: ...
+    async def edit_message(self, chat_id: str, message_id: str, new_text: str) -> None: ...
 ```
 
-No other new deps in Phase 1. Google API, Stripe, Twilio added in later phases.
+**File**: `src/gateway/telegram.py` — refactor to implement `MessageGateway` protocol.
+
+**File**: `src/gateway/factory.py` (NEW)
+
+```python
+"""Gateway factory — returns the right gateway for a channel type."""
+
+def get_gateway(channel: str) -> MessageGateway:
+    match channel:
+        case "telegram":
+            return TelegramGateway()
+        case "whatsapp":
+            return WhatsAppGateway()   # Phase 4
+        case "slack":
+            return SlackGateway()      # Phase 4
+        case "sms":
+            return SMSGateway()        # Phase 4
+        case _:
+            return TelegramGateway()   # default fallback
+```
 
 ---
 
-### 2.8 Update tests
-
-**File**: `tests/test_skills/test_registry.py`
-
-Update skill count assertion from 22 to current count (stays 22 in Phase 1, grows in Phase 2+).
-
-**New file**: `tests/test_core/test_domains.py`
-
-Test `INTENT_DOMAIN_MAP` covers all registered intents.
-
-**New file**: `tests/test_core/test_domain_router.py`
-
-Test `DomainRouter` delegates to `AgentRouter` correctly.
-
----
-
-### 2.9 Phase 1 — file summary
+### 6.7 Phase 1 — file summary
 
 | Action | File | Type |
 |--------|------|------|
-| FIX | `src/agents/config.py` | Add `query_report` to analytics agent |
-| FIX | `src/core/memory/context.py` | Add 4 missing map entries, remove `budget_advice` |
 | NEW | `src/core/domains.py` | Domain enum + intent→domain map |
 | NEW | `src/core/domain_router.py` | Domain routing wrapper |
 | EDIT | `src/core/router.py` | Use `DomainRouter` instead of `AgentRouter` directly |
+| EDIT | `src/core/intent.py` | Add 2-stage detection (activate later) |
 | EDIT | `src/core/schemas/intent.py` | Add `domain` + future intent fields |
 | EDIT | `src/core/context.py` | Add channel, timezone, active_domain fields |
+| NEW | `src/gateway/base.py` | MessageGateway protocol |
+| NEW | `src/gateway/factory.py` | Gateway factory |
 | EDIT | `src/gateway/types.py` | Add channel, language, reply_to, approval fields |
+| EDIT | `src/gateway/telegram.py` | Implement MessageGateway protocol |
 | EDIT | `src/core/models/enums.py` | Add TaskStatus, ContactRole, MonitorType, etc. |
 | NEW | `src/core/models/contact.py` | Contact model |
 | NEW | `src/core/models/task.py` | Task model |
@@ -470,31 +626,38 @@ Test `DomainRouter` delegates to `AgentRouter` correctly.
 | NEW | `src/core/models/subscription.py` | Subscription model |
 | NEW | `alembic/versions/005_multi_domain_tables.py` | Migration |
 | EDIT | `src/core/models/__init__.py` | Import new models |
-| EDIT | `pyproject.toml` | Add `langgraph` dependency |
 | NEW | `tests/test_core/test_domains.py` | Domain mapping tests |
 | NEW | `tests/test_core/test_domain_router.py` | Domain router tests |
-| EDIT | `tests/test_skills/test_registry.py` | Update count if needed |
+| NEW | `tests/test_gateway/test_factory.py` | Gateway factory tests |
 
-**Total Phase 1**: ~8 new files, ~10 edited files
+**Total Phase 1**: ~12 new files, ~9 edited files
 
 ---
 
-## 3. PHASE 2: EMAIL + CALENDAR (Weeks 3-4)
+## 7. PHASE 2: EMAIL + CALENDAR (Weeks 3-4)
 
-### 3.1 Google Workspace integration
+### 7.1 Google Workspace integration via `aiogoogle`
 
-Instead of using OpenClaw's `gog` skill (TypeScript/Go), we integrate Google APIs directly from Python.
-
-#### 3.1.1 New file: `src/tools/google_workspace.py`
+#### 7.1.1 New file: `src/tools/google_workspace.py`
 
 ```python
-"""Google Workspace API client — Gmail, Calendar, Contacts, Drive.
+"""Google Workspace API client — Gmail, Calendar.
 
-Uses google-api-python-client + google-auth-oauthlib for OAuth 2.0.
-Each method is a thin wrapper around the Google API with error handling.
+Uses `aiogoogle` for native async access to Google APIs.
+Each user has their own OAuth tokens stored encrypted in `oauth_tokens` table.
 """
 
+from aiogoogle import Aiogoogle
+from aiogoogle.auth.creds import UserCreds, ClientCreds
+
+
 class GoogleWorkspaceClient:
+    """Per-user Google API client. Instantiated with user's OAuth tokens."""
+
+    def __init__(self, user_creds: UserCreds, client_creds: ClientCreds):
+        self._user_creds = user_creds
+        self._client_creds = client_creds
+
     # Gmail
     async def list_messages(self, query: str, max_results: int = 20) -> list[dict]: ...
     async def get_message(self, message_id: str) -> dict: ...
@@ -504,53 +667,58 @@ class GoogleWorkspaceClient:
 
     # Calendar
     async def list_events(self, time_min: datetime, time_max: datetime) -> list[dict]: ...
-    async def create_event(self, title: str, start: datetime, end: datetime, ...) -> dict: ...
+    async def create_event(self, title: str, start: datetime, end: datetime, **kwargs) -> dict: ...
     async def update_event(self, event_id: str, **updates) -> dict: ...
     async def delete_event(self, event_id: str) -> None: ...
     async def get_free_busy(self, time_min: datetime, time_max: datetime) -> list[dict]: ...
-
-    # Contacts (People API)
-    async def search_contacts(self, query: str) -> list[dict]: ...
-    async def create_contact(self, name: str, email: str = None, phone: str = None) -> dict: ...
 ```
 
-#### 3.1.2 New dependency
+#### 7.1.2 New dependency
 
 **File**: `pyproject.toml`
 
 ```toml
-google-api-python-client = ">=2.100.0"
-google-auth-oauthlib = ">=1.2.0"
+aiogoogle = ">=5.0.0"
+cryptography = ">=42.0.0"  # for token encryption
+langgraph = ">=0.3.0"      # graph-based orchestrators
 ```
 
-#### 3.1.3 OAuth flow
+#### 7.1.3 OAuth flow
 
 **File**: `api/oauth.py` (NEW)
 
 ```
-GET /oauth/google/start   → redirect to Google consent screen
-GET /oauth/google/callback → exchange code for tokens, store in DB
+GET /oauth/google/start?state=TOKEN  → redirect to Google consent screen
+GET /oauth/google/callback           → exchange code for tokens, encrypt, store in DB
 ```
+
+**Scopes requested:**
+- `https://www.googleapis.com/auth/gmail.modify` (read + send)
+- `https://www.googleapis.com/auth/calendar` (read + write)
 
 **File**: `src/core/models/oauth_token.py` (NEW)
 
 ```python
-# Stores encrypted OAuth tokens per user
 class OAuthToken(Base, TimestampMixin):
     id: UUID
-    user_id: UUID (FK)
+    user_id: UUID (FK users.id)
+    family_id: UUID (FK families.id)  # for RLS
     provider: str  # "google"
-    access_token: str (encrypted)
-    refresh_token: str (encrypted)
+    access_token_encrypted: bytes
+    refresh_token_encrypted: bytes
     expires_at: datetime
-    scopes: list[str]
+    scopes: list[str]  # JSONB
 ```
+
+Token encryption uses `cryptography.fernet.Fernet` with a key from environment variable `OAUTH_ENCRYPTION_KEY`.
+
+**Auto-refresh:** Before any API call, check `expires_at`. If < 5 min remaining, refresh via `aiogoogle` and update DB.
 
 ---
 
-### 3.2 Email orchestrator
+### 7.2 Email orchestrator
 
-#### 3.2.1 New file: `src/orchestrators/email/graph.py`
+#### 7.2.1 New file: `src/orchestrators/email/graph.py`
 
 ```python
 """Email orchestrator — LangGraph StateGraph.
@@ -568,7 +736,6 @@ email_graph.add_node("writer", email_writer)
 email_graph.add_node("reviewer", email_reviewer)
 email_graph.add_node("sender", email_sender)
 
-# Edges
 email_graph.add_edge("planner", "reader")
 email_graph.add_conditional_edges("reader", route_email_action, {
     "reply": "writer",
@@ -585,7 +752,7 @@ email_graph.add_conditional_edges("reviewer", check_quality, {
 email_graph.add_edge("sender", END)
 ```
 
-#### 3.2.2 Email skills (5 new)
+#### 7.2.2 Email skills (5 new)
 
 | New File | Intent | Model | Description |
 |----------|--------|-------|-------------|
@@ -595,14 +762,9 @@ email_graph.add_edge("sender", END)
 | `src/skills/follow_up_email/handler.py` | `follow_up_email` | claude-haiku-4-5 | Check for unanswered emails |
 | `src/skills/summarize_thread/handler.py` | `summarize_thread` | claude-haiku-4-5 | Summarize email thread |
 
-Each skill follows the existing pattern:
-```
-src/skills/<name>/
-├── __init__.py    (empty)
-└── handler.py     (class with name, intents, model, execute(), get_system_prompt())
-```
+Each skill follows the existing BaseSkill pattern: `name`, `intents[]`, `model`, `execute()`, `get_system_prompt()`.
 
-#### 3.2.3 Email agent config
+#### 7.2.3 Email agent config
 
 **File**: `src/agents/config.py` — add:
 
@@ -612,7 +774,7 @@ You are an email assistant. Help the user manage their Gmail inbox.
 Read, summarize, draft, reply, and send emails.
 Always show email content in a clean format.
 For sending: ALWAYS ask for user confirmation before sending.
-Respond in the user's preferred language."""
+Respond in the user's preferred language (from context.language). Default: English."""
 
 AgentConfig(
     name="email",
@@ -625,29 +787,21 @@ AgentConfig(
 
 ---
 
-### 3.3 Calendar orchestrator
+### 7.3 Calendar skills (via skill.execute(), no LangGraph)
 
-#### 3.3.1 New file: `src/orchestrators/calendar/graph.py`
+Calendar operations are linear CRUD — no revision loops or branching needed. Each skill handles its own conflict checking inline.
 
-```python
-"""Calendar orchestrator — LangGraph StateGraph.
-
-Nodes: planner → scheduler → conflict_checker → creator → notifier
-Handles: list_events, create_event, find_free_slots, reschedule_event, morning_brief
-"""
-```
-
-#### 3.3.2 Calendar skills (5 new)
+#### 7.3.1 Calendar skills (5 new)
 
 | New File | Intent | Model | Description |
 |----------|--------|-------|-------------|
 | `src/skills/list_events/handler.py` | `list_events` | claude-haiku-4-5 | Show today/week schedule |
 | `src/skills/create_event/handler.py` | `create_event` | claude-haiku-4-5 | Create calendar event (requires_approval) |
-| `src/skills/find_free_slots/handler.py` | `find_free_slots` | claude-haiku-4-5 | Find available time |
+| `src/skills/find_free_slots/handler.py` | `find_free_slots` | claude-haiku-4-5 | Find available time slots |
 | `src/skills/reschedule_event/handler.py` | `reschedule_event` | claude-haiku-4-5 | Move event (requires_approval) |
 | `src/skills/morning_brief/handler.py` | `morning_brief` | claude-haiku-4-5 | Morning schedule + tasks summary |
 
-#### 3.3.3 Calendar agent config
+#### 7.3.2 Calendar agent config
 
 **File**: `src/agents/config.py` — add:
 
@@ -657,7 +811,7 @@ You are a calendar assistant. Help the user manage their Google Calendar.
 Show schedule, create events, find free slots, reschedule.
 Always check for conflicts before creating events.
 For creating/modifying: ask for confirmation.
-Respond in the user's preferred language."""
+Respond in the user's preferred language (from context.language). Default: English."""
 
 AgentConfig(
     name="calendar",
@@ -670,9 +824,11 @@ AgentConfig(
 
 ---
 
-### 3.4 Register orchestrators with DomainRouter
+### 7.4 Register email orchestrator with DomainRouter
 
 **File**: `src/core/router.py`
+
+Calendar goes through AgentRouter (skill.execute()). Only email gets a LangGraph orchestrator in Phase 2.
 
 ```python
 def get_domain_router() -> DomainRouter:
@@ -681,22 +837,20 @@ def get_domain_router() -> DomainRouter:
         agent_router = AgentRouter(AGENTS, get_registry())
         _domain_router = DomainRouter(agent_router)
 
-        # Register LangGraph orchestrators
+        # Register LangGraph orchestrators (only for complex multi-step domains)
         from src.orchestrators.email.graph import EmailOrchestrator
-        from src.orchestrators.calendar.graph import CalendarOrchestrator
         _domain_router.register_orchestrator(Domain.email, EmailOrchestrator())
-        _domain_router.register_orchestrator(Domain.calendar, CalendarOrchestrator())
 
     return _domain_router
 ```
 
 ---
 
-### 3.5 Update intent detection prompt
+### 7.5 Update intent detection
 
 **File**: `src/core/intent.py`
 
-Add 10 new intents to `INTENT_DETECTION_PROMPT`:
+Add 10 new intents. At this point we have 32 total intents, so 2-stage detection activates:
 
 ```
 - read_inbox: check email, inbox summary ("check my email", "what's in my inbox")
@@ -713,7 +867,7 @@ Add 10 new intents to `INTENT_DETECTION_PROMPT`:
 
 ---
 
-### 3.6 Update QUERY_CONTEXT_MAP
+### 7.6 Update QUERY_CONTEXT_MAP
 
 **File**: `src/core/memory/context.py`
 
@@ -735,22 +889,40 @@ Add 10 new intents to `INTENT_DETECTION_PROMPT`:
 
 ---
 
-### 3.7 Phase 2 — file summary
+### 7.7 Background sync tasks
+
+**File**: `src/core/tasks/google_sync_tasks.py` (NEW)
+
+```python
+@broker.task(schedule=[{"cron": "*/10 * * * *"}])
+async def sync_gmail_inbox():
+    """Every 10 min: check for new emails for users with connected Gmail."""
+    ...
+
+@broker.task(schedule=[{"cron": "*/15 * * * *"}])
+async def sync_calendar_events():
+    """Every 15 min: sync upcoming calendar events."""
+    ...
+```
+
+---
+
+### 7.8 Phase 2 — file summary
 
 | Action | File | Type |
 |--------|------|------|
-| NEW | `src/tools/google_workspace.py` | Google API client |
+| NEW | `src/tools/google_workspace.py` | Google API client (aiogoogle) |
 | NEW | `api/oauth.py` | OAuth endpoints |
 | NEW | `src/core/models/oauth_token.py` | Token storage model |
 | NEW | `alembic/versions/006_oauth_tokens.py` | Migration |
+| NEW | `src/core/crypto.py` | Token encryption helpers |
 | NEW | `src/orchestrators/__init__.py` | Package init |
+| NEW | `src/orchestrators/base.py` | Base orchestrator protocol |
 | NEW | `src/orchestrators/email/__init__.py` | Package init |
 | NEW | `src/orchestrators/email/graph.py` | Email LangGraph |
 | NEW | `src/orchestrators/email/nodes.py` | Graph nodes |
-| NEW | `src/orchestrators/calendar/__init__.py` | Package init |
-| NEW | `src/orchestrators/calendar/graph.py` | Calendar LangGraph |
-| NEW | `src/orchestrators/calendar/nodes.py` | Graph nodes |
-| NEW | `src/skills/read_inbox/` | 2 files |
+| NEW | `src/orchestrators/email/state.py` | EmailState TypedDict |
+| NEW | `src/skills/read_inbox/` | 2 files (init + handler) |
 | NEW | `src/skills/send_email/` | 2 files |
 | NEW | `src/skills/draft_reply/` | 2 files |
 | NEW | `src/skills/follow_up_email/` | 2 files |
@@ -760,23 +932,26 @@ Add 10 new intents to `INTENT_DETECTION_PROMPT`:
 | NEW | `src/skills/find_free_slots/` | 2 files |
 | NEW | `src/skills/reschedule_event/` | 2 files |
 | NEW | `src/skills/morning_brief/` | 2 files |
+| NEW | `src/core/tasks/google_sync_tasks.py` | Background sync cron |
 | EDIT | `src/skills/__init__.py` | Register 10 new skills |
-| EDIT | `src/agents/config.py` | Add email + calendar agents |
-| EDIT | `src/core/intent.py` | Add 10 new intents to prompt |
+| EDIT | `src/agents/config.py` | Add email + calendar agents (7 total) |
+| EDIT | `src/core/intent.py` | Add 10 intents, activate 2-stage (32 total) |
 | EDIT | `src/core/memory/context.py` | Add 10 QUERY_CONTEXT_MAP entries |
 | EDIT | `src/core/router.py` | Register email/calendar orchestrators |
-| EDIT | `pyproject.toml` | Add google-api-python-client, google-auth-oauthlib |
+| EDIT | `pyproject.toml` | Add aiogoogle, cryptography, langgraph |
 | NEW | `tests/test_skills/test_read_inbox.py` | etc. (10 test files) |
+| NEW | `tests/test_orchestrators/__init__.py` | Package init |
 | NEW | `tests/test_orchestrators/test_email_graph.py` | Orchestrator tests |
-| NEW | `tests/test_orchestrators/test_calendar_graph.py` | Orchestrator tests |
+| NEW | `tests/test_tools/test_google_workspace.py` | API client tests |
+| NEW | `tests/test_api/test_oauth.py` | OAuth flow tests |
 
-**Total Phase 2**: ~30 new files, ~8 edited files, 10 new skills, 2 new agents
+**Total Phase 2**: ~35 new files, ~8 edited files, 10 new skills, 2 new agents
 
 ---
 
-## 4. PHASE 3: TASKS + RESEARCH + WRITING + CRM (Weeks 5-6)
+## 8. PHASE 3: TASKS + RESEARCH + WRITING + CRM (Weeks 5-6)
 
-### 4.1 Task orchestrator
+### 8.1 Task management
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -787,13 +962,11 @@ Add 10 new intents to `INTENT_DETECTION_PROMPT`:
 
 Agent: `tasks` (claude-haiku-4-5)
 
-Orchestrator: `src/orchestrators/tasks/graph.py` — simple linear graph (no multi-step planning needed for CRUD tasks).
-
-Data: uses `tasks` table from Phase 1 migration.
+Data: uses internal `tasks` table from Phase 1 migration (not Google Tasks API). Supports priorities, assignment, deadlines, recurring tasks.
 
 ---
 
-### 4.2 Research orchestrator
+### 8.2 Research
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -807,21 +980,51 @@ Agent: `research` (claude-sonnet-4-5)
 
 **File**: `src/tools/web_search.py` (NEW)
 
-Uses Brave Search API directly (no OpenClaw dependency). Simple HTTP client:
+Uses Brave Search API directly via `httpx`:
 
 ```python
 class BraveSearchClient:
     """Brave Search API wrapper."""
 
     async def search(self, query: str, count: int = 10) -> list[SearchResult]: ...
-    async def fetch_page(self, url: str) -> str: ...  # HTML → markdown
+    async def fetch_page(self, url: str) -> str: ...  # HTML → markdown via trafilatura
 ```
 
-**Dependency**: `pyproject.toml` — add `httpx` (already present) + `BRAVE_API_KEY` env var.
+**Dependency**: `httpx` (already present) + `trafilatura` (HTML→text) + `BRAVE_API_KEY` env var.
 
 ---
 
-### 4.3 Writing orchestrator
+### 8.3 Writing (LangGraph orchestrator)
+
+Writing uses LangGraph because drafting involves revision loops — the user may ask "make it more formal", "shorten it", "add a greeting" after the first draft.
+
+#### 8.3.1 Writing orchestrator
+
+**File**: `src/orchestrators/writing/graph.py`
+
+```python
+"""Writing orchestrator — LangGraph StateGraph.
+
+Nodes: drafter → reviewer → reviser (loop) → finalizer
+Handles: draft_message, translate_text, write_post, proofread
+"""
+
+writing_graph = StateGraph(WritingState)
+writing_graph.add_node("drafter", write_draft)
+writing_graph.add_node("reviewer", review_quality)
+writing_graph.add_node("reviser", revise_draft)
+writing_graph.add_node("finalizer", finalize_output)
+
+writing_graph.add_edge("drafter", "reviewer")
+writing_graph.add_conditional_edges("reviewer", check_quality, {
+    "good": "finalizer",
+    "needs_revision": "reviser",
+})
+writing_graph.add_edge("reviser", "reviewer")  # revision loop
+writing_graph.add_edge("finalizer", END)
+```
+
+#### 8.3.2 Writing skills (4 new)
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -832,11 +1035,11 @@ class BraveSearchClient:
 
 Agent: `writing` (claude-sonnet-4-5)
 
-Uses `user_profiles.learned_patterns` for tone matching.
+Uses `user_profiles.learned_patterns` for tone matching. Writing skills use the user's historical message style (stored in Mem0) to match their voice.
 
 ---
 
-### 4.4 CRM / Contacts orchestrator
+### 8.4 CRM / Contacts
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -845,123 +1048,329 @@ Uses `user_profiles.learned_patterns` for tone matching.
 
 Agent: `contacts` (claude-haiku-4-5)
 
-Data: uses `contacts` table from Phase 1 migration.
+Data: uses `contacts` table from Phase 1 migration. Learns contact details from conversations (e.g., "call Mike at 555-1234" → adds/updates Mike's phone).
 
 ---
 
-### 4.5 Phase 3 — file summary
+### 8.5 Update intent detection
+
+**File**: `src/core/intent.py`
+
+Add 13 new intents (45 total). All use 2-stage detection.
+
+```
+- create_task: create a to-do item ("add task: call dentist")
+- list_tasks: show tasks ("what's on my list?")
+- set_reminder: set a reminder ("remind me to call Mike at 3pm")
+- complete_task: mark task done ("done with dentist call")
+- web_search: quick search ("search for best plumber in Queens")
+- deep_research: in-depth research ("research electric van options for my fleet")
+- compare_options: compare alternatives ("compare QuickBooks vs Wave")
+- draft_message: write a message ("draft a text to Mike about tomorrow's schedule")
+- translate_text: translate text ("translate this to Spanish")
+- write_post: write content ("write a Google review response")
+- proofread: check text ("proofread this email")
+- add_contact: add a person ("save Mike's number: 555-1234")
+- find_contact: find a person ("what's Mike's number?")
+```
+
+---
+
+### 8.6 Update QUERY_CONTEXT_MAP
+
+**File**: `src/core/memory/context.py`
+
+```python
+# Task intents
+"create_task":      {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+"list_tasks":       {"mem": False,     "hist": 0, "sql": False, "sum": False},
+"set_reminder":     {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+"complete_task":    {"mem": False,     "hist": 3, "sql": False, "sum": False},
+
+# Research intents
+"web_search":       {"mem": False,     "hist": 3, "sql": False, "sum": False},
+"deep_research":    {"mem": "profile", "hist": 5, "sql": False, "sum": True},
+"compare_options":  {"mem": "profile", "hist": 5, "sql": False, "sum": True},
+
+# Writing intents
+"draft_message":    {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+"translate_text":   {"mem": False,     "hist": 3, "sql": False, "sum": False},
+"write_post":       {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+"proofread":        {"mem": False,     "hist": 3, "sql": False, "sum": False},
+
+# Contact intents
+"add_contact":      {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+"find_contact":     {"mem": False,     "hist": 3, "sql": False, "sum": False},
+```
+
+---
+
+### 8.7 Phase 3 — file summary
 
 | Action | Count |
 |--------|-------|
-| New orchestrators | 4 (tasks, research, writing, contacts) |
+| LangGraph orchestrators | 2 (research, writing) |
+| Simple orchestrators (AgentRouter) | 2 (tasks, contacts) |
 | New skills | 13 |
 | New agents | 4 |
 | New tool files | 1 (`src/tools/web_search.py`) |
 | New test files | ~17 |
 | Edited files | ~8 (intent.py, config.py, context.py, registry, router, etc.) |
 
-**Running totals after Phase 3**: 45 skills, 11 agents, 6 orchestrators
+**Running totals after Phase 3**: 45 skills, 11 agents, 3 LangGraph orchestrators (email, research, writing)
 
 ---
 
-## 5. PHASE 4: CHANNELS + BILLING (Weeks 7-8)
+## 9. PHASE 4: CHANNELS + BILLING (Weeks 7-8)
 
-### 5.1 OpenClaw sidecar setup
+### 9.1 Channel architecture
 
-#### 5.1.1 Docker Compose addition
+Each channel gets a Python gateway that implements the `MessageGateway` protocol from Phase 1. No external sidecar process — all channels run inside the same FastAPI application.
 
-**File**: `docker-compose.yml` — add:
-
-```yaml
-  openclaw_gateway:
-    image: ghcr.io/openclaw/openclaw:latest
-    ports:
-      - "18789:18789"
-    volumes:
-      - openclaw_data:/root/.openclaw
-    environment:
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    restart: unless-stopped
+```
+User (WhatsApp/Slack/SMS)
+    ↓
+Webhook endpoint (api/main.py)
+    ↓
+Channel gateway (src/gateway/{channel}_gw.py)
+    ↓ converts to IncomingMessage
+Standard pipeline (router.py → intent → domain → skill)
+    ↓ returns SkillResult
+Channel gateway formats and sends response
 ```
 
-#### 5.1.2 Channel bridge
+---
 
-**File**: `src/gateway/openclaw_bridge.py` (NEW)
+### 9.2 Slack channel
+
+**Library**: `slack-bolt` (official Slack Python SDK, async support, actively maintained by Slack team)
+
+**File**: `src/gateway/slack_gw.py` (NEW)
 
 ```python
-"""Bridge between OpenClaw Gateway and our Python core.
+"""Slack gateway using slack-bolt async."""
 
-Receives messages from OpenClaw via HTTP webhook,
-converts to IncomingMessage, routes through our pipeline,
-sends response back via OpenClaw API.
-"""
+from slack_bolt.async_app import AsyncApp
+from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 
-class OpenClawBridge:
-    """Adapter: OpenClaw message format → IncomingMessage → router → OutgoingMessage → OpenClaw."""
 
-    async def on_webhook(self, raw_msg: dict) -> dict:
-        """Called by FastAPI endpoint when OpenClaw forwards a message."""
-        message = self._to_incoming(raw_msg)
-        # Route through our standard pipeline
-        result = await handle_message(message, context, gateway=self)
-        return self._to_openclaw_response(result)
+class SlackGateway:
+    """Implements MessageGateway protocol for Slack."""
 
-    def _to_incoming(self, raw: dict) -> IncomingMessage:
-        """OpenClaw format → our IncomingMessage."""
+    def __init__(self):
+        self.app = AsyncApp(
+            token=settings.slack_bot_token,
+            signing_secret=settings.slack_signing_secret,
+        )
+        self._register_handlers()
+
+    def _register_handlers(self):
+        @self.app.message("")
+        async def handle_message(message, say):
+            incoming = self._to_incoming_message(message)
+            result = await process_message(incoming)
+            await say(self._format_slack_response(result))
+
+    def _to_incoming_message(self, slack_msg: dict) -> IncomingMessage:
         return IncomingMessage(
-            id=raw["message_id"],
-            user_id=raw["user_id"],
-            chat_id=raw["chat_id"],
-            type=self._map_type(raw["content_type"]),
-            text=raw.get("text"),
-            channel=raw["channel"],   # whatsapp, imessage, slack
-            channel_user_id=raw["channel_user_id"],
-            raw=raw,
+            id=slack_msg["ts"],
+            user_id=slack_msg["user"],
+            chat_id=slack_msg["channel"],
+            type=MessageType.text,
+            text=slack_msg.get("text", ""),
+            channel="slack",
+            channel_user_id=slack_msg["user"],
+        )
+
+    def _format_slack_response(self, result: SkillResult) -> dict:
+        """Convert SkillResult to Slack Block Kit format."""
+        ...
+```
+
+**File**: `api/main.py` — add Slack endpoint:
+
+```python
+from src.gateway.slack_gw import slack_gateway
+
+@app.post("/webhook/slack/events")
+async def slack_events(request: Request):
+    return await slack_gateway.handler.handle(request)
+```
+
+**Setup**: Slack App created via api.slack.com, with Events API (message.im, message.channels) and Bot Token Scopes (chat:write, users:read).
+
+**Dependency**: `pyproject.toml` — add `slack-bolt>=1.20.0`
+
+---
+
+### 9.3 WhatsApp channel
+
+**API**: WhatsApp Business Cloud API (Meta-hosted, no phone server needed)
+
+**File**: `src/gateway/whatsapp_gw.py` (NEW)
+
+```python
+"""WhatsApp gateway using Business Cloud API via httpx."""
+
+import httpx
+
+
+class WhatsAppGateway:
+    """Implements MessageGateway protocol for WhatsApp."""
+
+    BASE_URL = "https://graph.facebook.com/v21.0"
+
+    def __init__(self):
+        self._client = httpx.AsyncClient(
+            base_url=self.BASE_URL,
+            headers={"Authorization": f"Bearer {settings.whatsapp_token}"},
+        )
+
+    async def send_message(self, chat_id: str, message: OutgoingMessage) -> None:
+        await self._client.post(
+            f"/{settings.whatsapp_phone_id}/messages",
+            json={
+                "messaging_product": "whatsapp",
+                "to": chat_id,
+                "type": "text",
+                "text": {"body": message.response_text},
+            },
+        )
+
+    def parse_webhook(self, payload: dict) -> IncomingMessage | None:
+        """Parse WhatsApp webhook payload into IncomingMessage."""
+        ...
+```
+
+**File**: `api/main.py` — add WhatsApp endpoint:
+
+```python
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    payload = await request.json()
+    incoming = whatsapp_gateway.parse_webhook(payload)
+    if incoming:
+        result = await process_message(incoming)
+        await whatsapp_gateway.send_message(incoming.chat_id, result)
+    return {"status": "ok"}
+
+@app.get("/webhook/whatsapp")
+async def whatsapp_verify(request: Request):
+    """WhatsApp webhook verification challenge."""
+    ...
+```
+
+**Setup**: Meta Business Account → WhatsApp Business API → webhook registration.
+
+---
+
+### 9.4 SMS channel
+
+**Library**: `twilio` (Python SDK)
+
+**File**: `src/gateway/sms_gw.py` (NEW)
+
+```python
+"""SMS gateway using Twilio."""
+
+from twilio.rest import Client as TwilioClient
+
+
+class SMSGateway:
+    """Implements MessageGateway protocol for SMS."""
+
+    def __init__(self):
+        self._client = TwilioClient(
+            settings.twilio_account_sid,
+            settings.twilio_auth_token,
+        )
+
+    async def send_message(self, chat_id: str, message: OutgoingMessage) -> None:
+        self._client.messages.create(
+            body=message.response_text[:1600],  # SMS limit
+            from_=settings.twilio_phone_number,
+            to=chat_id,
+        )
+
+    def parse_webhook(self, form_data: dict) -> IncomingMessage:
+        return IncomingMessage(
+            id=form_data["MessageSid"],
+            user_id=form_data["From"],
+            chat_id=form_data["From"],
+            type=MessageType.text,
+            text=form_data.get("Body", ""),
+            channel="sms",
+            channel_user_id=form_data["From"],
         )
 ```
 
-#### 5.1.3 Webhook endpoint
-
-**File**: `api/main.py` — add:
+**File**: `api/main.py` — add SMS endpoint:
 
 ```python
-@app.post("/webhook/openclaw")
-async def openclaw_webhook(request: Request):
-    """Receive messages from OpenClaw Gateway."""
-    raw_msg = await request.json()
-    bridge = OpenClawBridge()
-    result = await bridge.on_webhook(raw_msg)
-    return result
+@app.post("/webhook/sms")
+async def sms_webhook(request: Request):
+    form_data = await request.form()
+    incoming = sms_gateway.parse_webhook(dict(form_data))
+    result = await process_message(incoming)
+    await sms_gateway.send_message(incoming.chat_id, result)
+    return Response(content="<Response></Response>", media_type="text/xml")
 ```
 
----
-
-### 5.2 WhatsApp, iMessage, Slack gateway implementations
-
-Each channel gets a thin Python adapter that communicates with OpenClaw:
-
-| New File | Channel | Protocol |
-|----------|---------|----------|
-| `src/gateway/whatsapp.py` | WhatsApp | OpenClaw Baileys via bridge |
-| `src/gateway/imessage.py` | iMessage | OpenClaw BlueBubbles via bridge |
-| `src/gateway/slack_gw.py` | Slack | OpenClaw Bolt via bridge |
-
-Each implements the `MessageGateway` protocol from `src/gateway/base.py`.
+**Dependency**: `pyproject.toml` — add `twilio>=9.0.0`
 
 ---
 
-### 5.3 Stripe billing
+### 9.5 iMessage — DEFERRED
 
-#### 5.3.1 New files
+Apple does not provide a public iMessage API. Options like BlueBubbles require a dedicated macOS machine and are fragile. **Deferred indefinitely** until Apple opens the platform or a reliable third-party solution emerges.
+
+---
+
+### 9.6 Channel user mapping
+
+**File**: `src/core/models/channel_link.py` (NEW)
+
+```python
+class ChannelLink(Base, TimestampMixin):
+    """Maps external channel user IDs to our internal user."""
+    id: UUID
+    user_id: UUID (FK users.id)
+    family_id: UUID (FK families.id)
+    channel: str  # telegram, whatsapp, slack, sms
+    channel_user_id: str  # platform-specific ID
+    channel_chat_id: str | None  # channel, workspace, etc.
+    is_primary: bool = False
+    linked_at: datetime
+```
+
+**Migration**: `alembic/versions/007_channel_links.py`
+
+The first time a user messages from a new channel, we attempt to match by phone number or email. If no match, we start an onboarding flow on that channel.
+
+---
+
+### 9.7 Stripe billing
+
+#### 9.7.1 New files
 
 | File | Purpose |
 |------|---------|
 | `src/billing/__init__.py` | Package |
-| `src/billing/stripe_client.py` | Stripe API wrapper (checkout, subscription, webhook) |
-| `src/billing/usage_tracker.py` | Track LLM token usage per request |
-| `src/billing/subscription.py` | Subscription CRUD, status checks |
+| `src/billing/stripe_client.py` | Stripe API wrapper (checkout, subscription, portal, webhook) |
+| `src/billing/usage_tracker.py` | Track LLM token usage per request → `usage_logs` table |
+| `src/billing/subscription.py` | Subscription CRUD, status checks, grace period logic |
 
-#### 5.3.2 Usage tracking middleware
+#### 9.7.2 Pricing
+
+```
+Plan:           AI Life Assistant
+Price:          $49/month
+Trial:          7 days free
+Grace period:   3 days past due before suspension
+Payment:        Stripe Checkout → Customer Portal for management
+```
+
+#### 9.7.3 Usage tracking middleware
 
 **File**: `src/core/router.py` — add post-processing:
 
@@ -971,46 +1380,64 @@ await usage_tracker.log(
     user_id=context.user_id,
     domain=domain.value,
     skill=intent,
-    model=intent_data.get("_model", "unknown"),
-    tokens_input=...,
-    tokens_output=...,
-    duration_ms=...,
+    model=result.metadata.get("model", "unknown"),
+    tokens_input=result.metadata.get("tokens_in", 0),
+    tokens_output=result.metadata.get("tokens_out", 0),
+    duration_ms=elapsed_ms,
 )
 ```
 
-#### 5.3.3 Stripe webhook
+#### 9.7.4 Stripe webhook
 
 **File**: `api/main.py` — add:
 
 ```python
 @app.post("/webhook/stripe")
 async def stripe_webhook(request: Request):
-    """Handle Stripe subscription events."""
+    """Handle Stripe subscription events (created, updated, deleted, payment_failed)."""
     ...
 ```
 
-#### 5.3.4 New dependency
+#### 9.7.5 Subscription check middleware
 
-**File**: `pyproject.toml` — add `stripe>=7.0.0`
+Added to `router.py` — before processing any message, verify the user has an active subscription (or is in trial/grace period). If not, respond with a payment link.
 
----
-
-### 5.4 Phase 4 — file summary
-
-| Action | Count |
-|--------|-------|
-| New gateway files | 4 (openclaw_bridge + 3 channel adapters) |
-| New billing files | 4 |
-| Docker Compose changes | 1 (add openclaw service) |
-| New API endpoints | 2 (/webhook/openclaw, /webhook/stripe) |
-| Edited files | ~5 |
-| New test files | ~8 |
+**Dependency**: `pyproject.toml` — add `stripe>=10.0.0`
 
 ---
 
-## 6. PHASE 5: PROACTIVITY + POLISH (Weeks 9-10)
+### 9.8 Phase 4 — file summary
 
-### 6.1 Proactivity engine
+| Action | File | Type |
+|--------|------|------|
+| NEW | `src/gateway/slack_gw.py` | Slack gateway (slack-bolt) |
+| NEW | `src/gateway/whatsapp_gw.py` | WhatsApp gateway (Business Cloud API) |
+| NEW | `src/gateway/sms_gw.py` | SMS gateway (Twilio) |
+| NEW | `src/core/models/channel_link.py` | Channel user mapping model |
+| NEW | `alembic/versions/007_channel_links.py` | Migration |
+| NEW | `src/billing/__init__.py` | Package init |
+| NEW | `src/billing/stripe_client.py` | Stripe API wrapper |
+| NEW | `src/billing/usage_tracker.py` | Token usage logging |
+| NEW | `src/billing/subscription.py` | Subscription management |
+| EDIT | `api/main.py` | Add /webhook/slack, /webhook/whatsapp, /webhook/sms, /webhook/stripe |
+| EDIT | `src/gateway/factory.py` | Wire up new gateways |
+| EDIT | `src/core/router.py` | Add usage tracking + subscription check |
+| EDIT | `pyproject.toml` | Add slack-bolt, twilio, stripe |
+| EDIT | `src/core/settings.py` | Add Slack, WhatsApp, Twilio, Stripe config |
+| NEW | `tests/test_gateway/test_slack_gw.py` | Slack gateway tests |
+| NEW | `tests/test_gateway/test_whatsapp_gw.py` | WhatsApp gateway tests |
+| NEW | `tests/test_gateway/test_sms_gw.py` | SMS gateway tests |
+| NEW | `tests/test_billing/test_stripe_client.py` | Stripe tests |
+| NEW | `tests/test_billing/test_usage_tracker.py` | Usage tracking tests |
+| NEW | `tests/test_billing/test_subscription.py` | Subscription tests |
+
+**Total Phase 4**: ~14 new files, ~6 edited files, 3 new channel gateways
+
+---
+
+## 10. PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
+
+### 10.1 Proactivity engine
 
 | New File | Purpose |
 |----------|---------|
@@ -1020,9 +1447,22 @@ async def stripe_webhook(request: Request):
 | `src/proactivity/evaluator.py` | Condition evaluation WITHOUT LLM (pure logic) |
 | `src/proactivity/scheduler.py` | Cron-like scheduler (extends existing Taskiq setup) |
 
-Key difference from OpenClaw Heartbeat: our engine checks conditions **without LLM** first. Only generates content if a trigger fires, saving $5-30/day in LLM costs.
+Key design: the engine checks conditions **without LLM** first. Only generates content if a trigger fires, saving LLM costs. Example triggers:
 
-#### 6.1.1 Taskiq integration
+```python
+TRIGGERS = [
+    # Morning brief at user's preferred time
+    TimeTrigger(name="morning_brief", hour=7, action="send_morning_brief"),
+    # Follow-up emails unanswered > 24h
+    DataTrigger(name="email_followup", check=has_unanswered_emails, action="nudge_followup"),
+    # Task deadline approaching
+    DataTrigger(name="task_deadline", check=has_upcoming_deadlines, action="deadline_warning"),
+    # Budget threshold exceeded
+    DataTrigger(name="budget_alert", check=budget_exceeded, action="budget_warning"),
+]
+```
+
+#### 10.1.1 Taskiq integration
 
 **File**: `src/core/tasks/proactivity_tasks.py` (NEW)
 
@@ -1035,7 +1475,86 @@ async def evaluate_proactive_triggers():
 
 ---
 
-### 6.2 Monitor orchestrator
+### 10.2 Browser automation (Browser-Use + LangGraph)
+
+**Library**: `browser-use` (77K GitHub stars, MIT license, Python, 89.1% WebVoyager benchmark)
+
+Browser automation uses LangGraph because tasks are inherently multi-step with retry loops: plan → execute in browser → verify result → retry if failed → approval before side effects.
+
+**File**: `src/orchestrators/browser/graph.py` (NEW)
+
+```python
+"""Browser orchestrator — LangGraph StateGraph.
+
+Nodes: planner → executor → verifier → (retry loop) → approval
+"""
+
+browser_graph = StateGraph(BrowserState)
+browser_graph.add_node("planner", plan_browser_task)
+browser_graph.add_node("executor", execute_in_browser)
+browser_graph.add_node("verifier", verify_result)
+browser_graph.add_node("approval", request_user_approval)
+
+browser_graph.add_edge("planner", "executor")
+browser_graph.add_edge("executor", "verifier")
+browser_graph.add_conditional_edges("verifier", check_success, {
+    "success": "approval",
+    "retry": "executor",
+    "failed": END,
+})
+browser_graph.add_edge("approval", END)
+```
+
+**File**: `src/tools/browser.py` (NEW)
+
+```python
+"""AI browser automation using Browser-Use library."""
+
+from browser_use import Agent as BrowserAgent
+from langchain_anthropic import ChatAnthropic
+
+
+class BrowserTool:
+    """Executes browser tasks via Browser-Use + Claude Sonnet 4.5."""
+
+    def __init__(self):
+        self._llm = ChatAnthropic(model="claude-sonnet-4-5")
+
+    async def execute_task(self, task: str, max_steps: int = 10) -> str:
+        """Run a browser automation task and return the result."""
+        agent = BrowserAgent(task=task, llm=self._llm)
+        result = await agent.run(max_steps=max_steps)
+        return result
+```
+
+**Production**: For production use, pair with Steel.dev for isolated Chrome containers:
+
+```python
+from browser_use import Browser, BrowserConfig
+
+browser = Browser(config=BrowserConfig(
+    cdp_url=f"wss://connect.steel.dev?apiKey={settings.steel_api_key}"
+))
+```
+
+**Use cases** (Phase 5):
+- Book restaurant reservations
+- Fill out government forms
+- Check price on a website
+- Submit Google reviews
+
+**Dependency**: `pyproject.toml` — add `browser-use>=0.2.0`, `langchain-anthropic>=0.3.0`
+
+**Skills** (2 new):
+
+| New Skill | Intent | Model |
+|-----------|--------|-------|
+| `src/skills/web_action/handler.py` | `web_action` | claude-sonnet-4-5 |
+| `src/skills/price_check/handler.py` | `price_check` | claude-haiku-4-5 |
+
+---
+
+### 10.3 Monitor skills
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -1046,11 +1565,11 @@ Uses `monitors` table + `web_search` tool + Taskiq cron.
 
 ---
 
-### 6.3 Action approval system
+### 10.4 Action approval system
 
 **File**: `src/core/approval.py` (NEW)
 
-For actions that require user confirmation (send_email, create_event, book_restaurant):
+For actions that require user confirmation (send_email, create_event, web_action):
 
 ```python
 class ApprovalManager:
@@ -1069,11 +1588,9 @@ class ApprovalManager:
         ...
 ```
 
-Integrates with existing callback handling in `router.py`.
-
 ---
 
-### 6.4 User profile auto-learning
+### 10.5 User profile auto-learning
 
 **File**: `src/core/tasks/profile_tasks.py` (NEW)
 
@@ -1084,48 +1601,41 @@ async def update_user_profiles():
     ...
 ```
 
+Learns: preferred language, response length, tone, active hours, common contacts, recurring patterns.
+
 ---
 
-### 6.5 Onboarding expansion (English + multi-domain)
+### 10.6 Onboarding expansion
 
 **File**: `src/skills/onboarding/handler.py` — edit:
 
-- Support English onboarding flow (detect language from first message)
+- Detect language from first message (English default, Spanish second priority)
+- After first few interactions, offer to set preferred language: "Want me to always reply in [detected language]?"
+- Store `preferred_language` in `user_profiles` table
+- Support "change language to X" command anytime
 - Ask about connected services (Gmail, Calendar) instead of just business type
 - Guide through OAuth connection
+- Proactive suggestions based on first few interactions
 
 ---
 
-### 6.6 Phase 5 — file summary
+### 10.7 Phase 5 — file summary
 
 | Action | Count |
 |--------|-------|
 | New proactivity files | 5 |
-| New monitor skills | 2 |
+| New browser tool | 1 (`src/tools/browser.py`) |
+| New skills | 4 (web_action, price_check, price_alert, news_monitor) |
 | New approval system | 1 |
 | New profile learning task | 1 |
 | Edited onboarding | 1 |
-| New test files | ~6 |
+| New test files | ~8 |
+
+**Running totals after Phase 5**: 49 skills, 12 agents, 4 LangGraph orchestrators
 
 ---
 
-## 7. CURRENT BUGS TO FIX FIRST
-
-These should be fixed **before** starting Phase 1 new development.
-
-| # | Bug | File | Fix |
-|---|-----|------|-----|
-| 1 | `query_report` skill not assigned to any agent | `src/agents/config.py:65` | Add `"query_report"` to analytics agent's skills list |
-| 2 | `mark_paid` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": False, "hist": 3, "sql": False, "sum": False}` |
-| 3 | `set_budget` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "budgets", "hist": 3, "sql": True, "sum": False}` |
-| 4 | `add_recurring` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "mappings", "hist": 3, "sql": False, "sum": False}` |
-| 5 | `scan_document` missing from QUERY_CONTEXT_MAP | `src/core/memory/context.py` | Add entry: `{"mem": "mappings", "hist": 1, "sql": False, "sum": False}` |
-| 6 | Dead `budget_advice` entry in QUERY_CONTEXT_MAP | `src/core/memory/context.py:60` | Remove line |
-| 7 | Duplicate `correct_cat` alias in QUERY_CONTEXT_MAP | `src/core/memory/context.py:56` | Remove `correct_cat` (keep only `correct_category`) |
-
----
-
-## 8. FILE-BY-FILE CHANGE MAP
+## 11. FILE-BY-FILE CHANGE MAP
 
 ### Complete file listing across all phases
 
@@ -1143,10 +1653,14 @@ PHASE 1: CORE GENERALIZATION (Weeks 1-2)
 ═══════════════════════════════════════════════════════════════
 [NEW]  src/core/domains.py                         # Domain enum + INTENT_DOMAIN_MAP
 [NEW]  src/core/domain_router.py                   # DomainRouter wrapper
+[NEW]  src/gateway/base.py                         # MessageGateway protocol
+[NEW]  src/gateway/factory.py                      # Gateway factory
 [EDIT] src/core/router.py                          # Use DomainRouter
+[EDIT] src/core/intent.py                          # Add 2-stage detection (activate in Phase 2)
 [EDIT] src/core/schemas/intent.py                  # Add domain + future fields
 [EDIT] src/core/context.py                         # Add channel, timezone, profile
 [EDIT] src/gateway/types.py                        # Add channel, language, approval
+[EDIT] src/gateway/telegram.py                     # Implement MessageGateway protocol
 [EDIT] src/core/models/enums.py                    # New enums
 [NEW]  src/core/models/contact.py                  # Contact model
 [NEW]  src/core/models/task.py                     # Task model
@@ -1157,15 +1671,16 @@ PHASE 1: CORE GENERALIZATION (Weeks 1-2)
 [NEW]  src/core/models/usage_log.py                # Usage log model
 [NEW]  src/core/models/subscription.py             # Subscription model
 [EDIT] src/core/models/__init__.py                 # Import new models
-[NEW]  alembic/versions/005_multi_domain_tables.py # Migration for 8 new tables
-[EDIT] pyproject.toml                              # Add langgraph
+[NEW]  alembic/versions/005_multi_domain_tables.py # Migration for 8 new tables + RLS
 [NEW]  tests/test_core/test_domains.py             # Domain mapping tests
 [NEW]  tests/test_core/test_domain_router.py       # Domain router tests
+[NEW]  tests/test_gateway/test_factory.py          # Gateway factory tests
 
 ═══════════════════════════════════════════════════════════════
 PHASE 2: EMAIL + CALENDAR (Weeks 3-4)
 ═══════════════════════════════════════════════════════════════
-[NEW]  src/tools/google_workspace.py               # Google API client
+[NEW]  src/tools/google_workspace.py               # Google API client (aiogoogle)
+[NEW]  src/core/crypto.py                          # Token encryption (Fernet)
 [NEW]  api/oauth.py                                # Google OAuth endpoints
 [NEW]  src/core/models/oauth_token.py              # OAuth token model
 [NEW]  alembic/versions/006_oauth_tokens.py        # Migration
@@ -1175,36 +1690,23 @@ PHASE 2: EMAIL + CALENDAR (Weeks 3-4)
 [NEW]  src/orchestrators/email/graph.py            # Email LangGraph StateGraph
 [NEW]  src/orchestrators/email/nodes.py            # Planner, reader, writer, reviewer, sender
 [NEW]  src/orchestrators/email/state.py            # EmailState TypedDict
-[NEW]  src/orchestrators/calendar/__init__.py      #
-[NEW]  src/orchestrators/calendar/graph.py         # Calendar LangGraph StateGraph
-[NEW]  src/orchestrators/calendar/nodes.py         # Scheduler, conflict checker, creator
-[NEW]  src/orchestrators/calendar/state.py         # CalendarState TypedDict
-[NEW]  src/skills/read_inbox/__init__.py           #
-[NEW]  src/skills/read_inbox/handler.py            # Read inbox skill
-[NEW]  src/skills/send_email/__init__.py           #
-[NEW]  src/skills/send_email/handler.py            # Send email skill
-[NEW]  src/skills/draft_reply/__init__.py          #
-[NEW]  src/skills/draft_reply/handler.py           # Draft reply skill
-[NEW]  src/skills/follow_up_email/__init__.py      #
-[NEW]  src/skills/follow_up_email/handler.py       # Follow-up skill
-[NEW]  src/skills/summarize_thread/__init__.py     #
-[NEW]  src/skills/summarize_thread/handler.py      # Summarize thread skill
-[NEW]  src/skills/list_events/__init__.py          #
-[NEW]  src/skills/list_events/handler.py           # List events skill
-[NEW]  src/skills/create_event/__init__.py         #
-[NEW]  src/skills/create_event/handler.py          # Create event skill
-[NEW]  src/skills/find_free_slots/__init__.py      #
-[NEW]  src/skills/find_free_slots/handler.py       # Find free slots skill
-[NEW]  src/skills/reschedule_event/__init__.py     #
-[NEW]  src/skills/reschedule_event/handler.py      # Reschedule event skill
-[NEW]  src/skills/morning_brief/__init__.py        #
-[NEW]  src/skills/morning_brief/handler.py         # Morning brief skill
-[EDIT] src/skills/__init__.py                      # Register 10 new skills
+[NEW]  src/skills/read_inbox/__init__.py + handler.py        # Read inbox skill
+[NEW]  src/skills/send_email/__init__.py + handler.py        # Send email skill
+[NEW]  src/skills/draft_reply/__init__.py + handler.py       # Draft reply skill
+[NEW]  src/skills/follow_up_email/__init__.py + handler.py   # Follow-up skill
+[NEW]  src/skills/summarize_thread/__init__.py + handler.py  # Summarize thread skill
+[NEW]  src/skills/list_events/__init__.py + handler.py       # List events skill
+[NEW]  src/skills/create_event/__init__.py + handler.py      # Create event skill
+[NEW]  src/skills/find_free_slots/__init__.py + handler.py   # Find free slots skill
+[NEW]  src/skills/reschedule_event/__init__.py + handler.py  # Reschedule event skill
+[NEW]  src/skills/morning_brief/__init__.py + handler.py     # Morning brief skill
+[NEW]  src/core/tasks/google_sync_tasks.py         # Background Gmail/Calendar sync
+[EDIT] src/skills/__init__.py                      # Register 10 new skills (32 total)
 [EDIT] src/agents/config.py                        # Add email + calendar agents (7 total)
-[EDIT] src/core/intent.py                          # Add 10 intents to prompt (32 total)
+[EDIT] src/core/intent.py                          # Add 10 intents, activate 2-stage
 [EDIT] src/core/memory/context.py                  # Add 10 QUERY_CONTEXT_MAP entries
 [EDIT] src/core/router.py                          # Register email/calendar orchestrators
-[EDIT] pyproject.toml                              # Add google-api-python-client, google-auth
+[EDIT] pyproject.toml                              # Add aiogoogle, cryptography, langgraph
 [NEW]  tests/test_skills/test_read_inbox.py        #
 [NEW]  tests/test_skills/test_send_email.py        #
 [NEW]  tests/test_skills/test_draft_reply.py       #
@@ -1217,131 +1719,143 @@ PHASE 2: EMAIL + CALENDAR (Weeks 3-4)
 [NEW]  tests/test_skills/test_morning_brief.py     #
 [NEW]  tests/test_orchestrators/__init__.py        #
 [NEW]  tests/test_orchestrators/test_email_graph.py   #
-[NEW]  tests/test_orchestrators/test_calendar_graph.py #
+[NEW]  tests/test_tools/test_google_workspace.py   #
+[NEW]  tests/test_api/test_oauth.py                #
 
 ═══════════════════════════════════════════════════════════════
 PHASE 3: TASKS + RESEARCH + WRITING + CRM (Weeks 5-6)
 ═══════════════════════════════════════════════════════════════
 [NEW]  src/tools/web_search.py                     # Brave Search API client
-[NEW]  src/orchestrators/tasks/__init__.py         #
-[NEW]  src/orchestrators/tasks/graph.py            # Tasks LangGraph
-[NEW]  src/orchestrators/research/__init__.py      #
-[NEW]  src/orchestrators/research/graph.py         # Research LangGraph
-[NEW]  src/orchestrators/writing/__init__.py       #
-[NEW]  src/orchestrators/writing/graph.py          # Writing LangGraph
-[NEW]  src/orchestrators/contacts/__init__.py      #
-[NEW]  src/orchestrators/contacts/graph.py         # Contacts LangGraph
-[NEW]  src/skills/create_task/__init__.py          #
-[NEW]  src/skills/create_task/handler.py           #
-[NEW]  src/skills/list_tasks/__init__.py           #
-[NEW]  src/skills/list_tasks/handler.py            #
-[NEW]  src/skills/set_reminder/__init__.py         #
-[NEW]  src/skills/set_reminder/handler.py          #
-[NEW]  src/skills/complete_task/__init__.py        #
-[NEW]  src/skills/complete_task/handler.py         #
-[NEW]  src/skills/web_search_skill/__init__.py     #
-[NEW]  src/skills/web_search_skill/handler.py      #
-[NEW]  src/skills/deep_research/__init__.py        #
-[NEW]  src/skills/deep_research/handler.py         #
-[NEW]  src/skills/compare_options/__init__.py      #
-[NEW]  src/skills/compare_options/handler.py       #
-[NEW]  src/skills/draft_message/__init__.py        #
-[NEW]  src/skills/draft_message/handler.py         #
-[NEW]  src/skills/translate_text/__init__.py       #
-[NEW]  src/skills/translate_text/handler.py        #
-[NEW]  src/skills/write_post/__init__.py           #
-[NEW]  src/skills/write_post/handler.py            #
-[NEW]  src/skills/proofread/__init__.py            #
-[NEW]  src/skills/proofread/handler.py             #
-[NEW]  src/skills/add_contact/__init__.py          #
-[NEW]  src/skills/add_contact/handler.py           #
-[NEW]  src/skills/find_contact/__init__.py         #
-[NEW]  src/skills/find_contact/handler.py          #
+[NEW]  src/orchestrators/research/__init__.py + graph.py + nodes.py + state.py  # Research LangGraph
+[NEW]  src/orchestrators/writing/__init__.py + graph.py + nodes.py + state.py  # Writing LangGraph
+[NEW]  src/skills/create_task/__init__.py + handler.py       #
+[NEW]  src/skills/list_tasks/__init__.py + handler.py        #
+[NEW]  src/skills/set_reminder/__init__.py + handler.py      #
+[NEW]  src/skills/complete_task/__init__.py + handler.py     #
+[NEW]  src/skills/web_search_skill/__init__.py + handler.py  #
+[NEW]  src/skills/deep_research/__init__.py + handler.py     #
+[NEW]  src/skills/compare_options/__init__.py + handler.py   #
+[NEW]  src/skills/draft_message/__init__.py + handler.py     #
+[NEW]  src/skills/translate_text/__init__.py + handler.py    #
+[NEW]  src/skills/write_post/__init__.py + handler.py        #
+[NEW]  src/skills/proofread/__init__.py + handler.py         #
+[NEW]  src/skills/add_contact/__init__.py + handler.py       #
+[NEW]  src/skills/find_contact/__init__.py + handler.py      #
 [EDIT] src/skills/__init__.py                      # Register 13 new skills (45 total)
 [EDIT] src/agents/config.py                        # Add 4 agents (11 total)
 [EDIT] src/core/intent.py                          # Add 13 intents (45 total)
 [EDIT] src/core/memory/context.py                  # Add 13 QUERY_CONTEXT_MAP entries
 [EDIT] src/core/router.py                          # Register 4 orchestrators
 [EDIT] src/core/domains.py                         # Verify all new intents mapped
-[NEW]  tests/test_skills/test_create_task.py       #
-[NEW]  tests/test_skills/test_list_tasks.py        #
-[NEW]  tests/test_skills/test_set_reminder.py      #
-[NEW]  tests/test_skills/test_complete_task.py     #
-[NEW]  tests/test_skills/test_web_search_skill.py  #
-[NEW]  tests/test_skills/test_deep_research.py     #
-[NEW]  tests/test_skills/test_compare_options.py   #
-[NEW]  tests/test_skills/test_draft_message.py     #
-[NEW]  tests/test_skills/test_translate_text.py    #
-[NEW]  tests/test_skills/test_write_post.py        #
-[NEW]  tests/test_skills/test_proofread.py         #
-[NEW]  tests/test_skills/test_add_contact.py       #
-[NEW]  tests/test_skills/test_find_contact.py      #
-[NEW]  tests/test_orchestrators/test_tasks_graph.py     #
-[NEW]  tests/test_orchestrators/test_research_graph.py  #
-[NEW]  tests/test_orchestrators/test_writing_graph.py   #
-[NEW]  tests/test_orchestrators/test_contacts_graph.py  #
+[EDIT] pyproject.toml                              # Add trafilatura
+[NEW]  tests/test_skills/ (13 new test files)      #
+[NEW]  tests/test_orchestrators/ (4 new test files)#
+[NEW]  tests/test_tools/test_web_search.py         #
 
 ═══════════════════════════════════════════════════════════════
 PHASE 4: CHANNELS + BILLING (Weeks 7-8)
 ═══════════════════════════════════════════════════════════════
-[NEW]  src/gateway/openclaw_bridge.py              # OpenClaw ↔ Python bridge
-[NEW]  src/gateway/whatsapp.py                     # WhatsApp adapter
-[NEW]  src/gateway/imessage.py                     # iMessage adapter
-[NEW]  src/gateway/slack_gw.py                     # Slack adapter
-[NEW]  src/billing/__init__.py                     #
+[NEW]  src/gateway/slack_gw.py                     # Slack gateway (slack-bolt)
+[NEW]  src/gateway/whatsapp_gw.py                  # WhatsApp gateway (Business Cloud API)
+[NEW]  src/gateway/sms_gw.py                       # SMS gateway (Twilio)
+[NEW]  src/core/models/channel_link.py             # Channel user mapping model
+[NEW]  alembic/versions/007_channel_links.py       # Migration
+[NEW]  src/billing/__init__.py                     # Package
 [NEW]  src/billing/stripe_client.py                # Stripe API wrapper
 [NEW]  src/billing/usage_tracker.py                # Token usage logging
 [NEW]  src/billing/subscription.py                 # Subscription management
-[EDIT] api/main.py                                 # Add /webhook/openclaw, /webhook/stripe
-[EDIT] docker-compose.yml                          # Add openclaw_gateway service
-[EDIT] pyproject.toml                              # Add stripe
-[NEW]  tests/test_gateway/test_openclaw_bridge.py  #
-[NEW]  tests/test_gateway/test_whatsapp.py         #
+[EDIT] api/main.py                                 # Add 4 webhook endpoints
+[EDIT] src/gateway/factory.py                      # Wire up new gateways
+[EDIT] src/core/router.py                          # Add usage tracking + subscription check
+[EDIT] src/core/settings.py                        # Add Slack, WhatsApp, Twilio, Stripe config
+[EDIT] pyproject.toml                              # Add slack-bolt, twilio, stripe
+[NEW]  tests/test_gateway/test_slack_gw.py         #
+[NEW]  tests/test_gateway/test_whatsapp_gw.py      #
+[NEW]  tests/test_gateway/test_sms_gw.py           #
 [NEW]  tests/test_billing/test_stripe_client.py    #
 [NEW]  tests/test_billing/test_usage_tracker.py    #
+[NEW]  tests/test_billing/test_subscription.py     #
 
 ═══════════════════════════════════════════════════════════════
-PHASE 5: PROACTIVITY + POLISH (Weeks 9-10)
+PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
 ═══════════════════════════════════════════════════════════════
 [NEW]  src/proactivity/__init__.py                 #
 [NEW]  src/proactivity/engine.py                   # Main proactivity engine
 [NEW]  src/proactivity/triggers.py                 # Trigger definitions
 [NEW]  src/proactivity/evaluator.py                # Condition evaluation (no LLM)
 [NEW]  src/proactivity/scheduler.py                # Scheduler (Taskiq integration)
-[NEW]  src/core/tasks/proactivity_tasks.py         # Cron tasks
-[NEW]  src/core/tasks/profile_tasks.py             # User profile auto-learning
+[NEW]  src/core/tasks/proactivity_tasks.py         # Cron tasks (every 5 min)
+[NEW]  src/core/tasks/profile_tasks.py             # User profile auto-learning (daily)
 [NEW]  src/core/approval.py                        # Action approval system
-[NEW]  src/skills/price_alert/__init__.py          #
-[NEW]  src/skills/price_alert/handler.py           #
-[NEW]  src/skills/news_monitor/__init__.py         #
-[NEW]  src/skills/news_monitor/handler.py          #
-[EDIT] src/skills/__init__.py                      # Register 2 skills (47 total)
+[NEW]  src/orchestrators/browser/__init__.py + graph.py + nodes.py + state.py  # Browser LangGraph
+[NEW]  src/tools/browser.py                        # Browser-Use integration
+[NEW]  src/skills/web_action/__init__.py + handler.py        # Web action skill
+[NEW]  src/skills/price_check/__init__.py + handler.py       # Price check skill
+[NEW]  src/skills/price_alert/__init__.py + handler.py       # Price alert skill
+[NEW]  src/skills/news_monitor/__init__.py + handler.py      # News monitor skill
+[EDIT] src/skills/__init__.py                      # Register 4 skills (49 total)
 [EDIT] src/agents/config.py                        # Add monitor agent (12 total)
-[EDIT] src/core/intent.py                          # Add 2 intents (47 total)
-[EDIT] src/core/router.py                          # Integrate approval + usage tracking
+[EDIT] src/core/intent.py                          # Add 4 intents (49 total)
+[EDIT] src/core/router.py                          # Integrate approval system
 [EDIT] src/skills/onboarding/handler.py            # English + multi-domain onboarding
+[EDIT] pyproject.toml                              # Add browser-use, langchain-anthropic
 [NEW]  tests/test_proactivity/test_engine.py       #
 [NEW]  tests/test_proactivity/test_triggers.py     #
 [NEW]  tests/test_proactivity/test_evaluator.py    #
+[NEW]  tests/test_tools/test_browser.py            #
+[NEW]  tests/test_skills/test_web_action.py        #
+[NEW]  tests/test_skills/test_price_check.py       #
 [NEW]  tests/test_skills/test_price_alert.py       #
 [NEW]  tests/test_skills/test_news_monitor.py      #
 ```
 
 ---
 
-## FINAL METRICS
+## 12. RISK REGISTER
+
+| # | Risk | Impact | Probability | Mitigation |
+|---|------|--------|-------------|------------|
+| 1 | Google OAuth rejection (app review) | High | Medium | Apply for verification early in Phase 2. Use restricted scopes. Have test accounts for development. |
+| 2 | WhatsApp Business API approval delay | Medium | Medium | Start Meta Business verification in Phase 1. Use test phone numbers until approved. |
+| 3 | LLM cost exceeds $8/user target | High | Low | Monitor via `usage_logs` table. Use Haiku 4.5 for 70% of calls. Cache common responses. Batch proactivity checks. |
+| 4 | Two-stage intent detection latency | Medium | Low | Stage 1 adds ~80ms. Acceptable for text chat. Monitor via Langfuse. Fall back to single-stage if issues. |
+| 5 | Browser-Use reliability in production | Medium | Medium | Use Steel.dev isolated containers. Set max_steps limit. Require user approval for all browser actions. Human-in-the-loop for critical tasks. |
+| 6 | Stripe integration with multi-channel onboarding | Low | Low | Generate payment links that work across all channels. Use Stripe Customer Portal for management. |
+| 7 | aiogoogle breaking changes | Low | Low | Pin version. aiogoogle has stable API. Google APIs themselves are versioned. |
+| 8 | Token storage encryption key rotation | Medium | Low | Design key rotation from the start. Use key ID prefix on encrypted tokens. Support multiple active keys. |
+
+---
+
+## 13. FINAL METRICS
 
 ```
                         Before          After Phase 5
                         ──────          ──────────────
-Skills:                 22              47
+Skills:                 22              49
 Agents:                 5               12
-Orchestrators:          0               8 (LangGraph)
-DB Tables:              15              24
-Intents:                22              47
-Channels:               1 (Telegram)    5 (TG, WA, iMsg, Slack, SMS)
-New Python files:       0               ~110
-Edited Python files:    0               ~15
-New test files:         0               ~55
-Dependencies added:     0               4 (langgraph, google-api, google-auth, stripe)
+Orchestrators:          0               4 LangGraph (email, research, writing, browser)
+DB Tables:              15              25 (+channel_links)
+Intents:                22              49
+Channels:               1 (Telegram)    4 (Telegram, WhatsApp, Slack, SMS)
+New Python files:       0               ~120
+Edited Python files:    0               ~20
+New test files:         0               ~60
+Total tests:            503             ~800+
+Dependencies added:     0               7 (aiogoogle, cryptography, langgraph,
+                                           slack-bolt, twilio, stripe, browser-use)
+API cost target:        N/A             $3-8/month per user
 ```
+
+### Dependency Summary
+
+| Package | Phase | Purpose | License |
+|---------|-------|---------|---------|
+| `aiogoogle` | 2 | Async Google APIs (Gmail, Calendar) | MIT |
+| `cryptography` | 2 | OAuth token encryption | Apache 2.0/BSD |
+| `langgraph` | 2 | Graph-based orchestrators | MIT |
+| `trafilatura` | 3 | HTML → text extraction for web search | Apache 2.0 |
+| `slack-bolt` | 4 | Slack channel gateway | MIT |
+| `twilio` | 4 | SMS channel gateway | MIT |
+| `stripe` | 4 | Subscription billing | MIT |
+| `browser-use` | 5 | AI browser automation | MIT |
+| `langchain-anthropic` | 5 | Browser-Use LLM backend | MIT |

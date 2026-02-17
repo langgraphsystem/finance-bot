@@ -49,8 +49,32 @@ def md_to_telegram_html(text: str) -> str:
 
 
 def _escape_html(text: str) -> str:
-    """Escape HTML special characters that aren't part of our formatting."""
+    """Escape HTML special characters, preserving Telegram-allowed tags.
+
+    Telegram supports: <b>, <i>, <u>, <s>, <code>, <pre>, <a href="...">.
+    These tags (and their closing variants) are preserved; everything else
+    is escaped.
+    """
+    # Temporarily replace allowed tags with placeholders
+    allowed_re = re.compile(
+        r"<(/?(?:b|i|u|s|code|pre|a(?:\s[^>]*)?))\s*>",
+        re.IGNORECASE,
+    )
+    placeholders: list[str] = []
+
+    def _save(m: re.Match) -> str:
+        placeholders.append(m.group(0))
+        return f"\x00TAG{len(placeholders) - 1}\x00"
+
+    text = allowed_re.sub(_save, text)
+
+    # Escape everything else
     text = text.replace("&", "&amp;")
     text = text.replace("<", "&lt;")
     text = text.replace(">", "&gt;")
+
+    # Restore preserved tags
+    for idx, tag in enumerate(placeholders):
+        text = text.replace(f"\x00TAG{idx}\x00", tag)
+
     return text

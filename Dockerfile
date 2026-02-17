@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
-    libffi-dev libcairo2 && \
+    libffi-dev libcairo2 libpq5 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -15,7 +15,7 @@ WORKDIR /app
 FROM base AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    g++ && \
+    g++ libpq-dev && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

@@ -286,16 +286,18 @@ class ScanDocumentSkill:
             )
         if receipt.state:
             response += f"\U0001f4cd <b>Штат:</b> {receipt.state}\n"
-        if receipt.items:
+        # Show items only for non-fuel receipts (fuel info is already above)
+        if receipt.items and not is_fuel:
             response += "\n\U0001f4cb <b>Товары:</b>\n"
             for item in receipt.items[:10]:
                 name = item.name if hasattr(item, "name") else item.get("name", "\u2014")
                 qty = item.quantity if hasattr(item, "quantity") else item.get("quantity", 1)
                 price = item.price if hasattr(item, "price") else item.get("price", 0)
                 line = f"  \u2022 {name}"
-                if qty and qty > 1:
-                    line += f" \u00d7{qty}"
-                if price:
+                if qty and float(qty) != 1:
+                    total_price = float(price) * float(qty)
+                    line += f" \u00d7{qty} \u2014 ${total_price:.2f}"
+                elif price:
                     line += f" \u2014 ${price}"
                 response += line + "\n"
 

@@ -207,11 +207,32 @@ class TestQueryContextMap:
     def test_scan_receipt_exists(self):
         assert "scan_receipt" in QUERY_CONTEXT_MAP
 
-    def test_budget_advice_exists(self):
-        assert "budget_advice" in QUERY_CONTEXT_MAP
-        cfg = QUERY_CONTEXT_MAP["budget_advice"]
+    def test_scan_document_exists(self):
+        assert "scan_document" in QUERY_CONTEXT_MAP
+        cfg = QUERY_CONTEXT_MAP["scan_document"]
+        assert cfg["mem"] == "mappings"
+        assert cfg["hist"] == 1
+
+    def test_set_budget_exists(self):
+        assert "set_budget" in QUERY_CONTEXT_MAP
+        cfg = QUERY_CONTEXT_MAP["set_budget"]
+        assert cfg["mem"] == "budgets"
         assert cfg["sql"] is True
-        assert cfg["sum"] is True
+
+    def test_mark_paid_exists(self):
+        assert "mark_paid" in QUERY_CONTEXT_MAP
+        cfg = QUERY_CONTEXT_MAP["mark_paid"]
+        assert cfg["mem"] is False
+        assert cfg["hist"] == 3
+
+    def test_add_recurring_exists(self):
+        assert "add_recurring" in QUERY_CONTEXT_MAP
+        cfg = QUERY_CONTEXT_MAP["add_recurring"]
+        assert cfg["mem"] == "mappings"
+
+    def test_no_dead_entries(self):
+        assert "budget_advice" not in QUERY_CONTEXT_MAP
+        assert "correct_cat" not in QUERY_CONTEXT_MAP
 
     def test_query_report_exists(self):
         assert "query_report" in QUERY_CONTEXT_MAP
