@@ -63,7 +63,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "onboarding": {"mem": "profile", "hist": 10, "sql": False, "sum": False},
     "quick_capture": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "track_food": {"mem": "life", "hist": 2, "sql": False, "sum": False},
-    "track_drink": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "track_drink": {"mem": "life", "hist": 2, "sql": False, "sum": False},
     "mood_checkin": {"mem": "life", "hist": 2, "sql": False, "sum": False},
     "day_plan": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "day_reflection": {"mem": "life", "hist": 3, "sql": False, "sum": False},

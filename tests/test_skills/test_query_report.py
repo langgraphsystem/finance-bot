@@ -1,13 +1,14 @@
 """Tests for query_report skill."""
 
 import uuid
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.query_report.handler import QueryReportSkill
+from src.skills.query_report.handler import QueryReportSkill, _parse_report_period
 
 
 @pytest.fixture
@@ -74,9 +75,10 @@ async def test_skill_handles_error_gracefully(report_skill, sample_message, samp
 
 
 @pytest.mark.asyncio
-async def test_skill_passes_family_id_to_report(report_skill, sample_message, sample_ctx):
-    """Skill should pass the context family_id to generate_monthly_report."""
+async def test_skill_passes_family_id_and_period(report_skill, sample_message, sample_ctx):
+    """Skill should pass the context family_id plus year/month to generate_monthly_report."""
     fake_pdf = b"%PDF"
+    today = date.today()
 
     with patch(
         "src.skills.query_report.handler.generate_monthly_report",
@@ -85,7 +87,64 @@ async def test_skill_passes_family_id_to_report(report_skill, sample_message, sa
     ) as mock_gen:
         await report_skill.execute(sample_message, sample_ctx, {})
 
-    mock_gen.assert_awaited_once_with(family_id=sample_ctx.family_id)
+    mock_gen.assert_awaited_once_with(
+        family_id=sample_ctx.family_id,
+        year=today.year,
+        month=today.month,
+    )
+
+
+@pytest.mark.asyncio
+async def test_skill_passes_prev_month_period(report_skill, sample_message, sample_ctx):
+    """Skill parses period='prev_month' and passes correct year/month."""
+    fake_pdf = b"%PDF"
+    today = date.today()
+    if today.month == 1:
+        expected_year, expected_month = today.year - 1, 12
+    else:
+        expected_year, expected_month = today.year, today.month - 1
+
+    with patch(
+        "src.skills.query_report.handler.generate_monthly_report",
+        new_callable=AsyncMock,
+        return_value=(fake_pdf, "report.pdf"),
+    ) as mock_gen:
+        await report_skill.execute(
+            sample_message, sample_ctx, {"period": "prev_month"}
+        )
+
+    mock_gen.assert_awaited_once_with(
+        family_id=sample_ctx.family_id,
+        year=expected_year,
+        month=expected_month,
+    )
+
+
+def test_parse_report_period_default():
+    """Default period is current month."""
+    today = date.today()
+    year, month = _parse_report_period({})
+    assert year == today.year
+    assert month == today.month
+
+
+def test_parse_report_period_prev_month():
+    """prev_month returns previous month."""
+    today = date.today()
+    year, month = _parse_report_period({"period": "prev_month"})
+    if today.month == 1:
+        assert year == today.year - 1
+        assert month == 12
+    else:
+        assert year == today.year
+        assert month == today.month - 1
+
+
+def test_parse_report_period_explicit_date():
+    """Explicit date field extracts year and month."""
+    year, month = _parse_report_period({"date": "2025-06-15"})
+    assert year == 2025
+    assert month == 6
 
 
 def test_skill_attributes():

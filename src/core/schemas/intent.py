@@ -32,6 +32,7 @@ class IntentData(BaseModel):
     tasks: list[str] | None = None
     comm_mode: str | None = None
     search_query: str | None = None
+    life_event_type: str | None = None  # note, food, drink, mood, task, reflection
 
 
 class IntentDetectionResult(BaseModel):

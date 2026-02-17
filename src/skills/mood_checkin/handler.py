@@ -5,7 +5,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.life_helpers import (
-    format_receipt,
+    format_save_response,
     get_communication_mode,
     save_life_event,
 )
@@ -82,6 +82,7 @@ class MoodCheckinSkill:
         )
 
         mode = await get_communication_mode(context.user_id)
+        response = format_save_response(LifeEventType.mood, summary, data=data)
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
@@ -94,12 +95,9 @@ class MoodCheckinSkill:
                 if avg >= 4
                 else "Непростой день. Попробуйте прогулку или дыхательные упражнения."
             )
-            return SkillResult(
-                response_text=format_receipt(LifeEventType.mood, summary, None)
-                + f"\n\U0001f4a1 {tip}"
-            )
+            return SkillResult(response_text=response + f"\n\U0001f4a1 {tip}")
         else:
-            return SkillResult(response_text=format_receipt(LifeEventType.mood, summary, None))
+            return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return MOOD_CHECKIN_SYSTEM_PROMPT

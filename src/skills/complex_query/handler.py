@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from src.agents.graph_agent import run_complex_query
+from src.core.charts import create_pie_chart
 from src.core.context import SessionContext
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -39,8 +40,20 @@ class ComplexQuerySkill:
                 for rec in insight.recommendations:
                     response_parts.append(f"  \u2022 {rec}")
 
+            # Generate chart from chart_data if available
+            chart_url = None
+            if insight.chart_data and insight.chart_data.get("categories"):
+                cats = insight.chart_data["categories"]
+                if isinstance(cats, dict) and len(cats) >= 2:
+                    chart_url = create_pie_chart(
+                        labels=list(cats.keys()),
+                        values=list(cats.values()),
+                        title="Расходы по категориям",
+                    )
+
             return SkillResult(
                 response_text="\n".join(response_parts),
+                chart_url=chart_url,
             )
         except Exception as e:
             logger.error("Complex query failed: %s", e)

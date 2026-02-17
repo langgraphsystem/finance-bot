@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.core.models.enums import LifeEventType
 from src.core.reports import generate_monthly_report, render_report_html
 
 # ---------------------------------------------------------------------------
@@ -74,12 +75,56 @@ def test_render_report_html_balance_calculation():
     assert "$600.00" in html
 
 
+def test_render_report_html_with_life_summary():
+    """Life summary section renders when data is present."""
+    html = render_report_html(
+        title="Отчёт с заметками",
+        period="Февраль 2026",
+        total_income=0.0,
+        total_expense=0.0,
+        expense_categories=[],
+        income_categories=[],
+        life_summary={
+            "total": 5,
+            "by_type": [
+                {"icon": "📝", "label": "Заметки", "count": 3},
+                {"icon": "☕", "label": "Напитки", "count": 2},
+            ],
+            "recent": [
+                {"date": "15.02", "icon": "📝", "text": "Тестовая заметка", "tags": "#test"},
+            ],
+        },
+        generated_date="2026-02-28",
+    )
+    assert "Записи и заметки" in html
+    assert "Заметки" in html
+    assert "Напитки" in html
+    assert "Тестовая заметка" in html
+    assert "#test" in html
+    assert "Всего записей" in html
+
+
+def test_render_report_html_without_life_summary():
+    """No life summary section when life_summary is None."""
+    html = render_report_html(
+        title="Без заметок",
+        period="Февраль 2026",
+        total_income=0.0,
+        total_expense=0.0,
+        expense_categories=[],
+        income_categories=[],
+        life_summary=None,
+        generated_date="2026-02-28",
+    )
+    assert "Записи и заметки" not in html
+
+
 # ---------------------------------------------------------------------------
 # generate_monthly_report — full pipeline with mocked DB + WeasyPrint
 # ---------------------------------------------------------------------------
 
 
-def _mock_db_results(expense_rows, total_expense, income_rows, total_income):
+def _mock_db_results(expense_rows, total_expense, income_rows, total_income, life_events=None):
     """Create mock DB session that returns given data on sequential execute calls."""
     expense_result = MagicMock()
     expense_result.all.return_value = expense_rows
@@ -93,9 +138,14 @@ def _mock_db_results(expense_rows, total_expense, income_rows, total_income):
     total_inc_result = MagicMock()
     total_inc_result.scalar.return_value = total_income
 
+    life_result = MagicMock()
+    life_scalars = MagicMock()
+    life_scalars.all.return_value = life_events or []
+    life_result.scalars.return_value = life_scalars
+
     mock_session = AsyncMock()
     mock_session.execute = AsyncMock(
-        side_effect=[expense_result, total_exp_result, income_result, total_inc_result]
+        side_effect=[expense_result, total_exp_result, income_result, total_inc_result, life_result]
     )
 
     mock_session_ctx = AsyncMock()
@@ -212,3 +262,39 @@ async def test_generate_monthly_report_december_boundary():
     assert filename == "report_2025_12.pdf"
     rendered_html = mock_to_pdf.call_args[0][0]
     assert "Декабрь 2025" in rendered_html
+
+
+@pytest.mark.asyncio
+async def test_generate_monthly_report_includes_life_events():
+    """Life events from the period appear in the rendered report."""
+    family_id = str(uuid.uuid4())
+
+    # Create mock life events
+    mock_event = MagicMock()
+    mock_event.type = LifeEventType.note
+    mock_event.date = date(2026, 1, 10)
+    mock_event.text = "Важная заметка для отчёта"
+    mock_event.tags = ["work"]
+    mock_event.created_at = None
+
+    mock_session_ctx = _mock_db_results(
+        expense_rows=[("Топливо", "⛽", Decimal("500.00"))],
+        total_expense=Decimal("500.00"),
+        income_rows=[],
+        total_income=None,
+        life_events=[mock_event],
+    )
+
+    fake_pdf = b"%PDF-life"
+
+    with (
+        patch("src.core.reports.async_session", return_value=mock_session_ctx),
+        patch("src.core.reports.html_to_pdf", return_value=fake_pdf) as mock_to_pdf,
+    ):
+        pdf_bytes, filename = await generate_monthly_report(family_id=family_id, year=2026, month=1)
+
+    assert pdf_bytes == fake_pdf
+    rendered_html = mock_to_pdf.call_args[0][0]
+    assert "Записи и заметки" in rendered_html
+    assert "Важная заметка для отчёта" in rendered_html
+    assert "#work" in rendered_html

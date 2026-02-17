@@ -2,7 +2,7 @@
 
 import logging
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -104,32 +104,147 @@ async def query_life_events(
         return list(result.scalars().all())
 
 
-def format_timeline(events: list[LifeEvent]) -> str:
-    """Format life events as a readable timeline."""
+def _parse_date(val: str | None) -> date | None:
+    """Parse YYYY-MM-DD string to date, return None on failure."""
+    if not val:
+        return None
+    try:
+        return date.fromisoformat(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def resolve_life_period(
+    intent_data: dict[str, Any],
+) -> tuple[date | None, date | None, str]:
+    """Resolve period from intent_data for life event queries.
+
+    Returns (date_from, date_to, label). None dates mean "no filter".
+    Both dates are inclusive (suitable for query_life_events >= / <=).
+    """
+    period = intent_data.get("period")
+    if not period:
+        return None, None, ""
+
+    today = date.today()
+
+    if period == "today":
+        return today, today, "сегодня"
+
+    if period == "day":
+        d = _parse_date(intent_data.get("date")) or today
+        return d, d, d.strftime("%d.%m.%Y")
+
+    if period == "week":
+        start = today - timedelta(days=today.weekday())
+        return start, today, "эту неделю"
+
+    if period == "prev_week":
+        end = today - timedelta(days=today.weekday()) - timedelta(days=1)
+        start = end - timedelta(days=6)
+        return start, end, "прошлую неделю"
+
+    if period == "month":
+        start = today.replace(day=1)
+        return start, today, "этот месяц"
+
+    if period == "prev_month":
+        first = today.replace(day=1)
+        last_day = first - timedelta(days=1)
+        start = last_day.replace(day=1)
+        return start, last_day, "прошлый месяц"
+
+    if period == "year":
+        return today.replace(month=1, day=1), today, "этот год"
+
+    if period == "custom":
+        df = _parse_date(intent_data.get("date_from"))
+        dt = _parse_date(intent_data.get("date_to"))
+        if df and dt:
+            label = f"{df.strftime('%d.%m')} – {dt.strftime('%d.%m.%Y')}"
+            return df, dt, label
+        if df:
+            return df, today, f"с {df.strftime('%d.%m.%Y')}"
+
+    return None, None, ""
+
+
+def format_timeline(events: list, max_events: int = 20) -> str:
+    """Format life events as a rich Telegram HTML timeline."""
     if not events:
         return "Ничего не найдено."
 
-    lines = []
+    total = len(events)
+    display = sorted(events, key=lambda e: e.created_at, reverse=True)[:max_events]
+    lines: list[str] = []
     current_date = None
 
-    for event in sorted(events, key=lambda e: e.created_at, reverse=True):
+    for event in display:
         if event.date != current_date:
             current_date = event.date
             lines.append(f"\n<b>{current_date.strftime('%d.%m.%Y')}</b>")
 
         icon = _type_icon(event.type)
         time_str = event.created_at.strftime("%H:%M") if event.created_at else ""
-        text = event.text or ""
-        if len(text) > 100:
-            text = text[:100] + "..."
+        text = _format_event_text(event)
 
         tag_str = ""
         if event.tags:
-            tag_str = " " + " ".join(f"#{t}" for t in event.tags)
+            tag_str = " " + " ".join(f"<i>#{t}</i>" for t in event.tags)
 
         lines.append(f"  {time_str} {icon} {text}{tag_str}")
 
-    return "\n".join(lines).strip()
+    result = "\n".join(lines).strip()
+
+    if total > max_events:
+        result += f"\n\n<i>... и ещё {total - max_events} записей</i>"
+
+    return result
+
+
+def _format_event_text(event) -> str:
+    """Format event text with type-specific rendering."""
+    text = event.text or ""
+    data = getattr(event, "data", None) or {}
+
+    if event.type == LifeEventType.mood and isinstance(data, dict):
+        parts = []
+        if "mood" in data:
+            parts.append(f"\U0001f60a{data['mood']}")
+        if "energy" in data:
+            parts.append(f"\u26a1{data['energy']}")
+        if "stress" in data:
+            parts.append(f"\U0001f630{data['stress']}")
+        if "sleep_hours" in data:
+            parts.append(f"\U0001f634{data['sleep_hours']}h")
+        return " ".join(parts) if parts else text[:80]
+
+    if event.type == LifeEventType.task and isinstance(data, dict):
+        done = "\u2705" if data.get("done") else "\u2b1c"
+        return f"{done} {text[:80]}"
+
+    if event.type == LifeEventType.drink and isinstance(data, dict):
+        item = data.get("item", "")
+        count = data.get("count", 1)
+        vol = data.get("volume_ml", 0)
+        if item:
+            r = item
+            if count and int(count) > 1:
+                r += f" x{count}"
+            if vol:
+                r += f" ({int(vol) * int(count or 1)}ml)"
+            return r
+
+    if event.type == LifeEventType.food and isinstance(data, dict):
+        meal = data.get("meal_type", "")
+        food = data.get("food_item", text)
+        if meal:
+            return f"<i>{meal}</i>: {str(food)[:60]}"
+        return str(food)[:80]
+
+    if len(text) > 100:
+        return text[:100] + "..."
+    return text
 
 
 def _type_icon(event_type: LifeEventType) -> str:
@@ -167,10 +282,72 @@ async def auto_tag(text: str) -> list[str]:
 
 
 def format_receipt(event_type: LifeEventType, text: str, tags: list[str] | None) -> str:
-    """Format a receipt-style confirmation."""
+    """Format a receipt-style confirmation (legacy, plain text)."""
     icon = _type_icon(event_type)
     tag_str = ""
     if tags:
         tag_str = " [" + ", ".join(tags) + "]"
     short_text = text[:80] if text else ""
     return f"{icon} {short_text}{tag_str}"
+
+
+_TYPE_LABELS = {
+    LifeEventType.note: "Заметка",
+    LifeEventType.food: "Питание",
+    LifeEventType.drink: "Напиток",
+    LifeEventType.mood: "Чек-ин",
+    LifeEventType.task: "Задача",
+    LifeEventType.reflection: "Рефлексия",
+}
+
+
+def format_save_response(
+    event_type: LifeEventType,
+    text: str,
+    tags: list[str] | None = None,
+    data: dict[str, Any] | None = None,
+) -> str:
+    """Format a rich HTML confirmation for saved life events."""
+    icon = _type_icon(event_type)
+    label = _TYPE_LABELS.get(event_type, "Запись")
+    result = f"{icon} <b>{label}</b>\n"
+
+    if event_type == LifeEventType.mood and data:
+        for key, emoji, name in [
+            ("mood", "\U0001f60a", "Настроение"),
+            ("energy", "\u26a1", "Энергия"),
+            ("stress", "\U0001f630", "Стресс"),
+        ]:
+            if key in data:
+                val = int(data[key])
+                bar = "\u2588" * val + "\u2591" * (10 - val)
+                result += f"  {emoji} {name}: {bar} {val}/10\n"
+        if "sleep_hours" in data:
+            result += f"  \U0001f634 Сон: {data['sleep_hours']}ч\n"
+    elif event_type == LifeEventType.drink and data:
+        item = data.get("item", text)
+        count = data.get("count", 1)
+        vol = data.get("volume_ml", 0)
+        line = f"  {item}"
+        if count and int(count) > 1:
+            line += f" x{count}"
+        if vol:
+            line += f" ({int(vol) * int(count or 1)}ml)"
+        result += line + "\n"
+    elif event_type == LifeEventType.food and data:
+        meal = data.get("meal_type", "")
+        food = data.get("food_item", text)
+        if meal:
+            result += f"  <i>{meal}</i>: {food}\n"
+        else:
+            result += f"  {food}\n"
+    else:
+        short = text[:120] if len(text) > 120 else text
+        result += f"  {short}\n"
+        if len(text) > 120:
+            result += "  ...\n"
+
+    if tags:
+        result += "  " + " ".join(f"<i>#{t}</i>" for t in tags)
+
+    return result.rstrip()

@@ -6,7 +6,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.life_helpers import (
     auto_tag,
-    format_receipt,
+    format_save_response,
     get_communication_mode,
     save_life_event,
 )
@@ -62,21 +62,21 @@ class QuickCaptureSkill:
                 logger.warning("Mem0 storage failed: %s", e)
 
         mode = await get_communication_mode(context.user_id)
+        response = format_save_response(LifeEventType.note, text, tags=tags)
         if mode == "silent":
             return SkillResult(
                 response_text="",
                 background_tasks=[_store_in_mem0],
             )
         elif mode == "coaching":
-            tag_hint = f" [{', '.join(tags)}]" if tags else ""
             return SkillResult(
-                response_text=format_receipt(LifeEventType.note, text, tags)
-                + f"\n\U0001f4a1 Заметка сохранена{tag_hint}. Найти её можно через поиск.",
+                response_text=response
+                + "\n\U0001f4a1 Заметка сохранена. Найти её можно через поиск.",
                 background_tasks=[_store_in_mem0],
             )
         else:
             return SkillResult(
-                response_text=format_receipt(LifeEventType.note, text, tags),
+                response_text=response,
                 background_tasks=[_store_in_mem0],
             )
 

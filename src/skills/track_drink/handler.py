@@ -5,7 +5,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.life_helpers import (
-    format_receipt,
+    format_save_response,
     get_communication_mode,
     save_life_event,
 )
@@ -116,17 +116,18 @@ class TrackDrinkSkill:
         )
 
         mode = await get_communication_mode(context.user_id)
+        response = format_save_response(
+            LifeEventType.drink, item, data=data,
+        )
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
             return SkillResult(
-                response_text=format_receipt(LifeEventType.drink, f"{item} x{count}", None)
-                + f"\n\U0001f4a1 {volume_ml * count} мл за раз — отличный темп гидратации!"
+                response_text=response
+                + f"\n\U0001f4a1 {volume_ml * count} мл — отличный темп гидратации!"
             )
         else:
-            return SkillResult(
-                response_text=format_receipt(LifeEventType.drink, f"{item} x{count}", None)
-            )
+            return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return TRACK_DRINK_SYSTEM_PROMPT
