@@ -78,6 +78,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "quick_answer": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "web_search": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "compare_options": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    # Writing intents
+    "draft_message": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    "translate_text": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "write_post": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
+    "proofread": {"mem": False, "hist": 3, "sql": False, "sum": False},
 }
 
 

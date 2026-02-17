@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 28
+    assert len(skills) == 32
 
 
 def test_registry_routes_intents(skill_registry):
@@ -36,6 +36,10 @@ def test_registry_routes_intents(skill_registry):
         "quick_answer",
         "web_search",
         "compare_options",
+        "draft_message",
+        "translate_text",
+        "write_post",
+        "proofread",
     ]
     for intent in intents:
         skill = skill_registry.get(intent)

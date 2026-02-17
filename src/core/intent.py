@@ -63,6 +63,14 @@ rate confirmation, или другого изображения
 "расценки на ремонт ванной в Queens", "лучший ресторан рядом", "погода завтра")
 - compare_options: сравнение двух+ вариантов ("compare PEX vs copper", \
 "Costco vs Sam's Club", "Toyota Camry или Honda Accord", "что лучше: X или Y?")
+- draft_message: написать сообщение, письмо, email ("write an email to school", \
+"напиши письмо", "draft a text to Mike", "compose a message")
+- translate_text: перевести текст ("translate to Spanish", "переведи на английский", \
+"translate this")
+- write_post: написать пост, ответ на отзыв, контент для платформы ("write a review response", \
+"напиши ответ на отзыв", "write an Instagram caption", "write a post about...")
+- proofread: проверить текст на ошибки ("proofread this", "check my text", \
+"проверь грамматику", "fix my spelling")
 - general_chat: общий вопрос, не связанный с финансами напрямую
 
 Правила приоритета (задачи vs life-tracking):
@@ -77,6 +85,13 @@ rate confirmation, или другого изображения
 - "search ...", "найди ...", "загугли ...", текущие данные → web_search
 - "compare", "vs", "или ... или", "что лучше" → compare_options
 - Приветствие, болтовня без конкретного вопроса → general_chat
+
+Правила приоритета (writing vs general_chat):
+- "write/draft/compose/напиши/составь" + тема → draft_message
+- "translate/переведи" → translate_text
+- "review response/ответ на отзыв/caption/пост" → write_post
+- "proofread/check/проверь/fix grammar/исправь" → proofread
+- Общая болтовня без запроса на написание → general_chat
 
 Правила приоритета (финансы vs life-tracking):
 - Если в сообщении есть СУММА + финансовый контекст -> add_expense / add_income (приоритет)
@@ -154,7 +169,10 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
     "task_title": "название задачи" или null,
     "task_deadline": "YYYY-MM-DDTHH:MM:SS" или null,
     "task_priority": "low" или "medium" или "high" или "urgent" или null,
-    "search_topic": "тема поиска/вопроса" или null
+    "search_topic": "тема поиска/вопроса" или null,
+    "writing_topic": "тема/текст для написания" или null,
+    "target_language": "целевой язык перевода" или null,
+    "target_platform": "платформа для поста (google, instagram, etc.)" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

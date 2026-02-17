@@ -9,12 +9,14 @@ from src.skills.correct_category.handler import skill as correct_category_skill
 from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
+from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
+from src.skills.proofread.handler import skill as proofread_skill
 from src.skills.query_report.handler import skill as query_report_skill
 from src.skills.query_stats.handler import skill as query_stats_skill
 from src.skills.quick_answer.handler import skill as quick_answer_skill
@@ -26,8 +28,10 @@ from src.skills.set_comm_mode.handler import skill as set_comm_mode_skill
 from src.skills.set_reminder.handler import skill as set_reminder_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
+from src.skills.translate_text.handler import skill as translate_text_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
 from src.skills.web_search.handler import skill as web_search_skill
+from src.skills.write_post.handler import skill as write_post_skill
 
 
 def create_registry() -> SkillRegistry:
@@ -62,4 +66,8 @@ def create_registry() -> SkillRegistry:
     registry.register(quick_answer_skill)
     registry.register(web_search_skill)
     registry.register(compare_options_skill)
+    registry.register(draft_message_skill)
+    registry.register(translate_text_skill)
+    registry.register(write_post_skill)
+    registry.register(proofread_skill)
     return registry

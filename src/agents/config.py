@@ -63,6 +63,12 @@ Create tasks, show the task list, mark tasks done, and set reminders.
 Be concise: one-line confirmations, structured lists.
 Respond in the user's preferred language (from context.language). Default: English."""
 
+WRITING_AGENT_PROMPT = """\
+You help users write: draft messages, translate text, write posts/reviews, and proofread.
+Match the tone to the context (formal email vs casual text vs professional review response).
+Write the content directly — no preamble. Use HTML tags for Telegram (<b>bold</b>). No Markdown.
+Respond in the user's preferred language (from context.language). Default: English."""
+
 AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
@@ -113,6 +119,13 @@ AGENTS: list[AgentConfig] = [
         skills=["quick_answer", "web_search", "compare_options"],
         default_model="gemini-3-flash-preview",
         context_config={"mem": False, "hist": 3, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="writing",
+        system_prompt=WRITING_AGENT_PROMPT,
+        skills=["draft_message", "translate_text", "write_post", "proofread"],
+        default_model="claude-sonnet-4-5",
+        context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="life",
