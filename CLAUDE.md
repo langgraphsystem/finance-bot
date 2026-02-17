@@ -102,9 +102,46 @@ Taskiq + Redis (`src/core/tasks/broker.py`). Cron tasks in `src/core/tasks/notif
 - Tests never hit real DBs or LLM APIs — all external I/O is mocked
 - `tests/conftest.py` sets env vars: `APP_ENV=testing`, `DATABASE_URL=postgresql+asyncpg://test:test@localhost/test`
 
+## Product & PM Workflow
+
+This project is evolving into **AI Life Assistant** ($49/month). Implementation plan: `IMPLEMENTATION_PLAN.md`.
+
+### Before implementing any new module or phase:
+
+1. **Read PM skills** in `skills/pm/` — especially `PM_SKILL.md` and `PRD_TEMPLATE.md`
+2. **Write a PRD** to `docs/prds/<module-name>.md` using the template
+3. **Include Maria & David scenarios** (Brooklyn mom + Queens plumber — see `PM_SKILL.md`)
+4. **Self-score** using the rubric in `PRD_TEMPLATE.md` — must be **25+/30** before coding
+5. **State star rating** using `skills/pm/11_STAR_EXPERIENCE.md` — MVP = 6 stars
+6. **Only then** start implementation
+
+### Bot message quality:
+
+- All bot-facing text (system prompts, responses) must follow `skills/pm/LANGUAGE_VOICE.md`
+- Smart capable friend tone — not corporate, not chirpy
+- Lead with the answer, use contractions, max 3 sentences for confirmations
+
+### Feature evaluation:
+
+- Score new feature ideas with ICE from `skills/pm/PRIORITIZATION.md` before adding to roadmap
+- Check against the "Won't Build" list in `PRIORITIZATION.md`
+- Features below 5-star don't ship
+
+### Key docs:
+
+| Doc | Purpose |
+|-----|---------|
+| `IMPLEMENTATION_PLAN.md` | 5-phase plan: Core → Email+Calendar → Tasks+Research+Writing+CRM → Channels+Billing → Proactivity+Browser |
+| `skills/pm/PM_SKILL.md` | Product principles, personas, frameworks |
+| `skills/pm/PRD_TEMPLATE.md` | PRD template + review rubric |
+| `skills/pm/PRIORITIZATION.md` | RICE/ICE module rankings |
+| `skills/pm/11_STAR_EXPERIENCE.md` | 1-11 star quality scale |
+| `skills/pm/LANGUAGE_VOICE.md` | Bot voice and writing rules |
+| `docs/prds/` | Completed PRDs (one per module) |
+
 ## Conventions
 
-- All user-facing text is in Russian
+- Bot language: English (primary) → Spanish (second) → user's preferred language (set during onboarding or via "change language to X"). Store `preferred_language` in user profile. See `skills/pm/LANGUAGE_VOICE.md` for full rules.
 - Telegram HTML formatting (not Markdown) — `<b>`, `<i>`, `<code>`
 - Langfuse observability via `@observe(name="...")` decorator from `src/core/observability.py`
 - Business profiles in `config/profiles/*.yaml` define categories, metrics, reports per business type
