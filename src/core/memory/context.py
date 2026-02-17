@@ -69,6 +69,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "day_reflection": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "life_search": {"mem": "life", "hist": 0, "sql": False, "sum": False},
     "set_comm_mode": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    # Task intents
+    "create_task": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "list_tasks": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "set_reminder": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "complete_task": {"mem": False, "hist": 3, "sql": False, "sum": False},
 }
 
 

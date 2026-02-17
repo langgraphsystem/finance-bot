@@ -49,7 +49,22 @@ rate confirmation, или другого изображения
 "идеи за неделю", "мои заметки о...", "что я ел вчера?", "поиск: ...")
 - set_comm_mode: режим общения ("тихий режим", "coaching mode", \
 "молча сохраняй", "режим: квитанция", "silent mode")
+- create_task: создать задачу/дело ("add task: ...", "задача: ...", \
+"to-do: ...", "добавь в список: ...", "нужно сделать: ...")
+- list_tasks: показать список задач ("мои задачи", "что мне нужно сделать", \
+"my tasks", "список дел", "what's on my list")
+- set_reminder: установить напоминание ("remind me ...", "напомни ...", \
+"напоминание: ...", "remind me to pick up Emma at 3:15")
+- complete_task: отметить задачу выполненной ("done with ...", "готово: ...", \
+"выполнил ...", "задача выполнена", "mark done: ...")
 - general_chat: общий вопрос, не связанный с финансами напрямую
+
+Правила приоритета (задачи vs life-tracking):
+- "задача: ..." или "add task: ..." → create_task (всегда)
+- "напомни ..." или "remind me ..." → set_reminder (всегда)
+- "мои задачи" или "what's on my list" → list_tasks
+- "готово" или "done with ..." → complete_task
+- "план дня" (без конкретной задачи) → day_plan (life-tracking)
 
 Правила приоритета (финансы vs life-tracking):
 - Если в сообщении есть СУММА + финансовый контекст -> add_expense / add_income (приоритет)
@@ -123,7 +138,10 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
     "comm_mode": "receipt" или "silent" или "coaching" или null,
     "search_query": "текст поиска" или null,
     "life_event_type": "food" или "drink" или "mood" или "task" \
-или "reflection" или "note" или null
+или "reflection" или "note" или null,
+    "task_title": "название задачи" или null,
+    "task_deadline": "YYYY-MM-DDTHH:MM:SS" или null,
+    "task_priority": "low" или "medium" или "high" или "urgent" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

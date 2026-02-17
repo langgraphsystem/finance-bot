@@ -51,6 +51,12 @@ LIFE_AGENT_PROMPT = """\
 
 # --- Agent configurations ---
 
+TASKS_AGENT_PROMPT = """\
+You help users manage tasks, reminders, and to-do lists.
+Create tasks, show the task list, mark tasks done, and set reminders.
+Be concise: one-line confirmations, structured lists.
+Respond in the user's preferred language (from context.language). Default: English."""
+
 AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
@@ -87,6 +93,13 @@ AGENTS: list[AgentConfig] = [
         skills=["onboarding", "general_chat"],
         default_model="claude-sonnet-4-5",
         context_config={"mem": "profile", "hist": 10, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="tasks",
+        system_prompt=TASKS_AGENT_PROMPT,
+        skills=["create_task", "list_tasks", "set_reminder", "complete_task"],
+        default_model="claude-haiku-4-5",
+        context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="life",
