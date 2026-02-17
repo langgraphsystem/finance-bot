@@ -66,3 +66,48 @@ class LifeEventType(enum.StrEnum):
     mood = "mood"
     task = "task"
     reflection = "reflection"
+
+
+class TaskStatus(enum.StrEnum):
+    pending = "pending"
+    in_progress = "in_progress"
+    done = "done"
+    cancelled = "cancelled"
+
+
+class TaskPriority(enum.StrEnum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+    urgent = "urgent"
+
+
+class ContactRole(enum.StrEnum):
+    client = "client"
+    vendor = "vendor"
+    partner = "partner"
+    friend = "friend"
+    family = "family"
+    doctor = "doctor"
+    other = "other"
+
+
+class MonitorType(enum.StrEnum):
+    price = "price"
+    news = "news"
+    competitor = "competitor"
+    exchange_rate = "exchange_rate"
+
+
+class SubscriptionStatus(enum.StrEnum):
+    active = "active"
+    past_due = "past_due"
+    cancelled = "cancelled"
+    trial = "trial"
+
+
+class ChannelType(enum.StrEnum):
+    telegram = "telegram"
+    whatsapp = "whatsapp"
+    slack = "slack"
+    sms = "sms"

@@ -196,3 +196,86 @@ async def _detect_with_claude(
         messages=[{"role": "user", "content": user_prompt}],
     )
     return result
+
+
+# ── Two-stage intent detection (Phase 1 scaffold) ─────────────────
+# Activates when total registered intents exceed STAGE2_THRESHOLD.
+# Stage 1: classify domain (Gemini Flash) → Stage 2: classify intent within domain.
+
+STAGE2_THRESHOLD = 25
+
+DOMAIN_CLASSIFICATION_PROMPT = """\
+Classify the user's message into exactly one domain.
+
+Domains:
+- finance: expenses, income, receipts, budgets, reports, recurring payments
+- email: inbox, send, reply, draft, follow-up
+- calendar: events, schedule, meetings, free slots
+- tasks: to-do, reminders, deadlines, planning
+- research: search, compare, analyze, investigate
+- writing: draft, translate, proofread, compose
+- contacts: people, CRM, follow-ups
+- general: life tracking, chat, mood, food, drinks, notes, reflections
+- onboarding: setup, connect accounts, first use
+
+Respond with JSON: {{"domain": "...", "confidence": 0.0-1.0}}
+"""
+
+DOMAIN_INTENT_PROMPTS: dict[str, str] = {
+    "finance": "Finance domain intents — placeholder for Phase 2+ expansion.",
+    "email": "Email domain intents — placeholder for Phase 2.",
+    "calendar": "Calendar domain intents — placeholder for Phase 2.",
+    "tasks": "Tasks domain intents — placeholder for Phase 3.",
+    "research": "Research domain intents — placeholder for Phase 3.",
+    "writing": "Writing domain intents — placeholder for Phase 3.",
+    "contacts": "Contacts domain intents — placeholder for Phase 3.",
+    "general": "General domain intents — placeholder for Phase 2+ expansion.",
+    "onboarding": "Onboarding domain intents — placeholder.",
+}
+
+
+@observe(name="classify_domain")
+async def _classify_domain(text: str, language: str = "ru") -> str:
+    """Stage 1: classify message into a domain using Gemini Flash."""
+    client = google_client()
+    prompt = (
+        f"{DOMAIN_CLASSIFICATION_PROMPT}\n\nЯзык: {language}\n\nСообщение: {text}"
+    )
+    try:
+        response = await client.aio.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt,
+            config={"response_mime_type": "application/json"},
+        )
+        data = json.loads(response.text)
+        return data.get("domain", "general")
+    except Exception as e:
+        logger.warning("Domain classification failed: %s, defaulting to general", e)
+        return "general"
+
+
+async def detect_intent_v2(
+    text: str,
+    categories: list[dict] | None = None,
+    language: str = "ru",
+) -> IntentDetectionResult:
+    """Two-stage intent detection for >25 intents.
+
+    Stage 1: classify domain (fast, cheap).
+    Stage 2: classify intent within domain (focused prompt).
+
+    Not yet active — will be enabled when intent count exceeds STAGE2_THRESHOLD.
+    Currently falls through to single-stage detect_intent().
+    """
+    # Stage 1: classify domain
+    domain = await _classify_domain(text, language)
+
+    # Stage 2: for now, fall back to single-stage detection
+    # In Phase 2+, each domain will have its own focused prompt
+    result = await detect_intent(text=text, categories=categories, language=language)
+
+    # Attach domain to result data
+    if result.data:
+        result.data.domain = domain
+
+    return result

@@ -34,6 +34,38 @@ class IntentData(BaseModel):
     search_query: str | None = None
     life_event_type: str | None = None  # note, food, drink, mood, task, reflection
 
+    # Domain (set by router or 2-stage detection)
+    domain: str | None = None  # finance, email, calendar, tasks, etc.
+
+    # Email fields (Phase 2)
+    email_to: str | None = None
+    email_subject: str | None = None
+    email_body_hint: str | None = None
+
+    # Calendar fields (Phase 2)
+    event_title: str | None = None
+    event_datetime: str | None = None
+    event_duration_minutes: int | None = None
+    event_attendees: list[str] | None = None
+
+    # Task fields (Phase 3)
+    task_title: str | None = None
+    task_deadline: str | None = None
+    task_priority: str | None = None
+
+    # Research fields (Phase 3)
+    search_topic: str | None = None
+
+    # Writing fields (Phase 3)
+    writing_topic: str | None = None
+    target_language: str | None = None
+    target_platform: str | None = None
+
+    # Contact fields (Phase 3)
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

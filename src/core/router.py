@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 from src.agents import AGENTS, AgentRouter
 from src.core.context import SessionContext
 from src.core.db import async_session
+from src.core.domain_router import DomainRouter
 from src.core.family import create_family
 from src.core.guardrails import check_input
 from src.core.intent import detect_intent
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 _registry: SkillRegistry | None = None
 _agent_router: AgentRouter | None = None
+_domain_router: DomainRouter | None = None
 
 
 def get_registry() -> SkillRegistry:
@@ -55,6 +57,18 @@ def get_agent_router() -> AgentRouter:
     if _agent_router is None:
         _agent_router = AgentRouter(AGENTS, get_registry())
     return _agent_router
+
+
+def get_domain_router() -> DomainRouter:
+    """Lazy-init the DomainRouter (wraps AgentRouter).
+
+    Phase 1: thin wrapper — all intents pass through to AgentRouter.
+    Phase 2+: complex domains get LangGraph orchestrators.
+    """
+    global _domain_router
+    if _domain_router is None:
+        _domain_router = DomainRouter(get_agent_router())
+    return _domain_router
 
 
 async def _persist_message(
@@ -185,13 +199,13 @@ async def _dispatch_message(
             context.user_id,
         )
 
-    # Route through AgentRouter (agent -> context assembly -> skill)
-    agent_router = get_agent_router()
+    # Route through DomainRouter (domain -> agent -> context assembly -> skill)
+    domain_router = get_domain_router()
     try:
-        skill_result = await agent_router.route(intent_name, message, context, intent_data)
+        skill_result = await domain_router.route(intent_name, message, context, intent_data)
     except Exception as e:
         logger.error(
-            "AgentRouter failed for %s: %s, falling back to direct skill",
+            "DomainRouter failed for %s: %s, falling back to direct skill",
             intent_name,
             e,
             exc_info=True,

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
@@ -22,6 +22,13 @@ class SessionContext:
     categories: list[dict[str, Any]]
     merchant_mappings: list[dict[str, Any]]
     profile_config: ProfileConfig | None = None
+
+    # Multi-channel support (Phase 1+)
+    channel: str = "telegram"
+    channel_user_id: str | None = None
+    timezone: str = "America/New_York"
+    active_domain: str | None = None
+    user_profile: dict[str, Any] = field(default_factory=dict)
 
     def can_access_transaction(self, transaction: Any) -> bool:
         """Check access to a transaction."""

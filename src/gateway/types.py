@@ -8,6 +8,7 @@ class MessageType(StrEnum):
     voice = "voice"
     document = "document"
     callback = "callback"
+    location = "location"
 
 
 @dataclass
@@ -30,6 +31,13 @@ class IncomingMessage:
     callback_data: str | None = None
     raw: object = None
 
+    # Multi-channel fields (Phase 1+)
+    channel: str = "telegram"
+    channel_user_id: str | None = None
+    language: str | None = None
+    reply_to: str | None = None
+    group_id: str | None = None
+
 
 @dataclass
 class OutgoingMessage:
@@ -43,3 +51,9 @@ class OutgoingMessage:
     photo_url: str | None = None
     chart_url: str | None = None
     parse_mode: str = "HTML"
+
+    # Multi-channel fields (Phase 1+)
+    channel: str = "telegram"
+    requires_approval: bool = False
+    approval_action: str | None = None
+    approval_data: dict | None = None
