@@ -49,7 +49,9 @@ async def test_reschedule_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+        buttons=[
+            {"text": "🔗 Подключить Google", "url": "https://example.com"}
+        ],
     )
     with patch(
         f"{MODULE}.require_google_or_prompt",
@@ -88,20 +90,25 @@ async def test_reschedule_no_events(skill, message, ctx):
 
 
 @pytest.mark.asyncio
-async def test_reschedule_success(skill, message, ctx):
-    """Reschedules event via Google Calendar API."""
+async def test_reschedule_returns_preview_with_buttons(
+    skill, message, ctx
+):
+    """Returns preview + confirm/cancel buttons instead of updating."""
     mock_google = AsyncMock()
-    mock_google.list_events = AsyncMock(return_value=[
-        {
-            "id": "evt1",
-            "summary": "Dentist",
-            "start": {"dateTime": "2026-02-18T10:00:00+00:00"},
-        },
-    ])
-    mock_google.update_event = AsyncMock(return_value={})
+    mock_google.list_events = AsyncMock(
+        return_value=[
+            {
+                "id": "evt1",
+                "summary": "Dentist",
+                "start": {"dateTime": "2026-02-18T10:00:00+00:00"},
+            },
+        ]
+    )
+    mock_redis = AsyncMock()
+    mock_redis.set = AsyncMock()
 
     reschedule_json = (
-        '{"event_id": "evt1",'
+        '{"event_id": "evt1", "event_name": "Dentist",'
         ' "new_date": "2026-02-20", "new_time": "14:00"}'
     )
     with (
@@ -120,10 +127,41 @@ async def test_reschedule_success(skill, message, ctx):
             new_callable=AsyncMock,
             return_value=reschedule_json,
         ),
+        patch("src.core.pending_actions.redis", mock_redis),
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "перенесено" in result.response_text.lower()
+    assert "Перенести событие" in result.response_text
+    assert result.buttons is not None
+    assert len(result.buttons) == 2
+    assert "confirm_action" in result.buttons[0]["callback"]
+    # Google API should NOT have been called yet
+    mock_google.update_event.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_execute_reschedule_success():
+    """execute_reschedule updates event via Calendar API."""
+    from src.skills.reschedule_event.handler import execute_reschedule
+
+    mock_google = AsyncMock()
+    mock_google.update_event = AsyncMock(return_value={})
+
+    action_data = {
+        "event_id": "evt1",
+        "event_name": "Dentist",
+        "new_date": "2026-02-20",
+        "new_time": "14:00",
+    }
+
+    with patch(
+        f"{MODULE}.get_google_client",
+        new_callable=AsyncMock,
+        return_value=mock_google,
+    ):
+        result = await execute_reschedule(action_data, "user-1")
+
+    assert "перенесено" in result.lower()
     mock_google.update_event.assert_awaited_once()
 
 

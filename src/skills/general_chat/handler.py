@@ -41,6 +41,18 @@ class GeneralChatSkill:
     intents = ["general_chat"]
     model = "claude-haiku-4-5"
 
+    def _get_dosing_prompt(self, suppress: bool) -> str:
+        """Return system prompt with or without feature suggestions."""
+        if suppress:
+            return CHAT_SYSTEM_PROMPT.replace(
+                "можешь в конце ответа мягко "
+                "подсказать: «Кстати, я могу сделать это "
+                "за вас — просто напишите ...»",
+                "НЕ добавляй подсказки о возможностях бота "
+                "— пользователь уже знает что ты умеешь",
+            )
+        return CHAT_SYSTEM_PROMPT
+
     @observe(name="general_chat")
     async def execute(
         self,
@@ -48,25 +60,48 @@ class GeneralChatSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        from src.core.memory import sliding_window
+
+        # Check if user has seen too many suggestions recently
+        recent_chat_count = await sliding_window.count_recent_intents(
+            context.user_id, "general_chat", last_n=6
+        )
+        suppress_suggestions = recent_chat_count >= 3
+        system_prompt = self._get_dosing_prompt(suppress_suggestions)
+
         client = anthropic_client()
         assembled = intent_data.get("_assembled")
 
         if assembled:
-            # Use assembled context: enriched system prompt + history + memories
+            # Use assembled context: enriched system prompt + history
+            if suppress_suggestions:
+                asm_prompt = assembled.system_prompt.replace(
+                    "можешь в конце ответа мягко "
+                    "подсказать: «Кстати, я могу сделать "
+                    "это за вас — просто напишите ...»",
+                    "НЕ добавляй подсказки о возможностях "
+                    "бота — пользователь уже знает",
+                )
+            else:
+                asm_prompt = assembled.system_prompt
             non_system = [
-                m for m in assembled.messages if m["role"] != "system" and m.get("content")
+                m
+                for m in assembled.messages
+                if m["role"] != "system" and m.get("content")
             ]
             if not non_system:
-                non_system = [{"role": "user", "content": message.text or "Привет"}]
+                non_system = [
+                    {"role": "user", "content": message.text or "Привет"}
+                ]
             prompt_data = PromptAdapter.for_claude(
-                system=assembled.system_prompt,
+                system=asm_prompt,
                 messages=non_system,
             )
         else:
             # Fallback: direct call without assembled context
             user_text = message.text or "Привет"
             prompt_data = PromptAdapter.for_claude(
-                system=CHAT_SYSTEM_PROMPT,
+                system=system_prompt,
                 messages=[{"role": "user", "content": user_text}],
             )
 

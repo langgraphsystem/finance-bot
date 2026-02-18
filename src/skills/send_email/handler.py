@@ -54,36 +54,43 @@ class SendEmailSkill:
             )
 
         # Draft the email body via LLM
-        body = await _draft_body(email_to, email_subject, email_body_hint, query, context.language)
+        body = await _draft_body(
+            email_to, email_subject, email_body_hint, query, context.language
+        )
 
-        # Build MIME message and send
-        google = await get_google_client(context.user_id)
-        if not google:
-            return SkillResult(response_text="Ошибка подключения к Gmail. Попробуйте /connect")
+        # Store pending action — require user confirmation before sending
+        from src.core.pending_actions import store_pending_action
 
-        try:
-            mime_msg = MIMEText(body)
-            mime_msg["to"] = email_to
-            mime_msg["subject"] = email_subject or "No Subject"
-            raw = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode()
-            await google.send_message(raw)
-        except Exception as e:
-            logger.error("Gmail send failed: %s", e)
-            return SkillResult(
-                response_text=(
-                    f"Не удалось отправить. Вот черновик:\n\n"
-                    f"<b>To:</b> {email_to}\n"
-                    f"<b>Subject:</b> {email_subject}\n\n"
-                    f"{body}"
-                )
-            )
+        pending_id = await store_pending_action(
+            intent="send_email",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            action_data={
+                "email_to": email_to,
+                "email_subject": email_subject or "No Subject",
+                "email_body": body,
+            },
+        )
+
+        preview = (
+            f"<b>Черновик email:</b>\n\n"
+            f"<b>To:</b> {email_to}\n"
+            f"<b>Subject:</b> {email_subject or 'No Subject'}\n\n"
+            f"{body[:500]}"
+        )
 
         return SkillResult(
-            response_text=(
-                f"✅ Email отправлен!\n\n"
-                f"<b>To:</b> {email_to}\n"
-                f"<b>Subject:</b> {email_subject}"
-            )
+            response_text=preview,
+            buttons=[
+                {
+                    "text": "📨 Отправить",
+                    "callback": f"confirm_action:{pending_id}",
+                },
+                {
+                    "text": "❌ Отмена",
+                    "callback": f"cancel_action:{pending_id}",
+                },
+            ],
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -111,6 +118,29 @@ async def _draft_body(
     except Exception as e:
         logger.warning("Email draft failed: %s", e)
         return hint or user_text or "Hello,"
+
+
+async def execute_send(action_data: dict, user_id: str) -> str:
+    """Actually send the email via Gmail API. Called after user confirms."""
+    google = await get_google_client(user_id)
+    if not google:
+        return "Ошибка подключения к Gmail. Попробуйте /connect"
+
+    try:
+        mime_msg = MIMEText(action_data["email_body"])
+        mime_msg["to"] = action_data["email_to"]
+        mime_msg["subject"] = action_data["email_subject"]
+        raw = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode()
+        await google.send_message(raw)
+    except Exception as e:
+        logger.error("Gmail send failed: %s", e)
+        return "Не удалось отправить email. Попробуйте позже."
+
+    return (
+        f"✅ Email отправлен!\n\n"
+        f"<b>To:</b> {action_data['email_to']}\n"
+        f"<b>Subject:</b> {action_data['email_subject']}"
+    )
 
 
 skill = SendEmailSkill()

@@ -193,6 +193,14 @@ async def _dispatch_message(
         intent_data = result.data.model_dump() if result.data else {}
         intent_data["confidence"] = result.confidence
 
+        # CLARIFY gate: if LLM is uncertain, present disambiguation buttons
+        if (
+            result.intent_type == "clarify"
+            and result.clarify_candidates
+            and len(result.clarify_candidates) >= 2
+        ):
+            return await _handle_clarify(message, context, result, intent_data)
+
         # Registered user should never hit onboarding — redirect to general_chat
         if intent_name == "onboarding" and context.family_id:
             intent_name = "general_chat"
@@ -416,6 +424,173 @@ async def _clear_onboarding_state(telegram_id: str) -> None:
         logger.warning("Failed to clear onboarding state from Redis: %s", e)
 
 
+async def _handle_clarify(
+    message: IncomingMessage,
+    context: SessionContext,
+    result: Any,
+    intent_data: dict[str, Any],
+) -> OutgoingMessage:
+    """Present disambiguation buttons and store pending state in Redis."""
+    import json as _json
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+
+    from src.core.db import redis
+
+    payload = {
+        "original_text": message.text or "",
+        "candidates": [
+            {"intent": c.intent, "label": c.label, "confidence": c.confidence}
+            for c in result.clarify_candidates[:3]
+        ],
+        "intent_data": {
+            k: v
+            for k, v in intent_data.items()
+            if k != "confidence" and v is not None
+        },
+        "created_at": _dt.now(_UTC).isoformat(),
+    }
+
+    key = f"clarify_pending:{context.user_id}"
+    await redis.set(key, _json.dumps(payload, default=str), ex=300)
+
+    question = result.response or "Что именно вы хотите?"
+    buttons = [
+        {"text": c.label, "callback": f"clarify:{c.intent}"}
+        for c in result.clarify_candidates[:3]
+    ]
+
+    return OutgoingMessage(
+        text=f"<b>Уточните:</b> {question}",
+        chat_id=message.chat_id,
+        buttons=buttons,
+    )
+
+
+async def _resolve_clarify(
+    chosen_intent: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Resolve a clarify disambiguation by executing the chosen intent."""
+    import json as _json
+
+    from src.core.db import redis
+    from src.core.memory import sliding_window
+
+    key = f"clarify_pending:{context.user_id}"
+    raw = await redis.get(key)
+    if not raw:
+        return OutgoingMessage(
+            text="Время выбора истекло. Напишите запрос заново.",
+            chat_id=message.chat_id,
+        )
+
+    pending = _json.loads(raw)
+    await redis.delete(key)
+
+    original_text = pending.get("original_text", "")
+    intent_data = pending.get("intent_data", {})
+    intent_data["confidence"] = 0.9  # User confirmed
+
+    synthetic_message = IncomingMessage(
+        id=message.id,
+        user_id=message.user_id,
+        chat_id=message.chat_id,
+        type=MessageType.text,
+        text=original_text,
+        raw=message.raw,
+    )
+
+    domain_router = get_domain_router()
+    try:
+        skill_result = await domain_router.route(
+            chosen_intent, synthetic_message, context, intent_data
+        )
+    except Exception as e:
+        logger.error("Clarify resolve failed for %s: %s", chosen_intent, e)
+        return OutgoingMessage(
+            text="Произошла ошибка. Попробуйте ещё раз.",
+            chat_id=message.chat_id,
+        )
+
+    # Save to sliding window
+    if original_text:
+        await sliding_window.add_message(
+            context.user_id, "user", original_text, chosen_intent
+        )
+    if skill_result.response_text:
+        await sliding_window.add_message(
+            context.user_id, "assistant", skill_result.response_text
+        )
+
+    return OutgoingMessage(
+        text=skill_result.response_text,
+        chat_id=message.chat_id,
+        buttons=skill_result.buttons,
+        document=skill_result.document,
+        document_name=skill_result.document_name,
+        chart_url=skill_result.chart_url,
+    )
+
+
+async def _execute_pending_action(
+    pending_id: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Execute a confirmed pending action (send email, create event, etc.)."""
+    from src.core.pending_actions import delete_pending_action, get_pending_action
+
+    pending = await get_pending_action(pending_id)
+    if not pending:
+        return OutgoingMessage(
+            text="Время подтверждения истекло. Повторите запрос.",
+            chat_id=message.chat_id,
+        )
+
+    intent = pending["intent"]
+    action_data = pending["action_data"]
+    await delete_pending_action(pending_id)
+
+    try:
+        if intent == "send_email":
+            from src.skills.send_email.handler import execute_send
+
+            result_text = await execute_send(action_data, context.user_id)
+
+        elif intent == "create_event":
+            from src.skills.create_event.handler import execute_create_event
+
+            result_text = await execute_create_event(
+                action_data, context.user_id
+            )
+
+        elif intent == "reschedule_event":
+            from src.skills.reschedule_event.handler import (
+                execute_reschedule,
+            )
+
+            result_text = await execute_reschedule(
+                action_data, context.user_id
+            )
+
+        elif intent == "undo_last":
+            from src.skills.undo_last.handler import execute_undo
+
+            result_text = await execute_undo(
+                action_data, context.user_id, context.family_id
+            )
+
+        else:
+            result_text = "Неизвестное действие."
+    except Exception as e:
+        logger.error("Pending action %s failed: %s", intent, e)
+        result_text = "Ошибка при выполнении. Попробуйте ещё раз."
+
+    return OutgoingMessage(text=result_text, chat_id=message.chat_id)
+
+
 async def _handle_callback(
     message: IncomingMessage,
     context: SessionContext,
@@ -594,6 +769,21 @@ async def _handle_callback(
                 buttons=skill_result.buttons,
             )
         return OutgoingMessage(text="Поиск недоступен.", chat_id=message.chat_id)
+
+    elif action == "clarify":
+        chosen_intent = parts[1] if len(parts) > 1 else ""
+        return await _resolve_clarify(chosen_intent, message, context)
+
+    elif action == "confirm_action":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        return await _execute_pending_action(pending_id, message, context)
+
+    elif action == "cancel_action":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        from src.core.pending_actions import delete_pending_action
+
+        await delete_pending_action(pending_id)
+        return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>

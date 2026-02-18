@@ -1,6 +1,15 @@
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
+
+
+class ClarifyCandidate(BaseModel):
+    """One candidate intent during disambiguation."""
+
+    intent: str
+    label: str  # Russian, user-facing, e.g. "Записать расход"
+    confidence: float
 
 
 class IntentData(BaseModel):
@@ -70,5 +79,7 @@ class IntentData(BaseModel):
 class IntentDetectionResult(BaseModel):
     intent: str
     confidence: float
+    intent_type: Literal["chat", "action", "clarify"] = "action"
     data: IntentData | None = None
     response: str | None = None
+    clarify_candidates: list[ClarifyCandidate] | None = None

@@ -49,7 +49,9 @@ async def test_send_email_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+        buttons=[
+            {"text": "🔗 Подключить Google", "url": "https://example.com"}
+        ],
     )
     with patch(
         f"{MODULE}.require_google_or_prompt",
@@ -65,8 +67,11 @@ async def test_send_email_requires_google(skill, message, ctx):
 async def test_send_email_missing_recipient(skill, ctx):
     """Returns error when no email_to."""
     msg = IncomingMessage(
-        id="msg-2", user_id="tg_1", chat_id="chat_1",
-        type=MessageType.text, text="send email",
+        id="msg-2",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="send email",
     )
     with patch(
         f"{MODULE}.require_google_or_prompt",
@@ -79,10 +84,12 @@ async def test_send_email_missing_recipient(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_send_email_success(skill, message, ctx):
-    """Successfully sends email via Gmail API."""
-    mock_google = AsyncMock()
-    mock_google.send_message = AsyncMock(return_value={"id": "sent_123"})
+async def test_send_email_returns_preview_with_buttons(
+    skill, message, ctx
+):
+    """Returns preview + confirm/cancel buttons instead of sending."""
+    mock_redis = AsyncMock()
+    mock_redis.set = AsyncMock()
 
     intent_data = {
         "email_to": "sarah@example.com",
@@ -97,19 +104,44 @@ async def test_send_email_success(skill, message, ctx):
             return_value=None,
         ),
         patch(
-            f"{MODULE}.get_google_client",
-            new_callable=AsyncMock,
-            return_value=mock_google,
-        ),
-        patch(
             f"{MODULE}._draft_body",
             new_callable=AsyncMock,
             return_value="Here's the project update.",
         ),
+        patch("src.core.pending_actions.redis", mock_redis),
     ):
         result = await skill.execute(message, ctx, intent_data)
 
-    assert "отправлен" in result.response_text.lower()
+    assert "Черновик" in result.response_text
+    assert "sarah@example.com" in result.response_text
+    assert result.buttons is not None
+    assert len(result.buttons) == 2
+    assert "confirm_action" in result.buttons[0]["callback"]
+    assert "cancel_action" in result.buttons[1]["callback"]
+
+
+@pytest.mark.asyncio
+async def test_execute_send_success():
+    """execute_send sends email via Gmail API."""
+    from src.skills.send_email.handler import execute_send
+
+    mock_google = AsyncMock()
+    mock_google.send_message = AsyncMock(return_value={"id": "ok"})
+
+    action_data = {
+        "email_to": "sarah@example.com",
+        "email_subject": "Test",
+        "email_body": "Hello!",
+    }
+
+    with patch(
+        f"{MODULE}.get_google_client",
+        new_callable=AsyncMock,
+        return_value=mock_google,
+    ):
+        result = await execute_send(action_data, "user-1")
+
+    assert "отправлен" in result.lower()
     mock_google.send_message.assert_awaited_once()
 
 

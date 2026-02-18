@@ -54,7 +54,9 @@ async def test_create_event_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+        buttons=[
+            {"text": "🔗 Подключить Google", "url": "https://example.com"}
+        ],
     )
     intent = {"event_title": "Meeting", "event_datetime": "3pm"}
     with patch(
@@ -68,12 +70,13 @@ async def test_create_event_requires_google(skill, message, ctx):
 
 
 @pytest.mark.asyncio
-async def test_create_event_success(skill, message, ctx):
-    """Creates event via Google Calendar API."""
+async def test_create_event_returns_preview_with_buttons(
+    skill, message, ctx
+):
+    """Returns preview + confirm/cancel buttons instead of creating."""
     mock_google = AsyncMock()
-    mock_google.create_event = AsyncMock(return_value={
-        "htmlLink": "https://calendar.google.com/event/abc123",
-    })
+    mock_redis = AsyncMock()
+    mock_redis.set = AsyncMock()
 
     intent = {
         "event_title": "Meeting with Sarah",
@@ -95,41 +98,46 @@ async def test_create_event_success(skill, message, ctx):
             new_callable=AsyncMock,
             return_value=EXTRACT_JSON,
         ),
+        patch("src.core.pending_actions.redis", mock_redis),
     ):
         result = await skill.execute(message, ctx, intent)
 
-    assert "Создано" in result.response_text or "Meeting" in result.response_text
-    mock_google.create_event.assert_awaited_once()
+    assert "Новое событие" in result.response_text
+    assert "Meeting with Sarah" in result.response_text
+    assert result.buttons is not None
+    assert len(result.buttons) == 2
+    assert "confirm_action" in result.buttons[0]["callback"]
+    assert "cancel_action" in result.buttons[1]["callback"]
+    # Google API should NOT have been called yet
+    mock_google.create_event.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_create_event_api_failure(skill, message, ctx):
-    """Returns error on Calendar API failure."""
+async def test_execute_create_event_success():
+    """execute_create_event creates event via Calendar API."""
+    from src.skills.create_event.handler import execute_create_event
+
     mock_google = AsyncMock()
-    mock_google.create_event = AsyncMock(side_effect=Exception("API error"))
+    mock_google.create_event = AsyncMock(
+        return_value={"htmlLink": "https://cal.google.com/evt/1"}
+    )
 
-    extract = '{"title": "Meeting", "date": "2026-02-19", "time": "15:00"}'
-    intent = {"event_title": "Meeting", "event_datetime": "3pm"}
-    with (
-        patch(
-            f"{MODULE}.require_google_or_prompt",
-            new_callable=AsyncMock,
-            return_value=None,
-        ),
-        patch(
-            f"{MODULE}.get_google_client",
-            new_callable=AsyncMock,
-            return_value=mock_google,
-        ),
-        patch(
-            f"{MODULE}._extract_event_details",
-            new_callable=AsyncMock,
-            return_value=extract,
-        ),
+    action_data = {
+        "title": "Meeting",
+        "start_iso": "2026-02-19T15:00:00+00:00",
+        "end_iso": "2026-02-19T16:00:00+00:00",
+        "location": None,
+    }
+
+    with patch(
+        f"{MODULE}.get_google_client",
+        new_callable=AsyncMock,
+        return_value=mock_google,
     ):
-        result = await skill.execute(message, ctx, intent)
+        result = await execute_create_event(action_data, "user-1")
 
-    assert "Ошибка" in result.response_text
+    assert "Создано" in result
+    mock_google.create_event.assert_awaited_once()
 
 
 def test_system_prompt_includes_language(skill, ctx):

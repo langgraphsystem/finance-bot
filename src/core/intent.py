@@ -175,10 +175,41 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
 - "заметки", "идеи", "мысли", "notes" → life_event_type: "note"
 - Если тип не очевиден → life_event_type: null (искать все типы)
 
+Классификация intent_type:
+- "action" — пользователь хочет ВЫПОЛНИТЬ действие \
+(запись расхода/дохода, отправка email, создание события, удаление, поиск, генерация отчёта)
+- "chat" — приветствие, благодарность, общий разговор, \
+информационный вопрос без конкретного действия
+- "clarify" — сообщение НЕОДНОЗНАЧНО, confidence < 0.6, \
+или подходит под 2+ интента одинаково. \
+Верни топ-2 кандидата в clarify_candidates с описанием на русском.
+
+Примеры intent_type:
+"заправился на 50" → intent: "add_expense", intent_type: "action", confidence: 0.95
+"привет, как дела?" → intent: "general_chat", intent_type: "chat", confidence: 0.95
+"кофе" → intent: "track_drink", intent_type: "action", confidence: 0.85
+"отправь" → intent_type: "clarify", confidence: 0.3, \
+clarify_candidates: [{{"intent": "send_email", "label": "Отправить email", \
+"confidence": 0.4}}, {{"intent": "draft_message", "label": "Написать сообщение", \
+"confidence": 0.35}}]
+"план" → intent_type: "clarify", confidence: 0.4, \
+clarify_candidates: [{{"intent": "day_plan", "label": "План дня", \
+"confidence": 0.45}}, {{"intent": "list_events", "label": "Расписание", \
+"confidence": 0.35}}]
+"удали" → intent_type: "clarify", confidence: 0.35, \
+clarify_candidates: [{{"intent": "undo_last", "label": "Отменить транзакцию", \
+"confidence": 0.4}}, {{"intent": "complete_task", "label": "Завершить задачу", \
+"confidence": 0.3}}]
+"запиши встречу с Петром в пятницу в 10" → intent: "create_event", \
+intent_type: "action", confidence: 0.92
+
 Ответь ТОЛЬКО валидным JSON:
 {{
   "intent": "имя_интента",
   "confidence": 0.0-1.0,
+  "intent_type": "action" или "chat" или "clarify",
+  "clarify_candidates": [{{"intent": "...", "label": "описание на русском", \
+"confidence": 0.0-1.0}}] или null,
   "data": {{
     "amount": число или null,
     "merchant": "название" или null,

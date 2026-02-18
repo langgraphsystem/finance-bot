@@ -80,33 +80,57 @@ class RescheduleEventSkill:
             )
 
         event_id = parsed.get("event_id")
+        event_name = parsed.get("event_name") or "событие"
         new_date = parsed.get("new_date")
         new_time = parsed.get("new_time")
 
         if not event_id or not new_date:
             return SkillResult(
-                response_text="Не удалось определить событие или новую дату. Уточните запрос."
-            )
-
-        try:
-            time_str = new_time or "09:00"
-            new_start = datetime.fromisoformat(f"{new_date}T{time_str}:00+00:00")
-            new_end = new_start + timedelta(hours=1)
-
-            await google.update_event(
-                event_id,
-                start={"dateTime": new_start.isoformat(), "timeZone": "UTC"},
-                end={"dateTime": new_end.isoformat(), "timeZone": "UTC"},
-            )
-            return SkillResult(
                 response_text=(
-                    f"✅ Событие перенесено на "
-                    f"{new_start.strftime('%d.%m.%Y %H:%M')}"
+                    "Не удалось определить событие или новую дату. "
+                    "Уточните запрос."
                 )
             )
-        except Exception as e:
-            logger.error("Calendar update failed: %s", e)
-            return SkillResult(response_text="Ошибка при переносе события.")
+
+        time_str = new_time or "09:00"
+
+        # Store pending action — require user confirmation
+        from src.core.pending_actions import store_pending_action
+
+        pending_id = await store_pending_action(
+            intent="reschedule_event",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            action_data={
+                "event_id": event_id,
+                "event_name": event_name,
+                "new_date": new_date,
+                "new_time": time_str,
+            },
+        )
+
+        new_start = datetime.fromisoformat(
+            f"{new_date}T{time_str}:00+00:00"
+        )
+        preview = (
+            f"<b>Перенести событие:</b>\n\n"
+            f"📌 {event_name}\n"
+            f"📅 Новая дата: {new_start.strftime('%d.%m.%Y %H:%M')}"
+        )
+
+        return SkillResult(
+            response_text=preview,
+            buttons=[
+                {
+                    "text": "🔄 Перенести",
+                    "callback": f"confirm_action:{pending_id}",
+                },
+                {
+                    "text": "❌ Отмена",
+                    "callback": f"cancel_action:{pending_id}",
+                },
+            ],
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return RESCHEDULE_SYSTEM_PROMPT
@@ -133,6 +157,36 @@ async def _parse_reschedule(user_text: str, events_list: str, language: str) -> 
     except Exception as e:
         logger.warning("Reschedule parse failed: %s", e)
         return "{}"
+
+
+async def execute_reschedule(action_data: dict, user_id: str) -> str:
+    """Actually reschedule the calendar event. Called after user confirms."""
+    google = await get_google_client(user_id)
+    if not google:
+        return "Ошибка подключения к Calendar. Попробуйте /connect"
+
+    event_id = action_data["event_id"]
+    new_date = action_data["new_date"]
+    new_time = action_data.get("new_time", "09:00")
+
+    try:
+        new_start = datetime.fromisoformat(
+            f"{new_date}T{new_time}:00+00:00"
+        )
+        new_end = new_start + timedelta(hours=1)
+
+        await google.update_event(
+            event_id,
+            start={"dateTime": new_start.isoformat(), "timeZone": "UTC"},
+            end={"dateTime": new_end.isoformat(), "timeZone": "UTC"},
+        )
+        return (
+            f"✅ Событие перенесено на "
+            f"{new_start.strftime('%d.%m.%Y %H:%M')}"
+        )
+    except Exception as e:
+        logger.error("Calendar update failed: %s", e)
+        return "Ошибка при переносе события."
 
 
 skill = RescheduleEventSkill()

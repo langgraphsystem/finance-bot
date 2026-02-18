@@ -32,9 +32,8 @@ class UndoLastSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        """Find and delete the user's last transaction."""
+        """Find last transaction and ask for confirmation before deleting."""
         async with async_session() as session:
-            # Find user's last transaction
             result = await session.execute(
                 select(Transaction)
                 .where(
@@ -47,42 +46,87 @@ class UndoLastSkill:
             tx = result.scalar_one_or_none()
 
             if not tx:
-                return SkillResult(response_text="У вас нет транзакций для отмены.")
+                return SkillResult(
+                    response_text="У вас нет транзакций для отмены."
+                )
 
-            # Store info before deletion for the response
             tx_info = (
-                f"{tx.type.value}: {tx.amount} ({tx.merchant or tx.description or 'без описания'})"
+                f"{tx.type.value}: {tx.amount} "
+                f"({tx.merchant or tx.description or 'без описания'})"
             )
             tx_id = str(tx.id)
 
-            # Delete the transaction
-            await session.execute(delete(Transaction).where(Transaction.id == tx.id))
+        # Store pending action — require user confirmation
+        from src.core.pending_actions import store_pending_action
 
-            # Log to audit
-            await log_action(
-                session=session,
-                user_id=context.user_id,
-                family_id=context.family_id,
-                action="undo_last",
-                entity_type="transaction",
-                entity_id=tx_id,
-                old_data={
-                    "type": tx.type.value,
-                    "amount": str(tx.amount),
-                    "merchant": tx.merchant,
-                },
-                new_data=None,
-            )
+        pending_id = await store_pending_action(
+            intent="undo_last",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            action_data={
+                "tx_id": tx_id,
+                "tx_type": tx.type.value,
+                "tx_amount": str(tx.amount),
+                "tx_merchant": tx.merchant,
+                "tx_description": tx.description,
+            },
+        )
 
-            await session.commit()
-
-        logger.info("User %s undid transaction %s", context.user_id, tx_id)
         return SkillResult(
-            response_text=f"Отменено: {tx_info}",
+            response_text=f"Удалить транзакцию?\n\n{tx_info}",
+            buttons=[
+                {
+                    "text": "🗑 Удалить",
+                    "callback": f"confirm_action:{pending_id}",
+                },
+                {
+                    "text": "❌ Отмена",
+                    "callback": f"cancel_action:{pending_id}",
+                },
+            ],
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return UNDO_SYSTEM_PROMPT
+
+
+async def execute_undo(
+    action_data: dict, user_id: str, family_id: str
+) -> str:
+    """Actually delete the transaction. Called after user confirms."""
+    tx_id = action_data["tx_id"]
+
+    try:
+        async with async_session() as session:
+            await session.execute(
+                delete(Transaction).where(Transaction.id == uuid.UUID(tx_id))
+            )
+            await log_action(
+                session=session,
+                user_id=user_id,
+                family_id=family_id,
+                action="undo_last",
+                entity_type="transaction",
+                entity_id=tx_id,
+                old_data={
+                    "type": action_data.get("tx_type"),
+                    "amount": action_data.get("tx_amount"),
+                    "merchant": action_data.get("tx_merchant"),
+                },
+                new_data=None,
+            )
+            await session.commit()
+
+        tx_info = (
+            f"{action_data.get('tx_type', 'expense')}: "
+            f"{action_data.get('tx_amount', '?')} "
+            f"({action_data.get('tx_merchant') or action_data.get('tx_description') or ''})"
+        )
+        logger.info("User %s undid transaction %s", user_id, tx_id)
+        return f"Отменено: {tx_info}"
+    except Exception as e:
+        logger.error("Undo transaction %s failed: %s", tx_id, e)
+        return "Ошибка при удалении транзакции."
 
 
 skill = UndoLastSkill()

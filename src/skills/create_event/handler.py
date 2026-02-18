@@ -69,7 +69,10 @@ class CreateEventSkill:
 
         try:
             date_str = parsed.get("date") or now.strftime("%Y-%m-%d")
-            time_str = parsed.get("time") or (now + timedelta(hours=1)).strftime("%H:%M")
+            time_str = (
+                parsed.get("time")
+                or (now + timedelta(hours=1)).strftime("%H:%M")
+            )
             start = datetime.fromisoformat(f"{date_str}T{time_str}:00+00:00")
         except (ValueError, TypeError):
             start = now + timedelta(hours=1)
@@ -78,28 +81,42 @@ class CreateEventSkill:
         end = start + timedelta(hours=duration)
         location = parsed.get("location")
 
-        try:
-            event = await google.create_event(
-                title=title,
-                start=start,
-                end=end,
-                location=location,
-            )
-            event_link = event.get("htmlLink", "")
-            return SkillResult(
-                response_text=(
-                    f"✅ Создано: <b>{title}</b>\n"
-                    f"📅 {start.strftime('%d.%m.%Y %H:%M')} — "
-                    f"{end.strftime('%H:%M')}\n"
-                    f"{f'📍 {location}' if location else ''}"
-                    f"{f'\n🔗 {event_link}' if event_link else ''}"
-                )
-            )
-        except Exception as e:
-            logger.error("Calendar create_event failed: %s", e)
-            return SkillResult(
-                response_text=f"Ошибка при создании события «{title}». Попробуйте позже."
-            )
+        # Store pending action — require user confirmation
+        from src.core.pending_actions import store_pending_action
+
+        pending_id = await store_pending_action(
+            intent="create_event",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            action_data={
+                "title": title,
+                "start_iso": start.isoformat(),
+                "end_iso": end.isoformat(),
+                "location": location,
+            },
+        )
+
+        preview = (
+            f"<b>Новое событие:</b>\n\n"
+            f"📌 <b>{title}</b>\n"
+            f"📅 {start.strftime('%d.%m.%Y %H:%M')} — "
+            f"{end.strftime('%H:%M')}\n"
+            f"{f'📍 {location}' if location else ''}"
+        )
+
+        return SkillResult(
+            response_text=preview,
+            buttons=[
+                {
+                    "text": "✅ Создать",
+                    "callback": f"confirm_action:{pending_id}",
+                },
+                {
+                    "text": "❌ Отмена",
+                    "callback": f"cancel_action:{pending_id}",
+                },
+            ],
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return CREATE_EVENT_SYSTEM_PROMPT.format(language=context.language or "ru")
@@ -123,6 +140,34 @@ async def _extract_event_details(
     except Exception as e:
         logger.warning("Create event LLM failed: %s", e)
         return "{}"
+
+
+async def execute_create_event(action_data: dict, user_id: str) -> str:
+    """Actually create the calendar event. Called after user confirms."""
+    google = await get_google_client(user_id)
+    if not google:
+        return "Ошибка подключения к Calendar. Попробуйте /connect"
+
+    title = action_data["title"]
+    start = datetime.fromisoformat(action_data["start_iso"])
+    end = datetime.fromisoformat(action_data["end_iso"])
+    location = action_data.get("location")
+
+    try:
+        event = await google.create_event(
+            title=title, start=start, end=end, location=location
+        )
+        event_link = event.get("htmlLink", "")
+        return (
+            f"✅ Создано: <b>{title}</b>\n"
+            f"📅 {start.strftime('%d.%m.%Y %H:%M')} — "
+            f"{end.strftime('%H:%M')}\n"
+            f"{f'📍 {location}' if location else ''}"
+            f"{f'\n🔗 {event_link}' if event_link else ''}"
+        )
+    except Exception as e:
+        logger.error("Calendar create_event failed: %s", e)
+        return f"Ошибка при создании события «{title}». Попробуйте позже."
 
 
 skill = CreateEventSkill()

@@ -44,6 +44,16 @@ async def get_recent_messages(
     return [json.loads(m) for m in raw_messages]
 
 
+async def count_recent_intents(
+    user_id: str,
+    intent: str,
+    last_n: int = 6,
+) -> int:
+    """Count how many of the last N user messages had the given intent."""
+    messages = await get_recent_messages(user_id, limit=last_n)
+    return sum(1 for m in messages if m.get("intent") == intent)
+
+
 async def clear_messages(user_id: str) -> None:
     """Clear all messages for a user."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"

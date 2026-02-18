@@ -12,6 +12,8 @@ from src.core.models.enums import Scope, TransactionType
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.undo_last.handler import UndoLastSkill
 
+MODULE = "src.skills.undo_last.handler"
+
 
 @pytest.fixture
 def undo_skill():
@@ -60,7 +62,9 @@ def _make_tx(user_id: str, family_id: str) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_no_transactions_returns_message(undo_skill, sample_message, sample_ctx):
+async def test_no_transactions_returns_message(
+    undo_skill, sample_message, sample_ctx
+):
     """When user has no transactions, return informative message."""
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = None
@@ -72,15 +76,22 @@ async def test_no_transactions_returns_message(undo_skill, sample_message, sampl
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("src.skills.undo_last.handler.async_session", return_value=mock_session_ctx):
-        result = await undo_skill.execute(sample_message, sample_ctx, {})
+    with patch(
+        f"{MODULE}.async_session",
+        return_value=mock_session_ctx,
+    ):
+        result = await undo_skill.execute(
+            sample_message, sample_ctx, {}
+        )
 
     assert "нет транзакций" in result.response_text.lower()
 
 
 @pytest.mark.asyncio
-async def test_deletes_last_transaction(undo_skill, sample_message, sample_ctx):
-    """When user has a transaction, delete it and return confirmation."""
+async def test_returns_preview_with_buttons(
+    undo_skill, sample_message, sample_ctx
+):
+    """Returns preview + confirm/cancel buttons instead of deleting."""
     tx = _make_tx(sample_ctx.user_id, sample_ctx.family_id)
 
     mock_select_result = MagicMock()
@@ -88,66 +99,73 @@ async def test_deletes_last_transaction(undo_skill, sample_message, sample_ctx):
 
     mock_session = AsyncMock()
     mock_session.execute.return_value = mock_select_result
-    mock_session.commit = AsyncMock()
 
     mock_session_ctx = AsyncMock()
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
+    mock_redis = AsyncMock()
+    mock_redis.set = AsyncMock()
+
     with (
         patch(
-            "src.skills.undo_last.handler.async_session",
+            f"{MODULE}.async_session",
             return_value=mock_session_ctx,
         ),
-        patch(
-            "src.skills.undo_last.handler.log_action",
-            new_callable=AsyncMock,
-        ),
+        patch("src.core.pending_actions.redis", mock_redis),
     ):
-        result = await undo_skill.execute(sample_message, sample_ctx, {})
+        result = await undo_skill.execute(
+            sample_message, sample_ctx, {}
+        )
 
-    assert "Отменено" in result.response_text
+    assert "Удалить транзакцию" in result.response_text
     assert "42.50" in result.response_text or "42.5" in result.response_text
-    assert "Shell" in result.response_text
+    assert result.buttons is not None
+    assert len(result.buttons) == 2
+    assert "confirm_action" in result.buttons[0]["callback"]
+    assert "cancel_action" in result.buttons[1]["callback"]
 
-    # Verify delete was called (second execute call after the select)
-    assert mock_session.execute.call_count == 2
-
-    # Verify commit was called
-    mock_session.commit.assert_awaited_once()
+    # Should NOT have deleted the transaction yet
+    assert mock_session.execute.call_count == 1  # Only the SELECT
 
 
 @pytest.mark.asyncio
-async def test_audit_log_called_on_undo(undo_skill, sample_message, sample_ctx):
-    """Verify that log_action is called with correct parameters on undo."""
-    tx = _make_tx(sample_ctx.user_id, sample_ctx.family_id)
-
-    mock_select_result = MagicMock()
-    mock_select_result.scalar_one_or_none.return_value = tx
+async def test_execute_undo_deletes_and_logs():
+    """execute_undo actually deletes the transaction and logs it."""
+    from src.skills.undo_last.handler import execute_undo
 
     mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_select_result
+    mock_session.execute = AsyncMock()
     mock_session.commit = AsyncMock()
 
     mock_session_ctx = AsyncMock()
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session_ctx.__aexit__ = AsyncMock(return_value=False)
 
-    with (
-        patch("src.skills.undo_last.handler.async_session", return_value=mock_session_ctx),
-        patch("src.skills.undo_last.handler.log_action", new_callable=AsyncMock) as mock_log,
-    ):
-        await undo_skill.execute(sample_message, sample_ctx, {})
+    action_data = {
+        "tx_id": str(uuid.uuid4()),
+        "tx_type": "expense",
+        "tx_amount": "42.50",
+        "tx_merchant": "Shell",
+        "tx_description": "Diesel fuel",
+    }
 
+    with (
+        patch(
+            f"{MODULE}.async_session",
+            return_value=mock_session_ctx,
+        ),
+        patch(
+            f"{MODULE}.log_action",
+            new_callable=AsyncMock,
+        ) as mock_log,
+    ):
+        result = await execute_undo(
+            action_data, "user-1", "family-1"
+        )
+
+    assert "Отменено" in result
+    assert "42.50" in result
+    mock_session.execute.assert_awaited_once()
+    mock_session.commit.assert_awaited_once()
     mock_log.assert_awaited_once()
-    call_kwargs = mock_log.call_args.kwargs
-    assert call_kwargs["session"] is mock_session
-    assert call_kwargs["user_id"] == sample_ctx.user_id
-    assert call_kwargs["family_id"] == sample_ctx.family_id
-    assert call_kwargs["action"] == "undo_last"
-    assert call_kwargs["entity_type"] == "transaction"
-    assert call_kwargs["entity_id"] == str(tx.id)
-    assert call_kwargs["old_data"]["type"] == "expense"
-    assert call_kwargs["old_data"]["amount"] == str(tx.amount)
-    assert call_kwargs["old_data"]["merchant"] == "Shell"
-    assert call_kwargs["new_data"] is None
