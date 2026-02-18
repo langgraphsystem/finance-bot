@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.summarize_thread.handler import SummarizeThreadSkill
 
+MODULE = "src.skills.summarize_thread.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,67 +43,89 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_summarize_thread_basic(skill, message, ctx):
-    """Returns thread summary."""
-    summary = (
-        "<b>Budget discussion with Sarah</b>\n\n"
-        "Sarah proposed increasing the Q1 budget by 15%. "
-        "You agreed but asked to cap contractor spend.\n\n"
-        "Action items:\n"
-        "• Sarah to send revised numbers by Friday.\n\n"
-        "Any action needed on this?"
+async def test_summarize_thread_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
-        "src.skills.summarize_thread.handler.summarize_thread",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=summary,
+        return_value=prompt,
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "Sarah" in result.response_text
-    assert "budget" in result.response_text.lower()
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_summarize_thread_from_message_text(skill, ctx):
-    """Uses message.text for the thread query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="what was the email chain with Mike about?",
-    )
-    with patch(
-        "src.skills.summarize_thread.handler.summarize_thread",
-        new_callable=AsyncMock,
-        return_value="Mike discussed the new hire timeline. Any action needed on this?",
-    ) as mock_summarize:
-        result = await skill.execute(msg, ctx, {})
+async def test_summarize_thread_no_emails(skill, message, ctx):
+    """Returns empty message when no emails found."""
+    mock_google = AsyncMock()
+    mock_google.list_messages = AsyncMock(return_value=[])
 
-    mock_summarize.assert_awaited_once_with("what was the email chain with Mike about?", "en")
-    assert "Mike" in result.response_text
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert (
+        "нет" in result.response_text.lower()
+        or "суммаризац" in result.response_text.lower()
+    )
 
 
 @pytest.mark.asyncio
-async def test_summarize_thread_empty_text(skill, ctx):
-    """Empty text defaults to generic summarize query."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.summarize_thread.handler.summarize_thread",
-        new_callable=AsyncMock,
-        return_value="Which thread would you like me to summarize?",
-    ) as mock_summarize:
-        result = await skill.execute(msg, ctx, {})
+async def test_summarize_thread_with_thread(skill, message, ctx):
+    """Summarizes real thread data."""
+    email_msg = {
+        "id": "msg1",
+        "threadId": "t1",
+        "snippet": "Budget Q1",
+        "payload": {
+            "headers": [
+                {"name": "From", "value": "Sarah <sarah@test.com>"},
+                {"name": "Subject", "value": "Budget discussion"},
+            ]
+        },
+    }
+    mock_google = AsyncMock()
+    mock_google.list_messages = AsyncMock(return_value=[email_msg])
+    mock_google.get_thread = AsyncMock(return_value=[email_msg])
 
-    mock_summarize.assert_awaited_once_with("summarize this email thread", "en")
-    assert result.response_text
+    summary = "<b>Budget Q1</b>\nSarah proposed 15% increase."
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._summarize",
+            new_callable=AsyncMock,
+            return_value=summary,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert "Sarah" in result.response_text or "Budget" in result.response_text
 
 
 def test_system_prompt_includes_language(skill, ctx):

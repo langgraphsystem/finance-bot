@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.send_email.handler import SendEmailSkill
 
+MODULE = "src.skills.send_email.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,80 +43,74 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_send_email_basic(skill, message, ctx):
-    """Returns email draft with confirmation prompt."""
-    draft = (
-        "<b>To:</b> sarah@example.com\n"
-        "<b>Subject:</b> Project Update\n\n"
-        "Hi Sarah,\n\n"
-        "Just wanted to share a quick update on the project.\n\n"
-        "Best,\nUser\n\nSend this?"
+async def test_send_email_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
-        "src.skills.send_email.handler.compose_email",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=draft,
+        return_value=prompt,
     ):
-        result = await skill.execute(
-            message,
-            ctx,
-            {
-                "email_to": "sarah@example.com",
-                "email_subject": "Project Update",
-                "email_body_hint": "share project update",
-            },
-        )
+        result = await skill.execute(message, ctx, {})
 
-    assert "sarah@example.com" in result.response_text
-    assert "Send this?" in result.response_text
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_send_email_with_intent_data(skill, ctx):
-    """Uses email_to, email_subject, email_body_hint from intent_data."""
+async def test_send_email_missing_recipient(skill, ctx):
+    """Returns error when no email_to."""
     msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="email Mike about lunch tomorrow",
+        id="msg-2", user_id="tg_1", chat_id="chat_1",
+        type=MessageType.text, text="send email",
     )
     with patch(
-        "src.skills.send_email.handler.compose_email",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value="<b>To:</b> Mike\n<b>Subject:</b> Lunch Tomorrow\n\nSend this?",
-    ) as mock_compose:
-        result = await skill.execute(
-            msg,
-            ctx,
-            {"email_to": "Mike", "email_subject": "Lunch Tomorrow", "email_body_hint": "lunch"},
-        )
-
-    call_args = mock_compose.call_args[0][0]
-    assert "Mike" in call_args
-    assert "Lunch Tomorrow" in call_args
-    assert "Mike" in result.response_text
-
-
-@pytest.mark.asyncio
-async def test_send_email_empty_text(skill, ctx):
-    """Empty text still builds prompt from intent_data."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.send_email.handler.compose_email",
-        new_callable=AsyncMock,
-        return_value="Who would you like to email?",
-    ) as mock_compose:
+        return_value=None,
+    ):
         result = await skill.execute(msg, ctx, {})
 
-    mock_compose.assert_awaited_once()
-    assert result.response_text
+    assert "получателя" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_send_email_success(skill, message, ctx):
+    """Successfully sends email via Gmail API."""
+    mock_google = AsyncMock()
+    mock_google.send_message = AsyncMock(return_value={"id": "sent_123"})
+
+    intent_data = {
+        "email_to": "sarah@example.com",
+        "email_subject": "Project Update",
+        "email_body_hint": "share project update",
+    }
+
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._draft_body",
+            new_callable=AsyncMock,
+            return_value="Here's the project update.",
+        ),
+    ):
+        result = await skill.execute(message, ctx, intent_data)
+
+    assert "отправлен" in result.response_text.lower()
+    mock_google.send_message.assert_awaited_once()
 
 
 def test_system_prompt_includes_language(skill, ctx):

@@ -1,9 +1,10 @@
-"""Summarize thread skill — summarizes email conversations using Claude Haiku."""
+"""Summarize thread skill — fetches real email thread, summarizes with LLM."""
 
 import logging
 from typing import Any
 
 from src.core.context import SessionContext
+from src.core.google_auth import get_google_client, parse_email_headers, require_google_or_prompt
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
@@ -20,7 +21,7 @@ Rules:
 - List key decisions or action items.
 - Note who said what for important points.
 - Max 5 sentences for the summary.
-- End with "Any action needed on this?"
+- End with "Нужно что-то сделать по этому письму?"
 - Use HTML tags for Telegram (<b>bold</b>). No Markdown.
 - Respond in: {language}."""
 
@@ -37,21 +38,46 @@ class SummarizeThreadSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        query = message.text or "summarize this email thread"
-        result = await summarize_thread(query, context.language or "en")
+        prompt_result = await require_google_or_prompt(context.user_id)
+        if prompt_result:
+            return prompt_result
+
+        google = await get_google_client(context.user_id)
+        if not google:
+            return SkillResult(response_text="Ошибка подключения к Gmail. Попробуйте /connect")
+
+        # Get most recent thread
+        try:
+            messages = await google.list_messages("is:inbox", max_results=1)
+            if not messages:
+                return SkillResult(response_text="Нет писем для суммаризации.")
+
+            thread_id = messages[0].get("threadId", "")
+            thread_msgs = await google.get_thread(thread_id) if thread_id else messages
+        except Exception as e:
+            logger.warning("Gmail thread fetch failed: %s", e)
+            return SkillResult(response_text="Ошибка при загрузке цепочки писем.")
+
+        parsed = [parse_email_headers(m) for m in thread_msgs]
+        thread_text = "\n---\n".join(
+            f"From: {e['from']}\nSubject: {e['subject']}\n{e['snippet']}"
+            for e in parsed
+        )
+
+        result = await _summarize(thread_text, context.language or "ru")
         return SkillResult(response_text=result)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SUMMARIZE_THREAD_SYSTEM_PROMPT.format(language=context.language or "en")
+        return SUMMARIZE_THREAD_SYSTEM_PROMPT.format(language=context.language or "ru")
 
 
-async def summarize_thread(query: str, language: str) -> str:
-    """Summarize email thread using Claude Haiku."""
+async def _summarize(thread_text: str, language: str) -> str:
+    """Summarize email thread using LLM."""
     client = anthropic_client()
     system = SUMMARIZE_THREAD_SYSTEM_PROMPT.format(language=language)
     prompt_data = PromptAdapter.for_claude(
         system=system,
-        messages=[{"role": "user", "content": query}],
+        messages=[{"role": "user", "content": f"Email thread:\n{thread_text}"}],
     )
     try:
         response = await client.messages.create(
@@ -59,8 +85,8 @@ async def summarize_thread(query: str, language: str) -> str:
         )
         return response.content[0].text
     except Exception as e:
-        logger.warning("Summarize thread failed: %s", e)
-        return "I couldn't summarize the thread. Try again?"
+        logger.warning("Summarize thread LLM failed: %s", e)
+        return "Не удалось обобщить цепочку писем."
 
 
 skill = SummarizeThreadSkill()

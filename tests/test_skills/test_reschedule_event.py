@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.reschedule_event.handler import RescheduleEventSkill
 
+MODULE = "src.skills.reschedule_event.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,63 +43,91 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_reschedule_basic(skill, message, ctx):
-    """Returns reschedule confirmation."""
-    confirmation = "Moved <b>Dentist appointment</b> to Thursday 2:00 PM. No conflicts."
+async def test_reschedule_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+    )
     with patch(
-        "src.skills.reschedule_event.handler.reschedule_response",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=confirmation,
+        return_value=prompt,
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "Dentist" in result.response_text
-    assert "Thursday" in result.response_text
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_reschedule_from_message_text(skill, ctx):
-    """Uses message.text for the reschedule query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="push standup to 10am",
-    )
-    with patch(
-        "src.skills.reschedule_event.handler.reschedule_response",
-        new_callable=AsyncMock,
-        return_value="Moved <b>Standup</b> to 10:00 AM. No conflicts.",
-    ) as mock_resched:
-        result = await skill.execute(msg, ctx, {})
+async def test_reschedule_no_events(skill, message, ctx):
+    """Returns message when no upcoming events."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[])
 
-    mock_resched.assert_awaited_once_with("push standup to 10am", "en")
-    assert "Standup" in result.response_text
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert (
+        "нет" in result.response_text.lower()
+        or "событий" in result.response_text.lower()
+    )
 
 
 @pytest.mark.asyncio
-async def test_reschedule_empty_text(skill, ctx):
-    """Empty text passes empty string to handler."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
+async def test_reschedule_success(skill, message, ctx):
+    """Reschedules event via Google Calendar API."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[
+        {
+            "id": "evt1",
+            "summary": "Dentist",
+            "start": {"dateTime": "2026-02-18T10:00:00+00:00"},
+        },
+    ])
+    mock_google.update_event = AsyncMock(return_value={})
+
+    reschedule_json = (
+        '{"event_id": "evt1",'
+        ' "new_date": "2026-02-20", "new_time": "14:00"}'
     )
-    with patch(
-        "src.skills.reschedule_event.handler.reschedule_response",
-        new_callable=AsyncMock,
-        return_value="Which event would you like to reschedule?",
-    ) as mock_resched:
-        result = await skill.execute(msg, ctx, {})
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._parse_reschedule",
+            new_callable=AsyncMock,
+            return_value=reschedule_json,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
 
-    mock_resched.assert_awaited_once_with("", "en")
-    assert result.response_text
+    assert "перенесено" in result.response_text.lower()
+    mock_google.update_event.assert_awaited_once()
 
 
-def test_system_prompt_includes_language(skill, ctx):
-    """System prompt contains the user's language."""
+def test_system_prompt_is_string(skill, ctx):
+    """System prompt returns the reschedule prompt."""
     prompt = skill.get_system_prompt(ctx)
-    assert "en" in prompt
+    assert "reschedule" in prompt.lower() or "JSON" in prompt

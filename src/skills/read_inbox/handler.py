@@ -1,9 +1,10 @@
-"""Read inbox skill — summarizes important emails using Claude Haiku."""
+"""Read inbox skill — fetches real Gmail messages and summarizes with LLM."""
 
 import logging
 from typing import Any
 
 from src.core.context import SessionContext
+from src.core.google_auth import get_google_client, parse_email_headers, require_google_or_prompt
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
@@ -37,21 +38,50 @@ class ReadInboxSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        query = message.text or "check my email"
-        result = await summarize_inbox(query, context.language or "en")
+        # OAuth check
+        prompt_result = await require_google_or_prompt(context.user_id)
+        if prompt_result:
+            return prompt_result
+
+        google = await get_google_client(context.user_id)
+        if not google:
+            return SkillResult(
+                response_text="Не удалось подключиться к Gmail. Попробуйте /connect"
+            )
+
+        # Fetch real emails
+        try:
+            messages = await google.list_messages("is:unread", max_results=10)
+        except Exception as e:
+            logger.warning("Gmail list_messages failed: %s", e)
+            return SkillResult(response_text="Ошибка при загрузке почты. Попробуйте позже.")
+
+        if not messages:
+            return SkillResult(response_text="📭 Новых писем нет.")
+
+        # Parse headers into readable format
+        parsed = [parse_email_headers(m) for m in messages]
+        email_text = "\n".join(
+            f"{i}. From: {e['from']}\n   Subject: {e['subject']}\n   {e['snippet'][:100]}"
+            for i, e in enumerate(parsed, 1)
+        )
+
+        # LLM summarizes real data
+        result = await _summarize_with_llm(email_text, context.language or "ru")
         return SkillResult(response_text=result)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return READ_INBOX_SYSTEM_PROMPT.format(language=context.language or "en")
+        return READ_INBOX_SYSTEM_PROMPT.format(language=context.language or "ru")
 
 
-async def summarize_inbox(query: str, language: str) -> str:
-    """Summarize inbox using Claude Haiku."""
+async def _summarize_with_llm(email_data: str, language: str) -> str:
+    """Summarize real email data using Claude Haiku."""
     client = anthropic_client()
     system = READ_INBOX_SYSTEM_PROMPT.format(language=language)
+    prompt = f"Here are my unread emails:\n\n{email_data}\n\nSummarize them."
     prompt_data = PromptAdapter.for_claude(
         system=system,
-        messages=[{"role": "user", "content": query}],
+        messages=[{"role": "user", "content": prompt}],
     )
     try:
         response = await client.messages.create(
@@ -59,8 +89,8 @@ async def summarize_inbox(query: str, language: str) -> str:
         )
         return response.content[0].text
     except Exception as e:
-        logger.warning("Read inbox failed: %s", e)
-        return "I couldn't check your email. Try again?"
+        logger.warning("Read inbox LLM failed: %s", e)
+        return "Не удалось обработать почту. Попробуйте позже."
 
 
 skill = ReadInboxSkill()

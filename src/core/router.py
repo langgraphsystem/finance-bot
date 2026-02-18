@@ -313,6 +313,28 @@ async def _handle_slash_command(
             logger.error("GDPR delete failed: %s", e)
             return OutgoingMessage(text="Ошибка при удалении данных.", chat_id=message.chat_id)
 
+    elif text == "/connect":
+        from api.oauth import generate_oauth_link
+
+        if not context.family_id:
+            return OutgoingMessage(
+                text="Сначала зарегистрируйтесь через /start",
+                chat_id=message.chat_id,
+            )
+        try:
+            link = await generate_oauth_link(context.user_id)
+            return OutgoingMessage(
+                text="Подключите Google для работы с почтой и календарём:",
+                chat_id=message.chat_id,
+                buttons=[{"text": "🔗 Подключить Google", "url": link}],
+            )
+        except Exception as e:
+            logger.error("Failed to generate OAuth link: %s", e)
+            return OutgoingMessage(
+                text="Ошибка при генерации ссылки. Попробуйте позже.",
+                chat_id=message.chat_id,
+            )
+
     elif text.startswith("/invite"):
         parts = text.split(maxsplit=1)
         if len(parts) < 2:

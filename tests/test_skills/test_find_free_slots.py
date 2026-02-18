@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.find_free_slots.handler import FindFreeSlotsSkill
 
+MODULE = "src.skills.find_free_slots.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,63 +43,83 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_find_free_slots_basic(skill, message, ctx):
-    """Returns available time slots."""
-    slots = "You're free: 8:00 AM — 10:00 AM, 1:00 PM — 3:00 PM.\n\nWant to book something?"
+async def test_find_free_slots_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+    )
     with patch(
-        "src.skills.find_free_slots.handler.find_free_response",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=slots,
+        return_value=prompt,
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "free" in result.response_text.lower()
-    assert "book" in result.response_text.lower()
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_find_free_slots_from_message_text(skill, ctx):
-    """Uses message.text for the query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="do I have any gaps on Wednesday afternoon?",
-    )
-    with patch(
-        "src.skills.find_free_slots.handler.find_free_response",
-        new_callable=AsyncMock,
-        return_value="You're free: 2:00 PM — 6:00 PM on Wednesday.",
-    ) as mock_free:
-        result = await skill.execute(msg, ctx, {})
+async def test_find_free_slots_all_free(skill, message, ctx):
+    """Returns all-day-free when no busy periods."""
+    mock_google = AsyncMock()
+    mock_google.get_free_busy = AsyncMock(return_value=[])
 
-    mock_free.assert_awaited_once_with("do I have any gaps on Wednesday afternoon?", "en")
-    assert "Wednesday" in result.response_text
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert "свободен" in result.response_text.lower()
 
 
 @pytest.mark.asyncio
-async def test_find_free_slots_empty_text(skill, ctx):
-    """Empty text defaults to week availability query."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
+async def test_find_free_slots_with_busy(skill, message, ctx):
+    """Computes free gaps between busy periods."""
+    mock_google = AsyncMock()
+    mock_google.get_free_busy = AsyncMock(return_value=[
+        {
+            "start": "2026-02-18T10:00:00+00:00",
+            "end": "2026-02-18T11:00:00+00:00",
+        },
+        {
+            "start": "2026-02-18T14:00:00+00:00",
+            "end": "2026-02-18T15:00:00+00:00",
+        },
+    ])
+
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert (
+        "Свободное время" in result.response_text
+        or "свободен" in result.response_text.lower()
     )
-    with patch(
-        "src.skills.find_free_slots.handler.find_free_response",
-        new_callable=AsyncMock,
-        return_value="You're free all day tomorrow.",
-    ) as mock_free:
-        result = await skill.execute(msg, ctx, {})
-
-    mock_free.assert_awaited_once_with("when am I free this week?", "en")
-    assert result.response_text
 
 
-def test_system_prompt_includes_language(skill, ctx):
-    """System prompt contains the user's language."""
+def test_system_prompt_static(skill, ctx):
+    """System prompt is a static string."""
     prompt = skill.get_system_prompt(ctx)
-    assert "en" in prompt
+    assert "free" in prompt.lower() or "Calendar" in prompt

@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.list_events.handler import ListEventsSkill
 
+MODULE = "src.skills.list_events.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,65 +43,83 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_list_events_basic(skill, message, ctx):
-    """Returns formatted calendar events."""
-    formatted = (
-        "• 9:00 AM — Team standup\n"
-        "• 12:00 PM — Lunch with Mike\n"
-        "• 3:00 PM — Dentist appointment\n\n"
-        "Want to schedule something?"
+async def test_list_events_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
-        "src.skills.list_events.handler.format_events",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=formatted,
+        return_value=prompt,
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert result.buttons
+
+
+@pytest.mark.asyncio
+async def test_list_events_no_events(skill, message, ctx):
+    """Returns empty calendar message."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[])
+
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert "свободен" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_list_events_with_events(skill, message, ctx):
+    """Formats real calendar events."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[
+        {
+            "summary": "Team standup",
+            "start": {"dateTime": "2026-02-18T09:00:00-05:00"},
+        },
+        {
+            "summary": "Lunch",
+            "start": {"dateTime": "2026-02-18T12:00:00-05:00"},
+        },
+    ])
+
+    formatted = "• 9:00 AM — Team standup\n• 12:00 PM — Lunch"
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._format_events",
+            new_callable=AsyncMock,
+            return_value=formatted,
+        ),
     ):
         result = await skill.execute(message, ctx, {})
 
     assert "standup" in result.response_text
-    assert "schedule" in result.response_text.lower()
-
-
-@pytest.mark.asyncio
-async def test_list_events_from_message_text(skill, ctx):
-    """Falls back to message.text when no specific query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="what do I have on Friday?",
-    )
-    with patch(
-        "src.skills.list_events.handler.format_events",
-        new_callable=AsyncMock,
-        return_value="Your calendar is clear on Friday. Want to schedule something?",
-    ) as mock_fmt:
-        result = await skill.execute(msg, ctx, {})
-
-    mock_fmt.assert_awaited_once_with("what do I have on Friday?", "en")
-    assert "Friday" in result.response_text
-
-
-@pytest.mark.asyncio
-async def test_list_events_empty_text(skill, ctx):
-    """Empty text defaults to today's schedule query."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.list_events.handler.format_events",
-        new_callable=AsyncMock,
-        return_value="Your calendar is clear.",
-    ) as mock_fmt:
-        result = await skill.execute(msg, ctx, {})
-
-    mock_fmt.assert_awaited_once_with("today's schedule", "en")
-    assert result.response_text
 
 
 def test_system_prompt_includes_language(skill, ctx):

@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.morning_brief.handler import MorningBriefSkill
 
+MODULE = "src.skills.morning_brief.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,66 +43,104 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_morning_brief_basic(skill, message, ctx):
-    """Returns a morning summary."""
-    brief = (
-        "<b>Morning!</b>\n\n"
-        "• 9:00 AM — Team standup\n"
-        "• 11:00 AM — Client call\n\n"
-        "Tasks due today:\n"
-        "• Submit expense report\n\n"
-        "Suggestion: Block 30 min for the expense report before standup."
+async def test_morning_brief_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
-        "src.skills.morning_brief.handler.generate_brief",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=brief,
+        return_value=prompt,
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "Morning" in result.response_text
-    assert "standup" in result.response_text
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_morning_brief_from_message_text(skill, ctx):
-    """Uses message.text for the brief query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="what's on my plate today?",
-    )
-    with patch(
-        "src.skills.morning_brief.handler.generate_brief",
-        new_callable=AsyncMock,
-        return_value="Morning! No events today — your calendar is clear.",
-    ) as mock_brief:
-        result = await skill.execute(msg, ctx, {})
+async def test_morning_brief_with_data(skill, message, ctx):
+    """Generates brief from real email + calendar data."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[
+        {
+            "summary": "Standup",
+            "start": {"dateTime": "2026-02-18T09:00:00+00:00"},
+        },
+    ])
+    mock_google.list_messages = AsyncMock(return_value=[
+        {
+            "id": "msg1",
+            "threadId": "t1",
+            "snippet": "Project update",
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Sarah <sarah@test.com>"},
+                    {"name": "Subject", "value": "Project deadline"},
+                ]
+            },
+        }
+    ])
 
-    mock_brief.assert_awaited_once_with("what's on my plate today?", "en")
-    assert "clear" in result.response_text.lower()
+    brief = (
+        "<b>Доброе утро!</b>\n• 9:00 — Standup\n\n"
+        "📧 Sarah — Project deadline\n\nУдачного дня!"
+    )
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._generate_brief",
+            new_callable=AsyncMock,
+            return_value=brief,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert (
+        "утро" in result.response_text.lower()
+        or "Standup" in result.response_text
+    )
 
 
 @pytest.mark.asyncio
-async def test_morning_brief_empty_text(skill, ctx):
-    """Empty text defaults to morning brief query."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.morning_brief.handler.generate_brief",
-        new_callable=AsyncMock,
-        return_value="Morning! No events today.",
-    ) as mock_brief:
-        result = await skill.execute(msg, ctx, {})
+async def test_morning_brief_empty_calendar_and_inbox(skill, message, ctx):
+    """Handles empty calendar and inbox gracefully."""
+    mock_google = AsyncMock()
+    mock_google.list_events = AsyncMock(return_value=[])
+    mock_google.list_messages = AsyncMock(return_value=[])
 
-    mock_brief.assert_awaited_once_with("morning brief", "en")
+    brief = "<b>Доброе утро!</b>\nКалендарь свободен. Нет важных писем."
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._generate_brief",
+            new_callable=AsyncMock,
+            return_value=brief,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
     assert result.response_text
 
 

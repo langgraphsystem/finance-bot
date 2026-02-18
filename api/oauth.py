@@ -93,16 +93,32 @@ async def google_oauth_callback(
         if not user:
             raise HTTPException(status_code=404, detail="User not found.")
 
-        oauth_token = OAuthToken(
-            user_id=user.id,
-            family_id=user.family_id,
-            provider="google",
-            access_token_encrypted=encrypt_token(token_data["access_token"]),
-            refresh_token_encrypted=encrypt_token(token_data.get("refresh_token", "")),
-            expires_at=datetime.now(UTC) + timedelta(seconds=token_data.get("expires_in", 3600)),
-            scopes=token_data.get("scope", "").split(),
+        # Upsert: update existing token or create new one
+        existing = await session.scalar(
+            select(OAuthToken)
+            .where(OAuthToken.user_id == user.id, OAuthToken.provider == "google")
         )
-        session.add(oauth_token)
+
+        encrypted_access = encrypt_token(token_data["access_token"])
+        encrypted_refresh = encrypt_token(token_data.get("refresh_token", ""))
+        expires = datetime.now(UTC) + timedelta(seconds=token_data.get("expires_in", 3600))
+        scopes = token_data.get("scope", "").split()
+
+        if existing:
+            existing.access_token_encrypted = encrypted_access
+            existing.refresh_token_encrypted = encrypted_refresh
+            existing.expires_at = expires
+            existing.scopes = scopes
+        else:
+            session.add(OAuthToken(
+                user_id=user.id,
+                family_id=user.family_id,
+                provider="google",
+                access_token_encrypted=encrypted_access,
+                refresh_token_encrypted=encrypted_refresh,
+                expires_at=expires,
+                scopes=scopes,
+            ))
         await session.commit()
 
     # Clean up state

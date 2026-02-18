@@ -9,6 +9,8 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.follow_up_email.handler import FollowUpEmailSkill
 
+MODULE = "src.skills.follow_up_email.handler"
+
 
 @pytest.fixture
 def skill():
@@ -41,64 +43,88 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_follow_up_basic(skill, message, ctx):
-    """Returns list of unanswered emails."""
-    follow_ups = (
-        "Sarah — Project deadline (received 2 days ago)\n"
-        "Boss — Q4 review (received 1 day ago)\n\n"
-        "Want me to draft a reply to any of these?"
+async def test_follow_up_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
-        "src.skills.follow_up_email.handler.check_follow_ups",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=follow_ups,
+        return_value=prompt,
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "Sarah" in result.response_text
-    assert "draft" in result.response_text.lower()
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_follow_up_from_message_text(skill, ctx):
-    """Uses message.text for the follow-up query."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="do I owe anyone a reply?",
-    )
-    with patch(
-        "src.skills.follow_up_email.handler.check_follow_ups",
-        new_callable=AsyncMock,
-        return_value="You're all caught up — no pending replies.",
-    ) as mock_follow:
-        result = await skill.execute(msg, ctx, {})
+async def test_follow_up_no_unread(skill, message, ctx):
+    """Returns all-clear message when no unread emails."""
+    mock_google = AsyncMock()
+    mock_google.list_messages = AsyncMock(return_value=[])
 
-    mock_follow.assert_awaited_once_with("do I owe anyone a reply?", "en")
-    assert "caught up" in result.response_text.lower()
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert (
+        "нет" in result.response_text.lower()
+        or "порядке" in result.response_text.lower()
+    )
 
 
 @pytest.mark.asyncio
-async def test_follow_up_empty_text(skill, ctx):
-    """Empty text defaults to follow-up query."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.follow_up_email.handler.check_follow_ups",
-        new_callable=AsyncMock,
-        return_value="You're all caught up — no pending replies.",
-    ) as mock_follow:
-        result = await skill.execute(msg, ctx, {})
+async def test_follow_up_with_emails(skill, message, ctx):
+    """Analyzes real email data for follow-ups."""
+    mock_google = AsyncMock()
+    mock_google.list_messages = AsyncMock(return_value=[
+        {
+            "id": "msg1",
+            "threadId": "t1",
+            "snippet": "Waiting for your reply",
+            "payload": {
+                "headers": [
+                    {"name": "From", "value": "Boss <boss@test.com>"},
+                    {"name": "Subject", "value": "Q4 Review"},
+                ]
+            },
+        }
+    ])
 
-    mock_follow.assert_awaited_once_with("any emails I need to reply to?", "en")
-    assert result.response_text
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._analyze_follow_ups",
+            new_callable=AsyncMock,
+            return_value="Boss — Q4 Review (2 дня назад)\n\nОтветить?",
+        ),
+    ):
+        result = await skill.execute(message, ctx, {})
+
+    assert "Boss" in result.response_text
 
 
 def test_system_prompt_includes_language(skill, ctx):

@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 
 from api.miniapp import router as miniapp_router
+from api.oauth import router as oauth_router
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session, redis
@@ -191,6 +192,7 @@ app.add_middleware(
 )
 
 app.include_router(miniapp_router)
+app.include_router(oauth_router)
 
 
 @app.get("/health")

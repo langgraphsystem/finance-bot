@@ -9,6 +9,13 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.create_event.handler import CreateEventSkill
 
+MODULE = "src.skills.create_event.handler"
+
+EXTRACT_JSON = (
+    '{"title": "Meeting with Sarah", "date": "2026-02-19",'
+    ' "time": "15:00", "duration_hours": 1, "location": null}'
+)
+
 
 @pytest.fixture
 def skill():
@@ -41,66 +48,88 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_create_event_basic(skill, message, ctx):
-    """Returns event creation confirmation."""
-    confirmation = "Created: <b>Meeting with Sarah</b> — Tomorrow 3:00 PM. 1 hour.\n\nThat work?"
+async def test_create_event_requires_google(skill, message, ctx):
+    """Returns connect button when Google not connected."""
+    from src.skills.base import SkillResult
+
+    prompt = SkillResult(
+        response_text="Подключите Google",
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
+    )
+    intent = {"event_title": "Meeting", "event_datetime": "3pm"}
     with patch(
-        "src.skills.create_event.handler.create_event_response",
+        f"{MODULE}.require_google_or_prompt",
         new_callable=AsyncMock,
-        return_value=confirmation,
+        return_value=prompt,
     ):
-        result = await skill.execute(
-            message, ctx, {"event_title": "Meeting with Sarah", "event_datetime": "3pm tomorrow"}
-        )
+        result = await skill.execute(message, ctx, intent)
 
-    assert "Sarah" in result.response_text
-    assert "That work?" in result.response_text
+    assert result.buttons
 
 
 @pytest.mark.asyncio
-async def test_create_event_with_intent_data(skill, ctx):
-    """Uses event_title and event_datetime from intent_data."""
-    msg = IncomingMessage(
-        id="msg-2",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="add dentist appointment Wednesday 10am",
-    )
-    with patch(
-        "src.skills.create_event.handler.create_event_response",
-        new_callable=AsyncMock,
-        return_value="Created: <b>Dentist</b> — Wednesday 10:00 AM. 1 hour.\n\nThat work?",
-    ) as mock_create:
-        result = await skill.execute(
-            msg, ctx, {"event_title": "Dentist", "event_datetime": "Wednesday 10am"}
-        )
+async def test_create_event_success(skill, message, ctx):
+    """Creates event via Google Calendar API."""
+    mock_google = AsyncMock()
+    mock_google.create_event = AsyncMock(return_value={
+        "htmlLink": "https://calendar.google.com/event/abc123",
+    })
 
-    call_args = mock_create.call_args[0][0]
-    assert "Dentist" in call_args
-    assert "Wednesday 10am" in call_args
-    assert "Dentist" in result.response_text
+    intent = {
+        "event_title": "Meeting with Sarah",
+        "event_datetime": "3pm",
+    }
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._extract_event_details",
+            new_callable=AsyncMock,
+            return_value=EXTRACT_JSON,
+        ),
+    ):
+        result = await skill.execute(message, ctx, intent)
+
+    assert "Создано" in result.response_text or "Meeting" in result.response_text
+    mock_google.create_event.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_create_event_empty_text(skill, ctx):
-    """Empty text still builds prompt from intent_data."""
-    msg = IncomingMessage(
-        id="msg-3",
-        user_id="tg_1",
-        chat_id="chat_1",
-        type=MessageType.text,
-        text="",
-    )
-    with patch(
-        "src.skills.create_event.handler.create_event_response",
-        new_callable=AsyncMock,
-        return_value="What event would you like to create?",
-    ) as mock_create:
-        result = await skill.execute(msg, ctx, {})
+async def test_create_event_api_failure(skill, message, ctx):
+    """Returns error on Calendar API failure."""
+    mock_google = AsyncMock()
+    mock_google.create_event = AsyncMock(side_effect=Exception("API error"))
 
-    mock_create.assert_awaited_once()
-    assert result.response_text
+    extract = '{"title": "Meeting", "date": "2026-02-19", "time": "15:00"}'
+    intent = {"event_title": "Meeting", "event_datetime": "3pm"}
+    with (
+        patch(
+            f"{MODULE}.require_google_or_prompt",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            f"{MODULE}.get_google_client",
+            new_callable=AsyncMock,
+            return_value=mock_google,
+        ),
+        patch(
+            f"{MODULE}._extract_event_details",
+            new_callable=AsyncMock,
+            return_value=extract,
+        ),
+    ):
+        result = await skill.execute(message, ctx, intent)
+
+    assert "Ошибка" in result.response_text
 
 
 def test_system_prompt_includes_language(skill, ctx):

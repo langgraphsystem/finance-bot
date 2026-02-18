@@ -1,9 +1,11 @@
-"""Create event skill — adds calendar events using Claude Haiku."""
+"""Create event skill — creates real calendar events via Google Calendar API."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core.context import SessionContext
+from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
@@ -13,16 +15,18 @@ from src.skills.base import SkillResult
 logger = logging.getLogger(__name__)
 
 CREATE_EVENT_SYSTEM_PROMPT = """\
-You are a calendar assistant. The user wants to create an event.
+You are a calendar assistant. Extract event details from the user's message.
 
-Rules:
-- Confirm the event with: title, date, time, duration (default 1 hour if unspecified).
-- If location is mentioned, include it.
-- Format: "Created: <b>[Title]</b> — [Day] [Time]. [Duration]."
-- If info is ambiguous, ask one clarifying question (max 1).
-- End with "That work?" to invite correction.
-- Use HTML tags for Telegram. No Markdown.
-- Respond in: {language}."""
+Respond with ONLY a JSON object (no markdown, no explanation):
+{{"title": "...", "date": "YYYY-MM-DD", "time": "HH:MM", "duration_hours": 1, "location": null}}
+
+If info is missing, use reasonable defaults:
+- date: today
+- time: next round hour
+- duration: 1 hour
+- location: null
+
+Respond in: {language}."""
 
 
 class CreateEventSkill:
@@ -37,34 +41,88 @@ class CreateEventSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        prompt_result = await require_google_or_prompt(context.user_id)
+        if prompt_result:
+            return prompt_result
+
+        google = await get_google_client(context.user_id)
+        if not google:
+            return SkillResult(response_text="Ошибка подключения к Calendar. Попробуйте /connect")
+
         event_title = intent_data.get("event_title") or ""
         event_datetime = intent_data.get("event_datetime") or ""
         query = message.text or ""
-        prompt = f"Create event: {event_title} at {event_datetime}. User said: {query}"
 
-        result = await create_event_response(prompt.strip(), context.language or "en")
-        return SkillResult(response_text=result)
+        # Use LLM to extract structured event details
+        import json
+
+        details = await _extract_event_details(
+            event_title, event_datetime, query, context.language
+        )
+        try:
+            parsed = json.loads(details)
+        except (json.JSONDecodeError, TypeError):
+            parsed = {"title": event_title or query, "date": None, "time": None}
+
+        title = parsed.get("title") or event_title or "Новое событие"
+        now = datetime.now(UTC)
+
+        try:
+            date_str = parsed.get("date") or now.strftime("%Y-%m-%d")
+            time_str = parsed.get("time") or (now + timedelta(hours=1)).strftime("%H:%M")
+            start = datetime.fromisoformat(f"{date_str}T{time_str}:00+00:00")
+        except (ValueError, TypeError):
+            start = now + timedelta(hours=1)
+
+        duration = float(parsed.get("duration_hours", 1) or 1)
+        end = start + timedelta(hours=duration)
+        location = parsed.get("location")
+
+        try:
+            event = await google.create_event(
+                title=title,
+                start=start,
+                end=end,
+                location=location,
+            )
+            event_link = event.get("htmlLink", "")
+            return SkillResult(
+                response_text=(
+                    f"✅ Создано: <b>{title}</b>\n"
+                    f"📅 {start.strftime('%d.%m.%Y %H:%M')} — "
+                    f"{end.strftime('%H:%M')}\n"
+                    f"{f'📍 {location}' if location else ''}"
+                    f"{f'\n🔗 {event_link}' if event_link else ''}"
+                )
+            )
+        except Exception as e:
+            logger.error("Calendar create_event failed: %s", e)
+            return SkillResult(
+                response_text=f"Ошибка при создании события «{title}». Попробуйте позже."
+            )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return CREATE_EVENT_SYSTEM_PROMPT.format(language=context.language or "en")
+        return CREATE_EVENT_SYSTEM_PROMPT.format(language=context.language or "ru")
 
 
-async def create_event_response(query: str, language: str) -> str:
-    """Generate event creation confirmation using Claude Haiku."""
+async def _extract_event_details(
+    title: str, dt: str, user_text: str, language: str
+) -> str:
+    """Extract event details as JSON via LLM."""
     client = anthropic_client()
-    system = CREATE_EVENT_SYSTEM_PROMPT.format(language=language)
+    system = CREATE_EVENT_SYSTEM_PROMPT.format(language=language or "ru")
+    prompt = f"Title hint: {title}\nDatetime hint: {dt}\nUser said: {user_text}"
     prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": query}],
+        system=system, messages=[{"role": "user", "content": prompt}]
     )
     try:
         response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=512, **prompt_data
+            model="claude-haiku-4-5", max_tokens=256, **prompt_data
         )
         return response.content[0].text
     except Exception as e:
-        logger.warning("Create event failed: %s", e)
-        return "I couldn't create the event. Try again?"
+        logger.warning("Create event LLM failed: %s", e)
+        return "{}"
 
 
 skill = CreateEventSkill()

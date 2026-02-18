@@ -1,28 +1,16 @@
-"""Find free slots skill — checks available times using Claude Haiku."""
+"""Find free slots skill — checks availability via Google Calendar API."""
 
 import logging
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
-
-FREE_SLOTS_SYSTEM_PROMPT = """\
-You are a calendar assistant. The user wants to know when they're free.
-
-Rules:
-- List free time blocks with start-end times.
-- Business hours default: 8 AM — 6 PM (unless user specifies otherwise).
-- Format: "You're free: [time range], [time range]."
-- If the whole day is free, say so.
-- Offer to schedule: "Want to book something?"
-- Use HTML tags for Telegram. No Markdown.
-- Respond in: {language}."""
 
 
 class FindFreeSlotsSkill:
@@ -37,30 +25,66 @@ class FindFreeSlotsSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        query = message.text or "when am I free this week?"
-        result = await find_free_response(query, context.language or "en")
-        return SkillResult(response_text=result)
+        prompt_result = await require_google_or_prompt(context.user_id)
+        if prompt_result:
+            return prompt_result
+
+        google = await get_google_client(context.user_id)
+        if not google:
+            return SkillResult(response_text="Ошибка подключения к Calendar. Попробуйте /connect")
+
+        now = datetime.now(UTC)
+        time_min = now.replace(hour=8, minute=0, second=0, microsecond=0)
+        time_max = now.replace(hour=18, minute=0, second=0, microsecond=0)
+
+        # If it's past 6 PM, check tomorrow
+        if now.hour >= 18:
+            time_min += timedelta(days=1)
+            time_max += timedelta(days=1)
+
+        try:
+            busy_periods = await google.get_free_busy(time_min, time_max)
+        except Exception as e:
+            logger.warning("Calendar free/busy query failed: %s", e)
+            return SkillResult(response_text="Ошибка при проверке расписания.")
+
+        if not busy_periods:
+            date_str = time_min.strftime("%d.%m.%Y")
+            return SkillResult(
+                response_text=(
+                    f"📅 {date_str} — весь день свободен (8:00–18:00).\n"
+                    f"Запланировать что-нибудь?"
+                )
+            )
+
+        # Compute free gaps
+        free_slots = []
+        current = time_min
+        for period in busy_periods:
+            busy_start = datetime.fromisoformat(period["start"])
+            busy_end = datetime.fromisoformat(period["end"])
+            if current < busy_start:
+                free_slots.append(f"• {current.strftime('%H:%M')} — {busy_start.strftime('%H:%M')}")
+            current = max(current, busy_end)
+        if current < time_max:
+            free_slots.append(f"• {current.strftime('%H:%M')} — {time_max.strftime('%H:%M')}")
+
+        date_str = time_min.strftime("%d.%m.%Y")
+        if free_slots:
+            slots_text = "\n".join(free_slots)
+            return SkillResult(
+                response_text=(
+                    f"<b>📅 Свободное время {date_str}:</b>\n{slots_text}\n\n"
+                    f"Запланировать что-нибудь?"
+                )
+            )
+        else:
+            return SkillResult(
+                response_text=f"📅 {date_str} — нет свободного времени с 8:00 до 18:00."
+            )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return FREE_SLOTS_SYSTEM_PROMPT.format(language=context.language or "en")
-
-
-async def find_free_response(query: str, language: str) -> str:
-    """Generate free slots response using Claude Haiku."""
-    client = anthropic_client()
-    system = FREE_SLOTS_SYSTEM_PROMPT.format(language=language)
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": query}],
-    )
-    try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=512, **prompt_data
-        )
-        return response.content[0].text
-    except Exception as e:
-        logger.warning("Find free slots failed: %s", e)
-        return "I couldn't check your availability. Try again?"
+        return "Calendar assistant that finds free time slots."
 
 
 skill = FindFreeSlotsSkill()
