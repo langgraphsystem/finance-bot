@@ -63,6 +63,13 @@ rate confirmation, или другого изображения
 "расценки на ремонт ванной в Queens", "лучший ресторан рядом", "погода завтра")
 - compare_options: сравнение двух+ вариантов ("compare PEX vs copper", \
 "Costco vs Sam's Club", "Toyota Camry или Honda Accord", "что лучше: X или Y?")
+- maps_search: поиск мест на карте, адресов, маршрутов ("кафе рядом", "найди ресторан в Queens", \
+"ближайшая заправка", "маршрут до Walmart", "как доехать до аэропорта", \
+"coffee near me", "directions to Home Depot", "рестораны в Бруклине", \
+"расстояние от X до Y")
+- youtube_search: поиск видео на YouTube, инструкции, обзоры товаров ("найди видео", \
+"инструкция по замене масла Toyota", "обзор iPhone на youtube", \
+"tutorial for X", "how to fix X video", "youtube video about")
 - draft_message: написать сообщение, письмо, email ("write an email to school", \
 "напиши письмо", "draft a text to Mike", "compose a message")
 - translate_text: перевести текст ("translate to Spanish", "переведи на английский", \
@@ -109,6 +116,8 @@ general_chat — крайний случай. Если сообщение хот
 - Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
 - "search ...", "найди ...", "загугли ...", текущие данные → web_search
 - "compare", "vs", "или ... или", "что лучше" → compare_options
+- "рядом", "near me", "найди место", "маршрут до", "directions to", адреса → maps_search
+- "youtube", "видео", "video", "tutorial", "инструкция по X", "обзор" + товар → youtube_search
 - Приветствие, болтовня без конкретного вопроса → general_chat
 
 Правила приоритета (writing vs general_chat):
@@ -244,6 +253,10 @@ intent_type: "action", confidence: 0.92
     "task_deadline": "YYYY-MM-DDTHH:MM:SS" или null,
     "task_priority": "low" или "medium" или "high" или "urgent" или null,
     "search_topic": "тема поиска/вопроса" или null,
+    "maps_query": "что искать на карте" или null,
+    "maps_mode": "search" или "directions" или null,
+    "destination": "пункт назначения для маршрута" или null,
+    "youtube_query": "запрос для поиска видео" или null,
     "writing_topic": "тема/текст для написания" или null,
     "target_language": "целевой язык перевода" или null,
     "target_platform": "платформа для поста (google, instagram, etc.)" или null,
