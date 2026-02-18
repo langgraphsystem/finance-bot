@@ -70,7 +70,7 @@ async def get_google_client(user_id: str) -> GoogleWorkspaceClient | None:
                 select(OAuthToken)
                 .where(OAuthToken.user_id == uuid.UUID(user_id))
                 .where(OAuthToken.provider == "google")
-                .order_by(OAuthToken.updated_at.desc())
+                .order_by(OAuthToken.created_at.desc())
                 .limit(1)
             )
             if not token:
