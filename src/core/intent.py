@@ -90,13 +90,28 @@ rate confirmation, или другого изображения
 "перенеси встречу на 15:00", "push Mike's job to 11am")
 - morning_brief: утренняя сводка ("morning brief", "what's my day look like?", \
 "план на сегодня", "утренняя сводка")
+- shopping_list_add: добавить товары в список покупок ("add milk to my list", \
+"добавь молоко в список", "need bread and eggs", "нужно купить молоко, яйца", \
+"put butter on my grocery list", "в список: хлеб, масло")
+- shopping_list_view: показать список покупок ("what's on my list?", "show my grocery list", \
+"мой список покупок", "shopping list", "что в списке?", "покажи список")
+- shopping_list_remove: отметить/убрать товар из списка ("got the milk", "bought eggs", \
+"убери хлеб из списка", "got everything", "купил все", "взял молоко")
+- shopping_list_clear: очистить весь список ("clear my list", "очисти список", \
+"список готов", "done shopping", "list is done", "удали список")
 - general_chat: общий вопрос, не связанный с финансами напрямую
 
-Правила приоритета (задачи vs life-tracking):
+Правила приоритета (shopping list vs tasks):
+- "add X to my list/shopping list/grocery list" / "добавь в список покупок" → shopping_list_add
+- "show my list/grocery list" / "мой список покупок" / "что в списке" → shopping_list_view
+- "got the X" / "bought X" / "купил X" + контекст списка покупок → shopping_list_remove
+- "got everything" / "купил все" → shopping_list_remove
+- "clear my list" / "очисти список" / "done shopping" → shopping_list_clear
+- "need X, Y, Z" (товары без суммы, без "task:") → shopping_list_add
 - "задача: ..." или "add task: ..." → create_task (всегда)
 - "напомни ..." или "remind me ..." → set_reminder (всегда)
-- "мои задачи" или "what's on my list" → list_tasks
-- "готово" или "done with ..." → complete_task
+- "мои задачи" / "my tasks" / "what do I need to do" → list_tasks
+- "готово" или "done with ..." + контекст задач → complete_task
 - "план дня" (без конкретной задачи) → day_plan (life-tracking)
 
 Правила приоритета (research vs general_chat):
@@ -212,7 +227,10 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
     "event_title": "название события" или null,
     "event_datetime": "YYYY-MM-DDTHH:MM:SS" или null,
     "event_duration_minutes": число минут или null,
-    "event_attendees": ["участник1"] или null
+    "event_attendees": ["участник1"] или null,
+    "shopping_items": ["товар1", "товар2"] или null,
+    "shopping_list_name": "grocery" или "hardware" или название списка или null,
+    "shopping_item_remove": "товар для удаления" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""
@@ -301,6 +319,7 @@ Domains:
 - email: inbox, send, reply, draft, follow-up
 - calendar: events, schedule, meetings, free slots
 - tasks: to-do, reminders, deadlines, planning
+- shopping: shopping lists, grocery lists, items to buy
 - research: search, compare, analyze, investigate
 - writing: draft, translate, proofread, compose
 - contacts: people, CRM, follow-ups
@@ -315,6 +334,7 @@ DOMAIN_INTENT_PROMPTS: dict[str, str] = {
     "email": "Email domain intents — placeholder for Phase 2.",
     "calendar": "Calendar domain intents — placeholder for Phase 2.",
     "tasks": "Tasks domain intents — placeholder for Phase 3.",
+    "shopping": "Shopping list intents — add, view, remove, clear items.",
     "research": "Research domain intents — placeholder for Phase 3.",
     "writing": "Writing domain intents — placeholder for Phase 3.",
     "contacts": "Contacts domain intents — placeholder for Phase 3.",

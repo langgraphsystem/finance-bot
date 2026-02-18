@@ -33,6 +33,7 @@ from src.core.models.monitor import Monitor
 from src.core.models.oauth_token import OAuthToken
 from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.session_summary import SessionSummary
+from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.models.subscription import Subscription
 from src.core.models.task import Task
 from src.core.models.transaction import Transaction
@@ -78,6 +79,8 @@ __all__ = [
     "EmailCache",
     "Monitor",
     "OAuthToken",
+    "ShoppingList",
+    "ShoppingListItem",
     "Subscription",
     "Task",
     "UsageLog",

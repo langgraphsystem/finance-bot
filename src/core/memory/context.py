@@ -95,6 +95,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "find_free_slots": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "morning_brief": {"mem": "life", "hist": 0, "sql": False, "sum": False},
+    # Shopping list intents
+    "shopping_list_add": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "shopping_list_view": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "shopping_list_remove": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "shopping_list_clear": {"mem": False, "hist": 0, "sql": False, "sum": False},
 }
 
 
