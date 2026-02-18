@@ -246,7 +246,7 @@ class TestRunAnalyticsQuery:
         # Verify Agent constructor was called with expected arguments
         mock_agent_cls.assert_called_once()
         call_kwargs = mock_agent_cls.call_args
-        assert call_kwargs[0][0] == "anthropic:claude-sonnet-4-5"
+        assert call_kwargs[0][0] == "anthropic:claude-sonnet-4-6"
         assert call_kwargs[1]["result_type"] is AnalyticsResponse
         assert mock_server in call_kwargs[1]["mcp_servers"]
         assert "fam-42" in call_kwargs[1]["system_prompt"]

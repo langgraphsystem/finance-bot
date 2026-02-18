@@ -147,7 +147,7 @@ async def _generate_digest_analysis(events: list) -> str:
 
     client = anthropic_client()
     response = await client.messages.create(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-4-6",
         max_tokens=300,
         system=(
             "Ты анализируешь данные life-tracking за неделю. "

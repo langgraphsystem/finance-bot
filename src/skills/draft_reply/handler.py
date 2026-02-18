@@ -27,7 +27,7 @@ Rules:
 class DraftReplySkill:
     name = "draft_reply"
     intents = ["draft_reply"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="draft_reply")
     async def execute(
@@ -54,7 +54,7 @@ async def draft_reply_response(query: str, language: str) -> str:
     )
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5", max_tokens=1024, **prompt_data
+            model="claude-sonnet-4-6", max_tokens=1024, **prompt_data
         )
         return response.content[0].text
     except Exception as e:

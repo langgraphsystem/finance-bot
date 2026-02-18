@@ -59,7 +59,7 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 | Model | ID | Role |
 |-------|-----|------|
 | Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5` | Analytics, reports |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email |
 | Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, fallback |
 | GPT-5.2 | `gpt-5.2` | Fallback |
 | Gemini 3 Flash | `gemini-3-flash-preview` | Intent, OCR, summarization |

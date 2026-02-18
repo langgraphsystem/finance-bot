@@ -94,7 +94,7 @@ AGENTS: list[AgentConfig] = [
         name="analytics",
         system_prompt=ANALYTICS_AGENT_PROMPT,
         skills=["query_stats", "complex_query", "query_report"],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "budgets", "hist": 0, "sql": True, "sum": True},
     ),
     AgentConfig(
@@ -116,7 +116,7 @@ AGENTS: list[AgentConfig] = [
         name="onboarding",
         system_prompt=ONBOARDING_AGENT_PROMPT,
         skills=["onboarding", "general_chat"],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 10, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -137,7 +137,7 @@ AGENTS: list[AgentConfig] = [
         name="writing",
         system_prompt=WRITING_AGENT_PROMPT,
         skills=["draft_message", "translate_text", "write_post", "proofread"],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -150,7 +150,7 @@ AGENTS: list[AgentConfig] = [
             "follow_up_email",
             "summarize_thread",
         ],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(

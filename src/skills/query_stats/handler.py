@@ -131,7 +131,7 @@ def _calculate_previous_period(
 class QueryStatsSkill:
     name = "query_stats"
     intents = ["query_stats"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     async def _get_comparison_data(
         self,

@@ -157,7 +157,7 @@
 - ProfileLoader.match() для определения профиля
 
 **Что отсутствует (секция 8.1-8.2):**
-- **Архитектура, строка 2405:** AI (Claude Sonnet 4.5) для определения business_type -- в `handler.py` Claude не вызывается, используется только ProfileLoader.match() (строка 62). Файл содержит ONBOARDING_PROMPT, но он нигде не используется.
+- **Архитектура, строка 2405:** AI (Claude Sonnet 4.6) для определения business_type -- в `handler.py` Claude не вызывается, используется только ProfileLoader.match() (строка 62). Файл содержит ONBOARDING_PROMPT, но он нигде не используется.
 - **Строка 2406:** Бот генерирует invite_code для семьи -- нет в handler.py. Логика create_family() существует в `family.py`, но не интегрирована в skill.
 - **Строка 2407:** FSM aiogram v3 для шагов онбординга -- FSM не реализован. Вместо многошагового процесса -- одноразовый match.
 - **Строка 2412-2416:** Член семьи по invite_code -- join_family() реализован в `family.py`, но не интегрирован в skill или router.
@@ -284,7 +284,7 @@
 | Intent Detection | `gemini-3-flash-preview` | `gemini-2.0-flash` | `intent.py:72`, `router.py:16` |
 | OCR | `gemini-3-flash-preview` | `gemini-2.0-flash` | `scan_receipt/handler.py:39,93` |
 | Chat | `claude-haiku-4-5` | `claude-haiku-4-5-20251001` | multiple files |
-| Analytics | `claude-sonnet-4-5` | `claude-sonnet-4-5-20250929` | `query_stats/handler.py:31` |
+| Analytics | `claude-sonnet-4-6` | `claude-sonnet-4-6-20250929` | `query_stats/handler.py:31` |
 | Complex | `claude-opus-4-6` | `claude-opus-4-6` | `router.py:40` (только в конфиге, не используется) |
 | OCR fallback | `gpt-5.2` | `gpt-4o` | `router.py:24` |
 | Fallback analytics | `gpt-5.2` | `gpt-4o` | `router.py:37` |

@@ -341,7 +341,7 @@ class PluginLoader:
 class MorningBriefSkill:
     name = "morning_brief"
     intents = ["morning_brief"]
-    model = "claude-sonnet-4-5"  # upgraded for synthesis
+    model = "claude-sonnet-4-6"  # upgraded for synthesis
 
     async def execute(self, message, context, intent_data) -> SkillResult:
         plugin = plugin_loader.load(context.profile_type or "household")

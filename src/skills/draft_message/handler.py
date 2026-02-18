@@ -30,7 +30,7 @@ Rules:
 class DraftMessageSkill:
     name = "draft_message"
     intents = ["draft_message"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="draft_message")
     async def execute(
@@ -72,7 +72,7 @@ async def generate_draft(topic: str, language: str) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             **prompt_data,
         )

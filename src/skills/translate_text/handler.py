@@ -33,7 +33,7 @@ Translate the following to {target_language}:
 class TranslateTextSkill:
     name = "translate_text"
     intents = ["translate_text"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="translate_text")
     async def execute(
@@ -77,7 +77,7 @@ async def generate_translation(text: str, target_language: str, system_language:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             **prompt_data,
         )

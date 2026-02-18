@@ -115,7 +115,7 @@ def _format_categories_text(profile) -> str:
 class OnboardingSkill:
     name = "onboarding"
     intents = ["onboarding"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     def __init__(self):
         self._profile_loader = ProfileLoader("config/profiles")

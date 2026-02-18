@@ -45,7 +45,7 @@ def _parse_report_period(intent_data: dict[str, Any]) -> tuple[int, int]:
 class QueryReportSkill:
     name = "query_report"
     intents = ["query_report"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="query_report")
     async def execute(

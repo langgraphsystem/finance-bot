@@ -164,7 +164,7 @@ Bot: Sent. ✓ Also added "Estimate — Mrs. Rodriguez, 22 Pine St" to your cale
 | **Orchestrator** | LangGraph StateGraph: planner → reader → writer → reviewer → sender |
 | **Skills** | 5 new: `read_inbox`, `send_email`, `draft_reply`, `follow_up_email`, `summarize_thread` |
 | **APIs** | Gmail API via `aiogoogle` (shared OAuth with Calendar) |
-| **Models** | Claude Haiku 4.5 (read_inbox, follow_up, summarize), Claude Sonnet 4.5 (send_email, draft_reply — quality matters) |
+| **Models** | Claude Haiku 4.5 (read_inbox, follow_up, summarize), Claude Sonnet 4.6 (send_email, draft_reply — quality matters) |
 | **Database** | `email_cache` (existing from Phase 1 migration), `oauth_tokens` (shared with Calendar) |
 | **Background Jobs** | `sync_gmail_inbox` — every 10 min, check for new important emails |
 

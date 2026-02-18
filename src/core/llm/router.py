@@ -31,7 +31,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "analytics": ModelConfig(
         provider="anthropic",
-        model_id="claude-sonnet-4-5",
+        model_id="claude-sonnet-4-6",
         fallback_provider="openai",
         fallback_model_id="gpt-5.2",
     ),
@@ -49,7 +49,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "onboarding": ModelConfig(
         provider="anthropic",
-        model_id="claude-sonnet-4-5",
+        model_id="claude-sonnet-4-6",
     ),
 }
 

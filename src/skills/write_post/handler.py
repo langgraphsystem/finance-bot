@@ -32,7 +32,7 @@ Instagram = casual with line breaks, business response = calm and solution-orien
 class WritePostSkill:
     name = "write_post"
     intents = ["write_post"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="write_post")
     async def execute(
@@ -76,7 +76,7 @@ async def generate_post(topic: str, language: str) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             **prompt_data,
         )

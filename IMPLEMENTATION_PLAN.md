@@ -63,7 +63,7 @@ CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 | Model | ID | Role |
 |-------|-----|------|
 | Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5` | Analytics, reports, onboarding, writing, email |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, onboarding, writing, email |
 | Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, calendar, tasks, fallback |
 | GPT-5.2 | `gpt-5.2` | Fallback (analytics, OCR, complex) |
 | Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization, web search grounding |
@@ -838,8 +838,8 @@ email_graph.add_edge("sender", END)
 | New File | Intent | Model | Description |
 |----------|--------|-------|-------------|
 | `src/skills/read_inbox/handler.py` | `read_inbox` | claude-haiku-4-5 | List and summarize unread emails |
-| `src/skills/send_email/handler.py` | `send_email` | claude-sonnet-4-5 | Compose and send email (requires_approval) |
-| `src/skills/draft_reply/handler.py` | `draft_reply` | claude-sonnet-4-5 | Draft reply to email thread |
+| `src/skills/send_email/handler.py` | `send_email` | claude-sonnet-4-6 | Compose and send email (requires_approval) |
+| `src/skills/draft_reply/handler.py` | `draft_reply` | claude-sonnet-4-6 | Draft reply to email thread |
 | `src/skills/follow_up_email/handler.py` | `follow_up_email` | claude-haiku-4-5 | Check for unanswered emails |
 | `src/skills/summarize_thread/handler.py` | `summarize_thread` | claude-haiku-4-5 | Summarize email thread |
 
@@ -861,7 +861,7 @@ AgentConfig(
     name="email",
     system_prompt=EMAIL_AGENT_PROMPT,
     skills=["read_inbox", "send_email", "draft_reply", "follow_up_email", "summarize_thread"],
-    default_model="claude-sonnet-4-5",
+    default_model="claude-sonnet-4-6",
     context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
 )
 ```
@@ -1051,11 +1051,11 @@ Data: uses internal `tasks` table from Phase 1 migration (not Google Tasks API).
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
-| `src/skills/web_search_skill/handler.py` | `web_search` | claude-sonnet-4-5 |
-| `src/skills/deep_research/handler.py` | `deep_research` | claude-sonnet-4-5 |
-| `src/skills/compare_options/handler.py` | `compare_options` | claude-sonnet-4-5 |
+| `src/skills/web_search_skill/handler.py` | `web_search` | claude-sonnet-4-6 |
+| `src/skills/deep_research/handler.py` | `deep_research` | claude-sonnet-4-6 |
+| `src/skills/compare_options/handler.py` | `compare_options` | claude-sonnet-4-6 |
 
-Agent: `research` (claude-sonnet-4-5)
+Agent: `research` (claude-sonnet-4-6)
 
 #### Web search tool
 
@@ -1109,12 +1109,12 @@ writing_graph.add_edge("finalizer", END)
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
-| `src/skills/draft_message/handler.py` | `draft_message` | claude-sonnet-4-5 |
-| `src/skills/translate_text/handler.py` | `translate_text` | claude-sonnet-4-5 |
-| `src/skills/write_post/handler.py` | `write_post` | claude-sonnet-4-5 |
+| `src/skills/draft_message/handler.py` | `draft_message` | claude-sonnet-4-6 |
+| `src/skills/translate_text/handler.py` | `translate_text` | claude-sonnet-4-6 |
+| `src/skills/write_post/handler.py` | `write_post` | claude-sonnet-4-6 |
 | `src/skills/proofread/handler.py` | `proofread` | claude-haiku-4-5 |
 
-Agent: `writing` (claude-sonnet-4-5)
+Agent: `writing` (claude-sonnet-4-6)
 
 Uses `user_profiles.learned_patterns` for tone matching. Writing skills use the user's historical message style (stored in Mem0) to match their voice.
 
@@ -1540,7 +1540,7 @@ Rewrite `morning_brief` and add `evening_recap` as orchestrator skills that coll
 class MorningBriefSkill:
     name = "morning_brief"
     intents = ["morning_brief"]
-    model = "claude-sonnet-4-5"  # upgraded: synthesis needs stronger model
+    model = "claude-sonnet-4-6"  # upgraded: synthesis needs stronger model
 
     async def execute(self, message, context, intent_data) -> SkillResult:
         plugin = plugin_loader.load(context.profile_type or "household")
@@ -2112,10 +2112,10 @@ from langchain_anthropic import ChatAnthropic
 
 
 class BrowserTool:
-    """Executes browser tasks via Browser-Use + Claude Sonnet 4.5."""
+    """Executes browser tasks via Browser-Use + Claude Sonnet 4.6."""
 
     def __init__(self):
-        self._llm = ChatAnthropic(model="claude-sonnet-4-5")
+        self._llm = ChatAnthropic(model="claude-sonnet-4-6")
 
     async def execute_task(self, task: str, max_steps: int = 10) -> str:
         """Run a browser automation task and return the result."""
@@ -2146,7 +2146,7 @@ browser = Browser(config=BrowserConfig(
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
-| `src/skills/web_action/handler.py` | `web_action` | claude-sonnet-4-5 |
+| `src/skills/web_action/handler.py` | `web_action` | claude-sonnet-4-6 |
 | `src/skills/price_check/handler.py` | `price_check` | claude-haiku-4-5 |
 
 ---

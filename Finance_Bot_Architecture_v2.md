@@ -64,7 +64,7 @@ Finance Bot — это чат-бот в Telegram с AI-ядром, которы�
 | Провайдер | Модель | Model ID | Input/1M | Output/1M | Контекст | Vision |
 |-----------|--------|----------|----------|-----------|----------|--------|
 | **Anthropic** | Claude Opus 4.6 | `claude-opus-4-6` | $5.00 | $25.00 | 200K (1M beta) | да |
-| **Anthropic** | Claude Sonnet 4.5 | `claude-sonnet-4-5` | $3.00 | $15.00 | 200K (1M beta) | да |
+| **Anthropic** | Claude Sonnet 4.6 | `claude-sonnet-4-6` | $3.00 | $15.00 | 200K (1M beta) | да |
 | **Anthropic** | Claude Haiku 4.5 | `claude-haiku-4-5` | $1.00 | $5.00 | 200K | да |
 | **OpenAI** | GPT-5.2 | `gpt-5.2` | $1.75 | $14.00 | 400K | да |
 | **Google** | Gemini 3 Pro | `gemini-3-pro-preview` | $2.00 | $12.00 | 1M | да |
@@ -77,7 +77,7 @@ Finance Bot — это чат-бот в Telegram с AI-ядром, которы�
 | **Intent Detection** | Gemini 3 Flash | Claude Haiku 4.5 | Самый дешёвый, быстрый, 1M контекст |
 | **OCR чеков** | Gemini 3 Flash | GPT-5.2 | Лучшая vision-accuracy, дешёвый |
 | **Ответы в чат** | Claude Haiku 4.5 | Gemini 3 Flash | Быстрый, отличный русский язык |
-| **Аналитика/отчёты** | Claude Sonnet 4.5 | GPT-5.2 | Лучший баланс качество/цена |
+| **Аналитика/отчёты** | Claude Sonnet 4.6 | GPT-5.2 | Лучший баланс качество/цена |
 | **Сложные задачи** | Claude Opus 4.6 | GPT-5.2 Thinking | Максимальный интеллект, adaptive thinking |
 | **Summarization** | Gemini 3 Flash | Claude Haiku 4.5 | Дешёвый, быстрый |
 | **STT (голос)** | `gpt-4o-mini-transcribe` | `whisper-1` | Лучший WER, $0.003/мин |
@@ -281,8 +281,8 @@ Action Handler → [Supabase DB] + [Supabase Storage] → [Response Generator] �
         ├── add_income     → Claude Haiku 4.5 → INSERT transaction
         ├── scan_receipt   → Gemini 3 Flash (OCR) → классификация → INSERT
         ├── scan_document  → Gemini 3 Flash (OCR) → INSERT load
-        ├── query_stats    → Claude Sonnet 4.5 → SELECT + aggregate → ответ
-        ├── query_report   → Claude Sonnet 4.5 → SELECT → WeasyPrint PDF
+        ├── query_stats    → Claude Sonnet 4.6 → SELECT + aggregate → ответ
+        ├── query_report   → Claude Sonnet 4.6 → SELECT → WeasyPrint PDF
         ├── correct_cat    → Claude Haiku 4.5 → UPDATE + mapping
         ├── voice_message  → gpt-4o-transcribe → text → повторный роутинг
         ├── complex_query  → Claude Opus 4.6 → глубокий анализ
@@ -329,7 +329,7 @@ Action Handler → [Supabase DB] + [Supabase Storage] → [Response Generator] �
 - UPDATE для поправок
 - Параметризованные SQL-запросы через SQLAlchemy 2.0
 
-**E. Response Generator (Claude Haiku 4.5 / Sonnet 4.5)**
+**E. Response Generator (Claude Haiku 4.5 / Sonnet 4.6)**
 - LLM формирует ответ на естественном языке
 - Ответ короткий, полезный, с контекстом (сравнения, проценты, тренды)
 - Inline-кнопки: "Верно / Изменить категорию / Изменить сумму / Отменить"
@@ -760,7 +760,7 @@ Intent Detection (Gemini 3 Flash)
         ├── query_stats, query_report, complex_query → AnalyticsAgent
         │   ├─ system prompt: 4K токенов (SQL-паттерны, форматы, CoT)
         │   ├─ skills: [query_stats, query_report, complex_query]
-        │   ├─ модель: Claude Sonnet 4.5 (стандарт) / Opus 4.6 (complex)
+        │   ├─ модель: Claude Sonnet 4.6 (стандарт) / Opus 4.6 (complex)
         │   └─ контекст: SQL-агрегаты, Mem0 budgets, саммари
         │
         ├── add_expense, add_income, correct_category, mark_paid → ChatAgent
@@ -773,7 +773,7 @@ Intent Detection (Gemini 3 Flash)
         └── onboarding, general_chat → OnboardingAgent
             ├─ system prompt: 2K токенов (приветствие, FSM-шаги)
             ├─ skills: [onboarding, general_chat]
-            ├─ модель: Claude Sonnet 4.5
+            ├─ модель: Claude Sonnet 4.6
             └─ контекст: Mem0 profile, последние 10 сообщений
 ```
 
@@ -828,7 +828,7 @@ AGENTS = [
         name="analytics",
         system_prompt_template=ANALYTICS_AGENT_PROMPT,  # 4K токенов
         skills=["query_stats", "query_report", "complex_query"],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "budgets", "hist": 0, "sql": True, "sum": True}
     ),
     AgentConfig(
@@ -843,7 +843,7 @@ AGENTS = [
         name="onboarding",
         system_prompt_template=ONBOARDING_AGENT_PROMPT,  # 2K токенов
         skills=["onboarding", "general_chat"],
-        default_model="claude-sonnet-4-5",
+        default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 10, "sql": False, "sum": False}
     ),
 ]
@@ -902,7 +902,7 @@ supabase_mcp = MCPServerStdio("npx", ["-y", "@supabase/mcp-server"],
                                     "SUPABASE_KEY": SUPABASE_KEY})
 
 analytics_agent = Agent(
-    "anthropic:claude-sonnet-4-5",
+    "anthropic:claude-sonnet-4-6",
     result_type=AnalyticsResponse,
     mcp_servers=[supabase_mcp],  # agent автоматически видит MCP tools
 )
@@ -1796,13 +1796,13 @@ LLM возвращает структурированный JSON через Inst
 | add_income | "заработал 185" | Claude Haiku 4.5 | INSERT transaction |
 | scan_receipt | [фото чека] | Gemini 3 Flash | OCR → INSERT |
 | scan_document | [фото rate conf] | Gemini 3 Flash | OCR → INSERT load |
-| query_stats | "сколько на бензин" | Claude Sonnet 4.5 | SELECT + aggregate |
-| query_report | "отчёт за январь" | Claude Sonnet 4.5 | SELECT → PDF |
+| query_stats | "сколько на бензин" | Claude Sonnet 4.6 | SELECT + aggregate |
+| query_report | "отчёт за январь" | Claude Sonnet 4.6 | SELECT → PDF |
 | correct_category | "это не продукты" | Claude Haiku 4.5 | UPDATE + mapping |
 | find_receipt | "покажи чек Target" | Claude Haiku 4.5 | SELECT document |
 | mark_paid | "лоуд оплачен" | Claude Haiku 4.5 | UPDATE load |
 | complex_query | "анализ за квартал" | Claude Opus 4.6 | Глубокий анализ |
-| onboarding | "я таксист" | Claude Sonnet 4.5 | UPDATE user profile |
+| onboarding | "я таксист" | Claude Sonnet 4.6 | UPDATE user profile |
 
 ### 6.3 OCR Pipeline (фото) — усиленный
 
@@ -2454,7 +2454,7 @@ class ProfileLoader:
 async def generate_profile(user_description: str) -> ProfileConfig:
     """AI генерирует YAML-профиль для неизвестной профессии."""
     response = await claude_client.messages.create(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-4-6",
         system="Сгенерируй YAML-конфигурацию бизнес-профиля для финансового бота.",
         messages=[{"role": "user", "content": f"""
             Пользователь описал свою деятельность: "{user_description}"
@@ -2491,7 +2491,7 @@ async def generate_profile(user_description: str) -> ProfileConfig:
 1. Пользователь нажимает /start
 2. Бот: "Привет! Я ваш финансовый помощник. Расскажите о себе — чем занимаетесь?"
 3. Пользователь: "я таксист на uber" / "просто хочу следить за расходами" / "у меня трак"
-4. AI (Claude Sonnet 4.5) определяет business_type, создаёт категории
+4. AI (Claude Sonnet 4.6) определяет business_type, создаёт категории
 5. Бот: "Отлично! Я настроил категории для такси. Можете сразу скинуть чек или написать расход."
 6. Бот генерирует invite_code для семьи
 7. **FSM aiogram v3** управляет шагами онбординга
@@ -2779,7 +2779,7 @@ rails = LLMRails(config)
 - Запись расходов/доходов текстом — skill: add_expense, add_income (Claude Haiku 4.5)
 - OCR чеков — skill: scan_receipt (Gemini 3 Flash)
 - Intent detection (Gemini 3 Flash)
-- Простые запросы — skill: query_stats (Claude Sonnet 4.5)
+- Простые запросы — skill: query_stats (Claude Sonnet 4.6)
 - Семейный режим (invite code, роли)
 - Inline-кнопки подтверждения
 - Память: Слой 1-2 (Redis sliding window + user_context)
@@ -2801,7 +2801,7 @@ rails = LLMRails(config)
 - **RAG-категоризация**: pgvector search + LLM для новых мерчантов
 - **Telegram Mini App**: дашборд, форма ввода, транзакции, настройки
 - **MCP интеграция**: Supabase MCP Server, PDF MCP Server
-- Сравнения по периодам (Claude Sonnet 4.5)
+- Сравнения по периодам (Claude Sonnet 4.6)
 - Mem0 custom fact extraction (финансовый промпт)
 - Mem0g graph memory (связи между сущностями)
 - Инкрементальная суммаризация (Слой 5)
@@ -3052,7 +3052,7 @@ result = await openai_client.chat.completions.create(
 | Уровень сложности | Модель | Стратегия | Пример задачи |
 |-------------------|--------|-----------|---------------|
 | **Простой** | Gemini 3 Flash / Claude Haiku 4.5 | Прямой ответ, без reasoning | Intent detection, запись расхода |
-| **Средний** | Claude Sonnet 4.5 | Chain-of-thought в промпте | Аналитика, сравнения периодов |
+| **Средний** | Claude Sonnet 4.6 | Chain-of-thought в промпте | Аналитика, сравнения периодов |
 | **Сложный** | Claude Opus 4.6 | Adaptive thinking (встроенный) | Налоговая оптимизация, глубокий анализ |
 | **Fallback** | GPT-5.2 | Reasoning effort = "medium" | Любая задача при сбое основной модели |
 
@@ -3544,7 +3544,7 @@ INPUT_SANITIZATION = """
         ▼
 [3] Model Selection (по intent → routing table 2.2)
     ├─ Simple: Claude Haiku 4.5 (temp=0.1, no thinking)
-    ├─ Medium: Claude Sonnet 4.5 (temp=0.1, CoT в промпте)
+    ├─ Medium: Claude Sonnet 4.6 (temp=0.1, CoT в промпте)
     ├─ Complex: Claude Opus 4.6 (adaptive thinking, effort="high")
     └─ Fallback: GPT-5.2 (temp=0.1)
         │

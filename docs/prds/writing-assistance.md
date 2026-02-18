@@ -173,7 +173,7 @@ Bot: Fixed 3 issues:
 | **Orchestrator** | None for P0 — single-turn skill.execute(). P1 adds LangGraph revision loop. |
 | **Skills** | 4 new: `draft_message`, `translate_text`, `write_post`, `proofread` |
 | **APIs** | Anthropic API (existing) — Claude Sonnet for drafting, Haiku for proofread |
-| **Models** | Claude Sonnet 4.5 (draft_message, translate_text, write_post), Claude Haiku 4.5 (proofread) |
+| **Models** | Claude Sonnet 4.6 (draft_message, translate_text, write_post), Claude Haiku 4.5 (proofread) |
 | **Database** | None new — uses existing conversation_messages for history |
 | **Background Jobs** | None |
 

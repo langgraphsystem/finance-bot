@@ -216,7 +216,25 @@ def upgrade() -> None:
         )
     )
 
-    # ── 10. Indexes ───────────────────────────────────────────────
+    # ── 10. Create oauth_tokens table ─────────────────────────────
+    op.execute(
+        sa.text(
+            "CREATE TABLE IF NOT EXISTS oauth_tokens ("
+            "  id UUID PRIMARY KEY,"
+            "  family_id UUID NOT NULL REFERENCES families(id),"
+            "  user_id UUID NOT NULL REFERENCES users(id),"
+            "  provider VARCHAR(50) DEFAULT 'google',"
+            "  access_token_encrypted BYTEA NOT NULL,"
+            "  refresh_token_encrypted BYTEA NOT NULL,"
+            "  expires_at TIMESTAMPTZ NOT NULL,"
+            "  scopes JSONB DEFAULT '[]'::jsonb,"
+            "  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),"
+            "  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+            ")"
+        )
+    )
+
+    # ── 11. Indexes ───────────────────────────────────────────────
     indexes = [
         "CREATE INDEX IF NOT EXISTS ix_contacts_family ON contacts (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_contacts_name ON contacts (family_id, name)",
@@ -235,6 +253,8 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_family ON usage_logs (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_created ON usage_logs (created_at)",
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_domain ON usage_logs (family_id, domain)",
+        "CREATE INDEX IF NOT EXISTS ix_oauth_tokens_user ON oauth_tokens (user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_oauth_tokens_provider ON oauth_tokens (user_id, provider)",
     ]
     for idx in indexes:
         op.execute(idx)
@@ -249,6 +269,7 @@ def upgrade() -> None:
         "user_profiles",
         "usage_logs",
         "subscriptions",
+        "oauth_tokens",
     ]
     for table in tables:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
@@ -263,6 +284,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Drop RLS policies
     tables = [
+        "oauth_tokens",
         "subscriptions",
         "usage_logs",
         "user_profiles",

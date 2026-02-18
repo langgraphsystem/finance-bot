@@ -30,7 +30,7 @@ Rules:
 class CompareOptionsSkill:
     name = "compare_options"
     intents = ["compare_options"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="compare_options")
     async def execute(
@@ -65,7 +65,7 @@ async def generate_comparison(query: str, language: str) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             **prompt_data,
         )

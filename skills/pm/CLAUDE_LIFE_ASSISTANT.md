@@ -27,7 +27,7 @@ When working on product decisions, PRDs, feature design, or prioritization, read
 | skill.execute() domains | Finance, Life-tracking, Calendar, Tasks, Contacts, Monitor |
 | Database | Supabase (PostgreSQL + pgvector + RLS) |
 | Primary model | Claude Haiku 4.5 (70% of calls) |
-| Complex tasks | Claude Sonnet 4.5 (25%), Claude Opus 4.6 (rare) |
+| Complex tasks | Claude Sonnet 4.6 (25%), Claude Opus 4.6 (rare) |
 | OCR / Intent | Gemini 3 Flash |
 | Google APIs | aiogoogle (async, per-user OAuth) |
 | Channels | Telegram, WhatsApp (Business API), Slack (slack-bolt), SMS (Twilio) |

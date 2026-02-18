@@ -148,7 +148,7 @@ Bot: PEX vs copper pipe:
 | **Orchestrator** | None — skills are single-turn LLM calls |
 | **Skills** | 3 new: `quick_answer`, `web_search`, `compare_options` |
 | **APIs** | Gemini API (existing), Google Search via Gemini grounding (no new API key) |
-| **Models** | Gemini 3 Flash (quick_answer, web_search), Claude Sonnet 4.5 (compare_options) |
+| **Models** | Gemini 3 Flash (quick_answer, web_search), Claude Sonnet 4.6 (compare_options) |
 | **Database** | None new — uses existing conversation_messages for history |
 | **Background Jobs** | None |
 

@@ -18,7 +18,7 @@ COMPLEX_QUERY_PROMPT = """Ты обрабатываешь сложные ана�
 class ComplexQuerySkill:
     name = "complex_query"
     intents = ["complex_query"]
-    model = "claude-sonnet-4-5"
+    model = "claude-sonnet-4-6"
 
     @observe(name="complex_query")
     async def execute(
