@@ -135,5 +135,11 @@ async def generate_oauth_link(user_id: str) -> str:
     """Generate an OAuth deep link for a user. Called by skills when needed."""
     state = secrets.token_urlsafe(32)
     await redis.set(f"oauth_state:{state}", user_id, ex=600)  # 10 min TTL
-    base_url = settings.google_redirect_uri.rsplit("/", 2)[0]  # strip /oauth/google/callback
+    # Derive base URL from redirect_uri or webhook_url
+    if settings.google_redirect_uri:
+        base_url = settings.google_redirect_uri.rsplit("/oauth/", 1)[0]
+    elif settings.telegram_webhook_url:
+        base_url = settings.telegram_webhook_url.rsplit("/", 1)[0]
+    else:
+        base_url = "https://localhost:8000"
     return f"{base_url}/oauth/google/start?state={state}"
