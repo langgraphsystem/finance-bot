@@ -49,9 +49,7 @@ async def test_reschedule_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[
-            {"text": "🔗 Подключить Google", "url": "https://example.com"}
-        ],
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
         f"{MODULE}.require_google_or_prompt",
@@ -83,16 +81,11 @@ async def test_reschedule_no_events(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "нет" in result.response_text.lower()
-        or "событий" in result.response_text.lower()
-    )
+    assert "нет" in result.response_text.lower() or "событий" in result.response_text.lower()
 
 
 @pytest.mark.asyncio
-async def test_reschedule_returns_preview_with_buttons(
-    skill, message, ctx
-):
+async def test_reschedule_returns_preview_with_buttons(skill, message, ctx):
     """Returns preview + confirm/cancel buttons instead of updating."""
     mock_google = AsyncMock()
     mock_google.list_events = AsyncMock(

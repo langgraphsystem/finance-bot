@@ -49,9 +49,7 @@ async def test_send_email_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[
-            {"text": "🔗 Подключить Google", "url": "https://example.com"}
-        ],
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     with patch(
         f"{MODULE}.require_google_or_prompt",
@@ -84,9 +82,7 @@ async def test_send_email_missing_recipient(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_send_email_returns_preview_with_buttons(
-    skill, message, ctx
-):
+async def test_send_email_returns_preview_with_buttons(skill, message, ctx):
     """Returns preview + confirm/cancel buttons instead of sending."""
     mock_redis = AsyncMock()
     mock_redis.set = AsyncMock()

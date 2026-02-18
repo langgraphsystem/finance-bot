@@ -88,16 +88,18 @@ async def test_find_free_slots_all_free(skill, message, ctx):
 async def test_find_free_slots_with_busy(skill, message, ctx):
     """Computes free gaps between busy periods."""
     mock_google = AsyncMock()
-    mock_google.get_free_busy = AsyncMock(return_value=[
-        {
-            "start": "2026-02-18T10:00:00+00:00",
-            "end": "2026-02-18T11:00:00+00:00",
-        },
-        {
-            "start": "2026-02-18T14:00:00+00:00",
-            "end": "2026-02-18T15:00:00+00:00",
-        },
-    ])
+    mock_google.get_free_busy = AsyncMock(
+        return_value=[
+            {
+                "start": "2026-02-18T10:00:00+00:00",
+                "end": "2026-02-18T11:00:00+00:00",
+            },
+            {
+                "start": "2026-02-18T14:00:00+00:00",
+                "end": "2026-02-18T15:00:00+00:00",
+            },
+        ]
+    )
 
     with (
         patch(
@@ -113,10 +115,7 @@ async def test_find_free_slots_with_busy(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "Свободное время" in result.response_text
-        or "свободен" in result.response_text.lower()
-    )
+    assert "Свободное время" in result.response_text or "свободен" in result.response_text.lower()
 
 
 def test_system_prompt_static(skill, ctx):

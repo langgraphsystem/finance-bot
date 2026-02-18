@@ -444,9 +444,7 @@ async def _handle_clarify(
             for c in result.clarify_candidates[:3]
         ],
         "intent_data": {
-            k: v
-            for k, v in intent_data.items()
-            if k != "confidence" and v is not None
+            k: v for k, v in intent_data.items() if k != "confidence" and v is not None
         },
         "created_at": _dt.now(_UTC).isoformat(),
     }
@@ -456,8 +454,7 @@ async def _handle_clarify(
 
     question = result.response or "Что именно вы хотите?"
     buttons = [
-        {"text": c.label, "callback": f"clarify:{c.intent}"}
-        for c in result.clarify_candidates[:3]
+        {"text": c.label, "callback": f"clarify:{c.intent}"} for c in result.clarify_candidates[:3]
     ]
 
     return OutgoingMessage(
@@ -516,13 +513,9 @@ async def _resolve_clarify(
 
     # Save to sliding window
     if original_text:
-        await sliding_window.add_message(
-            context.user_id, "user", original_text, chosen_intent
-        )
+        await sliding_window.add_message(context.user_id, "user", original_text, chosen_intent)
     if skill_result.response_text:
-        await sliding_window.add_message(
-            context.user_id, "assistant", skill_result.response_text
-        )
+        await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
 
     return OutgoingMessage(
         text=skill_result.response_text,
@@ -562,25 +555,19 @@ async def _execute_pending_action(
         elif intent == "create_event":
             from src.skills.create_event.handler import execute_create_event
 
-            result_text = await execute_create_event(
-                action_data, context.user_id
-            )
+            result_text = await execute_create_event(action_data, context.user_id)
 
         elif intent == "reschedule_event":
             from src.skills.reschedule_event.handler import (
                 execute_reschedule,
             )
 
-            result_text = await execute_reschedule(
-                action_data, context.user_id
-            )
+            result_text = await execute_reschedule(action_data, context.user_id)
 
         elif intent == "undo_last":
             from src.skills.undo_last.handler import execute_undo
 
-            result_text = await execute_undo(
-                action_data, context.user_id, context.family_id
-            )
+            result_text = await execute_undo(action_data, context.user_id, context.family_id)
 
         else:
             result_text = "Неизвестное действие."

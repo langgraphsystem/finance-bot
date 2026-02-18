@@ -81,10 +81,7 @@ async def test_summarize_thread_no_emails(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "нет" in result.response_text.lower()
-        or "суммаризац" in result.response_text.lower()
-    )
+    assert "нет" in result.response_text.lower() or "суммаризац" in result.response_text.lower()
 
 
 @pytest.mark.asyncio

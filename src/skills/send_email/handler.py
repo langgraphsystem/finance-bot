@@ -54,9 +54,7 @@ class SendEmailSkill:
             )
 
         # Draft the email body via LLM
-        body = await _draft_body(
-            email_to, email_subject, email_body_hint, query, context.language
-        )
+        body = await _draft_body(email_to, email_subject, email_body_hint, query, context.language)
 
         # Store pending action — require user confirmation before sending
         from src.core.pending_actions import store_pending_action
@@ -97,15 +95,12 @@ class SendEmailSkill:
         return SEND_EMAIL_SYSTEM_PROMPT.format(language=context.language or "ru")
 
 
-async def _draft_body(
-    to: str, subject: str, hint: str, user_text: str, language: str
-) -> str:
+async def _draft_body(to: str, subject: str, hint: str, user_text: str, language: str) -> str:
     """Draft email body using LLM."""
     client = anthropic_client()
     system = SEND_EMAIL_SYSTEM_PROMPT.format(language=language or "ru")
     prompt = (
-        f"Compose email body.\nTo: {to}\nSubject: {subject}\n"
-        f"Hint: {hint}\nUser said: {user_text}"
+        f"Compose email body.\nTo: {to}\nSubject: {subject}\nHint: {hint}\nUser said: {user_text}"
     )
     prompt_data = PromptAdapter.for_claude(
         system=system, messages=[{"role": "user", "content": prompt}]

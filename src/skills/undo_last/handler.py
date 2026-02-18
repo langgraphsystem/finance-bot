@@ -46,13 +46,10 @@ class UndoLastSkill:
             tx = result.scalar_one_or_none()
 
             if not tx:
-                return SkillResult(
-                    response_text="У вас нет транзакций для отмены."
-                )
+                return SkillResult(response_text="У вас нет транзакций для отмены.")
 
             tx_info = (
-                f"{tx.type.value}: {tx.amount} "
-                f"({tx.merchant or tx.description or 'без описания'})"
+                f"{tx.type.value}: {tx.amount} ({tx.merchant or tx.description or 'без описания'})"
             )
             tx_id = str(tx.id)
 
@@ -90,17 +87,13 @@ class UndoLastSkill:
         return UNDO_SYSTEM_PROMPT
 
 
-async def execute_undo(
-    action_data: dict, user_id: str, family_id: str
-) -> str:
+async def execute_undo(action_data: dict, user_id: str, family_id: str) -> str:
     """Actually delete the transaction. Called after user confirms."""
     tx_id = action_data["tx_id"]
 
     try:
         async with async_session() as session:
-            await session.execute(
-                delete(Transaction).where(Transaction.id == uuid.UUID(tx_id))
-            )
+            await session.execute(delete(Transaction).where(Transaction.id == uuid.UUID(tx_id)))
             await log_action(
                 session=session,
                 user_id=user_id,

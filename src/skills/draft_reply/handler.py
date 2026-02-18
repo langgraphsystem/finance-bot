@@ -49,9 +49,7 @@ class DraftReplySkill:
         try:
             messages = await google.list_messages("is:unread", max_results=1)
             if not messages:
-                return SkillResult(
-                    response_text="Нет непрочитанных писем для ответа."
-                )
+                return SkillResult(response_text="Нет непрочитанных писем для ответа.")
 
             thread_id = messages[0].get("threadId", "")
             if thread_id:
@@ -65,8 +63,7 @@ class DraftReplySkill:
         # Format thread for LLM
         parsed = [parse_email_headers(m) for m in thread_msgs]
         thread_text = "\n---\n".join(
-            f"From: {e['from']}\nSubject: {e['subject']}\n{e['snippet']}"
-            for e in parsed
+            f"From: {e['from']}\nSubject: {e['subject']}\n{e['snippet']}" for e in parsed
         )
 
         user_instruction = message.text or "draft a reply"

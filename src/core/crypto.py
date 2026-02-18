@@ -19,8 +19,8 @@ def _get_fernet() -> Fernet:
     if not key:
         raise ValueError(
             "OAUTH_ENCRYPTION_KEY env var is required for token encryption. "
-            "Generate one with: python -c \"from cryptography.fernet import Fernet; "
-            "print(Fernet.generate_key().decode())\""
+            'Generate one with: python -c "from cryptography.fernet import Fernet; '
+            'print(Fernet.generate_key().decode())"'
         )
     _fernet = Fernet(key if isinstance(key, bytes) else key.encode())
     return _fernet

@@ -66,9 +66,7 @@ def high_confidence_result():
 
 def test_intent_type_defaults_to_action():
     """IntentDetectionResult defaults intent_type to action."""
-    result = IntentDetectionResult(
-        intent="add_expense", confidence=0.9
-    )
+    result = IntentDetectionResult(intent="add_expense", confidence=0.9)
     assert result.intent_type == "action"
     assert result.clarify_candidates is None
 
@@ -92,9 +90,7 @@ def test_clarify_candidates_parsing():
 
 
 @pytest.mark.asyncio
-async def test_low_confidence_triggers_clarify(
-    sample_ctx, clarify_result
-):
+async def test_low_confidence_triggers_clarify(sample_ctx, clarify_result):
     """When intent_type=clarify with candidates, return buttons."""
     msg = IncomingMessage(
         id="1",
@@ -138,9 +134,7 @@ async def test_low_confidence_triggers_clarify(
 
 
 @pytest.mark.asyncio
-async def test_high_confidence_skips_clarify(
-    sample_ctx, high_confidence_result
-):
+async def test_high_confidence_skips_clarify(sample_ctx, high_confidence_result):
     """When confidence is high, no clarify gate triggered."""
     msg = IncomingMessage(
         id="2",

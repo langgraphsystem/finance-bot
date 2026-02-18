@@ -1,8 +1,9 @@
 """Reschedule event skill — moves calendar events via Google Calendar API."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
@@ -18,9 +19,10 @@ RESCHEDULE_SYSTEM_PROMPT = """\
 Extract the reschedule request from the user's message.
 
 Respond with ONLY a JSON object:
-{{"event_name": "...", "new_date": "YYYY-MM-DD", "new_time": "HH:MM"}}
+{{"event_id": "...", "event_name": "...", "new_date": "YYYY-MM-DD", "new_time": "HH:MM"}}
 
-If info is missing, set the field to null."""
+If info is missing, set the field to null.
+Dates and times must be in the user's local timezone."""
 
 
 class RescheduleEventSkill:
@@ -44,9 +46,10 @@ class RescheduleEventSkill:
             return SkillResult(response_text="Ошибка подключения к Calendar. Попробуйте /connect")
 
         # Get upcoming events to find the one to reschedule
-        now = datetime.now(UTC)
+        tz = ZoneInfo(context.timezone)
+        now_local = datetime.now(tz)
         try:
-            events = await google.list_events(now, now + timedelta(days=7))
+            events = await google.list_events(now_local, now_local + timedelta(days=7))
         except Exception as e:
             logger.warning("Calendar list failed: %s", e)
             return SkillResult(response_text="Ошибка при загрузке календаря.")
@@ -71,8 +74,7 @@ class RescheduleEventSkill:
                 response_text=(
                     "<b>Ваши ближайшие события:</b>\n"
                     + "\n".join(
-                        f"• {e.get('summary', '?')} — "
-                        f"{e.get('start', {}).get('dateTime', '')}"
+                        f"• {e.get('summary', '?')} — {e.get('start', {}).get('dateTime', '')}"
                         for e in events[:5]
                     )
                     + "\n\nУкажите, какое событие перенести и на когда."
@@ -86,10 +88,7 @@ class RescheduleEventSkill:
 
         if not event_id or not new_date:
             return SkillResult(
-                response_text=(
-                    "Не удалось определить событие или новую дату. "
-                    "Уточните запрос."
-                )
+                response_text=("Не удалось определить событие или новую дату. Уточните запрос.")
             )
 
         time_str = new_time or "09:00"
@@ -106,12 +105,11 @@ class RescheduleEventSkill:
                 "event_name": event_name,
                 "new_date": new_date,
                 "new_time": time_str,
+                "timezone": context.timezone,
             },
         )
 
-        new_start = datetime.fromisoformat(
-            f"{new_date}T{time_str}:00+00:00"
-        )
+        new_start = datetime.fromisoformat(f"{new_date}T{time_str}:00").replace(tzinfo=tz)
         preview = (
             f"<b>Перенести событие:</b>\n\n"
             f"📌 {event_name}\n"
@@ -141,8 +139,8 @@ async def _parse_reschedule(user_text: str, events_list: str, language: str) -> 
     client = anthropic_client()
     system = (
         "Match the user's reschedule request to one of these events and extract new time.\n"
-        "Respond with JSON: {\"event_id\": \"...\", \"new_date\": \"YYYY-MM-DD\", "
-        "\"new_time\": \"HH:MM\"}\n"
+        'Respond with JSON: {"event_id": "...", "event_name": "...", '
+        '"new_date": "YYYY-MM-DD", "new_time": "HH:MM"}\n'
         f"Events:\n{events_list}"
     )
     prompt_data = PromptAdapter.for_claude(
@@ -168,22 +166,19 @@ async def execute_reschedule(action_data: dict, user_id: str) -> str:
     event_id = action_data["event_id"]
     new_date = action_data["new_date"]
     new_time = action_data.get("new_time", "09:00")
+    timezone = action_data.get("timezone", "America/New_York")
+    tz = ZoneInfo(timezone)
 
     try:
-        new_start = datetime.fromisoformat(
-            f"{new_date}T{new_time}:00+00:00"
-        )
+        new_start = datetime.fromisoformat(f"{new_date}T{new_time}:00").replace(tzinfo=tz)
         new_end = new_start + timedelta(hours=1)
 
         await google.update_event(
             event_id,
-            start={"dateTime": new_start.isoformat(), "timeZone": "UTC"},
-            end={"dateTime": new_end.isoformat(), "timeZone": "UTC"},
+            start={"dateTime": new_start.isoformat(), "timeZone": timezone},
+            end={"dateTime": new_end.isoformat(), "timeZone": timezone},
         )
-        return (
-            f"✅ Событие перенесено на "
-            f"{new_start.strftime('%d.%m.%Y %H:%M')}"
-        )
+        return f"✅ Событие перенесено на {new_start.strftime('%d.%m.%Y %H:%M')}"
     except Exception as e:
         logger.error("Calendar update failed: %s", e)
         return "Ошибка при переносе события."

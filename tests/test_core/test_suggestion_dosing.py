@@ -25,9 +25,7 @@ async def test_count_recent_intents():
             count_recent_intents,
         )
 
-        count = await count_recent_intents(
-            "user1", "general_chat", last_n=6
-        )
+        count = await count_recent_intents("user1", "general_chat", last_n=6)
 
     assert count == 3
 
@@ -48,9 +46,7 @@ async def test_count_recent_intents_none():
             count_recent_intents,
         )
 
-        count = await count_recent_intents(
-            "user1", "general_chat", last_n=6
-        )
+        count = await count_recent_intents("user1", "general_chat", last_n=6)
 
     assert count == 0
 

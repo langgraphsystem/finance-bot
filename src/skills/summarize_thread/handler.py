@@ -60,8 +60,7 @@ class SummarizeThreadSkill:
 
         parsed = [parse_email_headers(m) for m in thread_msgs]
         thread_text = "\n---\n".join(
-            f"From: {e['from']}\nSubject: {e['subject']}\n{e['snippet']}"
-            for e in parsed
+            f"From: {e['from']}\nSubject: {e['subject']}\n{e['snippet']}" for e in parsed
         )
 
         result = await _summarize(thread_text, context.language or "ru")

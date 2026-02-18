@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Finance Bot</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="/static/miniapp/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Top Bar -->
+  <div id="topbar">
+    <h1 id="screen-title">Dashboard</h1>
+    <div class="topbar-right">
+      <div class="avatar" id="user-avatar">?</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div id="content"></div>
+
+  <!-- Bottom Nav -->
+  <nav id="bottom-nav">
+    <div class="nav-tab active" data-tab="dashboard" onclick="navigate('dashboard')">
+      <span class="icon">🏠</span>
+      <span>Home</span>
+    </div>
+    <div class="nav-tab" data-tab="transactions" onclick="navigate('transactions')">
+      <span class="icon">💰</span>
+      <span>Wallet</span>
+    </div>
+    <div class="nav-tab add-btn" data-tab="add" onclick="navigate('add')">
+      <span class="icon">＋</span>
+    </div>
+    <div class="nav-tab" data-tab="tasks" onclick="navigate('tasks')">
+      <span class="icon">✅</span>
+      <span>Tasks</span>
+    </div>
+    <div class="nav-tab" data-tab="settings" onclick="navigate('settings')">
+      <span class="icon">⚙️</span>
+      <span>More</span>
+    </div>
+  </nav>
+
+</div>
+
+<!-- Modals -->
+<div class="modal-backdrop" id="modal" onclick="closeModal(event)">
+  <div class="modal-sheet" id="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script src="/static/miniapp/app.js"></script>
+</body>
+</html>

@@ -62,9 +62,7 @@ def _make_tx(user_id: str, family_id: str) -> MagicMock:
 
 
 @pytest.mark.asyncio
-async def test_no_transactions_returns_message(
-    undo_skill, sample_message, sample_ctx
-):
+async def test_no_transactions_returns_message(undo_skill, sample_message, sample_ctx):
     """When user has no transactions, return informative message."""
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = None
@@ -80,17 +78,13 @@ async def test_no_transactions_returns_message(
         f"{MODULE}.async_session",
         return_value=mock_session_ctx,
     ):
-        result = await undo_skill.execute(
-            sample_message, sample_ctx, {}
-        )
+        result = await undo_skill.execute(sample_message, sample_ctx, {})
 
     assert "нет транзакций" in result.response_text.lower()
 
 
 @pytest.mark.asyncio
-async def test_returns_preview_with_buttons(
-    undo_skill, sample_message, sample_ctx
-):
+async def test_returns_preview_with_buttons(undo_skill, sample_message, sample_ctx):
     """Returns preview + confirm/cancel buttons instead of deleting."""
     tx = _make_tx(sample_ctx.user_id, sample_ctx.family_id)
 
@@ -114,9 +108,7 @@ async def test_returns_preview_with_buttons(
         ),
         patch("src.core.pending_actions.redis", mock_redis),
     ):
-        result = await undo_skill.execute(
-            sample_message, sample_ctx, {}
-        )
+        result = await undo_skill.execute(sample_message, sample_ctx, {})
 
     assert "Удалить транзакцию" in result.response_text
     assert "42.50" in result.response_text or "42.5" in result.response_text
@@ -160,9 +152,7 @@ async def test_execute_undo_deletes_and_logs():
             new_callable=AsyncMock,
         ) as mock_log,
     ):
-        result = await execute_undo(
-            action_data, "user-1", "family-1"
-        )
+        result = await execute_undo(action_data, "user-1", "family-1")
 
     assert "Отменено" in result
     assert "42.50" in result

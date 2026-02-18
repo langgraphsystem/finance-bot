@@ -76,17 +76,12 @@ class MorningBriefSkill:
             messages = await google.list_messages("is:unread", max_results=5)
             if messages:
                 parsed = [parse_email_headers(m) for m in messages]
-                emails_text = "\n".join(
-                    f"• {e['from']}: {e['subject']}" for e in parsed[:5]
-                )
+                emails_text = "\n".join(f"• {e['from']}: {e['subject']}" for e in parsed[:5])
         except Exception as e:
             logger.warning("Morning brief email failed: %s", e)
             emails_text = "Не удалось загрузить почту."
 
-        combined = (
-            f"Today's calendar events:\n{events_text}\n\n"
-            f"Unread emails:\n{emails_text}"
-        )
+        combined = f"Today's calendar events:\n{events_text}\n\nUnread emails:\n{emails_text}"
 
         result = await _generate_brief(combined, context.language or "ru")
         return SkillResult(response_text=result)

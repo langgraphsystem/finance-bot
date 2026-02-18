@@ -115,12 +115,13 @@ class GoogleWorkspaceClient:
         location: str | None = None,
         description: str | None = None,
         calendar_id: str = "primary",
+        timezone: str = "America/New_York",
     ) -> dict:
         """Create a new calendar event."""
         event_body: dict = {
             "summary": title,
-            "start": {"dateTime": start.isoformat(), "timeZone": "America/New_York"},
-            "end": {"dateTime": end.isoformat(), "timeZone": "America/New_York"},
+            "start": {"dateTime": start.isoformat(), "timeZone": timezone},
+            "end": {"dateTime": end.isoformat(), "timeZone": timezone},
         }
         if location:
             event_body["location"] = location

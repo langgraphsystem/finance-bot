@@ -81,29 +81,28 @@ async def test_follow_up_no_unread(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "нет" in result.response_text.lower()
-        or "порядке" in result.response_text.lower()
-    )
+    assert "нет" in result.response_text.lower() or "порядке" in result.response_text.lower()
 
 
 @pytest.mark.asyncio
 async def test_follow_up_with_emails(skill, message, ctx):
     """Analyzes real email data for follow-ups."""
     mock_google = AsyncMock()
-    mock_google.list_messages = AsyncMock(return_value=[
-        {
-            "id": "msg1",
-            "threadId": "t1",
-            "snippet": "Waiting for your reply",
-            "payload": {
-                "headers": [
-                    {"name": "From", "value": "Boss <boss@test.com>"},
-                    {"name": "Subject", "value": "Q4 Review"},
-                ]
-            },
-        }
-    ])
+    mock_google.list_messages = AsyncMock(
+        return_value=[
+            {
+                "id": "msg1",
+                "threadId": "t1",
+                "snippet": "Waiting for your reply",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "Boss <boss@test.com>"},
+                        {"name": "Subject", "value": "Q4 Review"},
+                    ]
+                },
+            }
+        ]
+    )
 
     with (
         patch(

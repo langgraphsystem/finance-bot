@@ -1,10 +1,13 @@
 """Finance Bot — FastAPI entrypoint (webhook + health check)."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 
 from api.miniapp import router as miniapp_router
@@ -16,6 +19,7 @@ from src.core.models.category import Category
 from src.core.models.family import Family
 from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.user import User
+from src.core.models.user_profile import UserProfile
 from src.core.profiles import ProfileLoader
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
@@ -64,6 +68,12 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
+        # Load user profile for timezone
+        prof_result = await session.execute(
+            select(UserProfile.timezone).where(UserProfile.user_id == user.id).limit(1)
+        )
+        user_timezone = prof_result.scalar_one_or_none() or "America/New_York"
+
         return SessionContext(
             user_id=str(user.id),
             family_id=str(user.family_id),
@@ -74,6 +84,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             categories=categories,
             merchant_mappings=mappings,
             profile_config=profile,
+            timezone=user_timezone,
         )
 
 
@@ -193,6 +204,17 @@ app.add_middleware(
 
 app.include_router(miniapp_router)
 app.include_router(oauth_router)
+
+
+@app.get("/miniapp", include_in_schema=False)
+async def miniapp_index():
+    """Serve the Telegram Mini App SPA."""
+    return FileResponse("static/miniapp/index.html")
+
+
+# Mount static files (CSS, JS, assets) — after all API routes
+if os.path.isdir("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.get("/health")

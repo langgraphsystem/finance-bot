@@ -78,17 +78,13 @@ async def test_require_google_returns_prompt_when_not_connected():
         patch("api.oauth.redis", new_callable=AsyncMock),
         patch(
             "api.oauth.settings",
-            MagicMock(
-                google_redirect_uri="https://app.com/oauth/google/callback"
-            ),
+            MagicMock(google_redirect_uri="https://app.com/oauth/google/callback"),
         ),
     ):
         result = await require_google_or_prompt(str(uuid.uuid4()))
 
     assert result is not None
-    assert "Подключить Google" in (
-        result.buttons[0]["text"] if result.buttons else ""
-    )
+    assert "Подключить Google" in (result.buttons[0]["text"] if result.buttons else "")
     assert "подключить" in result.response_text.lower()
 
 

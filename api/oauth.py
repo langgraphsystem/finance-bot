@@ -95,8 +95,7 @@ async def google_oauth_callback(
 
         # Upsert: update existing token or create new one
         existing = await session.scalar(
-            select(OAuthToken)
-            .where(OAuthToken.user_id == user.id, OAuthToken.provider == "google")
+            select(OAuthToken).where(OAuthToken.user_id == user.id, OAuthToken.provider == "google")
         )
 
         encrypted_access = encrypt_token(token_data["access_token"])
@@ -110,15 +109,17 @@ async def google_oauth_callback(
             existing.expires_at = expires
             existing.scopes = scopes
         else:
-            session.add(OAuthToken(
-                user_id=user.id,
-                family_id=user.family_id,
-                provider="google",
-                access_token_encrypted=encrypted_access,
-                refresh_token_encrypted=encrypted_refresh,
-                expires_at=expires,
-                scopes=scopes,
-            ))
+            session.add(
+                OAuthToken(
+                    user_id=user.id,
+                    family_id=user.family_id,
+                    provider="google",
+                    access_token_encrypted=encrypted_access,
+                    refresh_token_encrypted=encrypted_refresh,
+                    expires_at=expires,
+                    scopes=scopes,
+                )
+            )
         await session.commit()
 
     # Clean up state

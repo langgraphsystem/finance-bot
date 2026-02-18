@@ -15,9 +15,7 @@ async def test_store_pending_action():
     with patch("src.core.pending_actions.redis", mock_redis):
         from src.core.pending_actions import store_pending_action
 
-        pid = await store_pending_action(
-            "send_email", "u1", "f1", {"email_to": "a@b.com"}
-        )
+        pid = await store_pending_action("send_email", "u1", "f1", {"email_to": "a@b.com"})
 
     assert len(pid) == 8
     mock_redis.set.assert_called_once()

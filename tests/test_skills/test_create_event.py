@@ -54,9 +54,7 @@ async def test_create_event_requires_google(skill, message, ctx):
 
     prompt = SkillResult(
         response_text="Подключите Google",
-        buttons=[
-            {"text": "🔗 Подключить Google", "url": "https://example.com"}
-        ],
+        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
     )
     intent = {"event_title": "Meeting", "event_datetime": "3pm"}
     with patch(
@@ -70,9 +68,7 @@ async def test_create_event_requires_google(skill, message, ctx):
 
 
 @pytest.mark.asyncio
-async def test_create_event_returns_preview_with_buttons(
-    skill, message, ctx
-):
+async def test_create_event_returns_preview_with_buttons(skill, message, ctx):
     """Returns preview + confirm/cancel buttons instead of creating."""
     mock_google = AsyncMock()
     mock_redis = AsyncMock()
@@ -118,9 +114,7 @@ async def test_execute_create_event_success():
     from src.skills.create_event.handler import execute_create_event
 
     mock_google = AsyncMock()
-    mock_google.create_event = AsyncMock(
-        return_value={"htmlLink": "https://cal.google.com/evt/1"}
-    )
+    mock_google.create_event = AsyncMock(return_value={"htmlLink": "https://cal.google.com/evt/1"})
 
     action_data = {
         "title": "Meeting",

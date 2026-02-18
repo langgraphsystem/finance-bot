@@ -88,16 +88,18 @@ async def test_list_events_no_events(skill, message, ctx):
 async def test_list_events_with_events(skill, message, ctx):
     """Formats real calendar events."""
     mock_google = AsyncMock()
-    mock_google.list_events = AsyncMock(return_value=[
-        {
-            "summary": "Team standup",
-            "start": {"dateTime": "2026-02-18T09:00:00-05:00"},
-        },
-        {
-            "summary": "Lunch",
-            "start": {"dateTime": "2026-02-18T12:00:00-05:00"},
-        },
-    ])
+    mock_google.list_events = AsyncMock(
+        return_value=[
+            {
+                "summary": "Team standup",
+                "start": {"dateTime": "2026-02-18T09:00:00-05:00"},
+            },
+            {
+                "summary": "Lunch",
+                "start": {"dateTime": "2026-02-18T12:00:00-05:00"},
+            },
+        ]
+    )
 
     formatted = "• 9:00 AM — Team standup\n• 12:00 PM — Lunch"
     with (

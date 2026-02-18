@@ -48,8 +48,7 @@ class GeneralChatSkill:
                 "можешь в конце ответа мягко "
                 "подсказать: «Кстати, я могу сделать это "
                 "за вас — просто напишите ...»",
-                "НЕ добавляй подсказки о возможностях бота "
-                "— пользователь уже знает что ты умеешь",
+                "НЕ добавляй подсказки о возможностях бота — пользователь уже знает что ты умеешь",
             )
         return CHAT_SYSTEM_PROMPT
 
@@ -79,20 +78,15 @@ class GeneralChatSkill:
                     "можешь в конце ответа мягко "
                     "подсказать: «Кстати, я могу сделать "
                     "это за вас — просто напишите ...»",
-                    "НЕ добавляй подсказки о возможностях "
-                    "бота — пользователь уже знает",
+                    "НЕ добавляй подсказки о возможностях бота — пользователь уже знает",
                 )
             else:
                 asm_prompt = assembled.system_prompt
             non_system = [
-                m
-                for m in assembled.messages
-                if m["role"] != "system" and m.get("content")
+                m for m in assembled.messages if m["role"] != "system" and m.get("content")
             ]
             if not non_system:
-                non_system = [
-                    {"role": "user", "content": message.text or "Привет"}
-                ]
+                non_system = [{"role": "user", "content": message.text or "Привет"}]
             prompt_data = PromptAdapter.for_claude(
                 system=asm_prompt,
                 messages=non_system,

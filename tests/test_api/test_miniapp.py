@@ -53,10 +53,12 @@ def test_stats_response_schema():
         total_expense=1500.0,
         total_income=3000.0,
         balance=1500.0,
+        currency="USD",
         expense_categories=[
             CategoryStats(name="Food", icon="🍔", total=800.0, percent=53.3),
             CategoryStats(name="Gas", icon="⛽", total=700.0, percent=46.7),
         ],
+        income_categories=[],
     )
     assert resp.period == "month"
     assert resp.balance == 1500.0
@@ -70,9 +72,11 @@ def test_transaction_item_schema():
         type="expense",
         amount=42.50,
         category="Fuel",
+        category_id=str(uuid.uuid4()),
         merchant="Shell",
         description="Diesel",
         date="2026-02-10",
+        scope="family",
     )
     assert item.type == "expense"
     assert item.amount == 42.50
@@ -170,25 +174,28 @@ class TestGetStatsEndpoint:
     def test_stats_month_returns_correct_structure(self):
         """GET /api/stats/month returns StatsResponse structure."""
         mock_user = _make_mock_user()
+        cat_id = uuid.uuid4()
 
-        # Mock the async_session context manager and DB queries
+        # Stats endpoint: scalar(Family), execute(expense cats), execute(income cats)
         mock_exp_rows = [
-            ("Food", "🍔", Decimal("800.00")),
-            ("Gas", "⛽", Decimal("200.00")),
+            (cat_id, "Food", "🍔", Decimal("800.00")),
+            (cat_id, "Gas", "⛽", Decimal("200.00")),
         ]
-        mock_inc_scalar = Decimal("3000.00")
+        mock_inc_rows: list = []
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            # First execute call: expense categories
+            mock_fam = MagicMock()
+            mock_fam.currency = "USD"
+            mock_session.scalar = AsyncMock(return_value=mock_fam)
+
             exp_result = MagicMock()
             exp_result.all.return_value = mock_exp_rows
-            # Second execute call: income total
             inc_result = MagicMock()
-            inc_result.scalar.return_value = mock_inc_scalar
+            inc_result.all.return_value = mock_inc_rows
 
             mock_session.execute = AsyncMock(side_effect=[exp_result, inc_result])
 
@@ -200,8 +207,9 @@ class TestGetStatsEndpoint:
         data = response.json()
         assert data["period"] == "month"
         assert data["total_expense"] == 1000.0
-        assert data["total_income"] == 3000.0
-        assert data["balance"] == 2000.0
+        assert data["total_income"] == 0.0
+        assert data["balance"] == -1000.0
+        assert data["currency"] == "USD"
         assert len(data["expense_categories"]) == 2
         assert data["expense_categories"][0]["name"] == "Food"
         assert data["expense_categories"][0]["percent"] == 80.0
@@ -215,10 +223,14 @@ class TestGetStatsEndpoint:
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
+            mock_fam = MagicMock()
+            mock_fam.currency = "USD"
+            mock_session.scalar = AsyncMock(return_value=mock_fam)
+
             exp_result = MagicMock()
             exp_result.all.return_value = []
             inc_result = MagicMock()
-            inc_result.scalar.return_value = None
+            inc_result.all.return_value = []
 
             mock_session.execute = AsyncMock(side_effect=[exp_result, inc_result])
 
@@ -240,6 +252,7 @@ class TestListTransactionsEndpoint:
         """GET /api/transactions returns TransactionListResponse."""
         mock_user = _make_mock_user()
         tx_id = uuid.uuid4()
+        cat_id = uuid.uuid4()
 
         mock_tx = MagicMock()
         mock_tx.id = tx_id
@@ -249,20 +262,19 @@ class TestListTransactionsEndpoint:
         mock_tx.merchant = "Shell"
         mock_tx.description = "Diesel"
         mock_tx.date = date(2026, 2, 10)
+        mock_tx.scope = MagicMock()
+        mock_tx.scope.value = "family"
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            # First: count query
-            count_result = MagicMock()
-            count_result.scalar.return_value = 1
-            # Second: data query
+            # Count via session.scalar(); rows via session.execute()
+            mock_session.scalar = AsyncMock(return_value=1)
             data_result = MagicMock()
-            data_result.all.return_value = [(mock_tx, "Fuel")]
-
-            mock_session.execute = AsyncMock(side_effect=[count_result, data_result])
+            data_result.all.return_value = [(mock_tx, "Fuel", cat_id)]
+            mock_session.execute = AsyncMock(return_value=data_result)
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)
@@ -287,12 +299,10 @@ class TestListTransactionsEndpoint:
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            count_result = MagicMock()
-            count_result.scalar.return_value = 0
+            mock_session.scalar = AsyncMock(return_value=0)
             data_result = MagicMock()
             data_result.all.return_value = []
-
-            mock_session.execute = AsyncMock(side_effect=[count_result, data_result])
+            mock_session.execute = AsyncMock(return_value=data_result)
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)
@@ -313,6 +323,10 @@ class TestCreateTransactionEndpoint:
         cat_id = uuid.uuid4()
         tx_id = uuid.uuid4()
 
+        mock_cat = MagicMock()
+        mock_cat.id = cat_id
+        mock_cat.name = "Groceries"
+
         mock_tx = MagicMock()
         mock_tx.id = tx_id
         mock_tx.type = MagicMock()
@@ -322,6 +336,8 @@ class TestCreateTransactionEndpoint:
         mock_tx.description = "Groceries"
         mock_tx.date = date(2026, 2, 13)
         mock_tx.category_id = cat_id
+        mock_tx.scope = MagicMock()
+        mock_tx.scope.value = "family"
 
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
@@ -331,7 +347,9 @@ class TestCreateTransactionEndpoint:
             mock_session.add = MagicMock()
             mock_session.commit = AsyncMock()
 
-            # refresh replaces the tx object attributes — simulate by returning mock_tx
+            # session.scalar() returns category; refresh populates tx
+            mock_session.scalar = AsyncMock(return_value=mock_cat)
+
             async def _fake_refresh(obj):
                 obj.id = mock_tx.id
                 obj.type = mock_tx.type
@@ -340,13 +358,9 @@ class TestCreateTransactionEndpoint:
                 obj.description = mock_tx.description
                 obj.date = mock_tx.date
                 obj.category_id = mock_tx.category_id
+                obj.scope = mock_tx.scope
 
             mock_session.refresh = _fake_refresh
-
-            # Category name lookup
-            cat_result = MagicMock()
-            cat_result.scalar.return_value = "Groceries"
-            mock_session.execute = AsyncMock(return_value=cat_result)
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)
@@ -381,6 +395,9 @@ class TestUpdateSettingsEndpoint:
         mock_db_user.language = "en"
         mock_db_user.business_type = "trucker"
 
+        mock_fam = MagicMock()
+        mock_fam.currency = "USD"
+
         cat_id = uuid.uuid4()
         mock_cat = MagicMock()
         mock_cat.id = cat_id
@@ -394,15 +411,16 @@ class TestUpdateSettingsEndpoint:
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            # First execute: select User
-            user_result = MagicMock()
-            user_result.scalar_one.return_value = mock_db_user
-            # Second execute: select Category
-            cats_result = MagicMock()
-            cats_result.scalars.return_value = [mock_cat]
-
-            mock_session.execute = AsyncMock(side_effect=[user_result, cats_result])
+            # Two scalar() calls: user then family
+            mock_session.scalar = AsyncMock(side_effect=[mock_db_user, mock_fam])
             mock_session.commit = AsyncMock()
+
+            # One execute() call for categories
+            cats_result = MagicMock()
+            scalars_mock = MagicMock()
+            scalars_mock.all.return_value = [mock_cat]
+            cats_result.scalars.return_value = scalars_mock
+            mock_session.execute = AsyncMock(return_value=cats_result)
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)

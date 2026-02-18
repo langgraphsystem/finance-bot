@@ -65,30 +65,31 @@ async def test_morning_brief_requires_google(skill, message, ctx):
 async def test_morning_brief_with_data(skill, message, ctx):
     """Generates brief from real email + calendar data."""
     mock_google = AsyncMock()
-    mock_google.list_events = AsyncMock(return_value=[
-        {
-            "summary": "Standup",
-            "start": {"dateTime": "2026-02-18T09:00:00+00:00"},
-        },
-    ])
-    mock_google.list_messages = AsyncMock(return_value=[
-        {
-            "id": "msg1",
-            "threadId": "t1",
-            "snippet": "Project update",
-            "payload": {
-                "headers": [
-                    {"name": "From", "value": "Sarah <sarah@test.com>"},
-                    {"name": "Subject", "value": "Project deadline"},
-                ]
+    mock_google.list_events = AsyncMock(
+        return_value=[
+            {
+                "summary": "Standup",
+                "start": {"dateTime": "2026-02-18T09:00:00+00:00"},
             },
-        }
-    ])
-
-    brief = (
-        "<b>Доброе утро!</b>\n• 9:00 — Standup\n\n"
-        "📧 Sarah — Project deadline\n\nУдачного дня!"
+        ]
     )
+    mock_google.list_messages = AsyncMock(
+        return_value=[
+            {
+                "id": "msg1",
+                "threadId": "t1",
+                "snippet": "Project update",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "Sarah <sarah@test.com>"},
+                        {"name": "Subject", "value": "Project deadline"},
+                    ]
+                },
+            }
+        ]
+    )
+
+    brief = "<b>Доброе утро!</b>\n• 9:00 — Standup\n\n📧 Sarah — Project deadline\n\nУдачного дня!"
     with (
         patch(
             f"{MODULE}.require_google_or_prompt",
@@ -108,10 +109,7 @@ async def test_morning_brief_with_data(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "утро" in result.response_text.lower()
-        or "Standup" in result.response_text
-    )
+    assert "утро" in result.response_text.lower() or "Standup" in result.response_text
 
 
 @pytest.mark.asyncio

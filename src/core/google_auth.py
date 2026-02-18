@@ -47,18 +47,14 @@ async def require_google_or_prompt(user_id: str) -> SkillResult | None:
         link = await generate_oauth_link(user_id)
         return SkillResult(
             response_text=(
-                "Для работы с почтой и календарём нужно подключить Google.\n"
-                "Нажмите кнопку ниже:"
+                "Для работы с почтой и календарём нужно подключить Google.\nНажмите кнопку ниже:"
             ),
             buttons=[{"text": "🔗 Подключить Google", "url": link}],
         )
     except Exception as e:
         logger.warning("Failed to generate OAuth link: %s", e)
         return SkillResult(
-            response_text=(
-                "Для работы с почтой и календарём подключите Google "
-                "командой /connect"
-            ),
+            response_text=("Для работы с почтой и календарём подключите Google командой /connect"),
         )
 
 
@@ -120,9 +116,7 @@ async def _refresh_token(token: OAuthToken, session) -> None:
 
         data = resp.json()
         token.access_token_encrypted = encrypt_token(data["access_token"])
-        token.expires_at = datetime.now(UTC) + timedelta(
-            seconds=data.get("expires_in", 3600)
-        )
+        token.expires_at = datetime.now(UTC) + timedelta(seconds=data.get("expires_in", 3600))
         # Google may return a new refresh token
         if data.get("refresh_token"):
             token.refresh_token_encrypted = encrypt_token(data["refresh_token"])
@@ -134,10 +128,7 @@ async def _refresh_token(token: OAuthToken, session) -> None:
 def parse_email_headers(msg: dict) -> dict:
     """Extract key fields from a Gmail message metadata response."""
     payload = msg.get("payload", {})
-    headers = {
-        h["name"].lower(): h["value"]
-        for h in payload.get("headers", [])
-    }
+    headers = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
     return {
         "id": msg.get("id", ""),
         "thread_id": msg.get("threadId", ""),

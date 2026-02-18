@@ -81,10 +81,7 @@ async def test_draft_reply_no_unread(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert (
-        "нет" in result.response_text.lower()
-        or "непрочитанных" in result.response_text.lower()
-    )
+    assert "нет" in result.response_text.lower() or "непрочитанных" in result.response_text.lower()
 
 
 @pytest.mark.asyncio

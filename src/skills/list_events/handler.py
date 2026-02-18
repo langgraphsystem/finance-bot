@@ -1,8 +1,9 @@
 """List events skill — fetches real calendar events via Google Calendar API."""
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
@@ -46,9 +47,10 @@ class ListEventsSkill:
         if not google:
             return SkillResult(response_text="Ошибка подключения к Calendar. Попробуйте /connect")
 
-        # Default: today's events
-        now = datetime.now(UTC)
-        time_min = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Use user's local timezone for "today" boundaries
+        tz = ZoneInfo(context.timezone)
+        now_local = datetime.now(tz)
+        time_min = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
         time_max = time_min + timedelta(days=1)
 
         period = intent_data.get("period", "today")
