@@ -71,8 +71,8 @@ rate confirmation, или другого изображения
 "напиши ответ на отзыв", "write an Instagram caption", "write a post about...")
 - proofread: проверить текст на ошибки ("proofread this", "check my text", \
 "проверь грамматику", "fix my spelling")
-- read_inbox: проверить почту, подключить почту, сводка по входящим ("check my email", \
-"what's in my inbox", "проверь почту", "новые письма", "подключить почту", "connect my email")
+- read_inbox: проверить почту, сводка по входящим ("check my email", \
+"what's in my inbox", "проверь почту", "новые письма")
 - send_email: написать и отправить email ("email John about the meeting", \
 "отправь письмо", "email Mrs. Rodriguez")
 - draft_reply: ответить на письмо ("reply to that email", "ответь на письмо от школы")
@@ -112,9 +112,12 @@ rate confirmation, или другого изображения
 - "proofread/check/проверь/fix grammar/исправь" → proofread
 - Общая болтовня без запроса на написание → general_chat
 
-Правила приоритета (email):
-- "подключить почту/connect email/настроить email" → read_inbox
-- "check email/inbox/почта/письма" → read_inbox
+Правила приоритета (email/calendar — ВАЖНО):
+Этот бот УМЕЕТ работать с реальной почтой и календарём через Google.
+Если пользователь спрашивает о почте, email, календаре, расписании, \
+подключении почты, настройке email — это НЕ общий вопрос, а запрос \
+к функциям бота. Маршрутизируй в соответствующий email/calendar intent.
+- "check email/inbox/почта/письма/подключить почту" → read_inbox
 - "email [кому] about..." / "отправь письмо" → send_email
 - "reply to..." / "ответь на письмо" → draft_reply
 - "unanswered/не ответил/follow up" → follow_up_email
