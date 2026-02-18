@@ -48,7 +48,10 @@ class TelegramGateway:
         if message.buttons:
             builder = InlineKeyboardBuilder()
             for btn in message.buttons:
-                builder.button(text=btn["text"], callback_data=btn["callback"])
+                if "url" in btn:
+                    builder.button(text=btn["text"], url=btn["url"])
+                elif "callback" in btn:
+                    builder.button(text=btn["text"], callback_data=btn["callback"])
             builder.adjust(2)
             reply_markup = builder.as_markup()
 
