@@ -1,9 +1,10 @@
 # AI Life Assistant — Implementation Plan
 
-## Version: 2.0 | Date: 2026-02-17
+## Version: 3.0 | Date: 2026-02-18
 
 **Approach**: 100% Python — no TypeScript sidecar, no external orchestration frameworks for channel management
-**Base**: Existing Finance Bot codebase (17K lines, 22 skills, 5 agents, deployed on Railway + Supabase)
+**Base**: Existing Finance Bot codebase (~200 Python files, 43 skills, 10 agents, deployed on Railway + Supabase)
+**New in v3.0**: Platform architecture capabilities inspired by Claude Cowork patterns — declarative YAML prompts, connector registry, plugin bundles, multi-agent orchestrator, progressive context disclosure. PRD: `docs/prds/platform-architecture.md`
 
 ---
 
@@ -13,49 +14,76 @@
 2. [Target State](#2-target-state)
 3. [Architecture Decisions](#3-architecture-decisions)
 4. [Phase Overview](#4-phase-overview)
-5. [Phase 0: Bug Fixes](#5-phase-0-bug-fixes)
-6. [Phase 1: Core Generalization](#6-phase-1-core-generalization-weeks-1-2)
-7. [Phase 2: Email + Calendar](#7-phase-2-email--calendar-weeks-3-4)
-8. [Phase 3: Tasks + Research + Writing + CRM](#8-phase-3-tasks--research--writing--crm-weeks-5-6)
-9. [Phase 4: Channels + Billing](#9-phase-4-channels--billing-weeks-7-8)
-10. [Phase 5: Proactivity + Browser Automation + Polish](#10-phase-5-proactivity--browser-automation--polish-weeks-9-10)
-11. [File-by-File Change Map](#11-file-by-file-change-map)
-12. [Risk Register](#12-risk-register)
-13. [Final Metrics](#13-final-metrics)
+5. [Phase 0: Bug Fixes](#5-phase-0-bug-fixes) ✅
+6. [Phase 1: Core Generalization](#6-phase-1-core-generalization-weeks-1-2) ✅
+7. [Phase 2: Email + Calendar](#7-phase-2-email--calendar-weeks-3-4) ✅
+8. [Phase 3: Tasks + Research + Writing + CRM](#8-phase-3-tasks--research--writing--crm-weeks-5-6) ✅
+9. [Phase 3.5: Platform Architecture](#9-phase-35-platform-architecture-weeks-7-8) 🆕
+10. [Phase 4: Channels + Billing](#10-phase-4-channels--billing-weeks-9-10)
+11. [Phase 5: Proactivity + Browser Automation + Polish](#11-phase-5-proactivity--browser-automation--polish-weeks-11-12)
+12. [File-by-File Change Map](#12-file-by-file-change-map)
+13. [Risk Register](#13-risk-register)
+14. [Final Metrics](#14-final-metrics)
 
 ---
 
-## 1. CURRENT STATE
+## 1. CURRENT STATE (as of v3.0 — 2026-02-18)
 
 ```
-Codebase:       ~170 Python files, 17K lines
-Skills:         22 (14 finance + 8 life-tracking)
-Agents:         5 (receipt, analytics, chat, onboarding, life)
-Orchestrators:  0
-DB Tables:      15 (SQLAlchemy 2.0 async + asyncpg)
+Codebase:       ~200 Python files
+Skills:         43 (14 finance + 8 life + 4 tasks + 3 research + 4 writing + 5 email + 5 calendar)
+Agents:         10 (receipt, analytics, chat, onboarding, life, tasks, research, writing, email, calendar)
+Orchestrators:  0 (LangGraph scaffolded but not active)
+DB Tables:      24 (SQLAlchemy 2.0 async + asyncpg)
 Channels:       1 (Telegram via aiogram 3.25)
-Tests:          503 passing
+Tests:          74 test files
 Deploy:         Railway + Supabase (PostgreSQL + pgvector)
-Packages:       234 (managed with uv)
+Packages:       managed with uv
 CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 ```
+
+### Phases Completed
+
+| Phase | Status | Key Deliverables |
+|-------|--------|-----------------|
+| Phase 0 | ✅ Done | 7 bug fixes |
+| Phase 1 | ✅ Done | Domain router, 2-stage intent, 8 new DB models, gateway abstraction |
+| Phase 2 | ✅ Done | 10 email/calendar skills (stubs), OAuth model, crypto module |
+| Phase 3 | ✅ Done | 13 task/research/writing skills, BraveSearch via Gemini grounding |
+
+### Known Gaps in Completed Phases
+
+- **Email/Calendar skills are stubs** — call LLM with no real data (no Gmail/Calendar API integration yet)
+- **Morning brief hallucinates** — no cross-domain data collection
+- **Writing orchestrator not active** — LangGraph defined but skills use direct `execute()`
+- **No connector abstraction** — OAuth/API access hardcoded per skill
 
 ### Model Routing (current)
 
 | Model | ID | Role |
 |-------|-----|------|
 | Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
-| Claude Sonnet 4.5 | `claude-sonnet-4-5` | Analytics, reports, onboarding |
-| Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, fallback |
+| Claude Sonnet 4.5 | `claude-sonnet-4-5` | Analytics, reports, onboarding, writing, email |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, calendar, tasks, fallback |
 | GPT-5.2 | `gpt-5.2` | Fallback (analytics, OCR, complex) |
-| Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization |
+| Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization, web search grounding |
 | Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
 
-### Current Skills (22)
+### Current Skills (43)
 
 **Finance (14):** add_expense, add_income, scan_receipt, scan_document, query_stats, query_report, complex_query, onboarding, general_chat, correct_category, undo_last, set_budget, add_recurring, mark_paid
 
 **Life-tracking (8):** quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode
+
+**Tasks (4):** create_task, list_tasks, set_reminder, complete_task
+
+**Research (3):** web_search, quick_answer, compare_options
+
+**Writing (4):** draft_message, translate_text, write_post, proofread
+
+**Email (5):** read_inbox, send_email, draft_reply, follow_up_email, summarize_thread *(stubs)*
+
+**Calendar (5):** list_events, create_event, find_free_slots, reschedule_event, morning_brief *(stubs)*
 
 ---
 
@@ -65,20 +93,22 @@ CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 Product:        AI Life Assistant ($49/month)
 Market:         US consumers and small business owners
 Interface:      Conversation only — no app, no dashboard
-Skills:         47+
+Skills:         51+
 Agents:         12
-Orchestrators:  4 LangGraph (email, research, writing, browser) + simple domains via AgentRouter
-DB Tables:      24
+Orchestrators:  4 LangGraph (email, research, writing, browser) + 2 orchestrator skills (morning_brief, evening_recap)
+DB Tables:      25
 Channels:       4 (Telegram, WhatsApp, Slack, SMS)
-Cost target:    $3-8/month API cost per user
+Architecture:   Declarative YAML prompts, plugin bundles, connector registry, progressive context
+Cost target:    $3-8/month API cost per user (15-30% token savings from smart context)
+Star rating:    6★ MVP (per 11_STAR_EXPERIENCE.md)
 ```
 
 ### Test Personas
 
-Every feature decision is validated against two personas:
+Every feature decision is validated against two personas (see `skills/pm/PM_SKILL.md`):
 
-- **Maria** — Brooklyn mom, 2 kids (Emma 8, Noah 5). School schedules, doctors, groceries, meal planning, family calendar.
-- **David** — Queens plumber, 5 employees (Mike, Jose, Alex + 2). Job scheduling, client follow-ups, invoices, supply orders, Google reviews.
+- **Maria** — Brooklyn mom, 2 kids (Emma 8, Noah 5). School schedules, doctors, groceries, meal planning, family calendar. Needs: one morning message that covers her whole day.
+- **David** — Queens plumber, 5 employees (Mike, Jose, Alex + 2). Job scheduling, client follow-ups, invoices, supply orders, Google reviews. Needs: business-specific categories (Materials, Vehicle, Subcontractor), morning brief with jobs + invoices + emails.
 
 ---
 
@@ -145,18 +175,69 @@ Key technical decisions based on research, with rationale.
 4. Callback exchanges code for tokens → encrypted storage in `oauth_tokens` table
 5. Tokens auto-refresh via `aiogoogle` before expiry
 
+### 3.8 Declarative YAML Prompts (inspired by Cowork SKILL.md pattern)
+
+**Decision:** Externalize system prompts into `prompts.yaml` files alongside each skill handler.
+
+**Why:** Cowork's plugin architecture proves that SKILL.md files with frontmatter metadata are sufficient for skill definition. Our version uses YAML instead of Markdown (structured data > free text for programmatic access). This enables: (1) prompt iteration without code deployment, (2) PM/copywriter access to bot voice, (3) future auto-discovery of skills from YAML metadata, (4) A/B prompt testing via `variants` field.
+
+**Migration:** Gradual — skills without `prompts.yaml` fall back to hardcoded prompts. No breaking change.
+
+### 3.9 Connector Registry (inspired by Cowork MCP/.mcp.json pattern)
+
+**Decision:** Build a unified `ConnectorRegistry` with `BaseConnector` protocol for all external services.
+
+**Why:** Cowork's `.mcp.json` pattern proves declarative service configuration works. Our connectors handle OAuth lifecycle (connect/disconnect/refresh), provide `get_client()` for ready-to-use API clients, and centralize error handling. Skills never import API libraries directly — they request a client from the registry. This makes Phase 4 channels trivial to add.
+
+**Not MCP:** We don't use MCP protocol itself — it's designed for LLM tool calling, not for our skill-based architecture. We take the pattern (declarative config + protocol-based connectors) but implement it as native Python.
+
+### 3.10 Plugin Bundles for Business Profiles (inspired by Cowork plugins)
+
+**Decision:** Extend `config/profiles/*.yaml` into self-contained plugin bundles with prompt overrides, custom categories, report templates, and configurable morning brief sections.
+
+**Why:** Cowork's plugin architecture (manifest + skills + commands in a folder) maps directly to our business profile needs. A plumber and a restaurant owner need different expense categories, different report formats, and different morning brief sections. Plugin bundles make this customization file-based, not code-based.
+
+### 3.11 Multi-Agent Orchestrator for Cross-Domain Queries
+
+**Decision:** Build orchestrator skills that call multiple sub-skills in parallel via `asyncio.gather()`, then synthesize results with a single LLM call.
+
+**Why:** Inspired by Cowork's sub-agent coordination pattern and Agent Teams' lead+teammates model. Our `morning_brief` currently hallucinates because it can't access data from calendar, tasks, email, and finance simultaneously. An orchestrator skill collects data from domain-specific skills in parallel (3s timeout each), then Claude Sonnet synthesizes a coherent brief.
+
+**Not LangGraph:** This is simpler than LangGraph — no conditional edges, no state machine. Pure `asyncio.gather()` + LLM synthesis. LangGraph stays for genuinely complex multi-step flows (email drafting with revision loops, browser automation).
+
+### 3.12 Progressive Context Disclosure
+
+**Decision:** Dynamically reduce context loading for simple queries using regex heuristics.
+
+**Why:** Currently every `add_expense` loads Mem0 merchant mappings + 3 history messages, even for "100р кофе." Cowork's progressive disclosure pattern (metadata first → full instructions → resources on demand) validates lazy loading. Our heuristic detects simple messages (regex patterns for amounts, confirmations, greetings) and skips heavy context layers. Conservative default: if unsure, load everything.
+
+**No LLM gating:** For now, purely regex-based. LLM-based complexity assessment deferred to Phase 5 (adds latency + cost that defeats the purpose for simple queries).
+
 ---
 
 ## 4. PHASE OVERVIEW
 
 ```
-Phase 0 (pre)      │ Python only │ Fix 7 bugs in current codebase
-Phase 1 (wk 1-2)   │ Python only │ Generalize core: domain router, 2-stage intent, new DB tables
-Phase 2 (wk 3-4)   │ Python only │ Email + Calendar via aiogoogle + Google OAuth
-Phase 3 (wk 5-6)   │ Python only │ Tasks + Research + Writing + CRM
-Phase 4 (wk 7-8)   │ Python only │ Slack (slack-bolt), WhatsApp (Business API), SMS (Twilio) + Stripe
-Phase 5 (wk 9-10)  │ Python only │ Proactivity engine, Browser-Use automation, polish
+Phase 0 (pre)      │ ✅ Done     │ Fix 7 bugs in current codebase
+Phase 1 (wk 1-2)   │ ✅ Done     │ Generalize core: domain router, 2-stage intent, new DB tables
+Phase 2 (wk 3-4)   │ ✅ Done     │ Email + Calendar skills (stubs) + OAuth model + crypto
+Phase 3 (wk 5-6)   │ ✅ Done     │ Tasks + Research + Writing + CRM skills
+Phase 3.5 (wk 7-8) │ 🆕 NEW     │ Platform architecture: YAML prompts, connectors, plugins, orchestrator, smart context
+Phase 4 (wk 9-10)  │ Planned     │ Slack (slack-bolt), WhatsApp (Business API), SMS (Twilio) + Stripe
+Phase 5 (wk 11-12) │ Planned     │ Proactivity engine, Browser-Use automation, polish
 ```
+
+### Why Phase 3.5?
+
+Phases 0-3 delivered 43 skills, but many are stubs (email, calendar) and the architecture has debt:
+- Prompts hardcoded in Python — can't iterate without deploy
+- No shared connector layer — Phase 4 channels would duplicate OAuth/API plumbing
+- Morning brief hallucinates — no cross-domain data collection
+- Context loading is static — wastes tokens on simple queries
+
+Phase 3.5 fixes the foundation BEFORE adding more channels and complexity in Phase 4.
+This is the **platform architecture phase** — inspired by Claude Cowork's declarative plugin patterns.
+PRD: `docs/prds/platform-architecture.md` (scored 26.3/30, star rating 5→7★).
 
 ---
 
@@ -1121,9 +1202,521 @@ Add 13 new intents (45 total). All use 2-stage detection.
 
 ---
 
-## 9. PHASE 4: CHANNELS + BILLING (Weeks 7-8)
+## 9. PHASE 3.5: PLATFORM ARCHITECTURE (Weeks 7-8)
 
-### 9.1 Channel architecture
+> **PRD:** `docs/prds/platform-architecture.md` | **Star Rating:** 5→7★ | **RICE:** 52.8
+> **Inspired by:** Claude Cowork plugin architecture, Agent Teams orchestration patterns
+
+### 9.1 YAML Prompt System
+
+Externalize all system prompts into YAML files alongside skill handlers. Enables prompt iteration without code deployment.
+
+#### 9.1.1 Prompt loader
+
+**File:** `src/skills/prompt_loader.py` (NEW)
+
+```python
+"""YAML prompt loader with startup validation and caching."""
+
+from pathlib import Path
+import yaml
+
+_cache: dict[Path, dict] = {}
+
+
+def load_prompt(skill_dir: Path) -> dict:
+    """Load prompts.yaml for a skill. Returns empty dict if not found."""
+    if skill_dir not in _cache:
+        yaml_path = skill_dir / "prompts.yaml"
+        if yaml_path.exists():
+            _cache[skill_dir] = yaml.safe_load(yaml_path.read_text())
+        else:
+            _cache[skill_dir] = {}
+    return _cache[skill_dir]
+
+
+def validate_all_prompts(skills_dir: Path) -> list[str]:
+    """Validate all prompts.yaml files at startup. Returns list of errors."""
+    errors = []
+    for yaml_path in skills_dir.rglob("prompts.yaml"):
+        try:
+            data = yaml.safe_load(yaml_path.read_text())
+            if "system_prompt" not in data:
+                errors.append(f"{yaml_path}: missing 'system_prompt' key")
+        except yaml.YAMLError as e:
+            errors.append(f"{yaml_path}: {e}")
+    return errors
+```
+
+#### 9.1.2 `prompts.yaml` schema
+
+```yaml
+name: list_events                     # skill name (must match handler.name)
+description: Shows calendar events    # for auto-discovery (future)
+model: claude-haiku-4-5              # default model override
+intents:
+  - list_events
+
+system_prompt: |
+  You are a calendar assistant for {user_name}.
+  Language: {language}.
+  Group events by day. Bullet points with time + title.
+  Show free gaps between events.
+  If no events: "Your calendar is clear! Want to schedule something?"
+  Max 10 items. Use Telegram HTML (<b>, <i>, <code>).
+
+variants:                             # for A/B testing (P2)
+  empty_calendar: "Your calendar is clear for {period}."
+  busy_day: "Packed day — {event_count} events from {first_time} to {last_time}."
+```
+
+#### 9.1.3 Migration of skill handlers
+
+Each skill's `get_system_prompt()` changes from hardcoded string to:
+
+```python
+def get_system_prompt(self, context: SessionContext) -> str:
+    prompts = load_prompt(Path(__file__).parent)
+    if prompts and "system_prompt" in prompts:
+        return prompts["system_prompt"].format(
+            user_name=context.user_name or "there",
+            language=context.language or "en",
+        )
+    # Fallback: existing hardcoded prompt
+    return self._default_system_prompt(context)
+```
+
+**Migration priority (10 key skills first):**
+1. `add_expense` — most-used skill, biggest prompt iteration value
+2. `list_events` — stub needs real prompt for Phase 4
+3. `read_inbox` — stub needs real prompt for Phase 4
+4. `morning_brief` — orchestrator rewrite (see 9.4)
+5. `list_tasks` — data-driven, needs formatting prompt
+6. `query_stats` — analytics prompt tuning
+7. `web_search` — search quality depends on prompt
+8. `draft_message` — tone matching depends on prompt
+9. `general_chat` — most frequent fallback
+10. `onboarding` — first impression, critical
+
+Remaining 33 skills migrated gradually. Skills without `prompts.yaml` work unchanged.
+
+---
+
+### 9.2 Connector Registry
+
+Unified abstraction for all external service connections. Skills never import API libraries directly.
+
+#### 9.2.1 BaseConnector protocol
+
+**File:** `src/core/connectors/base.py` (NEW)
+
+```python
+"""Base connector protocol for external service integrations."""
+
+from typing import Any, Protocol
+
+
+class BaseConnector(Protocol):
+    name: str
+    is_configured: bool  # env vars present?
+
+    async def connect(self, user_id: str) -> str:
+        """Initiate connection. Returns auth URL for OAuth or confirmation string."""
+        ...
+
+    async def disconnect(self, user_id: str) -> bool:
+        """Revoke tokens and remove connection."""
+        ...
+
+    async def is_connected(self, user_id: str) -> bool:
+        """Check if user has valid, non-expired connection."""
+        ...
+
+    async def get_client(self, user_id: str) -> Any:
+        """Return ready-to-use API client with valid tokens. Auto-refreshes if needed."""
+        ...
+
+    async def refresh_if_needed(self, user_id: str) -> None:
+        """Refresh tokens if expiring within 5 minutes."""
+        ...
+```
+
+#### 9.2.2 ConnectorRegistry
+
+**File:** `src/core/connectors/__init__.py` (NEW)
+
+```python
+class ConnectorRegistry:
+    _connectors: dict[str, BaseConnector] = {}
+
+    def register(self, connector: BaseConnector) -> None:
+        self._connectors[connector.name] = connector
+
+    def get(self, name: str) -> BaseConnector | None:
+        return self._connectors.get(name)
+
+    def list_configured(self) -> list[str]:
+        return [n for n, c in self._connectors.items() if c.is_configured]
+
+    async def list_connected(self, user_id: str) -> list[str]:
+        return [n for n, c in self._connectors.items() if await c.is_connected(user_id)]
+```
+
+#### 9.2.3 Google connector (refactor existing OAuth)
+
+**File:** `src/core/connectors/google.py` (NEW)
+
+Wraps existing `src/core/crypto.py` encryption + `oauth_tokens` table + `aiogoogle` client creation into the `BaseConnector` protocol. Existing `api/oauth.py` endpoints call `google_connector.connect()` / `google_connector.handle_callback()`.
+
+#### 9.2.4 Connector config
+
+**File:** `src/core/connectors/config.yaml` (NEW)
+
+```yaml
+connectors:
+  google:
+    type: oauth2
+    provider: google
+    scopes:
+      gmail: [gmail.readonly, gmail.send, gmail.modify]
+      calendar: [calendar.events, calendar.readonly]
+    token_encryption: true
+  slack:
+    type: oauth2
+    provider: slack
+    scopes: [channels:read, chat:write, users:read]
+  stripe:
+    type: api_key
+    env_var: STRIPE_SECRET_KEY
+  whatsapp:
+    type: api_key
+    env_var: WHATSAPP_API_TOKEN
+  twilio:
+    type: api_key
+    env_var: TWILIO_AUTH_TOKEN
+```
+
+#### 9.2.5 Skill handler impact
+
+Before (hardcoded):
+```python
+from aiogoogle import Aiogoogle
+# ... manual token loading, refresh, client creation
+```
+
+After (connector registry):
+```python
+google = connector_registry.get("google")
+if not await google.is_connected(context.user_id):
+    return SkillResult(
+        response_text="Connect your Gmail first.",
+        buttons=[{"text": "Connect Gmail", "url": await google.connect(context.user_id)}],
+    )
+client = await google.get_client(context.user_id)
+emails = await client.list_messages("is:unread", max_results=10)
+```
+
+---
+
+### 9.3 Plugin Bundles for Business Profiles
+
+Extend `config/profiles/*.yaml` into self-contained plugin directories with prompt overrides, custom categories, and configurable morning brief sections.
+
+#### 9.3.1 Plugin directory structure
+
+```
+config/plugins/
+├── household/               # default
+│   └── plugin.yaml
+├── plumber/
+│   ├── plugin.yaml
+│   └── prompts/
+│       ├── add_expense.yaml     # override: "Materials" not "Shopping"
+│       └── query_report.yaml    # override: job profitability report
+├── restaurant/
+│   ├── plugin.yaml
+│   └── prompts/
+│       ├── add_expense.yaml     # override: "Food Cost" not "Groceries"
+│       └── query_report.yaml    # override: food cost percentage report
+├── taxi/
+│   ├── plugin.yaml
+│   └── prompts/
+│       └── add_expense.yaml     # override: "Gas", "Car Wash" categories
+└── delivery/
+    ├── plugin.yaml
+    └── prompts/
+        └── add_expense.yaml
+```
+
+#### 9.3.2 `plugin.yaml` schema
+
+```yaml
+name: plumber
+display_name: "Plumbing & Trades"
+description: "For plumbers, electricians, and trade businesses"
+persona_match: "David"  # which test persona this serves
+
+categories:
+  - { name: "Materials", icon: "🔧", keywords: ["home depot", "ferguson", "pvc", "copper"] }
+  - { name: "Vehicle", icon: "🚐", keywords: ["gas", "oil change", "tires", "car wash"] }
+  - { name: "Subcontractor", icon: "👷", keywords: ["helper", "apprentice", "subcontract"] }
+  - { name: "Tools", icon: "🛠️", keywords: ["milwaukee", "dewalt", "drill", "makita"] }
+  - { name: "Office", icon: "📋", keywords: ["quickbooks", "insurance", "license"] }
+
+metrics:
+  - revenue_per_job
+  - materials_percentage
+  - outstanding_invoices
+
+morning_brief_sections:
+  - jobs_today          # calendar events tagged as jobs
+  - money_summary       # yesterday's spending + invoiced
+  - outstanding         # overdue invoices
+  - email_highlights    # important emails
+
+evening_recap_sections:
+  - completed_jobs      # tasks marked done today
+  - spending_total      # total spent today
+  - invoices_sent       # invoices created today
+
+disabled_skills: []     # all enabled by default
+```
+
+#### 9.3.3 Plugin loader
+
+**File:** `src/core/plugin_loader.py` (NEW)
+
+```python
+class PluginLoader:
+    """Loads and caches plugin bundles from config/plugins/."""
+
+    def load(self, plugin_name: str) -> PluginConfig:
+        """Load plugin.yaml. Falls back to 'household' if not found."""
+        ...
+
+    def get_prompt_override(self, plugin_name: str, skill_name: str) -> str | None:
+        """Check if plugin has a prompt override for this skill."""
+        ...
+
+    def get_categories(self, plugin_name: str) -> list[dict]:
+        """Return plugin-specific expense categories."""
+        ...
+
+    def get_morning_brief_sections(self, plugin_name: str) -> list[str]:
+        """Return which sections to include in morning brief."""
+        ...
+```
+
+#### 9.3.4 Integration with SessionContext
+
+```python
+# In context.py — at context creation:
+plugin = plugin_loader.load(user.profile_type or "household")
+context = SessionContext(
+    ...
+    categories=plugin.get_categories(),
+    profile_type=user.profile_type,
+)
+```
+
+#### 9.3.5 Prompt override chain
+
+Priority (highest first):
+1. Plugin-specific prompt (`config/plugins/{type}/prompts/{skill}.yaml`)
+2. Skill-specific prompt (`src/skills/{skill}/prompts.yaml`)
+3. Hardcoded prompt in handler (legacy fallback)
+
+---
+
+### 9.4 Multi-Agent Orchestrator
+
+Rewrite `morning_brief` and add `evening_recap` as orchestrator skills that collect data from multiple domains in parallel.
+
+#### 9.4.1 Morning Brief rewrite
+
+**File:** `src/skills/morning_brief/handler.py` (REWRITE)
+
+```python
+class MorningBriefSkill:
+    name = "morning_brief"
+    intents = ["morning_brief"]
+    model = "claude-sonnet-4-5"  # upgraded: synthesis needs stronger model
+
+    async def execute(self, message, context, intent_data) -> SkillResult:
+        plugin = plugin_loader.load(context.profile_type or "household")
+        sections = plugin.get_morning_brief_sections()
+
+        # Parallel data collection with per-collector 3s timeout
+        collectors = {
+            "jobs_today": self._collect_events(context),
+            "tasks": self._collect_tasks(context),
+            "money_summary": self._collect_finance(context),
+            "email_highlights": self._collect_emails(context),
+            "outstanding": self._collect_invoices(context),
+        }
+
+        active = {k: v for k, v in collectors.items() if k in sections}
+        results = await asyncio.gather(
+            *(asyncio.wait_for(coro, timeout=3.0) for coro in active.values()),
+            return_exceptions=True,
+        )
+
+        data = {}
+        for key, result in zip(active.keys(), results):
+            if isinstance(result, Exception):
+                data[key] = f"({key} unavailable)"
+            else:
+                data[key] = result
+
+        brief = await self._synthesize(data, context)
+        return SkillResult(response_text=brief)
+```
+
+**Data collectors:**
+- `_collect_events` → uses `connector_registry.get("google")` → Calendar API
+- `_collect_tasks` → uses `get_open_tasks()` from existing list_tasks skill
+- `_collect_finance` → direct SQL query for yesterday's transactions
+- `_collect_emails` → uses `connector_registry.get("google")` → Gmail API
+- `_collect_invoices` → SQL query for overdue recurring payments
+
+**Graceful degradation:** If calendar not connected → skip calendar section. If Gmail not connected → skip email section. Brief still generates from available data.
+
+#### 9.4.2 Evening Recap (NEW)
+
+**File:** `src/skills/evening_recap/handler.py` (NEW)
+
+Same orchestrator pattern. Sections: tasks completed today, total spending, events attended, mood (if tracked). Tone: wrap-up, not action items.
+
+**Intent:** `evening_recap` — added to intent detection prompt.
+**Agent:** `life` agent (context_config: `{"mem": "life", "hist": 0, "sql": False, "sum": False}`)
+
+#### 9.4.3 QUERY_CONTEXT_MAP updates
+
+```python
+"morning_brief":  {"mem": "profile", "hist": 0, "sql": False, "sum": False},  # orchestrator loads its own data
+"evening_recap":  {"mem": "profile", "hist": 0, "sql": False, "sum": False},  # same pattern
+```
+
+---
+
+### 9.5 Progressive Context Disclosure
+
+Dynamically reduce context loading for simple queries using regex heuristics.
+
+#### 9.5.1 Complexity heuristic
+
+**File:** `src/core/memory/context.py` — add function:
+
+```python
+import re
+
+SIMPLE_PATTERNS = [
+    r"^\d+[\s.,]?\s?\w{1,20}$",            # "100 кофе", "50.5 uber"
+    r"^(да|нет|ок|ok|спасибо|thanks|thx)\b", # confirmations
+    r"^(привет|hello|hi|hey)\b",            # greetings
+    r"^(готово|done|сделано)\b",             # completions
+    r"^\+?\d[\d\s\-()]{5,15}$",             # phone numbers
+]
+
+COMPLEX_SIGNALS = [
+    "сравни", "compare", "тренд", "trend", "обычно", "usually",
+    "прошлый", "last", "бюджет", "budget", "итого", "total",
+    "за месяц", "за неделю", "this month", "this week",
+    "как обычно", "as usual", "всего", "average", "средн",
+]
+
+# Intents that always need full context
+ALWAYS_HEAVY = {"query_stats", "complex_query", "query_report", "deep_research"}
+
+
+def _needs_heavy_context(message: str, intent: str) -> bool:
+    if intent in ALWAYS_HEAVY:
+        return True
+    text = message.strip().lower()
+    if any(re.match(p, text, re.I) for p in SIMPLE_PATTERNS):
+        return False
+    if any(s in text for s in COMPLEX_SIGNALS):
+        return True
+    return True  # conservative default: load everything
+```
+
+#### 9.5.2 Integration into `assemble_context()`
+
+```python
+async def assemble_context(user_id, family_id, current_message, intent, ...):
+    config = QUERY_CONTEXT_MAP.get(intent, DEFAULT_CONFIG).copy()
+
+    if not _needs_heavy_context(current_message, intent):
+        config["mem"] = False
+        config["sql"] = False
+        config["sum"] = False
+        config["hist"] = min(config.get("hist", 0), 1)
+
+    # rest unchanged — load layers per config
+    ...
+```
+
+#### 9.5.3 Token savings tracking
+
+Add `context_tokens_saved` field to `usage_logs` table:
+
+```python
+# In assemble_context — after assembly:
+original = estimate_tokens(QUERY_CONTEXT_MAP[intent])
+actual = token_usage["total"]
+saved = max(0, original - actual)
+```
+
+**Expected savings:**
+
+| Query type | Current tokens | After | Savings |
+|-----------|---------------|-------|---------|
+| "100р кофе" | ~3,000 | ~500 | 83% |
+| "спасибо" | ~5,000 | ~200 | 96% |
+| "готово" | ~3,000 | ~200 | 93% |
+| "сколько за месяц?" | ~15,000 | ~15,000 | 0% (correct) |
+
+---
+
+### 9.6 Phase 3.5 — file summary
+
+| Action | File | Type |
+|--------|------|------|
+| NEW | `src/skills/prompt_loader.py` | YAML prompt loader + validator |
+| NEW | `src/skills/*/prompts.yaml` (10 files) | Prompt YAML for 10 key skills |
+| NEW | `src/core/connectors/__init__.py` | ConnectorRegistry |
+| NEW | `src/core/connectors/base.py` | BaseConnector protocol |
+| NEW | `src/core/connectors/google.py` | Google OAuth connector |
+| NEW | `src/core/connectors/config.yaml` | Connector config |
+| NEW | `src/core/plugin_loader.py` | Plugin bundle loader |
+| NEW | `config/plugins/household/plugin.yaml` | Default plugin |
+| NEW | `config/plugins/plumber/plugin.yaml` | Plumber plugin (David) |
+| NEW | `config/plugins/plumber/prompts/add_expense.yaml` | Plumber expense prompt |
+| NEW | `config/plugins/restaurant/plugin.yaml` | Restaurant plugin |
+| NEW | `config/plugins/restaurant/prompts/add_expense.yaml` | Restaurant expense prompt |
+| NEW | `config/plugins/taxi/plugin.yaml` | Taxi plugin |
+| NEW | `src/skills/evening_recap/__init__.py` + `handler.py` | Evening recap orchestrator |
+| REWRITE | `src/skills/morning_brief/handler.py` | Orchestrator rewrite |
+| EDIT | `src/core/memory/context.py` | Progressive disclosure heuristic |
+| EDIT | `src/skills/__init__.py` | Register evening_recap (44 skills) |
+| EDIT | `src/core/intent.py` | Add evening_recap intent |
+| EDIT | `src/core/domains.py` | Map evening_recap to general domain |
+| EDIT | `src/agents/config.py` | Add evening_recap to life agent |
+| NEW | `tests/test_skills/test_prompt_loader.py` | Prompt loader tests |
+| NEW | `tests/test_core/test_connectors.py` | Connector registry tests |
+| NEW | `tests/test_core/test_plugin_loader.py` | Plugin loader tests |
+| NEW | `tests/test_skills/test_evening_recap.py` | Evening recap tests |
+| NEW | `tests/test_core/test_progressive_context.py` | Context heuristic tests |
+| EDIT | `tests/test_skills/test_morning_brief.py` | Update for orchestrator |
+| EDIT | `tests/test_skills/test_registry.py` | Update skill count |
+
+**Total Phase 3.5**: ~30 new files, ~8 edited files, 1 new skill, 1 rewritten skill
+
+---
+
+## 10. PHASE 4: CHANNELS + BILLING (Weeks 9-10)
+
+### 10.1 Channel architecture
 
 Each channel gets a Python gateway that implements the `MessageGateway` protocol from Phase 1. No external sidecar process — all channels run inside the same FastAPI application.
 
@@ -1141,7 +1734,7 @@ Channel gateway formats and sends response
 
 ---
 
-### 9.2 Slack channel
+### 10.2 Slack channel
 
 **Library**: `slack-bolt` (official Slack Python SDK, async support, actively maintained by Slack team)
 
@@ -1203,7 +1796,7 @@ async def slack_events(request: Request):
 
 ---
 
-### 9.3 WhatsApp channel
+### 10.3 WhatsApp channel
 
 **API**: WhatsApp Business Cloud API (Meta-hosted, no phone server needed)
 
@@ -1264,7 +1857,7 @@ async def whatsapp_verify(request: Request):
 
 ---
 
-### 9.4 SMS channel
+### 10.4 SMS channel
 
 **Library**: `twilio` (Python SDK)
 
@@ -1320,13 +1913,13 @@ async def sms_webhook(request: Request):
 
 ---
 
-### 9.5 iMessage — DEFERRED
+### 10.5 iMessage — DEFERRED
 
 Apple does not provide a public iMessage API. Options like BlueBubbles require a dedicated macOS machine and are fragile. **Deferred indefinitely** until Apple opens the platform or a reliable third-party solution emerges.
 
 ---
 
-### 9.6 Channel user mapping
+### 10.6 Channel user mapping
 
 **File**: `src/core/models/channel_link.py` (NEW)
 
@@ -1349,7 +1942,7 @@ The first time a user messages from a new channel, we attempt to match by phone 
 
 ---
 
-### 9.7 Stripe billing
+### 10.7 Stripe billing
 
 #### 9.7.1 New files
 
@@ -1406,7 +1999,9 @@ Added to `router.py` — before processing any message, verify the user has an a
 
 ---
 
-### 9.8 Phase 4 — file summary
+### 10.8 Phase 4 — file summary
+
+> **Note:** Phase 4 channel gateways now use `ConnectorRegistry` from Phase 3.5 for external service connections. Slack, WhatsApp, and Twilio connectors are registered in `src/core/connectors/` alongside Google. Skills access all services through the same `BaseConnector` protocol.
 
 | Action | File | Type |
 |--------|------|------|
@@ -1435,9 +2030,11 @@ Added to `router.py` — before processing any message, verify the user has an a
 
 ---
 
-## 10. PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
+## 11. PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 11-12)
 
-### 10.1 Proactivity engine
+> **Note:** Phase 5 proactivity engine now leverages Phase 3.5 infrastructure: morning_brief orchestrator is already built (Phase 3.5), plugin bundles define proactive sections per business type, and progressive context disclosure reduces cost of frequent proactive checks.
+
+### 11.1 Proactivity engine
 
 | New File | Purpose |
 |----------|---------|
@@ -1462,7 +2059,7 @@ TRIGGERS = [
 ]
 ```
 
-#### 10.1.1 Taskiq integration
+#### 11.1.1 Taskiq integration
 
 **File**: `src/core/tasks/proactivity_tasks.py` (NEW)
 
@@ -1475,7 +2072,7 @@ async def evaluate_proactive_triggers():
 
 ---
 
-### 10.2 Browser automation (Browser-Use + LangGraph)
+### 11.2 Browser automation (Browser-Use + LangGraph)
 
 **Library**: `browser-use` (77K GitHub stars, MIT license, Python, 89.1% WebVoyager benchmark)
 
@@ -1554,7 +2151,7 @@ browser = Browser(config=BrowserConfig(
 
 ---
 
-### 10.3 Monitor skills
+### 11.3 Monitor skills
 
 | New Skill | Intent | Model |
 |-----------|--------|-------|
@@ -1565,7 +2162,7 @@ Uses `monitors` table + `web_search` tool + Taskiq cron.
 
 ---
 
-### 10.4 Action approval system
+### 11.4 Action approval system
 
 **File**: `src/core/approval.py` (NEW)
 
@@ -1590,7 +2187,7 @@ class ApprovalManager:
 
 ---
 
-### 10.5 User profile auto-learning
+### 11.5 User profile auto-learning
 
 **File**: `src/core/tasks/profile_tasks.py` (NEW)
 
@@ -1605,7 +2202,7 @@ Learns: preferred language, response length, tone, active hours, common contacts
 
 ---
 
-### 10.6 Onboarding expansion
+### 11.6 Onboarding expansion
 
 **File**: `src/skills/onboarding/handler.py` — edit:
 
@@ -1619,7 +2216,7 @@ Learns: preferred language, response length, tone, active hours, common contacts
 
 ---
 
-### 10.7 Phase 5 — file summary
+### 11.7 Phase 5 — file summary
 
 | Action | Count |
 |--------|-------|
@@ -1635,7 +2232,7 @@ Learns: preferred language, response length, tone, active hours, common contacts
 
 ---
 
-## 11. FILE-BY-FILE CHANGE MAP
+## 12. FILE-BY-FILE CHANGE MAP
 
 ### Complete file listing across all phases
 
@@ -1753,7 +2350,49 @@ PHASE 3: TASKS + RESEARCH + WRITING + CRM (Weeks 5-6)
 [NEW]  tests/test_tools/test_web_search.py         #
 
 ═══════════════════════════════════════════════════════════════
-PHASE 4: CHANNELS + BILLING (Weeks 7-8)
+PHASE 3.5: PLATFORM ARCHITECTURE (Weeks 7-8) 🆕
+═══════════════════════════════════════════════════════════════
+[NEW]  src/skills/prompt_loader.py                  # YAML prompt loader + validator
+[NEW]  src/skills/add_expense/prompts.yaml          # Prompt YAML (10 key skills)
+[NEW]  src/skills/list_events/prompts.yaml          #
+[NEW]  src/skills/read_inbox/prompts.yaml           #
+[NEW]  src/skills/morning_brief/prompts.yaml        #
+[NEW]  src/skills/list_tasks/prompts.yaml           #
+[NEW]  src/skills/query_stats/prompts.yaml          #
+[NEW]  src/skills/web_search/prompts.yaml           #
+[NEW]  src/skills/draft_message/prompts.yaml        #
+[NEW]  src/skills/general_chat/prompts.yaml         #
+[NEW]  src/skills/onboarding/prompts.yaml           #
+[NEW]  src/core/connectors/__init__.py              # ConnectorRegistry
+[NEW]  src/core/connectors/base.py                  # BaseConnector protocol
+[NEW]  src/core/connectors/google.py                # Google OAuth connector
+[NEW]  src/core/connectors/config.yaml              # Connector config
+[NEW]  src/core/plugin_loader.py                    # Plugin bundle loader
+[NEW]  config/plugins/household/plugin.yaml         # Default plugin
+[NEW]  config/plugins/plumber/plugin.yaml           # Plumber plugin (David persona)
+[NEW]  config/plugins/plumber/prompts/add_expense.yaml
+[NEW]  config/plugins/restaurant/plugin.yaml        # Restaurant plugin
+[NEW]  config/plugins/restaurant/prompts/add_expense.yaml
+[NEW]  config/plugins/taxi/plugin.yaml              # Taxi plugin
+[NEW]  src/skills/evening_recap/__init__.py         # Evening recap orchestrator
+[NEW]  src/skills/evening_recap/handler.py          #
+[NEW]  src/skills/evening_recap/prompts.yaml        #
+[REWRITE] src/skills/morning_brief/handler.py       # Orchestrator rewrite
+[EDIT] src/core/memory/context.py                   # Progressive disclosure heuristic
+[EDIT] src/skills/__init__.py                       # Register evening_recap
+[EDIT] src/core/intent.py                           # Add evening_recap intent
+[EDIT] src/core/domains.py                          # Map evening_recap
+[EDIT] src/agents/config.py                         # Add evening_recap to life agent
+[NEW]  tests/test_skills/test_prompt_loader.py      #
+[NEW]  tests/test_core/test_connectors.py           #
+[NEW]  tests/test_core/test_plugin_loader.py        #
+[NEW]  tests/test_skills/test_evening_recap.py      #
+[NEW]  tests/test_core/test_progressive_context.py  #
+[EDIT] tests/test_skills/test_morning_brief.py      # Update for orchestrator
+[EDIT] tests/test_skills/test_registry.py           # Update skill count
+
+═══════════════════════════════════════════════════════════════
+PHASE 4: CHANNELS + BILLING (Weeks 9-10)
 ═══════════════════════════════════════════════════════════════
 [NEW]  src/gateway/slack_gw.py                     # Slack gateway (slack-bolt)
 [NEW]  src/gateway/whatsapp_gw.py                  # WhatsApp gateway (Business Cloud API)
@@ -1777,7 +2416,7 @@ PHASE 4: CHANNELS + BILLING (Weeks 7-8)
 [NEW]  tests/test_billing/test_subscription.py     #
 
 ═══════════════════════════════════════════════════════════════
-PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
+PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 11-12)
 ═══════════════════════════════════════════════════════════════
 [NEW]  src/proactivity/__init__.py                 #
 [NEW]  src/proactivity/engine.py                   # Main proactivity engine
@@ -1811,7 +2450,7 @@ PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
 
 ---
 
-## 12. RISK REGISTER
+## 13. RISK REGISTER
 
 | # | Risk | Impact | Probability | Mitigation |
 |---|------|--------|-------------|------------|
@@ -1823,27 +2462,33 @@ PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 9-10)
 | 6 | Stripe integration with multi-channel onboarding | Low | Low | Generate payment links that work across all channels. Use Stripe Customer Portal for management. |
 | 7 | aiogoogle breaking changes | Low | Low | Pin version. aiogoogle has stable API. Google APIs themselves are versioned. |
 | 8 | Token storage encryption key rotation | Medium | Low | Design key rotation from the start. Use key ID prefix on encrypted tokens. Support multiple active keys. |
+| 9 | YAML parsing errors crash skill loading | High | Low | Validate all YAML at startup via `validate_all_prompts()`. Fall back to hardcoded prompts on error. |
+| 10 | Orchestrator timeout makes morning brief slow (>5s) | Medium | Medium | Per-collector 3s timeout via `asyncio.wait_for()`. Show partial brief from available data. |
+| 11 | Plugin bundle misconfiguration (wrong categories) | Medium | Low | Schema validation in `PluginLoader`. Fallback to `household` default. |
+| 12 | Progressive disclosure drops context that was actually needed | Medium | Medium | Conservative heuristic (default = load everything). Monitor via Langfuse for quality drops. Easy rollback: remove heuristic check. |
+| 13 | Prompt YAML variables drift from handler expectations | Medium | Medium | Template variable validation at startup. Test coverage for all prompts. CI check for YAML validity. |
 
 ---
 
-## 13. FINAL METRICS
+## 14. FINAL METRICS
 
 ```
-                        Before          After Phase 5
-                        ──────          ──────────────
-Skills:                 22              49
-Agents:                 5               12
-Orchestrators:          0               4 LangGraph (email, research, writing, browser)
-DB Tables:              15              25 (+channel_links)
-Intents:                22              49
-Channels:               1 (Telegram)    4 (Telegram, WhatsApp, Slack, SMS)
-New Python files:       0               ~120
-Edited Python files:    0               ~20
-New test files:         0               ~60
-Total tests:            503             ~800+
-Dependencies added:     0               7 (aiogoogle, cryptography, langgraph,
-                                           slack-bolt, twilio, stripe, browser-use)
-API cost target:        N/A             $3-8/month per user
+                        Phase 3 Done    After Phase 3.5     After Phase 5
+                        ────────────    ───────────────     ──────────────
+Skills:                 43              44 (+evening_recap)  51
+Agents:                 10              10                   12
+Orchestrators:          0               2 (morning_brief,   4 LangGraph + 2 orchestrator skills
+                                          evening_recap)
+DB Tables:              24              24                   25 (+channel_links)
+Intents:                43              44                   51
+Channels:               1 (Telegram)    1 (Telegram)        4 (Telegram, WhatsApp, Slack, SMS)
+Architecture:           Hardcoded       YAML prompts,       + Proactivity engine,
+                                        connectors,           browser automation
+                                        plugins, smart ctx
+Prompt files:           0               10 YAML + 5 plugin  43 YAML (all skills)
+Token savings:          0%              15-30% on simple     15-30%
+API cost target:        N/A             $3-8/month/user     $3-8/month/user
+Star rating:            5★              6★ (MVP target)     7★
 ```
 
 ### Dependency Summary
@@ -1854,6 +2499,7 @@ API cost target:        N/A             $3-8/month per user
 | `cryptography` | 2 | OAuth token encryption | Apache 2.0/BSD |
 | `langgraph` | 2 | Graph-based orchestrators | MIT |
 | `trafilatura` | 3 | HTML → text extraction for web search | Apache 2.0 |
+| `pyyaml` | 3.5 | YAML prompt + plugin config loading | MIT |
 | `slack-bolt` | 4 | Slack channel gateway | MIT |
 | `twilio` | 4 | SMS channel gateway | MIT |
 | `stripe` | 4 | Subscription billing | MIT |
