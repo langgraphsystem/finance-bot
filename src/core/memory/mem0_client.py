@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from mem0 import Memory
 
@@ -39,10 +40,33 @@ FINANCIAL_MEMORY_UPDATE_PROMPT = """Ты управляешь финансово
 5. Коррекции пользователя имеют приоритет — если юзер исправляет категорию, обнови маппинг"""
 
 
+def _build_pgvector_url(db_url: str) -> str:
+    """Convert DATABASE_URL to a psycopg-compatible connection string.
+
+    Handles:
+    - Strips asyncpg driver prefix
+    - Ensures sslmode=require for Supabase/Railway
+    - Normalizes postgres:// → postgresql://
+    """
+    url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    url = url.replace("postgres://", "postgresql://")
+
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+
+    # Ensure sslmode=require for remote databases
+    if "sslmode" not in params and parsed.hostname not in ("localhost", "127.0.0.1"):
+        params["sslmode"] = ["require"]
+
+    new_query = urlencode({k: v[0] for k, v in params.items()})
+    return urlunparse(parsed._replace(query=new_query))
+
+
 def get_memory() -> Memory:
     """Get or initialize Mem0 client."""
     global _memory
     if _memory is None:
+        connection_string = _build_pgvector_url(settings.database_url)
         config = {
             "llm": {
                 "provider": "anthropic",
@@ -62,9 +86,7 @@ def get_memory() -> Memory:
                 "provider": "pgvector",
                 "config": {
                     "dbname": "postgres",
-                    "connection_string": settings.database_url.replace(
-                        "postgresql+asyncpg", "postgresql"
-                    ),
+                    "connection_string": connection_string,
                     "collection_name": "mem0_memories",
                 },
             },
@@ -77,6 +99,12 @@ def get_memory() -> Memory:
     return _memory
 
 
+def _reset_memory() -> None:
+    """Reset the Mem0 singleton (used on connection failures)."""
+    global _memory
+    _memory = None
+
+
 async def search_memories(
     query: str,
     user_id: str,
@@ -84,12 +112,17 @@ async def search_memories(
     filters: dict[str, Any] | None = None,
 ) -> list[dict]:
     """Search Mem0 for relevant memories."""
-    memory = get_memory()
-    kwargs: dict[str, Any] = {"query": query, "user_id": user_id, "limit": limit}
-    if filters:
-        kwargs["filters"] = filters
-    results = memory.search(**kwargs)
-    return results.get("results", []) if isinstance(results, dict) else results
+    try:
+        memory = get_memory()
+        kwargs: dict[str, Any] = {"query": query, "user_id": user_id, "limit": limit}
+        if filters:
+            kwargs["filters"] = filters
+        results = memory.search(**kwargs)
+        return results.get("results", []) if isinstance(results, dict) else results
+    except Exception as e:
+        logger.warning("Mem0 search failed: %s", e)
+        _reset_memory()
+        return []
 
 
 async def add_memory(
@@ -98,18 +131,32 @@ async def add_memory(
     metadata: dict[str, Any] | None = None,
 ) -> dict:
     """Add a memory to Mem0."""
-    memory = get_memory()
-    return memory.add(content, user_id=user_id, metadata=metadata or {})
+    try:
+        memory = get_memory()
+        return memory.add(content, user_id=user_id, metadata=metadata or {})
+    except Exception as e:
+        logger.warning("Mem0 add failed: %s", e)
+        _reset_memory()
+        return {}
 
 
 async def get_all_memories(user_id: str) -> list[dict]:
     """Get all memories for a user."""
-    memory = get_memory()
-    results = memory.get_all(user_id=user_id)
-    return results.get("results", []) if isinstance(results, dict) else results
+    try:
+        memory = get_memory()
+        results = memory.get_all(user_id=user_id)
+        return results.get("results", []) if isinstance(results, dict) else results
+    except Exception as e:
+        logger.warning("Mem0 get_all failed: %s", e)
+        _reset_memory()
+        return []
 
 
 async def delete_all_memories(user_id: str) -> None:
     """Delete all memories for a user (GDPR)."""
-    memory = get_memory()
-    memory.delete_all(user_id=user_id)
+    try:
+        memory = get_memory()
+        memory.delete_all(user_id=user_id)
+    except Exception as e:
+        logger.warning("Mem0 delete_all failed: %s", e)
+        _reset_memory()
