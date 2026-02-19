@@ -1,0 +1,29 @@
+name: household
+display_name: "Household"
+description: "Default profile for personal and family finances"
+persona_match: "Maria"
+
+categories:
+  - { name: "Groceries", icon: "🛒", keywords: ["walmart", "costco", "trader joe's", "whole foods"] }
+  - { name: "Dining", icon: "🍽️", keywords: ["restaurant", "doordash", "uber eats", "grubhub"] }
+  - { name: "Transport", icon: "🚗", keywords: ["gas", "uber", "lyft", "subway", "metro"] }
+  - { name: "Health", icon: "💊", keywords: ["pharmacy", "doctor", "cvs", "walgreens"] }
+  - { name: "Shopping", icon: "🛍️", keywords: ["amazon", "target", "mall"] }
+  - { name: "Kids", icon: "👶", keywords: ["school", "daycare", "toys", "clothes"] }
+  - { name: "Bills", icon: "📄", keywords: ["electric", "water", "internet", "phone", "rent"] }
+
+metrics:
+  - savings_rate
+  - top_spending_category
+
+morning_brief_sections:
+  - schedule
+  - tasks
+  - money_summary
+  - email_highlights
+
+evening_recap_sections:
+  - completed_tasks
+  - spending_total
+
+disabled_skills: []

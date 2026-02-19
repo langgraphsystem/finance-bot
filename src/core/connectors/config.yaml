@@ -1,0 +1,21 @@
+connectors:
+  google:
+    type: oauth2
+    provider: google
+    scopes:
+      gmail: [gmail.readonly, gmail.send, gmail.modify]
+      calendar: [calendar.events, calendar.readonly]
+    token_encryption: true
+  slack:
+    type: oauth2
+    provider: slack
+    scopes: [channels:read, chat:write, users:read]
+  stripe:
+    type: api_key
+    env_var: STRIPE_SECRET_KEY
+  whatsapp:
+    type: api_key
+    env_var: WHATSAPP_API_TOKEN
+  twilio:
+    type: api_key
+    env_var: TWILIO_AUTH_TOKEN

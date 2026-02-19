@@ -80,6 +80,12 @@ class IntentData(BaseModel):
     shopping_list_name: str | None = None
     shopping_item_remove: str | None = None
 
+    # Booking fields (Phase 6)
+    booking_title: str | None = None
+    booking_service_type: str | None = None
+    booking_location: str | None = None
+    booking_contact_role: str | None = None
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

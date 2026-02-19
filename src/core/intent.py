@@ -106,6 +106,30 @@ rate confirmation, или другого изображения
 "убери хлеб из списка", "got everything", "купил все", "взял молоко")
 - shopping_list_clear: очистить весь список ("clear my list", "очисти список", \
 "список готов", "done shopping", "list is done", "удали список")
+- evening_recap: вечерний обзор дня ("evening recap", "how was my day?", \
+"итоги дня", "recap", "вечерний обзор", "wrap up my day")
+- web_action: выполнить действие на сайте через браузер ("go to website and fill form", \
+"зайди на сайт и заполни форму", "submit order on Amazon", "book appointment online")
+- price_check: проверить цену товара на сайте ("check price of lumber at Home Depot", \
+"сколько стоит X на сайте Y", "price of 2x4 at Lowe's")
+- price_alert: мониторинг цены, оповещение о цене ("alert me when lumber drops below $5", \
+"мониторь цену на X", "notify when price goes below/above")
+- news_monitor: мониторинг новостей, подписка на тему ("monitor plumbing industry news", \
+"следи за новостями о X", "alert me about school closings")
+- create_booking: забронировать, записать клиента ("book John tomorrow 2pm", \
+"запиши клиента на завтра 14:00", "schedule appointment for faucet repair")
+- list_bookings: расписание бронирований ("my bookings today", \
+"мои бронирования", "today's appointments", "schedule")
+- cancel_booking: отменить бронирование ("cancel John's appointment", \
+"отмени запись", "cancel booking")
+- reschedule_booking: перенести бронирование ("move John to Thursday", \
+"перенеси запись", "reschedule appointment")
+- add_contact: добавить контакт/клиента ("add client John 917-555-1234", \
+"добавь клиента", "new contact")
+- list_contacts: список контактов ("my contacts", "список клиентов", "all contacts")
+- find_contact: найти контакт ("find John", "найди клиента", "search contact")
+- send_to_client: написать/позвонить клиенту ("text John I'm running late", \
+"напиши клиенту", "call Mrs. Johnson", "SMS клиенту")
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -126,6 +150,24 @@ general_chat — крайний случай. Если сообщение хот
 - "мои задачи" / "my tasks" / "what do I need to do" → list_tasks
 - "готово" или "done with ..." + контекст задач → complete_task
 - "план дня" (без конкретной задачи) → day_plan (life-tracking)
+
+Правила приоритета (browser + monitoring):
+- "go to website", "fill form", "submit", "book online" → web_action
+- "check price of X at Y", "сколько стоит X на сайте Y" → price_check
+- "alert me when price", "мониторь цену", "notify when price" → price_alert
+- "monitor news about", "следи за новостями", "alert me about [topic]" → news_monitor
+
+Правила приоритета (booking + CRM):
+- "book/запиши/schedule appointment/забронируй" + клиент/время → create_booking
+- "my bookings/мои бронирования/appointments today" → list_bookings
+- "cancel booking/отмени запись" → cancel_booking
+- "reschedule/перенеси запись/move appointment" → reschedule_booking
+- "add client/добавь клиента/new contact" → add_contact
+- "my contacts/список клиентов" → list_contacts
+- "find contact/найди клиента" → find_contact
+- "text client/напиши клиенту/call client/позвони клиенту/SMS" → send_to_client
+- ВАЖНО: "book" + конкретный клиент/время → create_booking (НЕ create_event)
+- "create_event" — для личного календаря; "create_booking" — для клиентов
 
 Правила приоритета (research vs general_chat):
 - Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
@@ -284,7 +326,14 @@ intent_type: "action", confidence: 0.92
     "event_attendees": ["участник1"] или null,
     "shopping_items": ["товар1", "товар2"] или null,
     "shopping_list_name": "grocery" или "hardware" или название списка или null,
-    "shopping_item_remove": "товар для удаления" или null
+    "shopping_item_remove": "товар для удаления" или null,
+    "booking_title": "название бронирования/услуги" или null,
+    "booking_service_type": "тип услуги" или null,
+    "booking_location": "адрес/место" или null,
+    "booking_contact_role": "client" или "vendor" или "partner" или null,
+    "contact_name": "имя контакта/клиента" или null,
+    "contact_phone": "телефон" или null,
+    "contact_email": "email" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""
@@ -372,11 +421,12 @@ Domains:
 - finance: expenses, income, receipts, budgets, reports, recurring payments
 - email: inbox, send, reply, draft, follow-up
 - calendar: events, schedule, meetings, free slots
+- booking: client bookings, appointments, scheduling clients, CRM outreach
 - tasks: to-do, reminders, deadlines, planning
 - shopping: shopping lists, grocery lists, items to buy
 - research: search, compare, analyze, investigate
 - writing: draft, translate, proofread, compose
-- contacts: people, CRM, follow-ups
+- contacts: people, CRM, follow-ups, add/find contacts
 - general: life tracking, chat, mood, food, drinks, notes, reflections
 - onboarding: setup, connect accounts, first use
 
@@ -392,6 +442,7 @@ DOMAIN_INTENT_PROMPTS: dict[str, str] = {
     "research": "Research domain intents — placeholder for Phase 3.",
     "writing": "Writing domain intents — placeholder for Phase 3.",
     "contacts": "Contacts domain intents — placeholder for Phase 3.",
+    "booking": "Booking domain intents — create/list/cancel/reschedule bookings, CRM.",
     "general": "General domain intents — placeholder for Phase 2+ expansion.",
     "onboarding": "Onboarding domain intents — placeholder.",
 }

@@ -1,0 +1,30 @@
+name: plumber
+display_name: "Plumbing & Trades"
+description: "For plumbers, electricians, and trade businesses"
+persona_match: "David"
+
+categories:
+  - { name: "Materials", icon: "🔧", keywords: ["home depot", "ferguson", "pvc", "copper", "supply house"] }
+  - { name: "Vehicle", icon: "🚐", keywords: ["gas", "oil change", "tires", "car wash", "repair"] }
+  - { name: "Subcontractor", icon: "👷", keywords: ["helper", "apprentice", "subcontract", "labor"] }
+  - { name: "Tools", icon: "🛠️", keywords: ["milwaukee", "dewalt", "drill", "makita", "ridgid"] }
+  - { name: "Office", icon: "📋", keywords: ["quickbooks", "insurance", "license", "phone", "software"] }
+  - { name: "Gas", icon: "⛽", keywords: ["shell", "exxon", "bp", "mobil"] }
+
+metrics:
+  - revenue_per_job
+  - materials_percentage
+  - outstanding_invoices
+
+morning_brief_sections:
+  - jobs_today
+  - money_summary
+  - outstanding
+  - email_highlights
+
+evening_recap_sections:
+  - completed_jobs
+  - spending_total
+  - invoices_sent
+
+disabled_skills: []

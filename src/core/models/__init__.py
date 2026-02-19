@@ -1,18 +1,24 @@
 from src.core.models.audit import AuditLog
 from src.core.models.base import Base
+from src.core.models.booking import Booking
 from src.core.models.budget import Budget
 from src.core.models.calendar_cache import CalendarCache
 from src.core.models.category import Category
+from src.core.models.channel_link import ChannelLink
+from src.core.models.client_interaction import ClientInteraction
 from src.core.models.contact import Contact
 from src.core.models.conversation import ConversationMessage
 from src.core.models.document import Document
 from src.core.models.email_cache import EmailCache
 from src.core.models.enums import (
+    BookingStatus,
     BudgetPeriod,
     ChannelType,
     ContactRole,
     ConversationState,
     DocumentType,
+    InteractionChannel,
+    InteractionDirection,
     LifeEventType,
     LoadStatus,
     MessageRole,
@@ -44,11 +50,16 @@ from src.core.models.user_profile import UserProfile
 
 __all__ = [
     "Base",
+    "Booking",
+    "BookingStatus",
     "BudgetPeriod",
     "ChannelType",
+    "ClientInteraction",
     "ContactRole",
     "ConversationState",
     "DocumentType",
+    "InteractionChannel",
+    "InteractionDirection",
     "LifeEventType",
     "LoadStatus",
     "MessageRole",
@@ -75,6 +86,7 @@ __all__ = [
     "RecurringPayment",
     "Budget",
     "CalendarCache",
+    "ChannelLink",
     "Contact",
     "EmailCache",
     "Monitor",

@@ -1,0 +1,27 @@
+name: taxi
+display_name: "Taxi & Rideshare"
+description: "For taxi drivers and rideshare operators"
+
+categories:
+  - { name: "Gas", icon: "⛽", keywords: ["shell", "exxon", "bp", "costco gas"] }
+  - { name: "Car Wash", icon: "🚿", keywords: ["car wash", "detailing", "clean"] }
+  - { name: "Maintenance", icon: "🔧", keywords: ["oil change", "tires", "brakes", "repair"] }
+  - { name: "Insurance", icon: "🛡️", keywords: ["insurance", "geico", "progressive"] }
+  - { name: "Phone & Data", icon: "📱", keywords: ["t-mobile", "verizon", "phone plan"] }
+  - { name: "TLC/License", icon: "📋", keywords: ["tlc", "license", "inspection", "registration"] }
+
+metrics:
+  - cost_per_mile
+  - net_per_ride
+  - daily_revenue
+
+morning_brief_sections:
+  - schedule
+  - money_summary
+  - tasks
+
+evening_recap_sections:
+  - spending_total
+  - completed_tasks
+
+disabled_skills: []

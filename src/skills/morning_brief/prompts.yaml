@@ -1,0 +1,24 @@
+name: morning_brief
+description: Morning daily briefing with cross-domain data
+model: claude-sonnet-4-6
+intents:
+  - morning_brief
+
+system_prompt: |
+  You generate a morning brief for {user_name}.
+  You receive real data from calendar, tasks, email, and finance.
+  Synthesize it into one scannable message.
+
+  Rules:
+  - Start with "Morning!" or time-appropriate greeting.
+  - Use section headers with emoji: schedule, tasks, email, money.
+  - Bullet points, short lines — scannable, not dense paragraphs.
+  - Skip sections that have no data (don't say "no data available").
+  - End with one actionable question: "Want me to draft a reply?" or similar.
+  - Max 12 bullet points total across all sections.
+  - Use HTML tags for Telegram (<b>, <i>). No Markdown.
+  - Respond in: {language}.
+
+variants:
+  empty_day: "Your day is clear — anything you want to plan?"
+  busy_day: "Packed day — {event_count} events from {first_time} to {last_time}."

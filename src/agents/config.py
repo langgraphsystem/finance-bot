@@ -83,6 +83,12 @@ Show schedule, create events, find free slots, reschedule. Check for conflicts b
 For creating/modifying: confirm the details. Use HTML tags for Telegram (<b>bold</b>). No Markdown.
 Respond in the user's preferred language (from context.language). Default: English."""
 
+BOOKING_AGENT_PROMPT = """\
+You are a booking and CRM assistant. Help the user manage appointments, clients, and outreach.
+Create/cancel/reschedule bookings. Add and find contacts. Send messages to clients.
+Check for scheduling conflicts. Use HTML tags for Telegram (<b>bold</b>). No Markdown.
+Respond in the user's preferred language (from context.language). Default: English."""
+
 AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
@@ -139,7 +145,13 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="research",
         system_prompt=RESEARCH_AGENT_PROMPT,
-        skills=["quick_answer", "web_search", "compare_options"],
+        skills=[
+            "quick_answer",
+            "web_search",
+            "compare_options",
+            "price_check",
+            "web_action",
+        ],
         default_model="gemini-3-flash-preview",
         context_config={"mem": False, "hist": 3, "sql": False, "sum": False},
     ),
@@ -188,8 +200,27 @@ AGENTS: list[AgentConfig] = [
             "day_reflection",
             "life_search",
             "set_comm_mode",
+            "evening_recap",
+            "price_alert",
+            "news_monitor",
         ],
         default_model="claude-haiku-4-5",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="booking",
+        system_prompt=BOOKING_AGENT_PROMPT,
+        skills=[
+            "create_booking",
+            "list_bookings",
+            "cancel_booking",
+            "reschedule_booking",
+            "add_contact",
+            "list_contacts",
+            "find_contact",
+            "send_to_client",
+        ],
+        default_model="claude-haiku-4-5",
+        context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
 ]

@@ -111,3 +111,24 @@ class ChannelType(enum.StrEnum):
     whatsapp = "whatsapp"
     slack = "slack"
     sms = "sms"
+
+
+class BookingStatus(enum.StrEnum):
+    scheduled = "scheduled"
+    confirmed = "confirmed"
+    completed = "completed"
+    cancelled = "cancelled"
+    no_show = "no_show"
+
+
+class InteractionChannel(enum.StrEnum):
+    phone = "phone"
+    telegram = "telegram"
+    whatsapp = "whatsapp"
+    sms = "sms"
+    email = "email"
+
+
+class InteractionDirection(enum.StrEnum):
+    inbound = "inbound"
+    outbound = "outbound"

@@ -31,6 +31,11 @@ logger = logging.getLogger(__name__)
 gateway: TelegramGateway | None = None
 profile_loader = ProfileLoader("config/profiles")
 
+# Optional channel gateways — initialised only when configured
+_slack_gw = None
+_whatsapp_gw = None
+_sms_gw = None
+
 
 async def build_session_context(telegram_id: str) -> SessionContext | None:
     """Build SessionContext from database for a telegram user."""
@@ -88,8 +93,70 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
         )
 
 
+async def build_context_from_channel(
+    channel: str, channel_user_id: str
+) -> SessionContext | None:
+    """Build SessionContext by resolving a channel user to internal user."""
+    from src.gateway.channel_resolver import resolve_user
+
+    user_id, family_id = await resolve_user(channel, channel_user_id)
+    if not user_id or not family_id:
+        return None
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(User).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            return None
+
+        fam_result = await session.execute(select(Family).where(Family.id == user.family_id))
+        family = fam_result.scalar_one()
+
+        cat_result = await session.execute(
+            select(Category).where(Category.family_id == user.family_id)
+        )
+        categories = [
+            {"id": str(c.id), "name": c.name, "scope": c.scope.value, "icon": c.icon}
+            for c in cat_result.scalars()
+        ]
+
+        map_result = await session.execute(
+            select(MerchantMapping).where(MerchantMapping.family_id == user.family_id)
+        )
+        mappings = [
+            {
+                "merchant_pattern": m.merchant_pattern,
+                "category_id": str(m.category_id),
+                "scope": m.scope.value,
+            }
+            for m in map_result.scalars()
+        ]
+
+        profile = profile_loader.get(user.business_type) or profile_loader.get("household")
+
+        prof_result = await session.execute(
+            select(UserProfile.timezone).where(UserProfile.user_id == user.id).limit(1)
+        )
+        user_timezone = prof_result.scalar_one_or_none() or "America/New_York"
+
+        return SessionContext(
+            user_id=str(user.id),
+            family_id=str(user.family_id),
+            role=user.role.value,
+            language=user.language,
+            currency=family.currency,
+            business_type=user.business_type,
+            categories=categories,
+            merchant_mappings=mappings,
+            profile_config=profile,
+            timezone=user_timezone,
+        )
+
+
 async def on_message(incoming):
-    """Main message handler called by gateway."""
+    """Main message handler called by Telegram gateway."""
     context = await build_session_context(incoming.user_id)
 
     if not context:
@@ -172,9 +239,34 @@ async def on_message(incoming):
     await gateway.send(response)
 
 
+async def _handle_channel_message(incoming, gw):
+    """Handle a message from a non-Telegram channel (Slack, WhatsApp, SMS)."""
+    context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
+
+    if not context:
+        await gw.send(
+            OutgoingMessage(
+                text=(
+                    "I don't recognize your account yet. "
+                    "Please set up your account on Telegram first, "
+                    "then link this channel by saying 'connect' there."
+                ),
+                chat_id=incoming.chat_id,
+                channel=incoming.channel,
+            )
+        )
+        return
+
+    await gw.send_typing(incoming.chat_id)
+    response = await handle_message(incoming, context)
+    response.chat_id = incoming.chat_id
+    response.channel = incoming.channel
+    await gw.send(response)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global gateway
+    global gateway, _slack_gw, _whatsapp_gw, _sms_gw
     logger.info("Starting Finance Bot...")
 
     gateway = TelegramGateway(
@@ -184,10 +276,35 @@ async def lifespan(app: FastAPI):
     gateway.on_message(on_message)
     await gateway.start()
 
+    # Initialise optional channel gateways
+    if settings.slack_bot_token:
+        from src.gateway.slack_gw import SlackGateway
+
+        _slack_gw = SlackGateway()
+        logger.info("Slack gateway configured")
+
+    if settings.whatsapp_api_token:
+        from src.gateway.whatsapp_gw import WhatsAppGateway
+
+        _whatsapp_gw = WhatsAppGateway()
+        logger.info("WhatsApp gateway configured")
+
+    if settings.twilio_account_sid:
+        from src.gateway.sms_gw import SMSGateway
+
+        _sms_gw = SMSGateway()
+        logger.info("SMS gateway configured")
+
     yield
 
     if gateway:
         await gateway.stop()
+    if _slack_gw:
+        await _slack_gw.close()
+    if _whatsapp_gw:
+        await _whatsapp_gw.close()
+    if _sms_gw:
+        await _sms_gw.close()
     await redis.aclose()
     logger.info("Shutting down Finance Bot...")
 
@@ -235,9 +352,123 @@ async def health():
     return {"status": status, **checks}
 
 
+# ------------------------------------------------------------------
+# Telegram webhook
+# ------------------------------------------------------------------
 @app.post("/webhook")
 async def webhook(request: Request):
     data = await request.json()
     if gateway:
         await gateway.feed_update(data)
+    return Response(status_code=200)
+
+
+# ------------------------------------------------------------------
+# Slack webhook
+# ------------------------------------------------------------------
+@app.post("/webhook/slack/events")
+async def slack_events(request: Request):
+    """Handle Slack Events API and URL verification."""
+    payload = await request.json()
+
+    # URL verification challenge
+    if payload.get("type") == "url_verification":
+        return {"challenge": payload.get("challenge", "")}
+
+    if not _slack_gw:
+        return Response(status_code=200)
+
+    incoming = _slack_gw.parse_event(payload)
+    if incoming:
+        await _handle_channel_message(incoming, _slack_gw)
+
+    return Response(status_code=200)
+
+
+# ------------------------------------------------------------------
+# WhatsApp webhook
+# ------------------------------------------------------------------
+@app.post("/webhook/whatsapp")
+async def whatsapp_webhook(request: Request):
+    """Handle WhatsApp Business Cloud API webhook."""
+    if not _whatsapp_gw:
+        return Response(status_code=200)
+
+    payload = await request.json()
+    incoming = _whatsapp_gw.parse_webhook(payload)
+    if incoming:
+        await _handle_channel_message(incoming, _whatsapp_gw)
+
+    return {"status": "ok"}
+
+
+@app.get("/webhook/whatsapp")
+async def whatsapp_verify(request: Request):
+    """WhatsApp webhook verification challenge."""
+    if not _whatsapp_gw:
+        return Response(status_code=403)
+
+    mode = request.query_params.get("hub.mode", "")
+    token = request.query_params.get("hub.verify_token", "")
+    challenge = request.query_params.get("hub.challenge", "")
+
+    result = _whatsapp_gw.verify_webhook(mode, token, challenge)
+    if result:
+        return Response(content=result, media_type="text/plain")
+    return Response(status_code=403)
+
+
+# ------------------------------------------------------------------
+# SMS webhook (Twilio)
+# ------------------------------------------------------------------
+@app.post("/webhook/sms")
+async def sms_webhook(request: Request):
+    """Handle Twilio SMS webhook."""
+    if not _sms_gw:
+        return Response(
+            content="<Response></Response>", media_type="text/xml", status_code=200
+        )
+
+    form_data = await request.form()
+    incoming = _sms_gw.parse_webhook(dict(form_data))
+    await _handle_channel_message(incoming, _sms_gw)
+
+    # Twilio expects TwiML response
+    return Response(content="<Response></Response>", media_type="text/xml")
+
+
+# ------------------------------------------------------------------
+# Stripe webhook
+# ------------------------------------------------------------------
+@app.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe subscription events."""
+    from src.billing.stripe_client import StripeClient
+    from src.billing.subscription import update_from_stripe_event
+
+    body = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    if settings.stripe_webhook_secret:
+        if not StripeClient.verify_webhook_signature(
+            body, sig, settings.stripe_webhook_secret
+        ):
+            return Response(status_code=400)
+
+    import json
+
+    event = json.loads(body)
+    event_type = event.get("type", "")
+    data = event.get("data", {})
+
+    handled_events = {
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "invoice.payment_failed",
+    }
+
+    if event_type in handled_events:
+        await update_from_stripe_event(event_type, data)
+
     return Response(status_code=200)

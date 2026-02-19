@@ -67,6 +67,25 @@ class Settings(BaseSettings):
     mem0_api_key: str = ""
     mem0_base_url: str = ""
 
+    # Slack (Phase 4)
+    slack_bot_token: str = ""
+    slack_signing_secret: str = ""
+
+    # WhatsApp Business Cloud API (Phase 4)
+    whatsapp_api_token: str = ""
+    whatsapp_phone_number_id: str = ""
+    whatsapp_verify_token: str = ""
+
+    # Twilio SMS (Phase 4)
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_phone_number: str = ""
+
+    # Stripe (Phase 4)
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
+
     # App
     app_env: str = "development"
     log_level: str = "INFO"
