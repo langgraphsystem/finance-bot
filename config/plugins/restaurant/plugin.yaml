@@ -1,0 +1,28 @@
+name: restaurant
+display_name: "Restaurant & Food Service"
+description: "For restaurants, cafes, and food service businesses"
+
+categories:
+  - { name: "Food Cost", icon: "🥩", keywords: ["sysco", "us foods", "restaurant depot", "produce"] }
+  - { name: "Beverages", icon: "🍷", keywords: ["wine", "beer", "liquor", "soda", "coffee beans"] }
+  - { name: "Kitchen Equipment", icon: "🍳", keywords: ["oven", "grill", "fryer", "refrigerator"] }
+  - { name: "Staff", icon: "👨‍🍳", keywords: ["payroll", "wages", "tips", "uniform"] }
+  - { name: "Rent & Utilities", icon: "🏠", keywords: ["rent", "electric", "gas", "water", "trash"] }
+  - { name: "Marketing", icon: "📢", keywords: ["yelp", "google ads", "flyers", "social media"] }
+
+metrics:
+  - food_cost_percentage
+  - revenue_per_seat
+  - labor_percentage
+
+morning_brief_sections:
+  - schedule
+  - tasks
+  - money_summary
+  - email_highlights
+
+evening_recap_sections:
+  - spending_total
+  - completed_tasks
+
+disabled_skills: []

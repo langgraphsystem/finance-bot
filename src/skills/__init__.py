@@ -12,6 +12,7 @@ from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
+from src.skills.evening_recap.handler import skill as evening_recap_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
@@ -90,4 +91,5 @@ def create_registry() -> SkillRegistry:
     registry.register(find_free_slots_skill)
     registry.register(reschedule_event_skill)
     registry.register(morning_brief_skill)
+    registry.register(evening_recap_skill)
     return registry

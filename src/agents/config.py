@@ -178,6 +178,7 @@ AGENTS: list[AgentConfig] = [
             "day_reflection",
             "life_search",
             "set_comm_mode",
+            "evening_recap",
         ],
         default_model="claude-haiku-4-5",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},

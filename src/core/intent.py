@@ -97,6 +97,8 @@ rate confirmation, или другого изображения
 "перенеси встречу на 15:00", "push Mike's job to 11am")
 - morning_brief: утренняя сводка ("morning brief", "what's my day look like?", \
 "план на сегодня", "утренняя сводка")
+- evening_recap: вечерний обзор дня ("evening recap", "how was my day?", \
+"итоги дня", "recap", "вечерний обзор", "wrap up my day")
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 

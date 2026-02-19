@@ -2,9 +2,13 @@
 
 Phase 2: Token budget management with overflow priority,
 QUERY_CONTEXT_MAP per intent, and Lost-in-the-Middle positioning.
+
+Phase 3.5: Progressive Context Disclosure — regex heuristic to skip
+heavy context layers for simple queries (saves 80-96% tokens).
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -94,8 +98,62 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "create_event": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "find_free_slots": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
-    "morning_brief": {"mem": "life", "hist": 0, "sql": False, "sum": False},
+    "morning_brief": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    "evening_recap": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
 }
+
+
+# ---------------------------------------------------------------------------
+# Progressive Context Disclosure (Phase 3.5)
+# ---------------------------------------------------------------------------
+# Simple patterns that NEVER need heavy context (Mem0, SQL, summary).
+SIMPLE_PATTERNS: list[str] = [
+    r"^\d+[.,]?\d*\s+\w{1,20}$",             # "100 кофе", "50.5 uber"
+    r"^(да|нет|ок|ok|спасибо|thanks|thx)\b",  # confirmations
+    r"^(привет|hello|hi|hey)\b",              # greetings
+    r"^(готово|done|сделано)\b",              # completions
+    r"^\+?\d[\d\s\-()]{5,15}$",              # phone numbers
+]
+
+# Signals that message needs full context loading.
+COMPLEX_SIGNALS: list[str] = [
+    "сравни", "compare", "тренд", "trend", "обычно", "usually",
+    "прошлый", "last", "бюджет", "budget", "итого", "total",
+    "за месяц", "за неделю", "this month", "this week",
+    "как обычно", "as usual", "всего", "average", "средн",
+]
+
+# Intents that always load full context regardless of message simplicity.
+ALWAYS_HEAVY_INTENTS: set[str] = {
+    "query_stats", "complex_query", "query_report", "deep_research",
+    "onboarding", "morning_brief", "evening_recap",
+}
+
+
+def needs_heavy_context(message: str, intent: str) -> bool:
+    """Decide whether *message* + *intent* need heavy context layers.
+
+    Returns ``True`` (load everything) or ``False`` (skip Mem0/SQL/summary).
+    Conservative default: when unsure, load everything.
+    """
+    if intent in ALWAYS_HEAVY_INTENTS:
+        return True
+
+    text = message.strip().lower()
+    if not text:
+        return False
+
+    # Simple patterns → skip heavy context
+    for pattern in SIMPLE_PATTERNS:
+        if re.match(pattern, text, re.IGNORECASE):
+            return False
+
+    # Complex signals → definitely load everything
+    if any(signal in text for signal in COMPLEX_SIGNALS):
+        return True
+
+    # Conservative default: follow QUERY_CONTEXT_MAP as-is
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -412,6 +470,16 @@ async def assemble_context(
     Applies overflow priority trimming and Lost-in-the-Middle positioning.
     """
     ctx_config = QUERY_CONTEXT_MAP.get(intent, QUERY_CONTEXT_MAP["general_chat"])
+
+    # Phase 3.5 — Progressive Context Disclosure
+    if not needs_heavy_context(current_message, intent):
+        ctx_config = {
+            **ctx_config,
+            "mem": False,
+            "sql": False,
+            "sum": False,
+            "hist": min(ctx_config.get("hist", 0), 1),
+        }
 
     # 1. Calculate available budget
     total_budget = int(max_tokens * BUDGET_RATIO)

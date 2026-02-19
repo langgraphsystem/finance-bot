@@ -77,4 +77,5 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,
+    "evening_recap": Domain.general,
 }

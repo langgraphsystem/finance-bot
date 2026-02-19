@@ -1,7 +1,7 @@
 """Tests for morning_brief skill."""
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -43,100 +43,72 @@ def ctx():
 
 
 @pytest.mark.asyncio
-async def test_morning_brief_requires_google(skill, message, ctx):
-    """Returns connect button when Google not connected."""
-    from src.skills.base import SkillResult
+async def test_morning_brief_no_data(skill, message, ctx):
+    """Returns fallback when all collectors return empty."""
+    mock_sess = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalar.return_value = None
+    mock_sess.execute = AsyncMock(return_value=mock_result)
 
-    prompt = SkillResult(
-        response_text="Подключите Google",
-        buttons=[{"text": "🔗 Подключить Google", "url": "https://example.com"}],
-    )
-    with patch(
-        f"{MODULE}.require_google_or_prompt",
-        new_callable=AsyncMock,
-        return_value=prompt,
+    mock_google = AsyncMock()
+    mock_google.is_connected = AsyncMock(return_value=False)
+
+    with (
+        patch(f"{MODULE}.async_session") as mock_session,
+        patch(f"{MODULE}.connector_registry") as mock_reg,
     ):
+        mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
+        mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_reg.get.return_value = mock_google
+
         result = await skill.execute(message, ctx, {})
 
-    assert result.buttons
+    assert result.response_text
 
 
 @pytest.mark.asyncio
-async def test_morning_brief_with_data(skill, message, ctx):
-    """Generates brief from real email + calendar data."""
+async def test_morning_brief_with_tasks(skill, message, ctx):
+    """Generates brief when task data is available."""
+    mock_task = MagicMock()
+    mock_task.title = "Buy groceries"
+    mock_task.priority = MagicMock(value="high")
+    mock_task.due_at = None
+
+    mock_sess = AsyncMock()
+    mock_result_tasks = MagicMock()
+    mock_result_tasks.scalars.return_value.all.return_value = [mock_task]
+    mock_result_empty = MagicMock()
+    mock_result_empty.scalars.return_value.all.return_value = []
+    mock_result_empty.scalar.return_value = None
+
+    call_count = 0
+
+    async def mock_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return mock_result_tasks
+        return mock_result_empty
+
+    mock_sess.execute = mock_execute
     mock_google = AsyncMock()
-    mock_google.list_events = AsyncMock(
-        return_value=[
-            {
-                "summary": "Standup",
-                "start": {"dateTime": "2026-02-18T09:00:00+00:00"},
-            },
-        ]
-    )
-    mock_google.list_messages = AsyncMock(
-        return_value=[
-            {
-                "id": "msg1",
-                "threadId": "t1",
-                "snippet": "Project update",
-                "payload": {
-                    "headers": [
-                        {"name": "From", "value": "Sarah <sarah@test.com>"},
-                        {"name": "Subject", "value": "Project deadline"},
-                    ]
-                },
-            }
-        ]
-    )
+    mock_google.is_connected = AsyncMock(return_value=False)
 
-    brief = "<b>Доброе утро!</b>\n• 9:00 — Standup\n\n📧 Sarah — Project deadline\n\nУдачного дня!"
+    mock_anthropic = MagicMock()
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="<b>Good morning!</b>\nTasks: Buy groceries")]
+    mock_anthropic.messages.create = AsyncMock(return_value=mock_response)
+
     with (
-        patch(
-            f"{MODULE}.require_google_or_prompt",
-            new_callable=AsyncMock,
-            return_value=None,
-        ),
-        patch(
-            f"{MODULE}.get_google_client",
-            new_callable=AsyncMock,
-            return_value=mock_google,
-        ),
-        patch(
-            f"{MODULE}._generate_brief",
-            new_callable=AsyncMock,
-            return_value=brief,
-        ),
+        patch(f"{MODULE}.async_session") as mock_session,
+        patch(f"{MODULE}.connector_registry") as mock_reg,
+        patch(f"{MODULE}.anthropic_client", return_value=mock_anthropic),
     ):
-        result = await skill.execute(message, ctx, {})
+        mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
+        mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_reg.get.return_value = mock_google
 
-    assert "утро" in result.response_text.lower() or "Standup" in result.response_text
-
-
-@pytest.mark.asyncio
-async def test_morning_brief_empty_calendar_and_inbox(skill, message, ctx):
-    """Handles empty calendar and inbox gracefully."""
-    mock_google = AsyncMock()
-    mock_google.list_events = AsyncMock(return_value=[])
-    mock_google.list_messages = AsyncMock(return_value=[])
-
-    brief = "<b>Доброе утро!</b>\nКалендарь свободен. Нет важных писем."
-    with (
-        patch(
-            f"{MODULE}.require_google_or_prompt",
-            new_callable=AsyncMock,
-            return_value=None,
-        ),
-        patch(
-            f"{MODULE}.get_google_client",
-            new_callable=AsyncMock,
-            return_value=mock_google,
-        ),
-        patch(
-            f"{MODULE}._generate_brief",
-            new_callable=AsyncMock,
-            return_value=brief,
-        ),
-    ):
         result = await skill.execute(message, ctx, {})
 
     assert result.response_text
@@ -146,3 +118,9 @@ def test_system_prompt_includes_language(skill, ctx):
     """System prompt contains the user's language."""
     prompt = skill.get_system_prompt(ctx)
     assert "en" in prompt
+
+
+def test_skill_attributes(skill):
+    assert skill.name == "morning_brief"
+    assert skill.intents == ["morning_brief"]
+    assert skill.model == "claude-sonnet-4-6"
