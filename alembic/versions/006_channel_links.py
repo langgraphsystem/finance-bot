@@ -1,6 +1,6 @@
 """Add channel_links table for multi-channel user mapping.
 
-Revision ID: 006
+Revision ID: 006b
 Revises: 005
 Create Date: 2026-02-19
 """
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "006"
+revision = "006b"
 down_revision = "005"
 branch_labels = None
 depends_on = None

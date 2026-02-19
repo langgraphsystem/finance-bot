@@ -1,7 +1,7 @@
 """Add bookings and client_interactions tables for CRM/Booking agent.
 
 Revision ID: 007
-Revises: 006
+Revises: 006, 006b
 Create Date: 2026-02-19
 """
 
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "007"
-down_revision = "006"
+down_revision = ("006", "006b")
 branch_labels = None
 depends_on = None
 
