@@ -100,6 +100,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "morning_brief": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
     "evening_recap": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    # Browser + monitor intents (Phase 5)
+    "web_action": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "price_check": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "price_alert": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "news_monitor": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
 }
 
 

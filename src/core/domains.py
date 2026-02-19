@@ -74,6 +74,11 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "find_free_slots": Domain.calendar,
     "reschedule_event": Domain.calendar,
     "morning_brief": Domain.calendar,
+    # Browser + monitor (Phase 5)
+    "web_action": Domain.web,
+    "price_check": Domain.web,
+    "price_alert": Domain.monitor,
+    "news_monitor": Domain.monitor,
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,

@@ -22,7 +22,12 @@ from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
+
+# Phase 5: Monitor & browser skills
+from src.skills.news_monitor.handler import skill as news_monitor_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
+from src.skills.price_alert.handler import skill as price_alert_skill
+from src.skills.price_check.handler import skill as price_check_skill
 from src.skills.proofread.handler import skill as proofread_skill
 from src.skills.query_report.handler import skill as query_report_skill
 from src.skills.query_stats.handler import skill as query_stats_skill
@@ -41,6 +46,7 @@ from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.translate_text.handler import skill as translate_text_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
+from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
 
@@ -92,4 +98,9 @@ def create_registry() -> SkillRegistry:
     registry.register(reschedule_event_skill)
     registry.register(morning_brief_skill)
     registry.register(evening_recap_skill)
+    # Phase 5: Browser + monitor skills
+    registry.register(web_action_skill)
+    registry.register(price_check_skill)
+    registry.register(price_alert_skill)
+    registry.register(news_monitor_skill)
     return registry

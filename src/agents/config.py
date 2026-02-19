@@ -129,7 +129,13 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="research",
         system_prompt=RESEARCH_AGENT_PROMPT,
-        skills=["quick_answer", "web_search", "compare_options"],
+        skills=[
+            "quick_answer",
+            "web_search",
+            "compare_options",
+            "price_check",
+            "web_action",
+        ],
         default_model="gemini-3-flash-preview",
         context_config={"mem": False, "hist": 3, "sql": False, "sum": False},
     ),
@@ -179,6 +185,8 @@ AGENTS: list[AgentConfig] = [
             "life_search",
             "set_comm_mode",
             "evening_recap",
+            "price_alert",
+            "news_monitor",
         ],
         default_model="claude-haiku-4-5",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},

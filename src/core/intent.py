@@ -99,6 +99,14 @@ rate confirmation, или другого изображения
 "план на сегодня", "утренняя сводка")
 - evening_recap: вечерний обзор дня ("evening recap", "how was my day?", \
 "итоги дня", "recap", "вечерний обзор", "wrap up my day")
+- web_action: выполнить действие на сайте через браузер ("go to website and fill form", \
+"зайди на сайт и заполни форму", "submit order on Amazon", "book appointment online")
+- price_check: проверить цену товара на сайте ("check price of lumber at Home Depot", \
+"сколько стоит X на сайте Y", "price of 2x4 at Lowe's")
+- price_alert: мониторинг цены, оповещение о цене ("alert me when lumber drops below $5", \
+"мониторь цену на X", "notify when price goes below/above")
+- news_monitor: мониторинг новостей, подписка на тему ("monitor plumbing industry news", \
+"следи за новостями о X", "alert me about school closings")
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -113,6 +121,12 @@ general_chat — крайний случай. Если сообщение хот
 - "мои задачи" или "what's on my list" → list_tasks
 - "готово" или "done with ..." → complete_task
 - "план дня" (без конкретной задачи) → day_plan (life-tracking)
+
+Правила приоритета (browser + monitoring):
+- "go to website", "fill form", "submit", "book online" → web_action
+- "check price of X at Y", "сколько стоит X на сайте Y" → price_check
+- "alert me when price", "мониторь цену", "notify when price" → price_alert
+- "monitor news about", "следи за новостями", "alert me about [topic]" → news_monitor
 
 Правила приоритета (research vs general_chat):
 - Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
