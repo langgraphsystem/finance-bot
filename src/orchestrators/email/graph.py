@@ -68,9 +68,13 @@ _email_graph = build_email_graph().compile()
 class EmailOrchestrator:
     """Email domain orchestrator — routes through LangGraph for complex flows.
 
-    For P0, delegates to skills directly via AgentRouter for simple operations.
-    The LangGraph handles the revision loop for compose/reply flows.
+    Simple intents (read_inbox, summarize_thread, follow_up_email) delegate
+    directly to skills via AgentRouter. Compose intents (send_email,
+    draft_reply) go through the LangGraph revision loop.
     """
+
+    # Intents that benefit from the LangGraph revision loop
+    _GRAPH_INTENTS = {"send_email", "draft_reply"}
 
     def __init__(self, agent_router: Any = None):
         self._agent_router = agent_router
@@ -82,11 +86,42 @@ class EmailOrchestrator:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        """Route email intents — P0 delegates to AgentRouter."""
-        # For P0, delegate directly to skills via AgentRouter
-        # P1 will use _email_graph for compose/reply revision loops
-        if self._agent_router:
-            return await self._agent_router.route(intent, message, context, intent_data)
+        """Route email intents through graph or directly to skills."""
+        # Compose intents → LangGraph revision loop
+        if intent in self._GRAPH_INTENTS:
+            try:
+                initial_state: EmailState = {
+                    "intent": intent,
+                    "message_text": message.text or "",
+                    "user_id": context.user_id,
+                    "language": context.language or "en",
+                    "emails": [],
+                    "thread_messages": [],
+                    "summary": "",
+                    "draft_to": "",
+                    "draft_subject": "",
+                    "draft_body": "",
+                    "revision_count": 0,
+                    "quality_ok": False,
+                    "revision_feedback": "",
+                    "response_text": "",
+                    "sent": False,
+                }
+                result = await _email_graph.ainvoke(initial_state)
+                text = result.get("response_text", "")
+                if text:
+                    return SkillResult(response_text=text)
+            except Exception as e:
+                logger.warning(
+                    "Email graph failed for %s, falling back to skill: %s",
+                    intent,
+                    e,
+                )
 
-        # Fallback: return a generic response
+        # Simple intents + fallback → AgentRouter → skill
+        if self._agent_router:
+            return await self._agent_router.route(
+                intent, message, context, intent_data
+            )
+
         return SkillResult(response_text="Email feature is being set up.")

@@ -9,6 +9,7 @@ def test_domain_enum_has_all_domains():
         "finance",
         "email",
         "calendar",
+        "brief",
         "tasks",
         "research",
         "writing",

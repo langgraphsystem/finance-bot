@@ -12,6 +12,7 @@ class Domain(StrEnum):
     finance = "finance"
     email = "email"
     calendar = "calendar"
+    brief = "brief"
     tasks = "tasks"
     research = "research"
     writing = "writing"
@@ -73,7 +74,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "create_event": Domain.calendar,
     "find_free_slots": Domain.calendar,
     "reschedule_event": Domain.calendar,
-    "morning_brief": Domain.calendar,
+    "morning_brief": Domain.brief,
     # Browser + monitor (Phase 5)
     "web_action": Domain.web,
     "price_check": Domain.web,
@@ -82,5 +83,5 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,
-    "evening_recap": Domain.general,
+    "evening_recap": Domain.brief,
 }

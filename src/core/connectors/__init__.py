@@ -44,3 +44,13 @@ class ConnectorRegistry:
 
 # Module-level singleton — import this from anywhere.
 connector_registry = ConnectorRegistry()
+
+
+def _register_connectors() -> None:
+    """Auto-register all known connectors at import time."""
+    from src.core.connectors.google import google_connector
+
+    connector_registry.register(google_connector)
+
+
+_register_connectors()

@@ -71,10 +71,14 @@ def get_domain_router() -> DomainRouter:
 
         # Register LangGraph orchestrators for complex domains
         from src.core.domains import Domain
+        from src.orchestrators.brief.graph import BriefOrchestrator
         from src.orchestrators.email.graph import EmailOrchestrator
 
         _domain_router.register_orchestrator(
             Domain.email, EmailOrchestrator(agent_router=get_agent_router())
+        )
+        _domain_router.register_orchestrator(
+            Domain.brief, BriefOrchestrator()
         )
     return _domain_router
 
