@@ -234,9 +234,9 @@ class TestAgentConfigCompleteness:
             agent = agent_router.get_agent(intent)
             assert agent is not None, f"Intent '{intent}' has no agent"
 
-    def test_ten_agents_defined(self, agent_router):
+    def test_eleven_agents_defined(self, agent_router):
         agents = agent_router.list_agents()
-        assert len(agents) == 10
+        assert len(agents) == 11
 
     def test_agent_names(self, agent_router):
         names = {a.name for a in agent_router.list_agents()}
@@ -251,6 +251,7 @@ class TestAgentConfigCompleteness:
             "writing",
             "email",
             "calendar",
+            "booking",
         }
 
     def test_each_agent_has_system_prompt(self, agent_router):

@@ -105,6 +105,15 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "price_check": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "price_alert": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "news_monitor": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    # Booking + CRM intents (Phase 6)
+    "create_booking": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "list_bookings": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "cancel_booking": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "reschedule_booking": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "add_contact": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "list_contacts": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "find_contact": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "send_to_client": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
 }
 
 

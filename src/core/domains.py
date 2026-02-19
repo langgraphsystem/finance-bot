@@ -17,6 +17,7 @@ class Domain(StrEnum):
     research = "research"
     writing = "writing"
     contacts = "contacts"
+    booking = "booking"
     web = "web"
     monitor = "monitor"
     general = "general"
@@ -80,6 +81,15 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "price_check": Domain.web,
     "price_alert": Domain.monitor,
     "news_monitor": Domain.monitor,
+    # Booking + CRM (Phase 6)
+    "create_booking": Domain.booking,
+    "list_bookings": Domain.booking,
+    "cancel_booking": Domain.booking,
+    "reschedule_booking": Domain.booking,
+    "add_contact": Domain.contacts,
+    "list_contacts": Domain.contacts,
+    "find_contact": Domain.contacts,
+    "send_to_client": Domain.booking,
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,

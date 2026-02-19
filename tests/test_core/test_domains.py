@@ -14,6 +14,7 @@ def test_domain_enum_has_all_domains():
         "research",
         "writing",
         "contacts",
+        "booking",
         "web",
         "monitor",
         "general",
@@ -63,8 +64,20 @@ def test_onboarding_maps_to_onboarding():
     assert INTENT_DOMAIN_MAP["onboarding"] == Domain.onboarding
 
 
+def test_booking_intents_map_correctly():
+    """Booking and CRM intents should map to correct domains."""
+    assert INTENT_DOMAIN_MAP["create_booking"] == Domain.booking
+    assert INTENT_DOMAIN_MAP["list_bookings"] == Domain.booking
+    assert INTENT_DOMAIN_MAP["cancel_booking"] == Domain.booking
+    assert INTENT_DOMAIN_MAP["reschedule_booking"] == Domain.booking
+    assert INTENT_DOMAIN_MAP["add_contact"] == Domain.contacts
+    assert INTENT_DOMAIN_MAP["list_contacts"] == Domain.contacts
+    assert INTENT_DOMAIN_MAP["find_contact"] == Domain.contacts
+    assert INTENT_DOMAIN_MAP["send_to_client"] == Domain.booking
+
+
 def test_all_current_intents_are_mapped():
-    """All 22 current intents should be in the map."""
+    """All current intents should be in the map."""
     current_intents = {
         "add_expense",
         "add_income",
@@ -88,6 +101,14 @@ def test_all_current_intents_are_mapped():
         "set_comm_mode",
         "general_chat",
         "onboarding",
+        "create_booking",
+        "list_bookings",
+        "cancel_booking",
+        "reschedule_booking",
+        "add_contact",
+        "list_contacts",
+        "find_contact",
+        "send_to_client",
     }
     for intent in current_intents:
         assert intent in INTENT_DOMAIN_MAP, f"{intent} missing from INTENT_DOMAIN_MAP"

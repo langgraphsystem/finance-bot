@@ -75,6 +75,12 @@ class IntentData(BaseModel):
     contact_phone: str | None = None
     contact_email: str | None = None
 
+    # Booking fields (Phase 6)
+    booking_title: str | None = None
+    booking_service_type: str | None = None
+    booking_location: str | None = None
+    booking_contact_role: str | None = None
+
 
 class IntentDetectionResult(BaseModel):
     intent: str
