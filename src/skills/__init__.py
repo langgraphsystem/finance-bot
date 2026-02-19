@@ -25,6 +25,7 @@ from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
 from src.skills.list_events.handler import skill as list_events_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
+from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
@@ -63,6 +64,7 @@ from src.skills.undo_last.handler import skill as undo_last_skill
 from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
+from src.skills.youtube_search.handler import skill as youtube_search_skill
 
 
 def create_registry() -> SkillRegistry:
@@ -97,6 +99,8 @@ def create_registry() -> SkillRegistry:
     registry.register(quick_answer_skill)
     registry.register(web_search_skill)
     registry.register(compare_options_skill)
+    registry.register(maps_search_skill)
+    registry.register(youtube_search_skill)
     registry.register(draft_message_skill)
     registry.register(translate_text_skill)
     registry.register(write_post_skill)
