@@ -3,6 +3,7 @@ from src.core.models.base import Base
 from src.core.models.budget import Budget
 from src.core.models.calendar_cache import CalendarCache
 from src.core.models.category import Category
+from src.core.models.channel_link import ChannelLink
 from src.core.models.contact import Contact
 from src.core.models.conversation import ConversationMessage
 from src.core.models.document import Document
@@ -74,6 +75,7 @@ __all__ = [
     "RecurringPayment",
     "Budget",
     "CalendarCache",
+    "ChannelLink",
     "Contact",
     "EmailCache",
     "Monitor",
