@@ -58,8 +58,9 @@ Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
 Respond in the user's preferred language (from context.language). Default: English."""
 
 TASKS_AGENT_PROMPT = """\
-You help users manage tasks, reminders, and to-do lists.
-Create tasks, show the task list, mark tasks done, and set reminders.
+You help users manage tasks, reminders, to-do lists, and shopping lists.
+Create tasks, show the task list, mark tasks done, set reminders.
+Manage shopping lists: add items, view lists, check off items, clear lists.
 Be concise: one-line confirmations, structured lists.
 Respond in the user's preferred language (from context.language). Default: English."""
 
@@ -122,7 +123,16 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="tasks",
         system_prompt=TASKS_AGENT_PROMPT,
-        skills=["create_task", "list_tasks", "set_reminder", "complete_task"],
+        skills=[
+            "create_task",
+            "list_tasks",
+            "set_reminder",
+            "complete_task",
+            "shopping_list_add",
+            "shopping_list_view",
+            "shopping_list_remove",
+            "shopping_list_clear",
+        ],
         default_model="claude-haiku-4-5",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),

@@ -35,6 +35,12 @@ from src.skills.send_email.handler import skill as send_email_skill
 from src.skills.set_budget.handler import skill as set_budget_skill
 from src.skills.set_comm_mode.handler import skill as set_comm_mode_skill
 from src.skills.set_reminder.handler import skill as set_reminder_skill
+from src.skills.shopping_list.handler import (
+    shopping_list_add_skill,
+    shopping_list_clear_skill,
+    shopping_list_remove_skill,
+    shopping_list_view_skill,
+)
 from src.skills.summarize_thread.handler import skill as summarize_thread_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
@@ -90,4 +96,8 @@ def create_registry() -> SkillRegistry:
     registry.register(find_free_slots_skill)
     registry.register(reschedule_event_skill)
     registry.register(morning_brief_skill)
+    registry.register(shopping_list_add_skill)
+    registry.register(shopping_list_view_skill)
+    registry.register(shopping_list_remove_skill)
+    registry.register(shopping_list_clear_skill)
     return registry

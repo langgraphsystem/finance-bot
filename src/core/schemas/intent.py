@@ -75,6 +75,11 @@ class IntentData(BaseModel):
     contact_phone: str | None = None
     contact_email: str | None = None
 
+    # Shopping list fields
+    shopping_items: list[str] | None = None
+    shopping_list_name: str | None = None
+    shopping_item_remove: str | None = None
+
 
 class IntentDetectionResult(BaseModel):
     intent: str
