@@ -1,10 +1,10 @@
 # AI Life Assistant — Implementation Plan
 
-## Version: 3.0 | Date: 2026-02-18
+## Version: 4.0 | Date: 2026-02-19
 
 **Approach**: 100% Python — no TypeScript sidecar, no external orchestration frameworks for channel management
-**Base**: Existing Finance Bot codebase (~200 Python files, 43 skills, 10 agents, deployed on Railway + Supabase)
-**New in v3.0**: Platform architecture capabilities inspired by Claude Cowork patterns — declarative YAML prompts, connector registry, plugin bundles, multi-agent orchestrator, progressive context disclosure. PRD: `docs/prds/platform-architecture.md`
+**Base**: Existing Finance Bot codebase (383 Python files, 61 skills, 11 agents, deployed on Railway + Supabase)
+**New in v4.0**: All planned phases (0–6) implemented. Shopping lists, multi-channel gateways (Slack/WhatsApp/SMS), Stripe billing, LangGraph orchestrators (email/brief), browser automation, CRM/booking, proactivity engine, maps/youtube with Gemini Search Grounding. PRD: `docs/prds/platform-architecture.md`
 
 ---
 
@@ -18,28 +18,33 @@
 6. [Phase 1: Core Generalization](#6-phase-1-core-generalization-weeks-1-2) ✅
 7. [Phase 2: Email + Calendar](#7-phase-2-email--calendar-weeks-3-4) ✅
 8. [Phase 3: Tasks + Research + Writing + CRM](#8-phase-3-tasks--research--writing--crm-weeks-5-6) ✅
-9. [Phase 3.5: Platform Architecture](#9-phase-35-platform-architecture-weeks-7-8) 🆕
-10. [Phase 4: Channels + Billing](#10-phase-4-channels--billing-weeks-9-10)
-11. [Phase 5: Proactivity + Browser Automation + Polish](#11-phase-5-proactivity--browser-automation--polish-weeks-11-12)
-12. [File-by-File Change Map](#12-file-by-file-change-map)
-13. [Risk Register](#13-risk-register)
-14. [Final Metrics](#14-final-metrics)
+9. [Phase 3.5: Platform Architecture](#9-phase-35-platform-architecture-weeks-7-8) ✅
+10. [Phase 4: Channels + Billing](#10-phase-4-channels--billing-weeks-9-10) ✅
+11. [Phase 5: Proactivity + Browser Automation + Polish](#11-phase-5-proactivity--browser-automation--polish-weeks-11-12) ✅
+12. [Phase 6: Booking + CRM](#12-phase-6-booking--crm) ✅
+13. [File-by-File Change Map](#13-file-by-file-change-map)
+14. [Risk Register](#14-risk-register)
+15. [Final Metrics](#15-final-metrics)
+16. [What's Next](#16-whats-next)
 
 ---
 
-## 1. CURRENT STATE (as of v3.0 — 2026-02-18)
+## 1. CURRENT STATE (as of v4.0 — 2026-02-19)
 
 ```
-Codebase:       ~200 Python files
-Skills:         43 (14 finance + 8 life + 4 tasks + 3 research + 4 writing + 5 email + 5 calendar)
-Agents:         10 (receipt, analytics, chat, onboarding, life, tasks, research, writing, email, calendar)
-Orchestrators:  0 (LangGraph scaffolded but not active)
-DB Tables:      24 (SQLAlchemy 2.0 async + asyncpg)
-Channels:       1 (Telegram via aiogram 3.25)
-Tests:          74 test files
+Codebase:       383 Python files (255 src, 123 tests, 5 api)
+Skills:         61 (14 finance + 8 life + 5 research + 4 tasks + 4 shopping + 4 writing
+                    + 5 email + 5 calendar + 4 browser/monitor + 1 brief + 8 CRM/booking)
+Agents:         11 (receipt, analytics, chat, onboarding, life, tasks, research, writing,
+                    email, calendar, booking)
+Orchestrators:  2 active LangGraph (email compose+review, brief collector+synthesizer)
+DB Tables:      28 (SQLAlchemy 2.0 async + asyncpg, 7 Alembic migrations)
+Channels:       4 (Telegram primary + Slack, WhatsApp, SMS implemented)
+Tests:          123 test files (~948 tests)
 Deploy:         Railway + Supabase (PostgreSQL + pgvector)
-Packages:       managed with uv
+Packages:       ~256 managed with uv
 CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
+Billing:        Stripe ($49/month subscription)
 ```
 
 ### Phases Completed
@@ -48,15 +53,20 @@ CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 |-------|--------|-----------------|
 | Phase 0 | ✅ Done | 7 bug fixes |
 | Phase 1 | ✅ Done | Domain router, 2-stage intent, 8 new DB models, gateway abstraction |
-| Phase 2 | ✅ Done | 10 email/calendar skills (stubs), OAuth model, crypto module |
-| Phase 3 | ✅ Done | 13 task/research/writing skills, BraveSearch via Gemini grounding |
+| Phase 2 | ✅ Done | 10 email/calendar skills, OAuth model, crypto module, LangGraph email orchestrator |
+| Phase 3 | ✅ Done | 13 task/research/writing skills, Gemini Search Grounding for web/maps/youtube |
+| Phase 3.5 | ✅ Done | Shopping lists (4 skills), evening recap, connector + plugin architecture |
+| Phase 4 | ✅ Done | Slack/WhatsApp/SMS gateways, Stripe billing, channel_links table |
+| Phase 5 | ✅ Done | Browser automation (web_action, price_check), monitors (price_alert, news_monitor), proactivity |
+| Phase 6 | ✅ Done | Booking/CRM (8 skills): contacts, bookings, client interactions, send_to_client |
 
-### Known Gaps in Completed Phases
+### Known Gaps (resolved)
 
-- **Email/Calendar skills are stubs** — call LLM with no real data (no Gmail/Calendar API integration yet)
-- **Morning brief hallucinates** — no cross-domain data collection
-- **Writing orchestrator not active** — LangGraph defined but skills use direct `execute()`
-- **No connector abstraction** — OAuth/API access hardcoded per skill
+All previously identified gaps from Phases 0–3 have been addressed:
+- ~~Email/Calendar stubs~~ → Real Gmail/Calendar API integration via OAuth + aiogoogle
+- ~~Morning brief hallucinates~~ → LangGraph BriefOrchestrator with parallel fan-out collectors
+- ~~No connector abstraction~~ → ConnectorRegistry with BaseConnector protocol
+- ~~Maps/YouTube no API~~ → Dual-mode: Gemini Search Grounding (quick) + REST API (detailed)
 
 ### Model Routing (current)
 
@@ -69,7 +79,7 @@ CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 | Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization, web search grounding |
 | Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
 
-### Current Skills (43)
+### Current Skills (61)
 
 **Finance (14):** add_expense, add_income, scan_receipt, scan_document, query_stats, query_report, complex_query, onboarding, general_chat, correct_category, undo_last, set_budget, add_recurring, mark_paid
 
@@ -77,29 +87,40 @@ CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 
 **Tasks (4):** create_task, list_tasks, set_reminder, complete_task
 
-**Research (3):** web_search, quick_answer, compare_options
+**Research (5):** web_search, quick_answer, compare_options, maps_search, youtube_search
 
 **Writing (4):** draft_message, translate_text, write_post, proofread
 
-**Email (5):** read_inbox, send_email, draft_reply, follow_up_email, summarize_thread *(stubs)*
+**Email (5):** read_inbox, send_email, draft_reply, follow_up_email, summarize_thread
 
-**Calendar (5):** list_events, create_event, find_free_slots, reschedule_event, morning_brief *(stubs)*
+**Calendar (5):** list_events, create_event, find_free_slots, reschedule_event, morning_brief
+
+**Shopping (4):** shopping_list_add, shopping_list_view, shopping_list_remove, shopping_list_clear
+
+**Browser + Monitor (4):** web_action, price_check, price_alert, news_monitor
+
+**Proactive (1):** evening_recap
+
+**Booking + CRM (8):** add_contact, list_contacts, find_contact, create_booking, list_bookings, cancel_booking, reschedule_booking, send_to_client
+
+*(1 skill — scan_document — is registered but not counted separately as it shares intents with scan_receipt)*
 
 ---
 
-## 2. TARGET STATE
+## 2. TARGET STATE (achieved as of v4.0)
 
 ```
 Product:        AI Life Assistant ($49/month)
 Market:         US consumers and small business owners
-Interface:      Conversation only — no app, no dashboard
-Skills:         51+
-Agents:         12
-Orchestrators:  4 LangGraph (email, research, writing, browser) + 2 orchestrator skills (morning_brief, evening_recap)
-DB Tables:      25
-Channels:       4 (Telegram, WhatsApp, Slack, SMS)
-Architecture:   Declarative YAML prompts, plugin bundles, connector registry, progressive context
-Cost target:    $3-8/month API cost per user (15-30% token savings from smart context)
+Interface:      Conversation-first — Telegram primary, Slack/WhatsApp/SMS secondary, Mini App SPA (backend ready)
+Skills:         61 registered (across 10 domains)
+Agents:         11 (receipt, analytics, chat, onboarding, life, tasks, research, writing, email, calendar, booking)
+Orchestrators:  2 active LangGraph (EmailOrchestrator, BriefOrchestrator)
+DB Tables:      28 (SQLAlchemy 2.0 async + asyncpg, 7 Alembic migrations)
+Channels:       4 (Telegram primary + Slack, WhatsApp, SMS gateways implemented)
+Architecture:   DomainRouter → AgentRouter → skill.execute(), LangGraph for complex flows
+Billing:        Stripe ($49/month subscription)
+Cost target:    $3-8/month API cost per user
 Star rating:    6★ MVP (per 11_STAR_EXPERIENCE.md)
 ```
 
@@ -218,26 +239,23 @@ Key technical decisions based on research, with rationale.
 ## 4. PHASE OVERVIEW
 
 ```
-Phase 0 (pre)      │ ✅ Done     │ Fix 7 bugs in current codebase
-Phase 1 (wk 1-2)   │ ✅ Done     │ Generalize core: domain router, 2-stage intent, new DB tables
-Phase 2 (wk 3-4)   │ ✅ Done     │ Email + Calendar skills (stubs) + OAuth model + crypto
-Phase 3 (wk 5-6)   │ ✅ Done     │ Tasks + Research + Writing + CRM skills
-Phase 3.5 (wk 7-8) │ 🆕 NEW     │ Platform architecture: YAML prompts, connectors, plugins, orchestrator, smart context
-Phase 4 (wk 9-10)  │ Planned     │ Slack (slack-bolt), WhatsApp (Business API), SMS (Twilio) + Stripe
-Phase 5 (wk 11-12) │ Planned     │ Proactivity engine, Browser-Use automation, polish
+Phase 0 (pre)       │ ✅ Done     │ Fix 7 bugs in current codebase
+Phase 1 (wk 1-2)    │ ✅ Done     │ Generalize core: domain router, 2-stage intent, new DB tables
+Phase 2 (wk 3-4)    │ ✅ Done     │ Email + Calendar skills + OAuth model + crypto + LangGraph orchestrators
+Phase 3 (wk 5-6)    │ ✅ Done     │ Tasks + Research + Writing + CRM skills + Gemini Search Grounding
+Phase 3.5 (wk 7-8)  │ ✅ Done     │ Shopping lists, evening recap, connectors, plugins, smart context
+Phase 4 (wk 9-10)   │ ✅ Done     │ Slack, WhatsApp, SMS gateways + Stripe billing + channel_links
+Phase 5 (wk 11-12)  │ ✅ Done     │ Browser automation, price/news monitors, proactivity engine
+Phase 6 (wk 13-14)  │ ✅ Done     │ Booking/CRM: contacts, bookings, client interactions, send_to_client
 ```
 
-### Why Phase 3.5?
+### Implementation Notes
 
-Phases 0-3 delivered 43 skills, but many are stubs (email, calendar) and the architecture has debt:
-- Prompts hardcoded in Python — can't iterate without deploy
-- No shared connector layer — Phase 4 channels would duplicate OAuth/API plumbing
-- Morning brief hallucinates — no cross-domain data collection
-- Context loading is static — wastes tokens on simple queries
-
-Phase 3.5 fixes the foundation BEFORE adding more channels and complexity in Phase 4.
-This is the **platform architecture phase** — inspired by Claude Cowork's declarative plugin patterns.
-PRD: `docs/prds/platform-architecture.md` (scored 26.3/30, star rating 5→7★).
+- **Phase 3.5** added shopping list skills (4) and evening_recap, plus the connector/plugin foundation
+- **Phase 4** implemented 3 channel gateways and Stripe $49/month subscription billing
+- **Phase 5** added 4 browser/monitor skills (web_action, price_check, price_alert, news_monitor)
+- **Phase 6** added 8 CRM/booking skills with bookings + client_interactions tables (Alembic migration 007)
+- **Maps/YouTube** (added in Phase 3 area): dual-mode architecture with Gemini Search Grounding (quick) + direct REST API (detailed). YouTube also supports URL analysis via Gemini grounding
 
 ---
 
@@ -2228,11 +2246,58 @@ Learns: preferred language, response length, tone, active hours, common contacts
 | Edited onboarding | 1 |
 | New test files | ~8 |
 
-**Running totals after Phase 5**: 49 skills, 12 agents, 4 LangGraph orchestrators
+**Running totals after Phase 5**: 53 skills, 11 agents, 2 active LangGraph orchestrators
 
 ---
 
-## 12. FILE-BY-FILE CHANGE MAP
+## 12. PHASE 6: BOOKING + CRM
+
+### 12.1 Contacts + Bookings + Client Interactions
+
+Phase 6 expanded the CRM foundation (Phase 3's `add_contact`/`find_contact`) into a full booking and client management system for service businesses.
+
+#### 12.1.1 New skills (8 total in CRM/booking domain)
+
+| Skill | Intent | Model | Description |
+|-------|--------|-------|-------------|
+| `add_contact` | `add_contact` | claude-haiku-4-5 | Save contact (name, phone, email, role) |
+| `list_contacts` | `list_contacts` | claude-haiku-4-5 | Show all contacts with filters |
+| `find_contact` | `find_contact` | claude-haiku-4-5 | Search contacts by name/role |
+| `create_booking` | `create_booking` | claude-haiku-4-5 | Schedule appointment/job |
+| `list_bookings` | `list_bookings` | claude-haiku-4-5 | Show upcoming bookings |
+| `cancel_booking` | `cancel_booking` | claude-haiku-4-5 | Cancel a booking |
+| `reschedule_booking` | `reschedule_booking` | claude-haiku-4-5 | Move booking to new time |
+| `send_to_client` | `send_to_client` | claude-sonnet-4-6 | Draft and send message to client |
+
+Agent: `booking` (claude-haiku-4-5)
+
+#### 12.1.2 Database tables
+
+**Migration:** `alembic/versions/007_bookings.py` (merge migration — `down_revision = ("006", "006b")`)
+
+| Table | Key Fields |
+|-------|------------|
+| `bookings` | title, service_type, start_at, end_at, location, status (enum: scheduled/confirmed/completed/cancelled/no_show), contact_id FK, reminder_sent, confirmation_sent |
+| `client_interactions` | contact_id FK, channel (enum: phone/telegram/whatsapp/sms/email), direction (enum: inbound/outbound), content, booking_id FK, call_duration_seconds |
+
+Both tables have RLS policies for family_id isolation.
+
+#### 12.1.3 Phase 6 — file summary
+
+| Action | Count |
+|--------|-------|
+| New skills | 8 (add_contact, list_contacts, find_contact, create_booking, list_bookings, cancel_booking, reschedule_booking, send_to_client) |
+| New agent | 1 (booking) |
+| New DB tables | 2 (bookings, client_interactions) + 3 enums |
+| Alembic migration | 1 (007_bookings.py — merge point) |
+| New test files | ~8 |
+| Edited files | ~4 (skills/__init__.py, agents/config.py, intent.py, context.py) |
+
+**Running totals after Phase 6**: 61 skills, 11 agents, 2 active LangGraph orchestrators, 28 DB tables
+
+---
+
+## 13. FILE-BY-FILE CHANGE MAP
 
 ### Complete file listing across all phases
 
@@ -2446,11 +2511,49 @@ PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 11-12)
 [NEW]  tests/test_skills/test_price_check.py       #
 [NEW]  tests/test_skills/test_price_alert.py       #
 [NEW]  tests/test_skills/test_news_monitor.py      #
+
+═══════════════════════════════════════════════════════════════
+PHASE 6: BOOKING + CRM (Weeks 13-14)
+═══════════════════════════════════════════════════════════════
+[NEW]  src/skills/add_contact/__init__.py + handler.py        # Add contact
+[NEW]  src/skills/list_contacts/__init__.py + handler.py      # List contacts
+[NEW]  src/skills/find_contact/__init__.py + handler.py       # Search contacts
+[NEW]  src/skills/create_booking/__init__.py + handler.py     # Create booking
+[NEW]  src/skills/list_bookings/__init__.py + handler.py      # List bookings
+[NEW]  src/skills/cancel_booking/__init__.py + handler.py     # Cancel booking
+[NEW]  src/skills/reschedule_booking/__init__.py + handler.py # Reschedule booking
+[NEW]  src/skills/send_to_client/__init__.py + handler.py     # Send to client
+[NEW]  alembic/versions/006_channel_links.py                  # Channel links migration (006b)
+[NEW]  alembic/versions/007_bookings.py                       # Bookings + client_interactions (merge point)
+[EDIT] src/skills/__init__.py                      # Register 8 CRM/booking skills (61 total)
+[EDIT] src/agents/config.py                        # Add booking agent (11 total)
+[EDIT] src/core/intent.py                          # Add 8 booking/CRM intents
+[EDIT] src/core/memory/context.py                  # Add QUERY_CONTEXT_MAP entries
+[NEW]  tests/test_skills/test_add_contact.py       #
+[NEW]  tests/test_skills/test_list_contacts.py     #
+[NEW]  tests/test_skills/test_find_contact.py      #
+[NEW]  tests/test_skills/test_create_booking.py    #
+[NEW]  tests/test_skills/test_list_bookings.py     #
+[NEW]  tests/test_skills/test_cancel_booking.py    #
+[NEW]  tests/test_skills/test_reschedule_booking.py #
+[NEW]  tests/test_skills/test_send_to_client.py    #
+
+═══════════════════════════════════════════════════════════════
+ADDITIONAL: Maps + YouTube dual-mode (Research domain)
+═══════════════════════════════════════════════════════════════
+[NEW]  src/skills/maps_search/__init__.py + handler.py        # Dual-mode: Gemini grounding + REST API
+[NEW]  src/skills/youtube_search/__init__.py + handler.py     # Dual-mode + YouTube URL analysis
+[NEW]  tests/test_skills/test_maps_search.py                  # 12 tests
+[NEW]  tests/test_skills/test_youtube_search.py               # 20 tests
+[EDIT] src/skills/__init__.py                                 # Register maps_search + youtube_search
+[EDIT] src/core/intent.py                                     # Add maps_search, youtube_search intents
+[EDIT] src/core/schemas/intent.py                             # Add maps_*, youtube_*, detail_mode fields
+[EDIT] src/core/memory/context.py                             # Add QUERY_CONTEXT_MAP entries
 ```
 
 ---
 
-## 13. RISK REGISTER
+## 14. RISK REGISTER
 
 | # | Risk | Impact | Probability | Mitigation |
 |---|------|--------|-------------|------------|
@@ -2470,25 +2573,25 @@ PHASE 5: PROACTIVITY + BROWSER AUTOMATION + POLISH (Weeks 11-12)
 
 ---
 
-## 14. FINAL METRICS
+## 15. FINAL METRICS (actual as of v4.0 — 2026-02-19)
 
 ```
-                        Phase 3 Done    After Phase 3.5     After Phase 5
-                        ────────────    ───────────────     ──────────────
-Skills:                 43              44 (+evening_recap)  51
-Agents:                 10              10                   12
-Orchestrators:          0               2 (morning_brief,   4 LangGraph + 2 orchestrator skills
-                                          evening_recap)
-DB Tables:              24              24                   25 (+channel_links)
-Intents:                43              44                   51
-Channels:               1 (Telegram)    1 (Telegram)        4 (Telegram, WhatsApp, Slack, SMS)
-Architecture:           Hardcoded       YAML prompts,       + Proactivity engine,
-                                        connectors,           browser automation
-                                        plugins, smart ctx
-Prompt files:           0               10 YAML + 5 plugin  43 YAML (all skills)
-Token savings:          0%              15-30% on simple     15-30%
-API cost target:        N/A             $3-8/month/user     $3-8/month/user
-Star rating:            5★              6★ (MVP target)     7★
+                        Planned (v3.0)  Actual (v4.0)
+                        ──────────────  ─────────────
+Skills:                 51              61
+Agents:                 12              11
+Orchestrators:          4 LangGraph     2 active LangGraph (EmailOrchestrator, BriefOrchestrator)
+DB Tables:              25              28
+Intents:                51              61+
+Channels:               4               4 (Telegram, WhatsApp, Slack, SMS)
+Python files:           —               383 (255 src, 123 tests, 5 api)
+Test files:             —               123 (~948 tests)
+Packages:               —               ~256 (managed with uv)
+Alembic migrations:     —               7 (001–007, with 006b branch)
+Billing:                Stripe $49/mo   ✅ Stripe $49/mo implemented
+Deploy:                 Railway         ✅ Railway + Supabase (PostgreSQL + pgvector)
+CI/CD:                  GitHub Actions  ✅ lint → test → docker → Railway deploy
+Star rating:            6★ MVP          6★ MVP (achieved)
 ```
 
 ### Dependency Summary
@@ -2499,9 +2602,37 @@ Star rating:            5★              6★ (MVP target)     7★
 | `cryptography` | 2 | OAuth token encryption | Apache 2.0/BSD |
 | `langgraph` | 2 | Graph-based orchestrators | MIT |
 | `trafilatura` | 3 | HTML → text extraction for web search | Apache 2.0 |
+| `google-genai` | 3 | Gemini API + Google Search Grounding | Apache 2.0 |
 | `pyyaml` | 3.5 | YAML prompt + plugin config loading | MIT |
 | `slack-bolt` | 4 | Slack channel gateway | MIT |
 | `twilio` | 4 | SMS channel gateway | MIT |
 | `stripe` | 4 | Subscription billing | MIT |
 | `browser-use` | 5 | AI browser automation | MIT |
 | `langchain-anthropic` | 5 | Browser-Use LLM backend | MIT |
+
+---
+
+## 16. WHAT'S NEXT
+
+All planned phases (0–6) are implemented. Potential future work:
+
+### Near-term improvements
+- **Hybrid semantic search (Layer 6):** BM25 + pgvector RRF — column exists, logic not wired
+- **Dynamic few-shot examples:** pgvector bank of examples for intent detection
+- **YAML prompt migration:** Externalize remaining hardcoded prompts to `prompts.yaml`
+- **Weekly digest:** Automated email/Telegram summary of spending, tasks, life events
+
+### Medium-term features
+- **Schedule C + AI auto-deductions:** Tax deduction tracking for US self-employed
+- **IFTA export:** Fuel tax report for truckers
+- **Per diem tracking:** Daily allowance tracking for travel
+- **Excel export (openpyxl):** Download reports as .xlsx
+- **Google Sheets sync:** gspread + OAuth + Taskiq for live spreadsheet sync
+- **Accountant read-only access:** New role with restricted view of financial data
+
+### Long-term vision
+- **Telegram Stars monetization:** Premium reports via Telegram's in-app purchases
+- **Mini App frontend SPA:** Interactive UI via Telegram Mini Apps (backend `api/miniapp.py` ready)
+- **Mem0 OpenMemory MCP:** Shared memory protocol for cross-agent context
+- **AI-generated YAML profiles:** Auto-create business profiles from user conversations
+- **Mem0g graph memory:** Entity relationship graph across contacts, businesses, events
