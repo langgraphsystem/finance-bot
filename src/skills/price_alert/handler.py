@@ -68,9 +68,7 @@ class PriceAlertSkill:
         )
 
         try:
-            response = await client.messages.create(
-                model=self.model, max_tokens=200, **prompt_data
-            )
+            response = await client.messages.create(model=self.model, max_tokens=200, **prompt_data)
             import json
 
             details = json.loads(response.content[0].text)
@@ -78,8 +76,7 @@ class PriceAlertSkill:
             logger.exception("Failed to extract monitor details")
             return SkillResult(
                 response_text=(
-                    "I couldn't parse that. "
-                    "Try: 'Monitor lumber at Home Depot, alert below $5'"
+                    "I couldn't parse that. Try: 'Monitor lumber at Home Depot, alert below $5'"
                 )
             )
 

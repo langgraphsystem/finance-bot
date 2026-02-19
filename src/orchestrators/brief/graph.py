@@ -113,11 +113,7 @@ class BriefOrchestrator:
             text = result.get("response_text", "")
             if text:
                 return SkillResult(response_text=text)
-            return SkillResult(
-                response_text="Couldn't prepare your brief. Try again later."
-            )
+            return SkillResult(response_text="Couldn't prepare your brief. Try again later.")
         except Exception as e:
             logger.exception("Brief orchestrator failed: %s", e)
-            return SkillResult(
-                response_text="Couldn't prepare your brief. Try again later."
-            )
+            return SkillResult(response_text="Couldn't prepare your brief. Try again later.")

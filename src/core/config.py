@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     google_redirect_uri: str = ""
     oauth_encryption_key: str = ""
 
+    # Google Maps API
+    google_maps_api_key: str = ""
+
+    # YouTube Data API v3
+    youtube_api_key: str = ""
+
     # Mem0
     mem0_api_key: str = ""
     mem0_base_url: str = ""

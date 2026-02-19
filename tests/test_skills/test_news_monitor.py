@@ -21,9 +21,7 @@ def test_news_monitor_system_prompt(sample_context):
 
 async def test_news_monitor_empty_message(sample_context):
     skill = NewsMonitorSkill()
-    msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=""
-    )
+    msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
     result = await skill.execute(msg, sample_context, {})
     assert "topic" in result.response_text.lower()
 
@@ -31,8 +29,11 @@ async def test_news_monitor_empty_message(sample_context):
 async def test_news_monitor_creates_monitor(sample_context):
     skill = NewsMonitorSkill()
     msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1",
-        type=MessageType.text, text="plumbing industry news",
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="plumbing industry news",
     )
 
     mock_session = AsyncMock()

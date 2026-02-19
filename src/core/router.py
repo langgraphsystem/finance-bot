@@ -77,9 +77,7 @@ def get_domain_router() -> DomainRouter:
         _domain_router.register_orchestrator(
             Domain.email, EmailOrchestrator(agent_router=get_agent_router())
         )
-        _domain_router.register_orchestrator(
-            Domain.brief, BriefOrchestrator()
-        )
+        _domain_router.register_orchestrator(Domain.brief, BriefOrchestrator())
     return _domain_router
 
 

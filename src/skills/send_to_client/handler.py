@@ -65,9 +65,7 @@ class SendToClientSkill:
             )
 
         if not contact.phone:
-            return SkillResult(
-                response_text=f"{contact.name} has no phone number on file."
-            )
+            return SkillResult(response_text=f"{contact.name} has no phone number on file.")
 
         # Present confirmation with send button
         preview = (

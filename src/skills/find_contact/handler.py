@@ -33,10 +33,7 @@ class FindContactSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         query = (
-            intent_data.get("contact_name")
-            or intent_data.get("search_query")
-            or message.text
-            or ""
+            intent_data.get("contact_name") or intent_data.get("search_query") or message.text or ""
         )
         query = query.strip()
         if not query:
@@ -60,9 +57,7 @@ class FindContactSkill:
             contacts = result.scalars().all()
 
         if not contacts:
-            return SkillResult(
-                response_text=f"No contacts found matching '{query}'."
-            )
+            return SkillResult(response_text=f"No contacts found matching '{query}'.")
 
         lines = [f"<b>Found {len(contacts)} contact(s):</b>\n"]
         for c in contacts:

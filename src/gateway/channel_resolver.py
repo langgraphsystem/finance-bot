@@ -18,9 +18,7 @@ from src.core.models.user import User
 logger = logging.getLogger(__name__)
 
 
-async def resolve_user(
-    channel: str, channel_user_id: str
-) -> tuple[str | None, str | None]:
+async def resolve_user(channel: str, channel_user_id: str) -> tuple[str | None, str | None]:
     """Resolve a channel user to (user_id, family_id).
 
     Returns (None, None) if the channel user is not linked to any account.
@@ -100,9 +98,7 @@ async def _resolve_telegram(telegram_id_str: str) -> tuple[str | None, str | Non
         return None, None
 
     async with async_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == tid)
-        )
+        result = await session.execute(select(User).where(User.telegram_id == tid))
         user = result.scalar_one_or_none()
         if user:
             return str(user.id), str(user.family_id)

@@ -26,9 +26,7 @@ def _make_context(**kwargs):
 
 
 def _make_message(text="add client John 917-555-1234"):
-    return IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text
-    )
+    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text)
 
 
 async def test_add_contact_with_name():

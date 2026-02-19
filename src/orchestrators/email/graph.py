@@ -120,8 +120,6 @@ class EmailOrchestrator:
 
         # Simple intents + fallback → AgentRouter → skill
         if self._agent_router:
-            return await self._agent_router.route(
-                intent, message, context, intent_data
-            )
+            return await self._agent_router.route(intent, message, context, intent_data)
 
         return SkillResult(response_text="Email feature is being set up.")

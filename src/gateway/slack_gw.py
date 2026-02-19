@@ -49,9 +49,12 @@ class SlackGateway:
         if abs(time.time() - int(timestamp)) > 300:
             return False
         basestring = f"v0:{timestamp}:{body.decode()}"
-        computed = "v0=" + hmac.new(
-            self._signing_secret.encode(), basestring.encode(), hashlib.sha256
-        ).hexdigest()
+        computed = (
+            "v0="
+            + hmac.new(
+                self._signing_secret.encode(), basestring.encode(), hashlib.sha256
+            ).hexdigest()
+        )
         return hmac.compare_digest(computed, signature)
 
     # ------------------------------------------------------------------
@@ -120,18 +123,22 @@ class SlackGateway:
         actions = []
         for btn in message.buttons:
             if "url" in btn:
-                actions.append({
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": btn["text"]},
-                    "url": btn["url"],
-                })
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": btn["text"]},
+                        "url": btn["url"],
+                    }
+                )
             elif "callback" in btn:
-                actions.append({
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": btn["text"]},
-                    "action_id": btn["callback"],
-                    "value": btn["callback"],
-                })
+                actions.append(
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": btn["text"]},
+                        "action_id": btn["callback"],
+                        "value": btn["callback"],
+                    }
+                )
 
         if actions:
             blocks.append({"type": "actions", "elements": actions})

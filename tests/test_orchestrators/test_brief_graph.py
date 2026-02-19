@@ -24,9 +24,7 @@ def _make_context(**kwargs):
 
 
 def _make_message(text="morning brief"):
-    return IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text
-    )
+    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text)
 
 
 async def test_brief_orchestrator_morning():

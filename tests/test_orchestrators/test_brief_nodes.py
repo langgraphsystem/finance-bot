@@ -31,9 +31,9 @@ async def test_collect_tasks_morning_no_tasks():
         "src.orchestrators.brief.nodes.async_session",
         return_value=mock_session,
     ):
-        result = await collect_tasks({
-            "intent": "morning_brief", "user_id": "u1", "family_id": "f1"
-        })
+        result = await collect_tasks(
+            {"intent": "morning_brief", "user_id": "u1", "family_id": "f1"}
+        )
     assert result["tasks_data"] == ""
 
 
@@ -49,9 +49,9 @@ async def test_collect_tasks_evening_no_tasks():
         "src.orchestrators.brief.nodes.async_session",
         return_value=mock_session,
     ):
-        result = await collect_tasks({
-            "intent": "evening_recap", "user_id": "u1", "family_id": "f1"
-        })
+        result = await collect_tasks(
+            {"intent": "evening_recap", "user_id": "u1", "family_id": "f1"}
+        )
     assert result["tasks_data"] == ""
 
 
@@ -67,9 +67,7 @@ async def test_collect_finance_no_data():
         "src.orchestrators.brief.nodes.async_session",
         return_value=mock_session,
     ):
-        result = await collect_finance({
-            "intent": "morning_brief", "family_id": "f1"
-        })
+        result = await collect_finance({"intent": "morning_brief", "family_id": "f1"})
     assert result["finance_data"] == ""
 
 
@@ -97,30 +95,34 @@ async def test_collect_outstanding_no_overdue():
 
 
 async def test_synthesize_no_data_morning():
-    result = await synthesize({
-        "intent": "morning_brief",
-        "language": "en",
-        "active_sections": ["schedule", "tasks"],
-        "calendar_data": "",
-        "tasks_data": "",
-        "finance_data": "",
-        "email_data": "",
-        "outstanding_data": "",
-    })
+    result = await synthesize(
+        {
+            "intent": "morning_brief",
+            "language": "en",
+            "active_sections": ["schedule", "tasks"],
+            "calendar_data": "",
+            "tasks_data": "",
+            "finance_data": "",
+            "email_data": "",
+            "outstanding_data": "",
+        }
+    )
     assert "brief" in result["response_text"].lower() or "load" in result["response_text"].lower()
 
 
 async def test_synthesize_no_data_evening():
-    result = await synthesize({
-        "intent": "evening_recap",
-        "language": "en",
-        "active_sections": ["completed_tasks", "spending_total"],
-        "calendar_data": "",
-        "tasks_data": "",
-        "finance_data": "",
-        "email_data": "",
-        "outstanding_data": "",
-    })
+    result = await synthesize(
+        {
+            "intent": "evening_recap",
+            "language": "en",
+            "active_sections": ["completed_tasks", "spending_total"],
+            "calendar_data": "",
+            "tasks_data": "",
+            "finance_data": "",
+            "email_data": "",
+            "outstanding_data": "",
+        }
+    )
     assert "recap" in result["response_text"].lower() or "rest" in result["response_text"].lower()
 
 
@@ -134,15 +136,17 @@ async def test_synthesize_with_data():
         "src.orchestrators.brief.nodes.anthropic_client",
         return_value=mock_client,
     ):
-        result = await synthesize({
-            "intent": "morning_brief",
-            "language": "en",
-            "active_sections": ["tasks", "money_summary"],
-            "calendar_data": "",
-            "tasks_data": "Open tasks (2):\n- Buy milk\n- Fix faucet",
-            "finance_data": "Money:\n- Yesterday: $50.00 spent",
-            "email_data": "",
-            "outstanding_data": "",
-        })
+        result = await synthesize(
+            {
+                "intent": "morning_brief",
+                "language": "en",
+                "active_sections": ["tasks", "money_summary"],
+                "calendar_data": "",
+                "tasks_data": "Open tasks (2):\n- Buy milk\n- Fix faucet",
+                "finance_data": "Money:\n- Yesterday: $50.00 spent",
+                "email_data": "",
+                "outstanding_data": "",
+            }
+        )
     assert result["response_text"] == "Here's your morning summary."
     mock_client.messages.create.assert_called_once()

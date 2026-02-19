@@ -81,9 +81,7 @@ class StripeClient:
     # ------------------------------------------------------------------
     # Customer portal
     # ------------------------------------------------------------------
-    async def create_portal_session(
-        self, customer_id: str, return_url: str
-    ) -> dict[str, Any]:
+    async def create_portal_session(self, customer_id: str, return_url: str) -> dict[str, Any]:
         client = await self._get_client()
         resp = await client.post(
             "/billing_portal/sessions",
@@ -103,9 +101,7 @@ class StripeClient:
     # Webhook signature verification
     # ------------------------------------------------------------------
     @staticmethod
-    def verify_webhook_signature(
-        payload: bytes, sig_header: str, webhook_secret: str
-    ) -> bool:
+    def verify_webhook_signature(payload: bytes, sig_header: str, webhook_secret: str) -> bool:
         """Verify Stripe webhook signature (v1)."""
         import hashlib
         import hmac

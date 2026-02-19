@@ -69,7 +69,9 @@ rate confirmation, или другого изображения
 "расстояние от X до Y")
 - youtube_search: поиск видео на YouTube, инструкции, обзоры товаров ("найди видео", \
 "инструкция по замене масла Toyota", "обзор iPhone на youtube", \
-"tutorial for X", "how to fix X video", "youtube video about")
+"tutorial for X", "how to fix X video", "youtube video about"). \
+ТАКЖЕ: если пользователь отправил ссылку YouTube (youtube.com/watch, youtu.be/, \
+youtube.com/shorts/) — это ВСЕГДА youtube_search, даже без слова "youtube"
 - draft_message: написать сообщение, письмо, email ("write an email to school", \
 "напиши письмо", "draft a text to Mike", "compose a message")
 - translate_text: перевести текст ("translate to Spanish", "переведи на английский", \
@@ -170,12 +172,22 @@ general_chat — крайний случай. Если сообщение хот
 - "create_event" — для личного календаря; "create_booking" — для клиентов
 
 Правила приоритета (research vs general_chat):
+- Ссылка youtube.com/watch, youtu.be/, youtube.com/shorts/ → youtube_search (ВСЕГДА, приоритет!)
 - Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
 - "search ...", "найди ...", "загугли ...", текущие данные → web_search
 - "compare", "vs", "или ... или", "что лучше" → compare_options
 - "рядом", "near me", "найди место", "маршрут до", "directions to", адреса → maps_search
 - "youtube", "видео", "video", "tutorial", "инструкция по X", "обзор" + товар → youtube_search
 - Приветствие, болтовня без конкретного вопроса → general_chat
+
+Правило detail_mode (для maps_search и youtube_search):
+- detail_mode: true ТОЛЬКО если пользователь ЯВНО просит МАССОВЫЙ список \
+или недоволен результатами:
+  "покажи больше мест/ещё/more places", "все кофейни/all places/список мест"
+  "10 кофеен/покажи 5 ресторанов", "все видео/all videos/больше видео"
+  "не то/not what I wanted/покажи другие варианты"
+- По умолчанию detail_mode: false или null — Gemini сам описывает места, \
+анализирует видео, даёт маршруты, извлекает транскрипции
 
 Правила приоритета (writing vs general_chat):
 - "write/draft/compose/напиши/составь" + тема → draft_message
@@ -314,6 +326,8 @@ intent_type: "action", confidence: 0.92
     "maps_mode": "search" или "directions" или null,
     "destination": "пункт назначения для маршрута" или null,
     "youtube_query": "запрос для поиска видео" или null,
+    "detail_mode": true если пользователь просит подробный список, больше результатов, \
+маршрут с шагами, все видео, транскрипт — иначе false или null,
     "writing_topic": "тема/текст для написания" или null,
     "target_language": "целевой язык перевода" или null,
     "target_platform": "платформа для поста (google, instagram, etc.)" или null,

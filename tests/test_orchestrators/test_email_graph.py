@@ -22,9 +22,7 @@ def _make_context():
 
 
 def _make_message(text="read my inbox"):
-    return IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text
-    )
+    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text)
 
 
 async def test_email_orchestrator_simple_intent_uses_agent_router():
@@ -47,12 +45,8 @@ async def test_email_orchestrator_compose_intent_uses_graph():
     """Compose intents like send_email should attempt LangGraph first."""
     orch = EmailOrchestrator(agent_router=AsyncMock())
 
-    with patch(
-        "src.orchestrators.email.graph._email_graph"
-    ) as mock_graph:
-        mock_graph.ainvoke = AsyncMock(
-            return_value={"response_text": "Draft ready for review."}
-        )
+    with patch("src.orchestrators.email.graph._email_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value={"response_text": "Draft ready for review."})
         ctx = _make_context()
         msg = _make_message("send email to john")
 
@@ -70,9 +64,7 @@ async def test_email_orchestrator_graph_fallback_on_error():
 
     orch = EmailOrchestrator(agent_router=mock_agent_router)
 
-    with patch(
-        "src.orchestrators.email.graph._email_graph"
-    ) as mock_graph:
+    with patch("src.orchestrators.email.graph._email_graph") as mock_graph:
         mock_graph.ainvoke = AsyncMock(side_effect=RuntimeError("graph broke"))
         ctx = _make_context()
         msg = _make_message("send email to john")

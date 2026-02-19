@@ -75,12 +75,7 @@ class DeadlineWarning(DataTrigger):
         if not tasks:
             return {}
 
-        return {
-            "tasks": [
-                {"title": t.title, "due_at": t.due_at.isoformat()}
-                for t in tasks
-            ]
-        }
+        return {"tasks": [{"title": t.title, "due_at": t.due_at.isoformat()} for t in tasks]}
 
 
 class BudgetAlert(DataTrigger):

@@ -30,9 +30,7 @@ MIN_MESSAGES_FOR_LEARNING = 10
 async def update_user_profiles():
     """Daily at 3am: analyze recent messages and update learned_patterns."""
     async with async_session() as session:
-        result = await session.execute(
-            select(User.id, User.family_id)
-        )
+        result = await session.execute(select(User.id, User.family_id))
         users = result.all()
 
     for user_id, family_id in users:
@@ -94,9 +92,7 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
     # Update user profile
     async with async_session() as session:
         result = await session.execute(
-            select(UserProfile).where(
-                UserProfile.user_id == uuid.UUID(user_id)
-            )
+            select(UserProfile).where(UserProfile.user_id == uuid.UUID(user_id))
         )
         profile = result.scalar_one_or_none()
 

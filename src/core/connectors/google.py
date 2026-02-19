@@ -18,10 +18,7 @@ class GoogleConnector:
 
     @property
     def is_configured(self) -> bool:
-        return bool(
-            settings.google_client_id
-            and settings.google_client_secret
-        )
+        return bool(settings.google_client_id and settings.google_client_secret)
 
     async def connect(self, user_id: str) -> str:
         """Return an OAuth authorization URL for the user."""

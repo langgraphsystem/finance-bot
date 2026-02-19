@@ -13,15 +13,9 @@ from src.core.models.enums import InteractionChannel, InteractionDirection
 class ClientInteraction(Base, TimestampMixin):
     __tablename__ = "client_interactions"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id")
-    )
-    contact_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("contacts.id")
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("families.id"))
+    contact_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("contacts.id"))
     channel: Mapped[InteractionChannel] = mapped_column(
         ENUM(InteractionChannel, name="interaction_channel", create_type=False),
     )
@@ -33,9 +27,7 @@ class ClientInteraction(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=True
     )
     call_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    call_recording_url: Mapped[str | None] = mapped_column(
-        String(500), nullable=True
-    )
+    call_recording_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     contact = relationship("Contact")

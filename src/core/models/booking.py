@@ -14,15 +14,9 @@ from src.core.models.enums import BookingStatus
 class Booking(Base, TimestampMixin):
     __tablename__ = "bookings"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    family_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("families.id")
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id")
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("families.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     contact_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=True
     )
@@ -39,9 +33,7 @@ class Booking(Base, TimestampMixin):
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     confirmation_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     source_channel: Mapped[str] = mapped_column(String(50), default="telegram")
-    external_calendar_event_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True
-    )
+    external_calendar_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

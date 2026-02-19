@@ -49,7 +49,10 @@ async def run_for_user(
     # Skip all proactive messages for silent users (except critical budget alerts)
     if communication_mode == "silent":
         suppressed = suppressed | {
-            "task_deadline", "overdue_invoice", "morning_brief", "evening_recap",
+            "task_deadline",
+            "overdue_invoice",
+            "morning_brief",
+            "evening_recap",
         }
 
     fired = await evaluate_triggers(user_id, family_id)
@@ -69,11 +72,13 @@ async def run_for_user(
         try:
             msg = await _format_trigger(trigger_data, language)
             if msg:
-                messages.append({
-                    "action": trigger_data["action"],
-                    "trigger": trigger_data["name"],
-                    "message": msg,
-                })
+                messages.append(
+                    {
+                        "action": trigger_data["action"],
+                        "trigger": trigger_data["name"],
+                        "message": msg,
+                    }
+                )
         except Exception:
             logger.exception(
                 "Failed to format trigger %s for user %s",
@@ -124,7 +129,5 @@ async def _format_trigger(trigger_data: dict[str, Any], language: str) -> str:
         system=system,
         messages=[{"role": "user", "content": user_content}],
     )
-    response = await client.messages.create(
-        model="claude-haiku-4-5", max_tokens=200, **prompt_data
-    )
+    response = await client.messages.create(model="claude-haiku-4-5", max_tokens=200, **prompt_data)
     return response.content[0].text

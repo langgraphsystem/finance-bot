@@ -149,6 +149,8 @@ AGENTS: list[AgentConfig] = [
             "quick_answer",
             "web_search",
             "compare_options",
+            "maps_search",
+            "youtube_search",
             "price_check",
             "web_action",
         ],

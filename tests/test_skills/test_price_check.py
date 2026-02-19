@@ -21,9 +21,7 @@ def test_price_check_system_prompt(sample_context):
 
 async def test_price_check_empty_message(sample_context):
     skill = PriceCheckSkill()
-    msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=""
-    )
+    msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
     result = await skill.execute(msg, sample_context, {})
     assert "price" in result.response_text.lower()
 
@@ -31,8 +29,11 @@ async def test_price_check_empty_message(sample_context):
 async def test_price_check_success(sample_context):
     skill = PriceCheckSkill()
     msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1",
-        type=MessageType.text, text="2x4 lumber at Home Depot",
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="2x4 lumber at Home Depot",
     )
     with patch("src.skills.price_check.handler.browser_tool") as mock:
         mock.execute_task = AsyncMock(
@@ -45,8 +46,11 @@ async def test_price_check_success(sample_context):
 async def test_price_check_fallback(sample_context):
     skill = PriceCheckSkill()
     msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1",
-        type=MessageType.text, text="some obscure product",
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="some obscure product",
     )
     with patch("src.skills.price_check.handler.browser_tool") as mock:
         mock.execute_task = AsyncMock(

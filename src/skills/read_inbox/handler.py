@@ -144,9 +144,7 @@ class ReadInboxSkill:
         result = await _summarize_with_llm(email_text, context.language or "ru")
         return SkillResult(response_text=result)
 
-    async def _handle_detail(
-        self, google, context: SessionContext, idx: int
-    ) -> SkillResult:
+    async def _handle_detail(self, google, context: SessionContext, idx: int) -> SkillResult:
         """Show details of a specific email from the cached inbox."""
         try:
             cache_key = INBOX_CACHE_KEY.format(user_id=context.user_id)

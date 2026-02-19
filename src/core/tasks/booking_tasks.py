@@ -30,10 +30,12 @@ async def dispatch_booking_reminders():
                     Booking.start_at >= window_start,
                     Booking.start_at <= window_end,
                     Booking.reminder_sent.is_(False),
-                    Booking.status.in_([
-                        BookingStatus.scheduled,
-                        BookingStatus.confirmed,
-                    ]),
+                    Booking.status.in_(
+                        [
+                            BookingStatus.scheduled,
+                            BookingStatus.confirmed,
+                        ]
+                    ),
                 )
             )
             bookings = result.scalars().all()
@@ -45,15 +47,15 @@ async def dispatch_booking_reminders():
                 async with rls_session(family_id) as session:
                     # Mark reminder as sent
                     await session.execute(
-                        update(Booking)
-                        .where(Booking.id == booking.id)
-                        .values(reminder_sent=True)
+                        update(Booking).where(Booking.id == booking.id).values(reminder_sent=True)
                     )
                     await session.commit()
 
                 logger.info(
                     "Booking reminder (%s) sent for '%s' at %s",
-                    label, booking.title, booking.start_at,
+                    label,
+                    booking.title,
+                    booking.start_at,
                 )
             except Exception as e:
                 logger.error("Booking reminder failed for %s: %s", booking.id, e)

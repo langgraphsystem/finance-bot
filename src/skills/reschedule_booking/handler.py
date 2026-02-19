@@ -73,10 +73,12 @@ class RescheduleBookingSkill:
                 .where(
                     Booking.family_id == context.family_id,
                     Booking.start_at >= now,
-                    Booking.status.in_([
-                        BookingStatus.scheduled,
-                        BookingStatus.confirmed,
-                    ]),
+                    Booking.status.in_(
+                        [
+                            BookingStatus.scheduled,
+                            BookingStatus.confirmed,
+                        ]
+                    ),
                 )
                 .order_by(Booking.start_at)
             )
@@ -87,9 +89,7 @@ class RescheduleBookingSkill:
             booking = result.scalar_one_or_none()
 
         if not booking:
-            return SkillResult(
-                response_text="No matching upcoming booking found to reschedule."
-            )
+            return SkillResult(response_text="No matching upcoming booking found to reschedule.")
 
         duration = booking.end_at - booking.start_at
         new_end = new_start + duration

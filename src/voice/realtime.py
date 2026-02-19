@@ -93,17 +93,25 @@ class RealtimeSession:
                             json.loads(event.get("arguments", "{}")),
                         )
                         # Send tool result back
-                        await self._ws.send(json.dumps({
-                            "type": "conversation.item.create",
-                            "item": {
-                                "type": "function_call_output",
-                                "call_id": event.get("call_id"),
-                                "output": json.dumps(result),
-                            },
-                        }))
-                        await self._ws.send(json.dumps({
-                            "type": "response.create",
-                        }))
+                        await self._ws.send(
+                            json.dumps(
+                                {
+                                    "type": "conversation.item.create",
+                                    "item": {
+                                        "type": "function_call_output",
+                                        "call_id": event.get("call_id"),
+                                        "output": json.dumps(result),
+                                    },
+                                }
+                            )
+                        )
+                        await self._ws.send(
+                            json.dumps(
+                                {
+                                    "type": "response.create",
+                                }
+                            )
+                        )
                 elif event_type == "response.done":
                     yield event
                 elif event_type == "error":

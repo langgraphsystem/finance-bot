@@ -24,9 +24,7 @@ def _make_context(**kwargs):
 
 
 def _make_message(text="text John I'm running late"):
-    return IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text
-    )
+    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text)
 
 
 async def test_send_to_client_no_name():

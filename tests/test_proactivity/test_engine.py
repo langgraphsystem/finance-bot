@@ -24,35 +24,43 @@ async def test_run_for_user_silent_mode_suppresses():
         new_callable=AsyncMock,
         return_value=fired,
     ):
-        result = await run_for_user(
-            "uid", "fid", communication_mode="silent"
-        )
+        result = await run_for_user("uid", "fid", communication_mode="silent")
     # task_deadline is suppressed in silent mode
     assert result == []
 
 
 async def test_run_for_user_suppressed_triggers():
     fired = [
-        {"name": "budget_alert", "action": "budget_warning", "data": {
-            "total_budget": 1000, "total_spent": 900, "ratio_pct": 90,
-        }},
+        {
+            "name": "budget_alert",
+            "action": "budget_warning",
+            "data": {
+                "total_budget": 1000,
+                "total_spent": 900,
+                "ratio_pct": 90,
+            },
+        },
     ]
     with patch(
         "src.proactivity.engine.evaluate_triggers",
         new_callable=AsyncMock,
         return_value=fired,
     ):
-        result = await run_for_user(
-            "uid", "fid", suppressed_triggers=["budget_alert"]
-        )
+        result = await run_for_user("uid", "fid", suppressed_triggers=["budget_alert"])
     assert result == []
 
 
 async def test_run_for_user_formats_budget_alert():
     fired = [
-        {"name": "budget_alert", "action": "budget_warning", "data": {
-            "total_budget": 1000, "total_spent": 900, "ratio_pct": 90,
-        }},
+        {
+            "name": "budget_alert",
+            "action": "budget_warning",
+            "data": {
+                "total_budget": 1000,
+                "total_spent": 900,
+                "ratio_pct": 90,
+            },
+        },
     ]
     with patch(
         "src.proactivity.engine.evaluate_triggers",

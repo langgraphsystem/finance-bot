@@ -56,7 +56,7 @@ class PriceCheckSkill:
         return SkillResult(
             response_text=(
                 f"I couldn't check that price automatically. "
-                f"Want me to search the web for \"{query}\" pricing instead?"
+                f'Want me to search the web for "{query}" pricing instead?'
             )
         )
 

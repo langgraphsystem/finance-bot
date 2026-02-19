@@ -59,10 +59,12 @@ class ListBookingsSkill:
                     Booking.family_id == context.family_id,
                     Booking.start_at >= start_range,
                     Booking.start_at < end_range,
-                    Booking.status.in_([
-                        BookingStatus.scheduled,
-                        BookingStatus.confirmed,
-                    ]),
+                    Booking.status.in_(
+                        [
+                            BookingStatus.scheduled,
+                            BookingStatus.confirmed,
+                        ]
+                    ),
                 )
                 .order_by(Booking.start_at)
                 .limit(50)
@@ -70,9 +72,7 @@ class ListBookingsSkill:
             bookings = result.scalars().all()
 
         if not bookings:
-            return SkillResult(
-                response_text=f"{label} schedule is clear. No bookings."
-            )
+            return SkillResult(response_text=f"{label} schedule is clear. No bookings.")
 
         lines = [f"<b>{label} bookings ({len(bookings)}):</b>\n"]
         for b in bookings:

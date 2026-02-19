@@ -20,9 +20,7 @@ async def get_subscription(family_id: str) -> Subscription | None:
     """Load the subscription for a family."""
     async with async_session() as session:
         result = await session.execute(
-            select(Subscription).where(
-                Subscription.family_id == uuid.UUID(family_id)
-            )
+            select(Subscription).where(Subscription.family_id == uuid.UUID(family_id))
         )
         return result.scalar_one_or_none()
 
@@ -91,15 +89,11 @@ async def update_from_stripe_event(event_type: str, data: dict) -> None:
 
     async with async_session() as session:
         result = await session.execute(
-            select(Subscription).where(
-                Subscription.stripe_customer_id == stripe_customer_id
-            )
+            select(Subscription).where(Subscription.stripe_customer_id == stripe_customer_id)
         )
         sub = result.scalar_one_or_none()
         if not sub:
-            logger.warning(
-                "No subscription found for Stripe customer %s", stripe_customer_id
-            )
+            logger.warning("No subscription found for Stripe customer %s", stripe_customer_id)
             return
 
         if event_type in (

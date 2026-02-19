@@ -61,9 +61,7 @@ async def collect_calendar(state: BriefState) -> dict[str, Any]:
 
         lines = []
         for e in events[:8]:
-            time_str = e.get("start", {}).get(
-                "dateTime", e.get("start", {}).get("date", "?")
-            )
+            time_str = e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "?"))
             summary = e.get("summary", "(no title)")
             lines.append(f"- {time_str}: {summary}")
         return {"calendar_data": "Today's calendar:\n" + "\n".join(lines)}
@@ -116,9 +114,7 @@ async def _collect_open_tasks(user_id: str, family_id: str) -> dict[str, Any]:
     return {"tasks_data": f"Open tasks ({len(tasks)}):\n" + "\n".join(lines)}
 
 
-async def _collect_completed_tasks(
-    user_id: str, family_id: str
-) -> dict[str, Any]:
+async def _collect_completed_tasks(user_id: str, family_id: str) -> dict[str, Any]:
     today = date.today()
     async with async_session() as session:
         result = await session.execute(
@@ -137,9 +133,7 @@ async def _collect_completed_tasks(
         return {"tasks_data": ""}
 
     lines = [f"- {t.title}" for t in tasks]
-    return {
-        "tasks_data": f"Completed today ({len(tasks)}):\n" + "\n".join(lines)
-    }
+    return {"tasks_data": f"Completed today ({len(tasks)}):\n" + "\n".join(lines)}
 
 
 async def collect_finance(state: BriefState) -> dict[str, Any]:
@@ -194,9 +188,7 @@ async def _collect_today_spending(family_id: str) -> dict[str, Any]:
     today = date.today()
     async with async_session() as session:
         result = await session.execute(
-            select(
-                func.sum(Transaction.amount), func.count(Transaction.id)
-            ).where(
+            select(func.sum(Transaction.amount), func.count(Transaction.id)).where(
                 Transaction.family_id == uuid.UUID(family_id),
                 Transaction.date >= today,
                 Transaction.type == TransactionType.expense,
@@ -209,11 +201,7 @@ async def _collect_today_spending(family_id: str) -> dict[str, Any]:
 
     total = float(row[0])
     count = row[1]
-    return {
-        "finance_data": (
-            f"Spending today:\n- ${total:.2f} across {count} transactions"
-        )
-    }
+    return {"finance_data": (f"Spending today:\n- ${total:.2f} across {count} transactions")}
 
 
 async def collect_email(state: BriefState) -> dict[str, Any]:
@@ -228,19 +216,13 @@ async def collect_email(state: BriefState) -> dict[str, Any]:
         if not client:
             return {"email_data": ""}
 
-        messages = await client.list_messages(
-            "is:unread is:important", max_results=5
-        )
+        messages = await client.list_messages("is:unread is:important", max_results=5)
         if not messages:
             return {"email_data": ""}
 
         parsed = [parse_email_headers(m) for m in messages]
         lines = [f"- {e['from']}: {e['subject']}" for e in parsed[:5]]
-        return {
-            "email_data": (
-                f"Unread emails ({len(parsed)}):\n" + "\n".join(lines)
-            )
-        }
+        return {"email_data": (f"Unread emails ({len(parsed)}):\n" + "\n".join(lines))}
     except Exception as e:
         logger.warning("collect_email failed: %s", e)
         return {"email_data": ""}
@@ -267,11 +249,7 @@ async def collect_outstanding(state: BriefState) -> dict[str, Any]:
             return {"outstanding_data": ""}
 
         lines = [f"- {r.name}: ${float(r.amount):.2f}" for r in overdue]
-        return {
-            "outstanding_data": (
-                f"Overdue ({len(overdue)}):\n" + "\n".join(lines)
-            )
-        }
+        return {"outstanding_data": (f"Overdue ({len(overdue)}):\n" + "\n".join(lines))}
     except Exception as e:
         logger.warning("collect_outstanding failed: %s", e)
         return {"outstanding_data": ""}
@@ -336,11 +314,7 @@ async def synthesize(state: BriefState) -> dict[str, Any]:
     if not data:
         if intent == "evening_recap":
             return {"response_text": "Not much to recap today. Rest up!"}
-        return {
-            "response_text": (
-                "Couldn't load data for your morning brief. Try again later."
-            )
-        }
+        return {"response_text": ("Couldn't load data for your morning brief. Try again later.")}
 
     combined = "\n\n".join(f"[{key}]\n{text}" for key, text in data.items())
 
@@ -356,9 +330,7 @@ async def synthesize(state: BriefState) -> dict[str, Any]:
         messages=[{"role": "user", "content": combined}],
     )
     try:
-        response = await client.messages.create(
-            model=model, max_tokens=1024, **prompt_data
-        )
+        response = await client.messages.create(model=model, max_tokens=1024, **prompt_data)
         return {"response_text": response.content[0].text}
     except Exception as e:
         logger.warning("Brief synthesis failed: %s", e)

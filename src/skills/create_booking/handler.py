@@ -61,9 +61,7 @@ class CreateBookingSkill:
         tz = ZoneInfo(context.timezone)
         now = datetime.now(tz)
 
-        start = _parse_datetime(
-            intent_data.get("event_datetime") or intent_data.get("date"), tz
-        )
+        start = _parse_datetime(intent_data.get("event_datetime") or intent_data.get("date"), tz)
         if not start:
             start = now + timedelta(hours=1)
             start = start.replace(minute=0, second=0, microsecond=0)

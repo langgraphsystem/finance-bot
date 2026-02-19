@@ -93,10 +93,7 @@ class MorningBriefSkill:
             return SkillResult(response_text="Your morning brief has no sections configured.")
 
         results = await asyncio.gather(
-            *(
-                asyncio.wait_for(coro, timeout=COLLECTOR_TIMEOUT_S)
-                for coro in active.values()
-            ),
+            *(asyncio.wait_for(coro, timeout=COLLECTOR_TIMEOUT_S) for coro in active.values()),
             return_exceptions=True,
         )
 

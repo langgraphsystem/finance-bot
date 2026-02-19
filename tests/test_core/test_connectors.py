@@ -1,6 +1,5 @@
 """Tests for ConnectorRegistry."""
 
-
 from src.core.connectors import ConnectorRegistry
 
 

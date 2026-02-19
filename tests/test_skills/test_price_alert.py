@@ -22,9 +22,7 @@ def test_price_alert_system_prompt(sample_context):
 
 async def test_price_alert_empty_message(sample_context):
     skill = PriceAlertSkill()
-    msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=""
-    )
+    msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
     result = await skill.execute(msg, sample_context, {})
     assert "price" in result.response_text.lower() or "alert" in result.response_text.lower()
 
@@ -32,20 +30,25 @@ async def test_price_alert_empty_message(sample_context):
 async def test_price_alert_creates_monitor(sample_context):
     skill = PriceAlertSkill()
     msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1",
-        type=MessageType.text, text="Alert me when 2x4 lumber drops below $5 at Home Depot",
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="Alert me when 2x4 lumber drops below $5 at Home Depot",
     )
 
     # Mock LLM extraction
     mock_response = MagicMock()
     mock_response.content = [
         MagicMock(
-            text=json.dumps({
-                "product": "2x4 lumber",
-                "target_price": 5.00,
-                "store": "Home Depot",
-                "direction": "below",
-            })
+            text=json.dumps(
+                {
+                    "product": "2x4 lumber",
+                    "target_price": 5.00,
+                    "store": "Home Depot",
+                    "direction": "below",
+                }
+            )
         )
     ]
     mock_client = AsyncMock()
@@ -71,8 +74,11 @@ async def test_price_alert_creates_monitor(sample_context):
 async def test_price_alert_handles_parse_error(sample_context):
     skill = PriceAlertSkill()
     msg = IncomingMessage(
-        id="1", user_id="u1", chat_id="c1",
-        type=MessageType.text, text="alert something",
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="alert something",
     )
 
     mock_client = AsyncMock()

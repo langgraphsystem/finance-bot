@@ -15,9 +15,7 @@ logger = logging.getLogger(__name__)
 MAX_DAILY_PROACTIVE = 5
 
 
-async def evaluate_triggers(
-    user_id: str, family_id: str
-) -> list[dict[str, Any]]:
+async def evaluate_triggers(user_id: str, family_id: str) -> list[dict[str, Any]]:
     """Evaluate all data triggers for a user.
 
     Returns a list of fired triggers with their data::
@@ -30,11 +28,13 @@ async def evaluate_triggers(
         try:
             data = await trigger.check(user_id, family_id)
             if data:
-                fired.append({
-                    "name": trigger.name,
-                    "action": trigger.action,
-                    "data": data,
-                })
+                fired.append(
+                    {
+                        "name": trigger.name,
+                        "action": trigger.action,
+                        "data": data,
+                    }
+                )
         except Exception:
             logger.exception("Trigger %s failed for user %s", trigger.name, user_id)
 

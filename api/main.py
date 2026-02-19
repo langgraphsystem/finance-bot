@@ -93,9 +93,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
         )
 
 
-async def build_context_from_channel(
-    channel: str, channel_user_id: str
-) -> SessionContext | None:
+async def build_context_from_channel(channel: str, channel_user_id: str) -> SessionContext | None:
     """Build SessionContext by resolving a channel user to internal user."""
     from src.gateway.channel_resolver import resolve_user
 
@@ -104,9 +102,7 @@ async def build_context_from_channel(
         return None
 
     async with async_session() as session:
-        result = await session.execute(
-            select(User).where(User.id == user_id)
-        )
+        result = await session.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if not user:
             return None
@@ -425,9 +421,7 @@ async def whatsapp_verify(request: Request):
 async def sms_webhook(request: Request):
     """Handle Twilio SMS webhook."""
     if not _sms_gw:
-        return Response(
-            content="<Response></Response>", media_type="text/xml", status_code=200
-        )
+        return Response(content="<Response></Response>", media_type="text/xml", status_code=200)
 
     form_data = await request.form()
     incoming = _sms_gw.parse_webhook(dict(form_data))
@@ -450,9 +444,7 @@ async def stripe_webhook(request: Request):
     sig = request.headers.get("stripe-signature", "")
 
     if settings.stripe_webhook_secret:
-        if not StripeClient.verify_webhook_signature(
-            body, sig, settings.stripe_webhook_secret
-        ):
+        if not StripeClient.verify_webhook_signature(body, sig, settings.stripe_webhook_secret):
             return Response(status_code=400)
 
     import json

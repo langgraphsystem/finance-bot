@@ -38,11 +38,13 @@ class ApprovalManager:
         """Store pending action and return a SkillResult with confirmation buttons."""
         approval_id = str(uuid.uuid4())[:8]
 
-        payload = json.dumps({
-            "action": action,
-            "data": data,
-            "user_id": user_id,
-        })
+        payload = json.dumps(
+            {
+                "action": action,
+                "data": data,
+                "user_id": user_id,
+            }
+        )
         await redis.setex(f"approval:{approval_id}", APPROVAL_TTL_S, payload)
 
         return SkillResult(

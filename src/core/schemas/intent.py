@@ -64,6 +64,11 @@ class IntentData(BaseModel):
 
     # Research fields (Phase 3)
     search_topic: str | None = None
+    maps_query: str | None = None  # place/address search query
+    maps_mode: str | None = None  # "search" or "directions"
+    destination: str | None = None  # destination for directions
+    youtube_query: str | None = None  # YouTube video search query
+    detail_mode: bool | None = None  # true = use direct API for richer results
 
     # Writing fields (Phase 3)
     writing_topic: str | None = None

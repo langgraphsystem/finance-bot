@@ -82,6 +82,8 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "quick_answer": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "web_search": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "compare_options": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "maps_search": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "youtube_search": {"mem": False, "hist": 2, "sql": False, "sum": False},
     # Writing intents
     "draft_message": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "translate_text": {"mem": False, "hist": 3, "sql": False, "sum": False},
@@ -127,25 +129,47 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 # Simple patterns that NEVER need heavy context (Mem0, SQL, summary).
 SIMPLE_PATTERNS: list[str] = [
-    r"^\d+[.,]?\d*\s+\w{1,20}$",             # "100 кофе", "50.5 uber"
+    r"^\d+[.,]?\d*\s+\w{1,20}$",  # "100 кофе", "50.5 uber"
     r"^(да|нет|ок|ok|спасибо|thanks|thx)\b",  # confirmations
-    r"^(привет|hello|hi|hey)\b",              # greetings
-    r"^(готово|done|сделано)\b",              # completions
-    r"^\+?\d[\d\s\-()]{5,15}$",              # phone numbers
+    r"^(привет|hello|hi|hey)\b",  # greetings
+    r"^(готово|done|сделано)\b",  # completions
+    r"^\+?\d[\d\s\-()]{5,15}$",  # phone numbers
 ]
 
 # Signals that message needs full context loading.
 COMPLEX_SIGNALS: list[str] = [
-    "сравни", "compare", "тренд", "trend", "обычно", "usually",
-    "прошлый", "last", "бюджет", "budget", "итого", "total",
-    "за месяц", "за неделю", "this month", "this week",
-    "как обычно", "as usual", "всего", "average", "средн",
+    "сравни",
+    "compare",
+    "тренд",
+    "trend",
+    "обычно",
+    "usually",
+    "прошлый",
+    "last",
+    "бюджет",
+    "budget",
+    "итого",
+    "total",
+    "за месяц",
+    "за неделю",
+    "this month",
+    "this week",
+    "как обычно",
+    "as usual",
+    "всего",
+    "average",
+    "средн",
 ]
 
 # Intents that always load full context regardless of message simplicity.
 ALWAYS_HEAVY_INTENTS: set[str] = {
-    "query_stats", "complex_query", "query_report", "deep_research",
-    "onboarding", "morning_brief", "evening_recap",
+    "query_stats",
+    "complex_query",
+    "query_report",
+    "deep_research",
+    "onboarding",
+    "morning_brief",
+    "evening_recap",
 }
 
 

@@ -51,10 +51,12 @@ class CancelBookingSkill:
                 .where(
                     Booking.family_id == context.family_id,
                     Booking.start_at >= now,
-                    Booking.status.in_([
-                        BookingStatus.scheduled,
-                        BookingStatus.confirmed,
-                    ]),
+                    Booking.status.in_(
+                        [
+                            BookingStatus.scheduled,
+                            BookingStatus.confirmed,
+                        ]
+                    ),
                 )
                 .order_by(Booking.start_at)
             )

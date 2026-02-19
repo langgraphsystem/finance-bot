@@ -114,9 +114,7 @@ class WhatsAppGateway:
 
         resp = await client.post(f"/{self._phone_id}/messages", json=payload)
         if resp.status_code != 200:
-            logger.error(
-                "WhatsApp send failed: %s %s", resp.status_code, resp.text[:200]
-            )
+            logger.error("WhatsApp send failed: %s %s", resp.status_code, resp.text[:200])
 
     async def send_typing(self, chat_id: str) -> None:
         """Slack doesn't have a typing indicator — no-op for WhatsApp too for now."""

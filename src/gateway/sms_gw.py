@@ -53,9 +53,7 @@ class SMSGateway:
         """Verify Twilio request signature."""
         sorted_params = sorted(params.items())
         data = url + "".join(f"{k}{v}" for k, v in sorted_params)
-        computed = hmac.new(
-            self._auth_token.encode(), data.encode(), hashlib.sha1
-        ).digest()
+        computed = hmac.new(self._auth_token.encode(), data.encode(), hashlib.sha1).digest()
         import base64
 
         expected = base64.b64encode(computed).decode()
@@ -91,11 +89,13 @@ class SMSGateway:
         if len(text) > SMS_MAX_LENGTH:
             text = text[: SMS_MAX_LENGTH - 20] + "\n... (reply MORE)"
 
-        payload = urlencode({
-            "To": message.chat_id,
-            "From": self._phone_number,
-            "Body": text,
-        })
+        payload = urlencode(
+            {
+                "To": message.chat_id,
+                "From": self._phone_number,
+                "Body": text,
+            }
+        )
 
         resp = await client.post(
             f"/Accounts/{self._account_sid}/Messages.json",
