@@ -158,28 +158,47 @@ class ShoppingListAddSkill:
 
         shopping_list = await _get_or_create_list(family_id, user_id, list_name)
 
-        async with async_session() as session:
-            for item_name in items:
-                item = ShoppingListItem(
-                    id=uuid.uuid4(),
-                    list_id=shopping_list.id,
-                    family_id=family_id,
-                    name=item_name,
-                )
-                session.add(item)
-            await session.commit()
+        # Dedup: skip items already on the list (case-insensitive)
+        unchecked_existing = await _get_unchecked_items(shopping_list.id)
+        existing_names = {item.name.lower() for item in unchecked_existing}
 
-        # Count total unchecked items
-        unchecked = await _get_unchecked_items(shopping_list.id)
-        total = len(unchecked)
+        new_items = []
+        skipped = []
+        for item_name in items:
+            if item_name.lower() in existing_names:
+                skipped.append(item_name)
+            else:
+                new_items.append(item_name)
+                existing_names.add(item_name.lower())
 
-        count = len(items)
+        if not new_items and skipped:
+            return SkillResult(response_text=f"Already on your list: {', '.join(skipped)}.")
+
+        if new_items:
+            async with async_session() as session:
+                for item_name in new_items:
+                    item = ShoppingListItem(
+                        id=uuid.uuid4(),
+                        list_id=shopping_list.id,
+                        family_id=family_id,
+                        name=item_name,
+                    )
+                    session.add(item)
+                await session.commit()
+
+        total = len(unchecked_existing) + len(new_items)
+
+        count = len(new_items)
+        parts = []
         if count == 1:
-            text = f"Added <b>{items[0]}</b> to your {list_name} list. {total} items total."
-        else:
-            text = f"Added {count} items to your {list_name} list. {total} items total."
+            parts.append(f"Added <b>{new_items[0]}</b> to your {list_name} list.")
+        elif count > 1:
+            parts.append(f"Added {count} items to your {list_name} list.")
+        if skipped:
+            parts.append(f"Already on list: {', '.join(skipped)}.")
+        parts.append(f"{total} items total.")
 
-        return SkillResult(response_text=text)
+        return SkillResult(response_text=" ".join(parts))
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return SHOPPING_LIST_SYSTEM_PROMPT.format(language=context.language or "en")

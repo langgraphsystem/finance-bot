@@ -185,11 +185,26 @@ async def _dispatch_message(
             if cmd_result:
                 return cmd_result
 
+        # Fetch recent dialog context for intent disambiguation
+        recent_context = None
+        try:
+            recent_msgs = await sliding_window.get_recent_messages(context.user_id, limit=2)
+            if recent_msgs:
+                lines = []
+                for m in recent_msgs:
+                    role_label = "User" if m["role"] == "user" else "Bot"
+                    intent_hint = f" [{m['intent']}]" if m.get("intent") else ""
+                    lines.append(f"{role_label}{intent_hint}: {m['content'][:200]}")
+                recent_context = "\n".join(lines)
+        except Exception as e:
+            logger.debug("Failed to fetch recent context for intent: %s", e)
+
         # Intent detection
         result = await detect_intent(
             text=message.text or "",
             categories=context.categories,
             language=context.language,
+            recent_context=recent_context,
         )
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}

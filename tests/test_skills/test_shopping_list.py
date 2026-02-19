@@ -135,7 +135,7 @@ async def test_add_single_item(add_skill, ctx):
         patch(
             "src.skills.shopping_list.handler._get_unchecked_items",
             new_callable=AsyncMock,
-            return_value=[_mock_item("milk")],
+            return_value=[],  # no existing items
         ),
     ):
         mock_session = AsyncMock()
@@ -167,7 +167,7 @@ async def test_add_multiple_items(add_skill, ctx):
         patch(
             "src.skills.shopping_list.handler._get_unchecked_items",
             new_callable=AsyncMock,
-            return_value=[_mock_item("milk"), _mock_item("eggs"), _mock_item("bread")],
+            return_value=[],  # no existing items
         ),
     ):
         mock_session = AsyncMock()
@@ -191,6 +191,97 @@ async def test_add_empty_items_asks(add_skill, ctx):
 
 
 @pytest.mark.asyncio
+async def test_add_skips_duplicate_item(add_skill, ctx):
+    """When item already exists on list, skip it and report."""
+    list_id = uuid.uuid4()
+    existing = [_mock_item("хлеб"), _mock_item("молоко")]
+    with (
+        patch(
+            "src.skills.shopping_list.handler._get_or_create_list",
+            new_callable=AsyncMock,
+            return_value=_mock_shopping_list(list_id),
+        ),
+        patch(
+            "src.skills.shopping_list.handler._get_unchecked_items",
+            new_callable=AsyncMock,
+            return_value=existing,
+        ),
+        patch("src.skills.shopping_list.handler.async_session") as mock_session_factory,
+    ):
+        mock_session = AsyncMock()
+        mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        result = await add_skill.execute(
+            _msg("добавь хлеб и масло"),
+            ctx,
+            {"shopping_items": ["хлеб", "масло"]},
+        )
+
+    assert "масло" in result.response_text.lower()
+    assert "already on list" in result.response_text.lower()
+    assert "хлеб" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_add_all_duplicates_reports(add_skill, ctx):
+    """When ALL items are duplicates, return message without inserting."""
+    list_id = uuid.uuid4()
+    existing = [_mock_item("хлеб"), _mock_item("соль")]
+    with (
+        patch(
+            "src.skills.shopping_list.handler._get_or_create_list",
+            new_callable=AsyncMock,
+            return_value=_mock_shopping_list(list_id),
+        ),
+        patch(
+            "src.skills.shopping_list.handler._get_unchecked_items",
+            new_callable=AsyncMock,
+            return_value=existing,
+        ),
+    ):
+        result = await add_skill.execute(
+            _msg("добавь хлеб"),
+            ctx,
+            {"shopping_items": ["хлеб"]},
+        )
+
+    assert "already on your list" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_add_dedup_within_batch(add_skill, ctx):
+    """Don't add the same item twice within a single message."""
+    list_id = uuid.uuid4()
+    with (
+        patch(
+            "src.skills.shopping_list.handler._get_or_create_list",
+            new_callable=AsyncMock,
+            return_value=_mock_shopping_list(list_id),
+        ),
+        patch(
+            "src.skills.shopping_list.handler._get_unchecked_items",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("src.skills.shopping_list.handler.async_session") as mock_session_factory,
+    ):
+        mock_session = AsyncMock()
+        mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        result = await add_skill.execute(
+            _msg("add bread, bread, milk"),
+            ctx,
+            {"shopping_items": ["bread", "bread", "milk"]},
+        )
+
+    # Only 2 unique items should be added, not 3
+    assert "2 items" in result.response_text
+    assert "already on list" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
 async def test_add_to_named_list(add_skill, ctx):
     list_id = uuid.uuid4()
     with (
@@ -205,7 +296,7 @@ async def test_add_to_named_list(add_skill, ctx):
         patch(
             "src.skills.shopping_list.handler._get_unchecked_items",
             new_callable=AsyncMock,
-            return_value=[_mock_item("nails")],
+            return_value=[],  # no existing items
         ),
     ):
         mock_session = AsyncMock()

@@ -25,7 +25,8 @@ rate confirmation, или другого изображения
 - mark_paid: ТОЛЬКО изменить статус груза на "оплачен", БЕЗ суммы \
 ("оплатили груз", "mark paid", "груз оплачен", "отметь рейс оплаченным"). \
 ВАЖНО: если в сообщении есть СУММА — это add_income, НЕ mark_paid!
-- onboarding: первый контакт, знакомство
+- onboarding: ТОЛЬКО команда /start или прямая просьба зарегистрироваться. \
+НЕ приветствия типа "привет/hello/hi" — это general_chat
 - set_budget: установить бюджет или лимит ("бюджет на продукты \
 30000", "лимит 5000 в неделю", "set budget")
 - add_recurring: добавить регулярный платёж ("подписка", \
@@ -147,6 +148,11 @@ general_chat — крайний случай. Если сообщение хот
 - "got everything" / "купил все" → shopping_list_remove
 - "clear my list" / "очисти список" / "done shopping" → shopping_list_clear
 - "need X, Y, Z" (товары без суммы, без "task:") → shopping_list_add
+- ВАЖНО: если недавний контекст диалога содержит shopping_list_view или shopping_list_remove, \
+и текущее сообщение — одно-два слова (название товара БЕЗ глагола add/need/добавь/нужно/купить), \
+то это shopping_list_remove (пользователь отмечает купленный товар), НЕ shopping_list_add. \
+Примеры: "хлеб" после просмотра/отметки списка → shopping_list_remove; \
+"соль" после "купил макароны" → shopping_list_remove
 - "задача: ..." или "add task: ..." → create_task (всегда)
 - "напомни ..." или "remind me ..." → set_reminder (всегда)
 - "мои задачи" / "my tasks" / "what do I need to do" → list_tasks
@@ -358,6 +364,7 @@ async def detect_intent(
     text: str,
     categories: list[dict] | None = None,
     language: str = "ru",
+    recent_context: str | None = None,
 ) -> IntentDetectionResult:
     """Detect user intent using Gemini Flash (primary) with Claude Haiku fallback."""
     categories_str = ""
@@ -371,6 +378,9 @@ async def detect_intent(
         if categories_str
         else f"Сообщение: {text}"
     )
+
+    if recent_context:
+        user_prompt = f"Недавний контекст диалога:\n{recent_context}\n\n{user_prompt}"
 
     system_prompt = INTENT_DETECTION_PROMPT.format(today=date.today().isoformat())
 
