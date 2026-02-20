@@ -20,7 +20,7 @@ DAY_PLAN_SYSTEM_PROMPT = """Ты помогаешь пользователю с�
 class DayPlanSkill:
     name = "day_plan"
     intents = ["day_plan"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="day_plan")
     async def execute(

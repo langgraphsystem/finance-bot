@@ -52,7 +52,7 @@ TRACK_DRINK_SYSTEM_PROMPT = """Ты помогаешь трекать напит
 class TrackDrinkSkill:
     name = "track_drink"
     intents = ["track_drink"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="track_drink")
     async def execute(

@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class FindFreeSlotsSkill:
     name = "find_free_slots"
     intents = ["find_free_slots"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="find_free_slots")
     async def execute(

@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import ENUM, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.models.base import Base, TimestampMixin
-from src.core.models.enums import TaskPriority, TaskStatus
+from src.core.models.enums import ReminderRecurrence, TaskPriority, TaskStatus
 
 
 class Task(Base, TimestampMixin):
@@ -33,6 +33,19 @@ class Task(Base, TimestampMixin):
     )
     domain: Mapped[str | None] = mapped_column(String(50), nullable=True)
     source_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Recurrence support
+    recurrence: Mapped[ReminderRecurrence] = mapped_column(
+        ENUM(ReminderRecurrence, name="reminder_recurrence", create_type=False),
+        default=ReminderRecurrence.none,
+        server_default="none",
+    )
+    recurrence_end_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    original_reminder_time: Mapped[str | None] = mapped_column(
+        String(10), nullable=True
+    )  # "HH:MM" for DST-safe recurring advancement
 
     user = relationship("User")
     assignee = relationship("Contact", foreign_keys=[assigned_to])

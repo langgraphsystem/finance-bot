@@ -589,7 +589,7 @@ def test_system_prompt_default_language(add_skill):
 def test_add_skill_attributes(add_skill):
     assert add_skill.name == "shopping_list_add"
     assert add_skill.intents == ["shopping_list_add"]
-    assert add_skill.model == "claude-haiku-4-5"
+    assert add_skill.model == "gpt-5.2"
 
 
 def test_view_skill_attributes(view_skill):

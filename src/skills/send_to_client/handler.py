@@ -23,7 +23,7 @@ Respond in the user's preferred language: {language}."""
 class SendToClientSkill:
     name = "send_to_client"
     intents = ["send_to_client"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="send_to_client")
     async def execute(

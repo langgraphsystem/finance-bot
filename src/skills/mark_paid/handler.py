@@ -27,7 +27,7 @@ MARK_PAID_SYSTEM_PROMPT = """Ты помогаешь отслеживать оп
 class MarkPaidSkill:
     name = "mark_paid"
     intents = ["mark_paid"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="mark_paid")
     async def execute(

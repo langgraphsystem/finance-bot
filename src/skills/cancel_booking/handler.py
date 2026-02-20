@@ -26,7 +26,7 @@ Respond in the user's preferred language: {language}."""
 class CancelBookingSkill:
     name = "cancel_booking"
     intents = ["cancel_booking"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="cancel_booking")
     async def execute(

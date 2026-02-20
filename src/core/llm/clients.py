@@ -53,3 +53,49 @@ def google_client() -> genai.Client:
     if _google is None:
         _google = get_google_client()
     return _google
+
+
+async def generate_text(
+    model: str,
+    system: str,
+    messages: list[dict[str, str]],
+    max_tokens: int = 1024,
+) -> str:
+    """Unified LLM call — routes to the correct SDK based on model ID.
+
+    Supports OpenAI (gpt-*), Anthropic (claude-*), and Google (gemini-*) models.
+    Returns the generated text content.
+    """
+    from src.core.llm.prompts import PromptAdapter
+
+    if model.startswith("gpt-"):
+        client = openai_client()
+        resp = await client.chat.completions.create(
+            model=model,
+            max_tokens=max_tokens,
+            **PromptAdapter.for_openai(system, messages),
+        )
+        return resp.choices[0].message.content or ""
+    elif model.startswith("claude-"):
+        client = anthropic_client()
+        resp = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            **PromptAdapter.for_claude(system, messages),
+        )
+        return resp.content[0].text
+    elif model.startswith("gemini-"):
+        from google.genai import types
+
+        client = google_client()
+        resp = await client.aio.models.generate_content(
+            model=model,
+            contents=messages[-1]["content"] if messages else "",
+            config=types.GenerateContentConfig(
+                system_instruction=system,
+                max_output_tokens=max_tokens,
+            ),
+        )
+        return resp.text or ""
+    else:
+        raise ValueError(f"Unknown model prefix: {model}")

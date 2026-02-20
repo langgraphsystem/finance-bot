@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class CorrectCategorySkill:
     name = "correct_category"
     intents = ["correct_category"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     async def execute(
         self,

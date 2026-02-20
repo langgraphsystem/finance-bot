@@ -11,7 +11,7 @@ def test_price_alert_skill_attributes():
     skill = PriceAlertSkill()
     assert skill.name == "price_alert"
     assert "price_alert" in skill.intents
-    assert skill.model == "claude-haiku-4-5"
+    assert skill.model == "gpt-5.2"
 
 
 def test_price_alert_system_prompt(sample_context):

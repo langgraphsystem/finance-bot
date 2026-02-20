@@ -38,7 +38,7 @@ MEAL_TYPE_ALIASES: dict[str, str] = {
 class TrackFoodSkill:
     name = "track_food"
     intents = ["track_food"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="track_food")
     async def execute(

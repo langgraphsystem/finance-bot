@@ -36,7 +36,7 @@ def _resolve_event_type(raw: str | None) -> LifeEventType | None:
 class LifeSearchSkill:
     name = "life_search"
     intents = ["life_search"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="life_search")
     async def execute(

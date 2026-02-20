@@ -24,7 +24,7 @@ sleep_hours — количество часов сна (напр. 7.5)."""
 class MoodCheckinSkill:
     name = "mood_checkin"
     intents = ["mood_checkin"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="mood_checkin")
     async def execute(

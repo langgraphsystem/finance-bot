@@ -32,7 +32,7 @@ PRIORITY_ICONS = {
 class ListTasksSkill:
     name = "list_tasks"
     intents = ["list_tasks"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="list_tasks")
     async def execute(

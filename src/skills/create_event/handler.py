@@ -7,8 +7,7 @@ from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -38,7 +37,7 @@ Respond in: {language}."""
 class CreateEventSkill:
     name = "create_event"
     intents = ["create_event"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="create_event")
     async def execute(
@@ -148,16 +147,11 @@ async def _extract_event_details(
         today_date=now_local.strftime("%Y-%m-%d"),
         tomorrow_date=(now_local + timedelta(days=1)).strftime("%Y-%m-%d"),
     )
-    client = anthropic_client()
     prompt = f"Title hint: {title}\nDatetime hint: {dt}\nUser said: {user_text}"
-    prompt_data = PromptAdapter.for_claude(
-        system=system, messages=[{"role": "user", "content": prompt}]
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=256, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system, [{"role": "user", "content": prompt}], max_tokens=256
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Create event LLM failed: %s", e)
         return "{}"

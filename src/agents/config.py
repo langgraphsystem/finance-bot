@@ -116,7 +116,7 @@ AGENTS: list[AgentConfig] = [
             "mark_paid",
             "add_recurring",
         ],
-        default_model="claude-haiku-4-5",
+        default_model="gpt-5.2",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -139,8 +139,8 @@ AGENTS: list[AgentConfig] = [
             "shopping_list_remove",
             "shopping_list_clear",
         ],
-        default_model="claude-haiku-4-5",
-        context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
+        default_model="gpt-5.2",
+        context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
         name="research",
@@ -187,7 +187,7 @@ AGENTS: list[AgentConfig] = [
             "reschedule_event",
             "morning_brief",
         ],
-        default_model="claude-haiku-4-5",
+        default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -206,7 +206,7 @@ AGENTS: list[AgentConfig] = [
             "price_alert",
             "news_monitor",
         ],
-        default_model="claude-haiku-4-5",
+        default_model="gpt-5.2",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -222,7 +222,7 @@ AGENTS: list[AgentConfig] = [
             "find_contact",
             "send_to_client",
         ],
-        default_model="claude-haiku-4-5",
+        default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
 ]

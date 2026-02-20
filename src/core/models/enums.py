@@ -68,6 +68,13 @@ class LifeEventType(enum.StrEnum):
     reflection = "reflection"
 
 
+class ReminderRecurrence(enum.StrEnum):
+    none = "none"
+    daily = "daily"
+    weekly = "weekly"
+    monthly = "monthly"
+
+
 class TaskStatus(enum.StrEnum):
     pending = "pending"
     in_progress = "in_progress"

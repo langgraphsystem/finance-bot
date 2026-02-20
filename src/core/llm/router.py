@@ -24,8 +24,8 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         fallback_model_id="gpt-5.2",
     ),
     "chat": ModelConfig(
-        provider="anthropic",
-        model_id="claude-haiku-4-5",
+        provider="openai",
+        model_id="gpt-5.2",
         fallback_provider="google",
         fallback_model_id="gemini-3-flash-preview",
     ),

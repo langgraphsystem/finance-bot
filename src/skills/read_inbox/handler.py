@@ -8,8 +8,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.google_auth import get_google_client, parse_email_headers, require_google_or_prompt
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -91,7 +90,7 @@ def _detect_detail_request(user_text: str) -> int | None:
 class ReadInboxSkill:
     name = "read_inbox"
     intents = ["read_inbox"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="read_inbox")
     async def execute(
@@ -197,37 +196,27 @@ class ReadInboxSkill:
 
 
 async def _summarize_with_llm(email_data: str, language: str) -> str:
-    """Summarize real email data using Claude Haiku."""
-    client = anthropic_client()
+    """Summarize real email data using GPT-5.2."""
     system = READ_INBOX_SYSTEM_PROMPT.format(language=language)
     prompt = f"Here are the emails:\n\n{email_data}\n\nSummarize them."
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": prompt}],
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=1024, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system, [{"role": "user", "content": prompt}], max_tokens=1024
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Read inbox LLM failed: %s", e)
         return "Не удалось обработать почту. Попробуйте позже."
 
 
 async def _detail_with_llm(email_data: str, language: str) -> str:
-    """Get details of a specific email using Claude Haiku."""
-    client = anthropic_client()
+    """Get details of a specific email using GPT-5.2."""
     system = DETAIL_SYSTEM_PROMPT.format(language=language)
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": f"Email details:\n{email_data}"}],
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=1024, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system,
+            [{"role": "user", "content": f"Email details:\n{email_data}"}],
+            max_tokens=1024,
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Email detail LLM failed: %s", e)
         return "Не удалось получить детали письма."

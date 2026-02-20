@@ -139,7 +139,7 @@ async def _get_all_items(list_id: uuid.UUID) -> list[ShoppingListItem]:
 class ShoppingListAddSkill:
     name = "shopping_list_add"
     intents = ["shopping_list_add"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="shopping_list_add")
     async def execute(
@@ -210,7 +210,7 @@ class ShoppingListAddSkill:
 class ShoppingListViewSkill:
     name = "shopping_list_view"
     intents = ["shopping_list_view"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="shopping_list_view")
     async def execute(
@@ -261,7 +261,7 @@ class ShoppingListViewSkill:
 class ShoppingListRemoveSkill:
     name = "shopping_list_remove"
     intents = ["shopping_list_remove"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="shopping_list_remove")
     async def execute(
@@ -395,7 +395,7 @@ class ShoppingListRemoveSkill:
 class ShoppingListClearSkill:
     name = "shopping_list_clear"
     intents = ["shopping_list_clear"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="shopping_list_clear")
     async def execute(

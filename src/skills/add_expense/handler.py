@@ -36,7 +36,7 @@ EXPENSE_SYSTEM_PROMPT = """Ты записываешь расход пользо
 class AddExpenseSkill:
     name = "add_expense"
     intents = ["add_expense"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     async def execute(
         self,

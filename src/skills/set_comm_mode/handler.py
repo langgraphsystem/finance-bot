@@ -48,7 +48,7 @@ MODE_DESCRIPTIONS: dict[str, str] = {
 class SetCommModeSkill:
     name = "set_comm_mode"
     intents = ["set_comm_mode"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="set_comm_mode")
     async def execute(

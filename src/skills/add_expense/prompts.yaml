@@ -1,6 +1,6 @@
 name: add_expense
 description: Record an expense from text
-model: claude-haiku-4-5
+model: gpt-5.2
 intents:
   - add_expense
 

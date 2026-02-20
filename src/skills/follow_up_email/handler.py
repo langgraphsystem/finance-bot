@@ -5,8 +5,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, parse_email_headers, require_google_or_prompt
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -31,7 +30,7 @@ Rules:
 class FollowUpEmailSkill:
     name = "follow_up_email"
     intents = ["follow_up_email"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="follow_up_email")
     async def execute(
@@ -72,17 +71,13 @@ class FollowUpEmailSkill:
 
 async def _analyze_follow_ups(email_data: str, language: str) -> str:
     """Analyze which emails need follow-up."""
-    client = anthropic_client()
     system = FOLLOW_UP_SYSTEM_PROMPT.format(language=language)
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": f"My unread emails:\n{email_data}"}],
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=1024, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system,
+            [{"role": "user", "content": f"My unread emails:\n{email_data}"}],
+            max_tokens=1024,
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Follow-up analysis failed: %s", e)
         return "Не удалось проанализировать почту."

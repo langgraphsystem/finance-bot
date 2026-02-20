@@ -25,7 +25,7 @@ QUICK_CAPTURE_SYSTEM_PROMPT = """Ты помогаешь пользовател�
 class QuickCaptureSkill:
     name = "quick_capture"
     intents = ["quick_capture"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="quick_capture")
     async def execute(

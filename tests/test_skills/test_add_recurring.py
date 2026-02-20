@@ -306,7 +306,7 @@ class TestSkillAttributes:
         assert "add_recurring" in recurring_skill.intents
 
     def test_skill_model(self, recurring_skill):
-        assert recurring_skill.model == "claude-haiku-4-5"
+        assert recurring_skill.model == "gpt-5.2"
 
     def test_has_execute_method(self, recurring_skill):
         assert hasattr(recurring_skill, "execute")

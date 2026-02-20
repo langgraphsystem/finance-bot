@@ -23,7 +23,7 @@ Respond in the user's preferred language: {language}."""
 class FindContactSkill:
     name = "find_contact"
     intents = ["find_contact"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="find_contact")
     async def execute(

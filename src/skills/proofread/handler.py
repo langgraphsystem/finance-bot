@@ -4,8 +4,7 @@ import logging
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -30,7 +29,7 @@ Rules:
 class ProofreadSkill:
     name = "proofread"
     intents = ["proofread"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="proofread")
     async def execute(
@@ -59,20 +58,13 @@ class ProofreadSkill:
 
 async def check_text(text: str, language: str) -> str:
     """Proofread text using Claude Haiku."""
-    client = anthropic_client()
     system = PROOFREAD_SYSTEM_PROMPT.format(language=language)
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": f"Proofread this:\n\n{text}"}],
-    )
-
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5",
+        return await generate_text(
+            "gpt-5.2", system,
+            [{"role": "user", "content": f"Proofread this:\n\n{text}"}],
             max_tokens=1024,
-            **prompt_data,
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Proofreading failed: %s", e)
         return "I couldn't proofread the text. Try again?"

@@ -39,7 +39,7 @@ def _parse_datetime(raw: str | None, tz: ZoneInfo) -> datetime | None:
 class RescheduleBookingSkill:
     name = "reschedule_booking"
     intents = ["reschedule_booking"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="reschedule_booking")
     async def execute(

@@ -55,7 +55,9 @@ rate confirmation, или другого изображения
 - list_tasks: показать список задач ("мои задачи", "что мне нужно сделать", \
 "my tasks", "список дел", "what's on my list")
 - set_reminder: установить напоминание ("remind me ...", "напомни ...", \
-"напоминание: ...", "remind me to pick up Emma at 3:15")
+"напоминание: ...", "remind me to pick up Emma at 3:15", \
+"напоминай каждый день в 5 утра", "daily reminder at 7pm", \
+"напоминание каждую неделю"). Поддерживает повторяющиеся напоминания (daily/weekly/monthly).
 - complete_task: отметить задачу выполненной ("done with ...", "готово: ...", \
 "выполнил ...", "задача выполнена", "mark done: ...")
 - quick_answer: фактический вопрос, ответ из знаний ("сколько чашек в галлоне?", \
@@ -155,6 +157,14 @@ general_chat — крайний случай. Если сообщение хот
 "соль" после "купил макароны" → shopping_list_remove
 - "задача: ..." или "add task: ..." → create_task (всегда)
 - "напомни ..." или "remind me ..." → set_reminder (всегда)
+- "каждый день", "ежедневно", "daily" + напоминание → set_reminder с reminder_recurrence: "daily"
+- "каждую неделю", "weekly" + напоминание → set_reminder с reminder_recurrence: "weekly"
+- "каждый месяц", "monthly" + напоминание → set_reminder с reminder_recurrence: "monthly"
+- ВАЖНО (follow-up): если в недавнем контексте диалога бот установил напоминание (set_reminder), \
+и текущее сообщение УТОЧНЯЕТ время, повторение или детали этого напоминания \
+("именно по времени", "exactly at 5pm", "каждый день", "в 5:08 и 17:28", \
+"по времени когда сухур"), то это set_reminder (follow-up), НЕ general_chat и НЕ quick_answer. \
+Извлеки время и частоту из текущего сообщения + контекста диалога.
 - "мои задачи" / "my tasks" / "what do I need to do" → list_tasks
 - "готово" или "done with ..." + контекст задач → complete_task
 - "план дня" (без конкретной задачи) → day_plan (life-tracking)
@@ -327,6 +337,8 @@ intent_type: "action", confidence: 0.92
     "task_title": "название задачи" или null,
     "task_deadline": "YYYY-MM-DDTHH:MM:SS" или null,
     "task_priority": "low" или "medium" или "high" или "urgent" или null,
+    "reminder_recurrence": "daily" или "weekly" или "monthly" или null,
+    "reminder_end_date": "YYYY-MM-DD" (конец повторений) или null,
     "search_topic": "тема поиска/вопроса" или null,
     "maps_query": "что искать на карте" или null,
     "maps_mode": "search" или "directions" или null,

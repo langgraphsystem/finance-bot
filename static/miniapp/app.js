@@ -141,50 +141,56 @@ async function renderDashboard(content) {
     const balColor = stats.balance >= 0 ? 'rgba(255,255,255,0.9)' : '#ffcdd2';
 
     let html = `
-      <div class="balance-card">
-        <div class="label">Balance this month</div>
-        <div>
-          <span class="amount" style="color:${balColor}">${balSign}${fmtMoney(stats.balance)}</span>
-          <span class="currency">${cur}</span>
+      <div class="bento-grid">
+        <div class="balance-card bento-full">
+          <div class="label">Balance this month</div>
+          <div>
+            <span class="amount" style="color:${balColor}">${balSign}${fmtMoney(stats.balance)}</span>
+            <span class="currency">${cur}</span>
+          </div>
+          <div class="balance-row">
+            <div class="balance-col"><div class="b-label">↑ Income</div>
+              <div class="b-val">${sym}${Number(stats.total_income).toLocaleString('en-US',{maximumFractionDigits:0})}</div></div>
+            <div class="balance-col"><div class="b-label">↓ Expense</div>
+              <div class="b-val">${sym}${Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0})}</div></div>
+          </div>
         </div>
-        <div class="balance-row">
-          <div class="balance-col"><div class="b-label">↑ Income</div>
-            <div class="b-val">${sym}${Number(stats.total_income).toLocaleString('en-US',{maximumFractionDigits:0})}</div></div>
-          <div class="balance-col"><div class="b-label">↓ Expense</div>
-            <div class="b-val">${sym}${Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0})}</div></div>
-        </div>
-      </div>
-      <div class="period-tabs" id="dash-period-tabs">
-        ${['week','month','year'].map(p =>
-          `<div class="period-tab ${p==='month'?'active':''}" onclick="dashChangePeriod('${p}')">${p.charAt(0).toUpperCase()+p.slice(1)}</div>`
-        ).join('')}
-      </div>`;
+        <div class="period-tabs bento-full" id="dash-period-tabs">
+          ${['week','month','year'].map(p =>
+            `<div class="period-tab ${p==='month'?'active':''}" onclick="dashChangePeriod('${p}')">${p.charAt(0).toUpperCase()+p.slice(1)}</div>`
+          ).join('')}
+        </div>`;
 
     if (stats.expense_categories.length > 0) {
-      html += `<div class="card">
-        <div style="font-size:13px;font-weight:600;color:var(--hint);margin-bottom:8px">EXPENSES BY CATEGORY</div>
-        <div class="chart-wrap"><canvas id="donut-chart"></canvas></div>
-        <div class="cat-legend" id="cat-legend"></div>
-      </div>`;
+      html += `
+        <div class="card bento-half">
+          <div style="font-size:12px;font-weight:700;color:var(--hint);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Expenditure</div>
+          <div class="chart-wrap" style="padding:0;display:flex;justify-content:center;margin-bottom:12px;"><canvas id="donut-chart" style="max-height:140px;"></canvas></div>
+          <div class="bento-chart-val text-center" style="font-size:18px;font-weight:800;color:var(--text);">${sym}${Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
+        </div>`;
     }
 
-    const activeBudgets = budgets.filter(b => b.is_active).slice(0, 4);
+    const activeBudgets = budgets.filter(b => b.is_active).slice(0, 3);
     if (activeBudgets.length > 0) {
-      html += `<div class="section-title">BUDGETS</div><div class="card" style="padding:0">
-        ${activeBudgets.map(b => {
-          const pct = Math.min(b.percent, 100), over = b.percent >= 100, warn = b.percent >= b.alert_at * 100;
-          const barColor = over ? 'var(--destructive)' : warn ? '#f59e0b' : 'var(--btn)';
-          return `<div class="progress-item">
-            <div class="progress-info">
-              <div class="progress-label">${b.category_icon||'💼'} ${b.category_name||'Overall'}</div>
-              <div class="progress-sub">${fmtMoney(b.spent,cur)} / ${fmtMoney(b.amount,cur)} · ${b.period}</div>
-            </div>
-            <div class="progress-bar-wrap"><div class="progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
-            <div class="progress-pct" style="color:${over?'var(--destructive)':warn?'#f59e0b':'var(--hint)'}">${Math.round(b.percent)}%</div>
-          </div>`;
-        }).join('')}
-      </div>`;
+      html += `
+        <div class="card bento-half" style="display:flex;flex-direction:column;justify-content:center;gap:12px;">
+          <div style="font-size:12px;font-weight:700;color:var(--hint);text-transform:uppercase;letter-spacing:0.5px;">Budgets</div>
+          ${activeBudgets.map(b => {
+            const pct = Math.min(b.percent, 100), over = b.percent >= 100, warn = b.percent >= b.alert_at * 100;
+            const barColor = over ? 'var(--destructive)' : warn ? '#ffaa00' : '#0a84ff';
+            return `
+              <div class="bento-budget">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                  <span style="font-size:13px;font-weight:600;">${b.category_icon||'💼'} ${b.category_name||'Overall'}</span>
+                  <span style="font-size:12px;color:var(--hint);font-weight:600;">${Math.round(b.percent)}%</span>
+                </div>
+                <div class="progress-bar-wrap" style="width:100%;height:6px;background:rgba(0,0,0,0.05);"><div class="progress-bar" style="width:${pct}%;background:${barColor}"></div></div>
+              </div>`;
+          }).join('')}
+        </div>`;
     }
+
+    html += `</div>`; /* Close bento-grid */
 
     html += `<div class="section-title" style="display:flex;justify-content:space-between;align-items:center;padding-right:16px">
         RECENT <span style="color:var(--btn);font-size:13px;cursor:pointer" onclick="navigate('transactions')">See all →</span></div>

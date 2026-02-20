@@ -10,11 +10,11 @@ def test_intent_detection_uses_gemini():
     assert "gemini" in model.model_id
 
 
-def test_chat_uses_claude_haiku():
+def test_chat_uses_gpt():
     router = ModelRouter()
     model = router.get_model("chat")
-    assert model.provider == "anthropic"
-    assert "haiku" in model.model_id
+    assert model.provider == "openai"
+    assert model.model_id == "gpt-5.2"
 
 
 def test_analytics_uses_claude_sonnet():
@@ -27,8 +27,8 @@ def test_analytics_uses_claude_sonnet():
 def test_unknown_task_falls_back_to_chat():
     router = ModelRouter()
     model = router.get_model("unknown_task")
-    assert model.provider == "anthropic"
-    assert "haiku" in model.model_id
+    assert model.provider == "openai"
+    assert model.model_id == "gpt-5.2"
 
 
 def test_fallback_model():

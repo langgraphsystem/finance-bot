@@ -23,7 +23,7 @@ UNDO_SYSTEM_PROMPT = """Ты помогаешь пользователю отм�
 class UndoLastSkill:
     name = "undo_last"
     intents = ["undo_last"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="undo_last")
     async def execute(

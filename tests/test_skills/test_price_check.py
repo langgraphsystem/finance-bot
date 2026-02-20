@@ -10,7 +10,7 @@ def test_price_check_skill_attributes():
     skill = PriceCheckSkill()
     assert skill.name == "price_check"
     assert "price_check" in skill.intents
-    assert skill.model == "claude-haiku-4-5"
+    assert skill.model == "gpt-5.2"
 
 
 def test_price_check_system_prompt(sample_context):

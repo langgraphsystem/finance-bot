@@ -7,8 +7,7 @@ from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -28,7 +27,7 @@ Dates and times must be in the user's local timezone."""
 class RescheduleEventSkill:
     name = "reschedule_event"
     intents = ["reschedule_event"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="reschedule_event")
     async def execute(
@@ -136,22 +135,16 @@ class RescheduleEventSkill:
 
 async def _parse_reschedule(user_text: str, events_list: str, language: str) -> str:
     """Parse reschedule request via LLM, match to event."""
-    client = anthropic_client()
     system = (
         "Match the user's reschedule request to one of these events and extract new time.\n"
         'Respond with JSON: {"event_id": "...", "event_name": "...", '
         '"new_date": "YYYY-MM-DD", "new_time": "HH:MM"}\n'
         f"Events:\n{events_list}"
     )
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": user_text}],
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=256, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system, [{"role": "user", "content": user_text}], max_tokens=256
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Reschedule parse failed: %s", e)
         return "{}"

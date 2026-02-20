@@ -5,8 +5,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, parse_email_headers, require_google_or_prompt
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -29,7 +28,7 @@ Rules:
 class SummarizeThreadSkill:
     name = "summarize_thread"
     intents = ["summarize_thread"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="summarize_thread")
     async def execute(
@@ -72,17 +71,13 @@ class SummarizeThreadSkill:
 
 async def _summarize(thread_text: str, language: str) -> str:
     """Summarize email thread using LLM."""
-    client = anthropic_client()
     system = SUMMARIZE_THREAD_SYSTEM_PROMPT.format(language=language)
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": f"Email thread:\n{thread_text}"}],
-    )
     try:
-        response = await client.messages.create(
-            model="claude-haiku-4-5", max_tokens=1024, **prompt_data
+        return await generate_text(
+            "gpt-5.2", system,
+            [{"role": "user", "content": f"Email thread:\n{thread_text}"}],
+            max_tokens=1024,
         )
-        return response.content[0].text
     except Exception as e:
         logger.warning("Summarize thread LLM failed: %s", e)
         return "Не удалось обобщить цепочку писем."

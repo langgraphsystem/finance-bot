@@ -61,6 +61,8 @@ class IntentData(BaseModel):
     task_title: str | None = None
     task_deadline: str | None = None
     task_priority: str | None = None
+    reminder_recurrence: str | None = None  # "daily", "weekly", "monthly"
+    reminder_end_date: str | None = None  # "YYYY-MM-DD"
 
     # Research fields (Phase 3)
     search_topic: str | None = None

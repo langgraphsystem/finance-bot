@@ -26,7 +26,7 @@ INCOME_SYSTEM_PROMPT = """Ты записываешь доход пользов�
 class AddIncomeSkill:
     name = "add_income"
     intents = ["add_income"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     async def execute(
         self,

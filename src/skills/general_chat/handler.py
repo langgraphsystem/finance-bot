@@ -43,7 +43,7 @@ CHAT_SYSTEM_PROMPT = """Ты — AI-помощник для финансов и 
 class GeneralChatSkill:
     name = "general_chat"
     intents = ["general_chat"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     def _get_dosing_prompt(self, suppress: bool) -> str:
         """Return system prompt with or without feature suggestions."""

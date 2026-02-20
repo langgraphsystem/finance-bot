@@ -1,6 +1,6 @@
 name: list_events
 description: Shows calendar events
-model: claude-haiku-4-5
+model: gpt-5.2
 intents:
   - list_events
 

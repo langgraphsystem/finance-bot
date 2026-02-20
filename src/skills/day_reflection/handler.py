@@ -35,7 +35,7 @@ BARE_TRIGGERS = {
 class DayReflectionSkill:
     name = "day_reflection"
     intents = ["day_reflection"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="day_reflection")
     async def execute(

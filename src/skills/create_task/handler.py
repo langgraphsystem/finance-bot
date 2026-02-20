@@ -71,7 +71,7 @@ def _parse_deadline(intent_data: dict[str, Any], timezone: str) -> datetime | No
 class CreateTaskSkill:
     name = "create_task"
     intents = ["create_task"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     @observe(name="create_task")
     async def execute(

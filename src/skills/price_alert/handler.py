@@ -39,7 +39,7 @@ User message: {message}"""
 class PriceAlertSkill:
     name = "price_alert"
     intents = ["price_alert"]
-    model = "claude-haiku-4-5"
+    model = "gpt-5.2"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)
