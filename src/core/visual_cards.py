@@ -9,21 +9,35 @@ from src.core.observability import observe
 logger = logging.getLogger(__name__)
 
 CARD_SYSTEM_PROMPT = """\
-You are a visual card designer. Generate a complete HTML document with inline CSS.
+You are a visual card designer. Generate a COMPLETE, CONTENT-RICH HTML document \
+with inline CSS that will be rendered to a PNG image via WeasyPrint.
 
-Requirements:
-- The card must be exactly 800px wide, height auto.
-- Use ONLY WeasyPrint-compatible CSS (it does NOT support flexbox or CSS grid).
-- Layout with: display: table / table-row / table-cell, float, inline-block, \
-position: absolute/relative.
+CRITICAL CSS rules (WeasyPrint compatibility):
+- Add this EXACT @page rule: @page { size: 800px auto; margin: 0; }
+- Body: width: 800px; margin: 0; padding: 20px; box-sizing: border-box;
+- NO flexbox, NO CSS grid — they are NOT supported.
+- Layout: use display: table/table-row/table-cell, float, inline-block, \
+position: absolute/relative, width percentages.
 - Fonts: Arial, Helvetica, Georgia, "Times New Roman", monospace.
-- Colors, linear-gradient, border-radius, box-shadow, opacity are OK.
-- Use visual elements: checkboxes (☐ / ☑), progress bars (div with width%), \
-bullet points, emoji/Unicode icons.
-- White or light background. Modern, clean design with good spacing.
+- Colors, linear-gradient, border-radius, box-shadow, opacity — all OK.
+
+CONTENT rules:
+- Fill the ENTIRE card with meaningful content. NEVER leave blank space.
+- For trackers (30-day, weekly, monthly): generate ALL days/rows with \
+checkboxes ☐, numbered items, dates. Show every single day.
+- For lists: generate all items with checkboxes or bullet points.
+- Use visual elements: ☐ ☑ checkboxes, progress bars (div width%), \
+emoji/Unicode icons, colored badges, section headers.
+- Include a clear title/header at the top.
+- Modern, clean design. Good spacing but DENSE with information.
 - All text in the same language as the user's request.
-- Return ONLY the raw HTML. No markdown fences, no explanation, no comments \
-outside the HTML."""
+
+EXAMPLES of good output:
+- 30-day tracker: title + grid/table of 30 numbered days with ☐ checkboxes
+- Shopping list: title + categorized items with ☐ checkboxes
+- Habit tracker: title + table with days as columns and habits as rows
+
+Return ONLY the raw HTML. No markdown fences, no explanation."""
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -49,7 +63,12 @@ async def generate_card_html(prompt: str) -> str:
             raw = await generate_text(
                 model, CARD_SYSTEM_PROMPT, messages, max_tokens=4096
             )
-            return _strip_markdown_fences(raw)
+            html = _strip_markdown_fences(raw)
+            logger.info(
+                "generate_card_html OK with %s (%d chars)", model, len(html)
+            )
+            logger.debug("Generated HTML:\n%s", html[:2000])
+            return html
         except Exception as e:
             logger.warning("generate_card_html failed with %s: %s", model, e)
             last_error = e

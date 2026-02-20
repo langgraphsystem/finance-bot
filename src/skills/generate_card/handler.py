@@ -52,6 +52,7 @@ class GenerateCardSkill:
                 response_text="Ошибка при рендеринге карточки. Попробуйте другой запрос.",
             )
 
+        logger.info("Card PNG generated: %d KB", len(png_bytes) // 1024)
         return SkillResult(response_text="", photo_bytes=png_bytes)
 
     def get_system_prompt(self, context: SessionContext) -> str:
