@@ -95,15 +95,12 @@ async def test_morning_brief_with_tasks(skill, message, ctx):
     mock_google = AsyncMock()
     mock_google.is_connected = AsyncMock(return_value=False)
 
-    mock_anthropic = MagicMock()
-    mock_response = MagicMock()
-    mock_response.content = [MagicMock(text="<b>Good morning!</b>\nTasks: Buy groceries")]
-    mock_anthropic.messages.create = AsyncMock(return_value=mock_response)
+    mock_gen = AsyncMock(return_value="<b>Good morning!</b>\nTasks: Buy groceries")
 
     with (
         patch(f"{MODULE}.async_session") as mock_session,
         patch(f"{MODULE}.connector_registry") as mock_reg,
-        patch(f"{MODULE}.anthropic_client", return_value=mock_anthropic),
+        patch(f"{MODULE}.generate_text", mock_gen),
     ):
         mock_session.return_value.__aenter__ = AsyncMock(return_value=mock_sess)
         mock_session.return_value.__aexit__ = AsyncMock(return_value=False)

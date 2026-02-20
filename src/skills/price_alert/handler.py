@@ -11,8 +11,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.models.enums import MonitorType
 from src.core.models.monitor import Monitor
 from src.core.observability import observe
@@ -61,17 +60,16 @@ class PriceAlertSkill:
             )
 
         # Extract monitor details via LLM
-        client = anthropic_client()
-        prompt_data = PromptAdapter.for_claude(
-            system="Extract price monitor details. Return only valid JSON.",
-            messages=[{"role": "user", "content": EXTRACT_PROMPT.format(message=text)}],
-        )
-
         try:
-            response = await client.messages.create(model=self.model, max_tokens=200, **prompt_data)
             import json
 
-            details = json.loads(response.content[0].text)
+            raw = await generate_text(
+                self.model,
+                "Extract price monitor details. Return only valid JSON.",
+                [{"role": "user", "content": EXTRACT_PROMPT.format(message=text)}],
+                max_tokens=200,
+            )
+            details = json.loads(raw)
         except Exception:
             logger.exception("Failed to extract monitor details")
             return SkillResult(

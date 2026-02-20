@@ -202,13 +202,12 @@ async def test_llm_fallback_when_no_keyword(skill, ctx):
 
     p_save, p_mode = _patch_helpers()
 
+    mock_gen = AsyncMock(return_value=mock_response.content[0].text)
+
     with (
         p_save as mock_save,
         p_mode,
-        patch(
-            "src.skills.track_drink.handler.anthropic_client",
-            return_value=mock_client,
-        ),
+        patch("src.skills.track_drink.handler.generate_text", mock_gen),
     ):
         await skill.execute(msg, ctx, {})
 
@@ -222,18 +221,14 @@ async def test_llm_fallback_error_defaults_to_drink(skill, ctx):
     """When LLM fallback fails, item defaults to 'drink'."""
     msg = _msg("что-то непонятное")
 
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(side_effect=RuntimeError("API error"))
+    mock_gen = AsyncMock(side_effect=RuntimeError("API error"))
 
     p_save, p_mode = _patch_helpers()
 
     with (
         p_save as mock_save,
         p_mode,
-        patch(
-            "src.skills.track_drink.handler.anthropic_client",
-            return_value=mock_client,
-        ),
+        patch("src.skills.track_drink.handler.generate_text", mock_gen),
     ):
         await skill.execute(msg, ctx, {})
 

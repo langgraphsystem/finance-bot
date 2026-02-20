@@ -9,8 +9,7 @@ from src.core.life_helpers import (
     get_communication_mode,
     save_life_event,
 )
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -80,17 +79,13 @@ class TrackDrinkSkill:
             try:
                 import json
 
-                client = anthropic_client()
-                prompt_data = PromptAdapter.for_claude(
-                    system=TRACK_DRINK_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": text}],
-                )
-                response = await client.messages.create(
-                    model=self.model,
+                raw = await generate_text(
+                    self.model,
+                    TRACK_DRINK_SYSTEM_PROMPT,
+                    [{"role": "user", "content": text}],
                     max_tokens=128,
-                    **prompt_data,
                 )
-                parsed = json.loads(response.content[0].text)
+                parsed = json.loads(raw)
                 item = parsed.get("item", "drink")
                 volume_ml = parsed.get("volume_ml", volume_ml)
                 count = parsed.get("count", count)

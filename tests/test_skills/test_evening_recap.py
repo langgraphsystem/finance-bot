@@ -20,8 +20,8 @@ def test_get_system_prompt(sample_context):
 
 
 @patch("src.skills.evening_recap.handler.async_session")
-@patch("src.skills.evening_recap.handler.anthropic_client")
-async def test_execute_no_data(mock_client, mock_session, sample_context, text_message):
+@patch("src.skills.evening_recap.handler.generate_text", new_callable=AsyncMock)
+async def test_execute_no_data(mock_gen, mock_session, sample_context, text_message):
     """When no data is collected, return a friendly fallback."""
     # Mock DB returning empty results
     mock_sess = AsyncMock()

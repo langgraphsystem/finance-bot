@@ -60,8 +60,10 @@ async def test_price_alert_creates_monitor(sample_context):
     mock_session.add = MagicMock()
     mock_session.commit = AsyncMock()
 
+    mock_gen = AsyncMock(return_value=mock_response.content[0].text)
+
     with (
-        patch("src.skills.price_alert.handler.anthropic_client", return_value=mock_client),
+        patch("src.skills.price_alert.handler.generate_text", mock_gen),
         patch("src.skills.price_alert.handler.async_session", return_value=mock_session),
     ):
         result = await skill.execute(msg, sample_context, {})
@@ -81,10 +83,9 @@ async def test_price_alert_handles_parse_error(sample_context):
         text="alert something",
     )
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(side_effect=ValueError("bad json"))
+    mock_gen = AsyncMock(side_effect=ValueError("bad json"))
 
-    with patch("src.skills.price_alert.handler.anthropic_client", return_value=mock_client):
+    with patch("src.skills.price_alert.handler.generate_text", mock_gen):
         result = await skill.execute(msg, sample_context, {})
 
     assert "couldn't" in result.response_text.lower() or "try" in result.response_text.lower()

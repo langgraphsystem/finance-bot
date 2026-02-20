@@ -15,8 +15,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.family import create_family, join_family
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.models.enums import ConversationState
 from src.core.observability import observe
 from src.core.profiles import ProfileLoader
@@ -196,17 +195,13 @@ class OnboardingSkill:
 
         # Use LLM to determine business type
         try:
-            client = anthropic_client()
-            prompt_data = PromptAdapter.for_claude(
-                system=ONBOARDING_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": text}],
-            )
-            response = await client.messages.create(
-                model=self.model,
+            raw = await generate_text(
+                self.model,
+                ONBOARDING_SYSTEM_PROMPT,
+                [{"role": "user", "content": text}],
                 max_tokens=50,
-                **prompt_data,
             )
-            business_type = response.content[0].text.strip().lower()
+            business_type = raw.strip().lower()
         except Exception as e:
             logger.error("LLM call failed during onboarding: %s", e)
             business_type = "household"

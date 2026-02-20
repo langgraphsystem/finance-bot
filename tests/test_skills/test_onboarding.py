@@ -248,12 +248,11 @@ class TestActivityDescription:
         mock_content_block.text = "taxi"
         mock_response.content = [mock_content_block]
 
-        mock_client = MagicMock()
-        mock_client.messages.create = AsyncMock(return_value=mock_response)
+        mock_gen = AsyncMock(return_value="taxi")
 
         with patch(
-            "src.skills.onboarding.handler.anthropic_client",
-            return_value=mock_client,
+            "src.skills.onboarding.handler.generate_text",
+            mock_gen,
         ):
             with patch("src.skills.onboarding.handler.async_session") as mock_session_ctx:
                 mock_session = AsyncMock()
@@ -285,12 +284,11 @@ class TestActivityDescription:
         mock_family.invite_code = "FALLBACK"
         mock_user = MagicMock()
 
-        mock_client = MagicMock()
-        mock_client.messages.create = AsyncMock(side_effect=Exception("API error"))
+        mock_gen = AsyncMock(side_effect=Exception("API error"))
 
         with patch(
-            "src.skills.onboarding.handler.anthropic_client",
-            return_value=mock_client,
+            "src.skills.onboarding.handler.generate_text",
+            mock_gen,
         ):
             with patch("src.skills.onboarding.handler.async_session") as mock_session_ctx:
                 mock_session = AsyncMock()

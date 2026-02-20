@@ -4,8 +4,7 @@ import logging
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -72,43 +71,30 @@ class GeneralChatSkill:
         suppress_suggestions = recent_chat_count >= 3
         system_prompt = self._get_dosing_prompt(suppress_suggestions)
 
-        client = anthropic_client()
         assembled = intent_data.get("_assembled")
 
         if assembled:
             # Use assembled context: enriched system prompt + history
             if suppress_suggestions:
-                asm_prompt = assembled.system_prompt.replace(
+                sys = assembled.system_prompt.replace(
                     "можешь в конце ответа мягко "
                     "подсказать: «Кстати, я могу сделать "
                     "это за вас — просто напишите ...»",
                     "НЕ добавляй подсказки о возможностях бота — пользователь уже знает",
                 )
             else:
-                asm_prompt = assembled.system_prompt
-            non_system = [
+                sys = assembled.system_prompt
+            msgs = [
                 m for m in assembled.messages if m["role"] != "system" and m.get("content")
             ]
-            if not non_system:
-                non_system = [{"role": "user", "content": message.text or "Привет"}]
-            prompt_data = PromptAdapter.for_claude(
-                system=asm_prompt,
-                messages=non_system,
-            )
+            if not msgs:
+                msgs = [{"role": "user", "content": message.text or "Привет"}]
         else:
-            # Fallback: direct call without assembled context
-            user_text = message.text or "Привет"
-            prompt_data = PromptAdapter.for_claude(
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_text}],
-            )
+            sys = system_prompt
+            msgs = [{"role": "user", "content": message.text or "Привет"}]
 
-        response = await client.messages.create(
-            model=self.model,
-            max_tokens=1024,
-            **prompt_data,
-        )
-        return SkillResult(response_text=response.content[0].text)
+        text = await generate_text(self.model, sys, msgs, max_tokens=1024)
+        return SkillResult(response_text=text)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return CHAT_SYSTEM_PROMPT

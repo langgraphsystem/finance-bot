@@ -12,8 +12,7 @@ from src.core.charts import create_pie_chart
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.mcp import run_analytics_query
 from src.core.models.category import Category
 from src.core.models.enums import TransactionType
@@ -339,29 +338,18 @@ class QueryStatsSkill:
             logger.warning("Failed to get comparison data: %s", e)
 
         # Generate response with LLM using assembled context if available
-        client = anthropic_client()
         if assembled:
             # Use enriched system prompt (with memories) + history
             non_system = [m for m in assembled.messages if m["role"] != "system"]
-            # Replace the last user message with stats-enriched content
             history = [m for m in non_system[:-1] if m["role"] in ("user", "assistant")]
             history.append({"role": "user", "content": user_content})
-            prompt_data = PromptAdapter.for_claude(
-                system=assembled.system_prompt,
-                messages=history,
-            )
+            sys = assembled.system_prompt
+            msgs = history
         else:
-            prompt_data = PromptAdapter.for_claude(
-                system=STATS_SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_content}],
-            )
+            sys = STATS_SYSTEM_PROMPT
+            msgs = [{"role": "user", "content": user_content}]
 
-        response = await client.messages.create(
-            model=self.model,
-            max_tokens=512,
-            **prompt_data,
-        )
-        response_text = response.content[0].text
+        response_text = await generate_text(self.model, sys, msgs, max_tokens=512)
 
         # Generate chart
         chart_url = None

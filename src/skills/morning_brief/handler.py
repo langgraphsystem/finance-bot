@@ -21,8 +21,7 @@ from src.core.connectors import connector_registry
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.google_auth import parse_email_headers
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.models.enums import TaskPriority, TaskStatus, TransactionType
 from src.core.models.task import Task
 from src.core.models.transaction import Transaction
@@ -247,16 +246,12 @@ class MorningBriefSkill:
         combined = "\n\n".join(f"[{key}]\n{text}" for key, text in data.items())
         system = self.get_system_prompt(ctx)
 
-        client = anthropic_client()
-        prompt_data = PromptAdapter.for_claude(
-            system=system,
-            messages=[{"role": "user", "content": combined}],
-        )
         try:
-            response = await client.messages.create(
-                model=self.model, max_tokens=1024, **prompt_data
+            return await generate_text(
+                self.model, system,
+                [{"role": "user", "content": combined}],
+                max_tokens=1024,
             )
-            return response.content[0].text
         except Exception as e:
             logger.warning("Morning brief synthesis failed: %s", e)
             return "Couldn't prepare your morning brief."
