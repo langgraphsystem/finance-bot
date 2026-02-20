@@ -16,9 +16,9 @@ depends_on = None
 def upgrade() -> None:
     op.execute("""
         INSERT INTO user_profiles (id, family_id, user_id, display_name, timezone,
-                                   preferred_language, created_at, updated_at)
+                                   preferred_language, created_at)
         SELECT gen_random_uuid(), u.family_id, u.id, u.name, 'America/New_York',
-               u.language, NOW(), NOW()
+               u.language, NOW()
         FROM users u
         LEFT JOIN user_profiles up ON up.user_id = u.id
         WHERE up.id IS NULL
