@@ -49,8 +49,13 @@ class OutgoingMessage:
     document: bytes | None = None
     document_name: str | None = None
     photo_url: str | None = None
+    photo_bytes: bytes | None = None
     chart_url: str | None = None
     parse_mode: str = "HTML"
+
+    # Reply keyboard (e.g., request_location button)
+    reply_keyboard: list[dict] | None = None
+    remove_reply_keyboard: bool = False
 
     # Multi-channel fields (Phase 1+)
     channel: str = "telegram"

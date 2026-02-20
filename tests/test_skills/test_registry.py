@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 61
+    assert len(skills) == 63
 
 
 def test_registry_routes_intents(skill_registry):
@@ -61,6 +61,8 @@ def test_registry_routes_intents(skill_registry):
         "price_check",
         "price_alert",
         "news_monitor",
+        # Data management
+        "delete_data",
         # Phase 6: Booking + CRM
         "add_contact",
         "list_contacts",
@@ -70,6 +72,8 @@ def test_registry_routes_intents(skill_registry):
         "cancel_booking",
         "reschedule_booking",
         "send_to_client",
+        # Visual card generation
+        "generate_card",
     ]
     for intent in intents:
         skill = skill_registry.get(intent)

@@ -12,6 +12,7 @@ from src.core.models.enums import ConversationState, Scope, UserRole
 from src.core.models.family import Family
 from src.core.models.user import User
 from src.core.models.user_context import UserContext
+from src.core.models.user_profile import UserProfile
 
 
 def generate_invite_code() -> str:
@@ -72,6 +73,16 @@ async def create_family(
     )
     session.add(ctx)
 
+    # Create user profile (required for city, timezone, learned_patterns)
+    profile = UserProfile(
+        user_id=user.id,
+        family_id=family.id,
+        display_name=owner_name,
+        timezone="America/New_York",
+        preferred_language=language,
+    )
+    session.add(profile)
+
     # Create default family categories
     await _create_family_categories(session, family.id)
 
@@ -120,6 +131,17 @@ async def join_family(
         message_count=0,
     )
     session.add(ctx)
+
+    # Create user profile
+    profile = UserProfile(
+        user_id=user.id,
+        family_id=family.id,
+        display_name=name,
+        timezone="America/New_York",
+        preferred_language=language,
+    )
+    session.add(profile)
+
     await session.commit()
 
     return family, user

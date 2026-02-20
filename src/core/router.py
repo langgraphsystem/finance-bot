@@ -149,11 +149,13 @@ async def _dispatch_message(
                 text=f"Got it — your location is set to <b>{city}</b>. "
                 "Now try your search again!",
                 chat_id=message.chat_id,
+                remove_reply_keyboard=True,
             )
         return OutgoingMessage(
             text="Could not determine your city from the pin. "
             "Please type your city name instead.",
             chat_id=message.chat_id,
+            remove_reply_keyboard=True,
         )
 
     # Voice transcription: convert voice to text, then process as text
@@ -251,6 +253,12 @@ async def _dispatch_message(
             context.user_id,
         )
 
+        # Auto-save detected city to user profile (background)
+        detected_city = intent_data.get("detected_city")
+        if detected_city and context.user_id and context.family_id:
+            if not context.user_profile.get("city"):
+                asyncio.create_task(_save_user_city(context.user_id, detected_city))
+
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
     domain_router = get_domain_router()
     try:
@@ -314,7 +322,9 @@ async def _dispatch_message(
         document=skill_result.document,
         document_name=skill_result.document_name,
         photo_url=skill_result.photo_url,
+        photo_bytes=skill_result.photo_bytes,
         chart_url=skill_result.chart_url,
+        reply_keyboard=skill_result.reply_keyboard,
     )
 
 
@@ -346,19 +356,30 @@ async def _handle_slash_command(
             return OutgoingMessage(text="Ошибка при экспорте данных.", chat_id=message.chat_id)
 
     elif text == "/delete_all":
-        from src.core.gdpr import MemoryGDPR
+        from src.core.pending_actions import store_pending_action
 
-        gdpr = MemoryGDPR()
         try:
-            async with async_session() as session:
-                await gdpr.delete_user_data(session, context.user_id)
+            pending_id = await store_pending_action(
+                intent="delete_all",
+                user_id=context.user_id,
+                family_id=context.family_id,
+                action_data={},
+            )
             return OutgoingMessage(
-                text="Все ваши данные удалены. Для нового старта отправьте /start",
+                text=(
+                    "Вы собираетесь удалить <b>все</b> свои данные "
+                    "(транзакции, заметки, историю сообщений, память).\n\n"
+                    "Это действие <b>необратимо</b>. Подтвердите удаление:"
+                ),
                 chat_id=message.chat_id,
+                buttons=[
+                    {"text": "🗑 Удалить всё", "callback": f"confirm_action:{pending_id}"},
+                    {"text": "❌ Отмена", "callback": f"cancel_action:{pending_id}"},
+                ],
             )
         except Exception as e:
-            logger.error("GDPR delete failed: %s", e)
-            return OutgoingMessage(text="Ошибка при удалении данных.", chat_id=message.chat_id)
+            logger.error("GDPR delete confirmation failed: %s", e)
+            return OutgoingMessage(text="Ошибка при подготовке удаления.", chat_id=message.chat_id)
 
     elif text == "/connect":
         from api.oauth import generate_oauth_link
@@ -562,6 +583,7 @@ async def _resolve_clarify(
         buttons=skill_result.buttons,
         document=skill_result.document,
         document_name=skill_result.document_name,
+        photo_bytes=skill_result.photo_bytes,
         chart_url=skill_result.chart_url,
     )
 
@@ -607,6 +629,19 @@ async def _execute_pending_action(
             from src.skills.undo_last.handler import execute_undo
 
             result_text = await execute_undo(action_data, context.user_id, context.family_id)
+
+        elif intent == "delete_data":
+            from src.skills.delete_data.handler import execute_delete
+
+            result_text = await execute_delete(action_data, context.user_id, context.family_id)
+
+        elif intent == "delete_all":
+            from src.core.gdpr import MemoryGDPR
+
+            gdpr = MemoryGDPR()
+            async with async_session() as session:
+                await gdpr.delete_user_data(session, context.user_id)
+            result_text = "Все ваши данные удалены. Для нового старта отправьте /start"
 
         else:
             result_text = "Неизвестное действие."
@@ -1135,10 +1170,11 @@ async def _reverse_geocode_city(coords_text: str) -> str | None:
 
 
 async def _save_user_city(user_id: str, city: str) -> None:
-    """Persist city to the user's profile in user_profiles table."""
+    """Persist city to the user's profile. Creates profile if missing."""
     try:
         from sqlalchemy import update
 
+        from src.core.models.user import User
         from src.core.models.user_profile import UserProfile
 
         async with async_session() as session:
@@ -1148,7 +1184,21 @@ async def _save_user_city(user_id: str, city: str) -> None:
                 .values(city=city)
             )
             if result.rowcount == 0:
-                logger.warning("No user_profile found for user %s to save city", user_id)
+                # Profile missing — create one
+                user = await session.scalar(
+                    select(User).where(User.id == uuid.UUID(user_id))
+                )
+                if user:
+                    profile = UserProfile(
+                        user_id=user.id,
+                        family_id=user.family_id,
+                        display_name=user.name,
+                        city=city,
+                        preferred_language=user.language,
+                    )
+                    session.add(profile)
+                else:
+                    logger.warning("No user found for user_id %s to save city", user_id)
             await session.commit()
     except Exception as e:
         logger.error("Failed to save user city: %s", e)

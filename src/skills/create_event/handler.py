@@ -174,12 +174,14 @@ async def execute_create_event(action_data: dict, user_id: str) -> str:
             title=title, start=start, end=end, location=location, timezone=timezone
         )
         event_link = event.get("htmlLink", "")
+        location_line = f"📍 {location}" if location else ""
+        link_line = f"\n🔗 {event_link}" if event_link else ""
         return (
             f"✅ Создано: <b>{title}</b>\n"
             f"📅 {start.strftime('%d.%m.%Y %H:%M')} — "
             f"{end.strftime('%H:%M')}\n"
-            f"{f'📍 {location}' if location else ''}"
-            f"{f'\n🔗 {event_link}' if event_link else ''}"
+            f"{location_line}"
+            f"{link_line}"
         )
     except Exception as e:
         logger.error("Calendar create_event failed: %s", e)

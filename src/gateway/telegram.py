@@ -38,6 +38,7 @@ class TelegramGateway:
                 chat_id=str(callback.message.chat.id),
                 type=MessageType.callback,
                 callback_data=callback.data,
+                language=callback.from_user.language_code if callback.from_user else None,
                 raw=callback,
             )
             await self._handler(incoming)
@@ -45,7 +46,25 @@ class TelegramGateway:
 
     async def send(self, message: OutgoingMessage) -> None:
         reply_markup = None
-        if message.buttons:
+        if message.reply_keyboard:
+            from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
+
+            kb_buttons = [
+                KeyboardButton(
+                    text=btn["text"],
+                    request_location=btn.get("request_location", False),
+                    request_contact=btn.get("request_contact", False),
+                )
+                for btn in message.reply_keyboard
+            ]
+            reply_markup = ReplyKeyboardMarkup(
+                keyboard=[kb_buttons], resize_keyboard=True, one_time_keyboard=True
+            )
+        elif message.remove_reply_keyboard:
+            from aiogram.types import ReplyKeyboardRemove
+
+            reply_markup = ReplyKeyboardRemove()
+        elif message.buttons:
             builder = InlineKeyboardBuilder()
             for btn in message.buttons:
                 if "url" in btn:
@@ -65,6 +84,11 @@ class TelegramGateway:
             file = BufferedInputFile(message.document, filename=message.document_name or "file")
             await self.bot.send_document(
                 **kwargs, document=file, caption=message.text, reply_markup=reply_markup
+            )
+        elif message.photo_bytes:
+            file = BufferedInputFile(message.photo_bytes, filename="card.png")
+            await self.bot.send_photo(
+                **kwargs, photo=file, caption=message.text, reply_markup=reply_markup
             )
         elif message.chart_url or message.photo_url:
             photo = message.chart_url or message.photo_url
@@ -132,6 +156,7 @@ class TelegramGateway:
                 chat_id=str(msg.chat.id),
                 type=MessageType.location,
                 text=f"{msg.location.latitude},{msg.location.longitude}",
+                language=msg.from_user.language_code if msg.from_user else None,
                 raw=msg,
             )
         elif msg.document:
@@ -156,6 +181,7 @@ class TelegramGateway:
                 document_bytes=document_bytes,
                 document_mime_type=document_mime_type,
                 document_file_name=document_file_name,
+                language=msg.from_user.language_code if msg.from_user else None,
                 raw=msg,
             )
 
@@ -167,6 +193,7 @@ class TelegramGateway:
             text=msg.text or msg.caption,
             photo_bytes=photo_bytes,
             voice_bytes=voice_bytes,
+            language=msg.from_user.language_code if msg.from_user else None,
             raw=msg,
         )
 

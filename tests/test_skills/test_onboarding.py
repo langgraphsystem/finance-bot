@@ -119,7 +119,7 @@ class TestHelpers:
 
     def test_welcome_result_text(self):
         result = _welcome_result()
-        assert "AI-помощник" in result.response_text
+        assert "AI Assistant" in result.response_text
 
     def test_ask_activity_result(self):
         result = _ask_activity_result()
@@ -178,7 +178,7 @@ class TestStartCommand:
         result = await onboarding_skill.execute(start_message, empty_context, {})
         assert result.buttons is not None
         assert len(result.buttons) == 2
-        assert "AI-помощник" in result.response_text
+        assert "AI Assistant" in result.response_text
 
     @pytest.mark.asyncio
     async def test_start_buttons_have_correct_callbacks(

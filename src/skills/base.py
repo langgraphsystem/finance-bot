@@ -20,8 +20,10 @@ class SkillResult:
     document: bytes | None = None
     document_name: str | None = None
     photo_url: str | None = None
+    photo_bytes: bytes | None = None
     chart_url: str | None = None
     background_tasks: list[Callable] = field(default_factory=list)
+    reply_keyboard: list[dict] | None = None
 
 
 class BaseSkill(Protocol):

@@ -8,7 +8,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc, func, select
@@ -1179,3 +1179,86 @@ async def update_settings(
             {"id": str(c.id), "name": c.name, "icon": c.icon, "scope": c.scope.value} for c in cats
         ],
     )
+
+
+# ---------------------------------------------------------------------------
+# IP Geolocation
+# ---------------------------------------------------------------------------
+
+
+@router.post("/geo/detect")
+async def detect_geo_from_ip(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """Detect user's city/timezone from IP and save to profile."""
+    import httpx
+
+    from src.core.models.user_profile import UserProfile as UserProfileModel
+
+    # Get client IP (handle proxies / Railway)
+    client_ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = request.headers.get("X-Real-IP", "")
+    if not client_ip and request.client:
+        client_ip = request.client.host
+
+    if not client_ip or client_ip in ("127.0.0.1", "::1"):
+        return {"ok": False, "reason": "localhost"}
+
+    # Call ip-api.com (free, no key, 45 req/min)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as http:
+            resp = await http.get(
+                f"http://ip-api.com/json/{client_ip}",
+                params={"fields": "status,city,regionName,country,timezone,lat,lon"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.warning("IP geolocation API failed: %s", e)
+        return {"ok": False, "reason": "geo_api_error"}
+
+    if data.get("status") != "success":
+        return {"ok": False, "reason": "geo_lookup_failed"}
+
+    city = data.get("city")
+    timezone = data.get("timezone")
+
+    if not city:
+        return {"ok": False, "reason": "no_city"}
+
+    # Save to user profile (only if not already set)
+    async with async_session() as session:
+        profile = await session.scalar(
+            select(UserProfileModel).where(UserProfileModel.user_id == user.id)
+        )
+        if profile:
+            changed = False
+            if not profile.city:
+                profile.city = city
+                changed = True
+            if timezone and profile.timezone == "America/New_York":
+                profile.timezone = timezone
+                changed = True
+            if changed:
+                await session.commit()
+        else:
+            profile = UserProfileModel(
+                user_id=user.id,
+                family_id=user.family_id,
+                display_name=user.name,
+                timezone=timezone or "America/New_York",
+                city=city,
+                preferred_language=user.language,
+            )
+            session.add(profile)
+            await session.commit()
+
+    return {
+        "ok": True,
+        "city": city,
+        "timezone": timezone,
+        "region": data.get("regionName"),
+        "country": data.get("country"),
+    }

@@ -19,7 +19,7 @@ from src.core.observability import observe
 logger = logging.getLogger(__name__)
 
 FINANCIAL_SUMMARY_PROMPT = """
-Обнови саммари диалога между пользователем и финансовым ботом.
+Обнови саммари диалога между пользователем и AI Assistant.
 Это ИНКРЕМЕНТАЛЬНОЕ обновление — объедини с существующим саммари.
 
 ТЕКУЩЕЕ САММАРИ:

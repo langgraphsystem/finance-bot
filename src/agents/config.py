@@ -18,7 +18,7 @@ RECEIPT_AGENT_PROMPT = """\
 Если данные нечитаемы — попроси пользователя прислать фото лучшего качества."""
 
 ANALYTICS_AGENT_PROMPT = """\
-Ты — аналитический агент финансового бота.
+Ты — аналитический агент AI Assistant.
 Тебе передаются ГОТОВЫЕ числа из SQL. НИКОГДА не считай сам.
 Оформи данные красиво и кратко (2-4 предложения).
 Добавь сравнения и проценты, если данные позволяют.
@@ -34,15 +34,15 @@ CHAT_AGENT_PROMPT = """\
 Отвечай на русском языке."""
 
 ONBOARDING_AGENT_PROMPT = """\
-Ты — агент онбординга финансового бота.
-Помоги новому пользователю настроить бота.
+Ты — агент онбординга AI Assistant.
+Помоги новому пользователю настроить AI Assistant.
 Определи тип деятельности по описанию пользователя.
 Будь дружелюбным и кратким.
-Для общих вопросов — объясни возможности бота.
+Для общих вопросов — объясни возможности AI Assistant.
 Отвечай на русском языке."""
 
 LIFE_AGENT_PROMPT = """\
-Ты персональный life-assistant в Telegram-боте.
+Ты персональный life-assistant в Telegram AI Assistant.
 Задача: фиксировать заметки, отслеживать еду/напитки/настроение, \
 планировать день и проводить рефлексию.
 Будь краток. Уважай режим общения пользователя (silent/receipt/coaching).
@@ -115,6 +115,7 @@ AGENTS: list[AgentConfig] = [
             "set_budget",
             "mark_paid",
             "add_recurring",
+            "delete_data",
         ],
         default_model="gpt-5.2",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
@@ -160,7 +161,7 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="writing",
         system_prompt=WRITING_AGENT_PROMPT,
-        skills=["draft_message", "translate_text", "write_post", "proofread"],
+        skills=["draft_message", "translate_text", "write_post", "proofread", "generate_card"],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
     ),

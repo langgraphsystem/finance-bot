@@ -61,6 +61,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "complex_query": {"mem": "all", "hist": 5, "sql": True, "sum": True},
     "general_chat": {"mem": False, "hist": 5, "sql": False, "sum": False},
     "undo_last": {"mem": False, "hist": 5, "sql": False, "sum": False},
+    "delete_data": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "set_budget": {"mem": "budgets", "hist": 3, "sql": True, "sum": False},
     "mark_paid": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "add_recurring": {"mem": "mappings", "hist": 3, "sql": False, "sum": False},
@@ -121,6 +122,8 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "list_contacts": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "find_contact": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "send_to_client": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    # Visual card generation
+    "generate_card": {"mem": False, "hist": 3, "sql": False, "sum": False},
 }
 
 

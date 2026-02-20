@@ -12,7 +12,7 @@ from src.skills.base import SkillResult
 logger = logging.getLogger(__name__)
 
 SET_COMM_MODE_SYSTEM_PROMPT = """Ты помогаешь пользователю выбрать режим общения:
-- silent (тихий): бот записывает молча, без ответа
+- silent (тихий): AI Assistant записывает молча, без ответа
 - receipt (квитанция): краткое подтверждение-чек
 - coaching (коучинг): подтверждение + короткий совет/инсайт"""
 

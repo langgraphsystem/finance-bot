@@ -82,6 +82,11 @@ class IntentData(BaseModel):
     contact_phone: str | None = None
     contact_email: str | None = None
 
+    # Delete data fields
+    # expenses, income, transactions, food, drinks, mood, notes,
+    # life_events, tasks, shopping, messages, all
+    delete_scope: str | None = None
+
     # Shopping list fields
     shopping_items: list[str] | None = None
     shopping_list_name: str | None = None
@@ -92,6 +97,12 @@ class IntentData(BaseModel):
     booking_service_type: str | None = None
     booking_location: str | None = None
     booking_contact_role: str | None = None
+
+    # Visual card generation
+    card_topic: str | None = None
+
+    # Geolocation: auto-detected city from message text
+    detected_city: str | None = None
 
 
 class IntentDetectionResult(BaseModel):

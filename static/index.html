@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Bot | ИИ-ассистент для жизни и бизнеса</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+
+<body>
+
+    <!-- Animated background -->
+    <div class="bg-mesh">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="navbar reveal">
+        <div class="logo">
+            <i class="fa-solid fa-robot"></i>
+            <span>Finance AI</span>
+        </div>
+        <div class="nav-links">
+            <a href="#features">Возможности</a>
+            <a href="#how-it-works">Как работает</a>
+            <a href="#pricing">Тарифы</a>
+        </div>
+        <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><i class="fab fa-telegram-plane"></i> Открыть
+            в Telegram</a>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content reveal">
+            <div class="badge">Работает на Claude 3.5 & Gemini Flash</div>
+            <h1 class="hero-title">Ваш персональный <br><span class="gradient-text type-effect">финансовый
+                    AI-ассистент</span></h1>
+            <p class="hero-subtitle">Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально
+                для малого бизнеса, фрилансеров и семей.</p>
+            <div class="hero-cta">
+                <a href="https://t.me/YourBotName" class="btn btn-glow"><i class="fab fa-telegram-plane"></i> Начать
+                    бесплатно</a>
+                <a href="#features" class="btn btn-outline">Узнать больше</a>
+            </div>
+        </div>
+
+        <!-- Interactive Interface Demo -->
+        <div class="hero-visual reveal delay-1">
+            <div class="mockup-container tilt-effect">
+                <div class="mockup-header">
+                    <div class="dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="mockup-title">Telegram - Finance AI</div>
+                </div>
+                <div class="mockup-body">
+                    <div class="chat-message user-message">
+                        Заправил трак на 150 баксов 🚚
+                    </div>
+                    <div class="chat-message ai-message loading-message" id="demo-bot-msg">
+                        <div class="typing-indicator">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                    <div class="chat-message ai-message final-message hidden" id="demo-bot-res">
+                        <strong>🚗 Транспорт / Топливо</strong><br>
+                        Сумма: $150.00<br>
+                        <em>Записано в расходы. Это 15% от бюджета на топливо на этот месяц.</em>
+                        <div class="chart-demo"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Integrations Marquee -->
+    <section class="integrations">
+        <p class="section-label text-center">РАБОТАЕТ ТАМ, ГДЕ УДОБНО ВАМ</p>
+        <div class="marquee-wrapper">
+            <div class="marquee-content">
+                <div class="integration-pill"><i class="fab fa-telegram"></i> Telegram</div>
+                <div class="integration-pill"><i class="fab fa-whatsapp"></i> WhatsApp</div>
+                <div class="integration-pill"><i class="fab fa-slack"></i> Slack</div>
+                <div class="integration-pill"><i class="fas fa-comment-sms"></i> SMS</div>
+                <div class="integration-pill"><i class="fab fa-google"></i> Google Calendar</div>
+                <div class="integration-pill"><i class="fab fa-stripe"></i> Stripe</div>
+                <!-- Duplicate for seamless scroll -->
+                <div class="integration-pill"><i class="fab fa-telegram"></i> Telegram</div>
+                <div class="integration-pill"><i class="fab fa-whatsapp"></i> WhatsApp</div>
+                <div class="integration-pill"><i class="fab fa-slack"></i> Slack</div>
+                <div class="integration-pill"><i class="fas fa-comment-sms"></i> SMS</div>
+                <div class="integration-pill"><i class="fab fa-google"></i> Google Calendar</div>
+                <div class="integration-pill"><i class="fab fa-stripe"></i> Stripe</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bento Box Features -->
+    <section id="features" class="features section-padding">
+        <div class="section-header reveal">
+            <h2 class="section-title">Всё, что вам нужно. В <span class="gradient-text">одном</span> чате.</h2>
+            <p class="section-subtitle">Забудьте о сложных таблицах и десятках приложений. Просто напишите или отправьте
+                фото.</p>
+        </div>
+
+        <div class="bento-grid">
+            <!-- Feature 1: OCR -->
+            <div class="bento-card card-large reveal tilt-effect">
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
+                    <h3>Smart OCR чеков</h3>
+                    <p>Отправьте фото скомканного чека. AI мгновенно распознает мерчанта, товары, налоги и раскидает по
+                        категориям с помощью Gemini Flash 3.</p>
+                </div>
+                <div class="bento-visual">
+                    <div class="receipt-scan-demo">
+                        <div class="scan-line"></div>
+                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature 2: Voice -->
+            <div class="bento-card card-medium reveal delay-1 tilt-effect">
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
+                    <h3>Голосовой ввод</h3>
+                    <p>За рулем? Просто скажите: "Я купил материалы на две тысячи". Идеально распознает любой язык.</p>
+                </div>
+            </div>
+
+            <!-- Feature 3: Life Tracker -->
+            <div class="bento-card card-medium reveal delay-2 tilt-effect">
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
+                    <h3>Life & Calendar</h3>
+                    <p>Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные утренние сводки.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Feature 4: Analytics -->
+            <div class="bento-card card-wide reveal tilt-effect">
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
+                    <h3>Мульти-агентная аналитика</h3>
+                    <p>Запрашивайте сложные отчеты: "Покажи мои траты на авто за полгода по месяцам". Claude 3.5 Sonnet
+                        генерирует точные графики прямо в чат.</p>
+                </div>
+                <div class="bento-visual horizontal chart-visual">
+                    <div class="bar bar-1"></div>
+                    <div class="bar bar-2"></div>
+                    <div class="bar bar-3"></div>
+                    <div class="bar bar-4"></div>
+                    <div class="bar bar-5"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Use Cases Tabs -->
+    <section id="how-it-works" class="use-cases section-padding">
+        <div class="section-header reveal">
+            <h2 class="section-title">Создан под <span class="gradient-text">вашу</span> жизнь</h2>
+        </div>
+
+        <div class="tabs-container reveal">
+            <div class="tabs-nav">
+                <button class="tab-btn active" data-tab="freelancer">Малый бизнес</button>
+                <button class="tab-btn" data-tab="family">Семья</button>
+                <button class="tab-btn" data-tab="driver">Такси & Траки</button>
+            </div>
+
+            <div class="tab-content active" id="tab-freelancer">
+                <div class="use-case-card">
+                    <div class="uc-info">
+                        <h3>Для малого бизнеса и фриланса</h3>
+                        <p>Бот запоминает категории ваших расходов (Материалы, Реклама, Подрядчики). Фотографируйте
+                            накладные, чтобы ничего не забыть для налоговой, и ведите CRM-контакты клиентов.</p>
+                        <ul class="uc-list">
+                            <li><i class="fa-solid fa-check text-green"></i> Инвойсы и чеки</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Напоминания о встречах</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Аналитика рентабельности</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-family">
+                <div class="use-case-card">
+                    <div class="uc-info">
+                        <h3>Совместный семейный бюджет</h3>
+                        <p>Подключите супругов к одному семейному аккаунту в Telegram. Каждый вносит свои траты, а
+                            владелец видит полную картину.</p>
+                        <ul class="uc-list">
+                            <li><i class="fa-solid fa-check text-green"></i> Списки покупок синхронизируются</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Общие бюджеты на месяц</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Приватность личных расходов</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-driver">
+                <div class="use-case-card">
+                    <div class="uc-info">
+                        <h3>Для таксистов и дальнобойщиков</h3>
+                        <p>Записывайте топливо, ремонт и сборы на ходу с помощью голосовых команд. Получайте сводки для
+                            IFTA-отчетов.</p>
+                        <ul class="uc-list">
+                            <li><i class="fa-solid fa-check text-green"></i> Голосовой ввод за рулем</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Фото заправок и Tolls</li>
+                            <li><i class="fa-solid fa-check text-green"></i> Мгновенное вычисление чистого плюса</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing CTA -->
+    <section id="pricing" class="cta-section section-padding reveal">
+        <div class="glass-cta tilt-effect">
+            <h2 class="section-title">Готовы делегировать хаос <span class="gradient-text">ИИ</span>?</h2>
+            <p>Начните управлять своей жизнью уже сегодня. Без скачивания лишних приложений.</p>
+            <br>
+            <div class="pricing-badge">$49 / месяц</div>
+            <p class="pricing-sub">Полный доступ ко всем модулям AI, распознаванию чеков и интеграции с календарем.</p>
+            <a href="https://t.me/YourBotName" class="btn btn-glow btn-large"><i class="fab fa-telegram-plane"></i>
+                Перейти в Telegram</a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="logo">
+                <i class="fa-solid fa-robot"></i>
+                <span>Finance AI</span>
+            </div>
+            <p>© 2026 Finance Bot. Все права защищены.</p>
+            <div class="footer-links">
+                <a href="#">Политика конфиденциальности</a>
+                <a href="#">Условия использования</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

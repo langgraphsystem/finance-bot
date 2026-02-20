@@ -13,6 +13,7 @@ from src.skills.create_event.handler import skill as create_event_skill
 from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
+from src.skills.delete_data.handler import skill as delete_data_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
@@ -20,6 +21,7 @@ from src.skills.find_contact.handler import skill as find_contact_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
+from src.skills.generate_card.handler import skill as generate_card_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
@@ -120,6 +122,8 @@ def create_registry() -> SkillRegistry:
     registry.register(shopping_list_remove_skill)
     registry.register(shopping_list_clear_skill)
     registry.register(evening_recap_skill)
+    # Data management
+    registry.register(delete_data_skill)
     # Phase 5: Browser + monitor skills
     registry.register(web_action_skill)
     registry.register(price_check_skill)
@@ -134,4 +138,6 @@ def create_registry() -> SkillRegistry:
     registry.register(cancel_booking_skill)
     registry.register(reschedule_booking_skill)
     registry.register(send_to_client_skill)
+    # Visual card generation
+    registry.register(generate_card_skill)
     return registry

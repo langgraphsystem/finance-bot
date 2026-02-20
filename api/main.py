@@ -1,7 +1,9 @@
 """Finance Bot — FastAPI entrypoint (webhook + health check)."""
 
+import asyncio
 import logging
 import os
+import uuid as _uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -35,6 +37,68 @@ profile_loader = ProfileLoader("config/profiles")
 _slack_gw = None
 _whatsapp_gw = None
 _sms_gw = None
+
+# Language code → timezone mapping for auto-detection
+LANGUAGE_TIMEZONE_MAP = {
+    "ru": "Europe/Moscow",
+    "uk": "Europe/Kyiv",
+    "es": "America/Mexico_City",
+    "pt": "America/Sao_Paulo",
+    "de": "Europe/Berlin",
+    "fr": "Europe/Paris",
+    "it": "Europe/Rome",
+    "pl": "Europe/Warsaw",
+    "tr": "Europe/Istanbul",
+    "ja": "Asia/Tokyo",
+    "ko": "Asia/Seoul",
+    "zh": "Asia/Shanghai",
+    "ar": "Asia/Riyadh",
+    "hi": "Asia/Kolkata",
+    "ky": "Asia/Bishkek",
+    "kk": "Asia/Almaty",
+    "uz": "Asia/Tashkent",
+}
+
+
+async def _maybe_set_timezone_from_language(user_id: str, language_code: str) -> None:
+    """Update user timezone based on Telegram language_code (runs once per day)."""
+    if not language_code or language_code == "en":
+        return
+
+    # Only run once per day per user
+    cache_key = f"tz_init:{user_id}"
+    try:
+        already_set = await redis.get(cache_key)
+        if already_set:
+            return
+        await redis.set(cache_key, "1", ex=86400)
+    except Exception:
+        pass
+
+    tz = LANGUAGE_TIMEZONE_MAP.get(language_code)
+    if not tz:
+        return
+
+    try:
+        from sqlalchemy import update
+
+        async with async_session() as session:
+            # Only update if timezone is still the default
+            result = await session.execute(
+                update(UserProfile)
+                .where(UserProfile.user_id == _uuid.UUID(user_id))
+                .where(UserProfile.timezone == "America/New_York")
+                .values(timezone=tz)
+            )
+            if result.rowcount > 0:
+                await session.commit()
+                logger.info(
+                    "Auto-set timezone %s for user %s (lang=%s)", tz, user_id, language_code
+                )
+            else:
+                await session.rollback()
+    except Exception as e:
+        logger.debug("Failed to auto-set timezone: %s", e)
 
 
 async def build_session_context(telegram_id: str) -> SessionContext | None:
@@ -212,13 +276,14 @@ async def on_message(incoming):
         onboarding_state = await _get_onboarding_state(incoming.user_id)
         intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
 
+        tg_language = incoming.language or "ru"
         result = await onboarding.execute(
             incoming,
             SessionContext(
                 user_id=incoming.user_id,
                 family_id="",
                 role="owner",
-                language="ru",
+                language=tg_language,
                 currency="USD",
                 business_type=None,
                 categories=[],
@@ -236,9 +301,14 @@ async def on_message(incoming):
                 text=result.response_text,
                 chat_id=incoming.chat_id,
                 buttons=result.buttons,
+                reply_keyboard=getattr(result, "reply_keyboard", None),
             )
         )
         return
+
+    # Background: auto-set timezone from Telegram language_code
+    if incoming.language:
+        asyncio.create_task(_maybe_set_timezone_from_language(context.user_id, incoming.language))
 
     await gateway.send_typing(incoming.chat_id)
     response = await handle_message(incoming, context)
@@ -328,6 +398,11 @@ app.add_middleware(
 app.include_router(miniapp_router)
 app.include_router(oauth_router)
 
+
+@app.get("/", include_in_schema=False)
+async def landing_index():
+    """Serve the fully featured landing page."""
+    return FileResponse("static/index.html")
 
 @app.get("/miniapp", include_in_schema=False)
 async def miniapp_index():
