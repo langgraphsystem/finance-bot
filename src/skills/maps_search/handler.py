@@ -28,7 +28,8 @@ and transport options (subway, bus, car, walk).
 - Describe places in useful detail — hours, phone, website, what to expect.
 - Include Google Maps links where possible.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}."""
+- Respond in the user's preferred language: {language}.
+{location_hint}"""
 
 MAPS_API_PROMPT = """\
 You are a maps assistant. Format search results for Telegram.
@@ -46,6 +47,23 @@ MAPS_API_BASE = "https://maps.googleapis.com/maps/api"
 FALLBACK_NOTE = (
     "\n\n<i>Based on Google Search — for bulk place lists, configure GOOGLE_MAPS_API_KEY.</i>"
 )
+
+_NEARBY_KEYWORDS = (
+    "рядом",
+    "nearby",
+    "near me",
+    "ближайш",
+    "поблизости",
+    "around me",
+    "неподалеку",
+    "close to me",
+)
+
+
+def _is_nearby_query(query: str) -> bool:
+    """Check if query contains nearby/location-dependent keywords."""
+    q = query.lower()
+    return any(kw in q for kw in _NEARBY_KEYWORDS)
 
 
 class MapsSearchSkill:
@@ -77,6 +95,40 @@ class MapsSearchSkill:
         detail_mode = bool(intent_data.get("detail_mode"))
         has_api_key = bool(settings.google_maps_api_key)
 
+        # Location awareness: inject user's city for "nearby" queries
+        user_city = context.user_profile.get("city")
+        is_nearby = _is_nearby_query(query)
+
+        if is_nearby and not user_city:
+            # Ask user to set their location
+            if language.startswith("ru"):
+                return SkillResult(
+                    response_text=(
+                        "Чтобы найти места рядом, мне нужно знать ваш город.\n\n"
+                        "Отправьте геолокацию (📎 → Геопозиция) или напишите "
+                        'свой город, например: <b>"я в Бруклине"</b>'
+                    )
+                )
+            return SkillResult(
+                response_text=(
+                    "To find nearby places, I need to know your location.\n\n"
+                    "Share your location pin or tell me your city, "
+                    'e.g. <b>"I\'m in Brooklyn"</b>'
+                )
+            )
+
+        # Enrich query with city for nearby searches
+        if is_nearby and user_city:
+            query = f"{query}, {user_city}"
+
+        location_hint = ""
+        if user_city:
+            location_hint = (
+                f"\nUser's location: {user_city}. "
+                "For 'nearby' queries, ONLY show places in or near this city. "
+                "Do NOT show places from other cities or countries."
+            )
+
         # API only when user explicitly asks for more / detailed list
         if detail_mode and has_api_key:
             if maps_mode == "directions" and destination:
@@ -88,12 +140,16 @@ class MapsSearchSkill:
             grounding_query = query
             if maps_mode == "directions" and destination:
                 grounding_query = f"directions from {query} to {destination}"
-            answer = await search_places_grounding(grounding_query, language)
+            answer = await search_places_grounding(
+                grounding_query, language, location_hint=location_hint
+            )
 
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return MAPS_GROUNDING_PROMPT.format(language=context.language or "en")
+        return MAPS_GROUNDING_PROMPT.format(
+            language=context.language or "en", location_hint=""
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -101,10 +157,12 @@ class MapsSearchSkill:
 # ---------------------------------------------------------------------------
 
 
-async def search_places_grounding(query: str, language: str) -> str:
+async def search_places_grounding(
+    query: str, language: str, *, location_hint: str = ""
+) -> str:
     """Search for places using Gemini with Google Search grounding."""
     client = google_client()
-    system = MAPS_GROUNDING_PROMPT.format(language=language)
+    system = MAPS_GROUNDING_PROMPT.format(language=language, location_hint=location_hint)
     prompt = f"{system}\n\nFind places: {query}"
 
     try:

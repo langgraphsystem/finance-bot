@@ -72,7 +72,16 @@ class TelegramGateway:
                 **kwargs, photo=photo, caption=message.text, reply_markup=reply_markup
             )
         else:
-            await self.bot.send_message(**kwargs, text=message.text, reply_markup=reply_markup)
+            text = message.text or ""
+            if len(text) > 4000:
+                chunks = _split_message(text, max_len=4000)
+                for i, chunk in enumerate(chunks):
+                    rm = reply_markup if i == len(chunks) - 1 else None
+                    await self.bot.send_message(**kwargs, text=chunk, reply_markup=rm)
+            else:
+                await self.bot.send_message(
+                    **kwargs, text=text, reply_markup=reply_markup
+                )
 
     async def send_typing(self, chat_id: str) -> None:
         await self.bot.send_chat_action(chat_id=int(chat_id), action="typing")
@@ -116,6 +125,15 @@ class TelegramGateway:
                 voice_bytes = data.read()
             except Exception as e:
                 logger.error("Failed to download voice from Telegram: %s", e)
+        elif msg.location:
+            return IncomingMessage(
+                id=str(msg.message_id),
+                user_id=str(msg.from_user.id),
+                chat_id=str(msg.chat.id),
+                type=MessageType.location,
+                text=f"{msg.location.latitude},{msg.location.longitude}",
+                raw=msg,
+            )
         elif msg.document:
             msg_type = MessageType.document
             document_bytes = None
@@ -151,3 +169,40 @@ class TelegramGateway:
             voice_bytes=voice_bytes,
             raw=msg,
         )
+
+
+def _split_message(text: str, max_len: int = 4000) -> list[str]:
+    """Split a long message into chunks that fit Telegram's 4096-char limit.
+
+    Splits on paragraph boundaries first, then newlines, then hard-cuts.
+    """
+    if len(text) <= max_len:
+        return [text]
+
+    chunks: list[str] = []
+    remaining = text
+
+    while remaining:
+        if len(remaining) <= max_len:
+            chunks.append(remaining)
+            break
+
+        # Try to split at paragraph boundary
+        cut = remaining.rfind("\n\n", 0, max_len)
+        if cut > max_len // 3:
+            chunks.append(remaining[:cut])
+            remaining = remaining[cut + 2:]
+            continue
+
+        # Try to split at newline
+        cut = remaining.rfind("\n", 0, max_len)
+        if cut > max_len // 3:
+            chunks.append(remaining[:cut])
+            remaining = remaining[cut + 1:]
+            continue
+
+        # Hard cut at max_len
+        chunks.append(remaining[:max_len])
+        remaining = remaining[max_len:]
+
+    return chunks

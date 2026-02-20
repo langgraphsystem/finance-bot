@@ -7,7 +7,7 @@ import pytest
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.maps_search.handler import MapsSearchSkill, _format_places_raw
+from src.skills.maps_search.handler import MapsSearchSkill, _format_places_raw, _is_nearby_query
 
 
 @pytest.fixture
@@ -40,13 +40,29 @@ def ctx():
     )
 
 
+@pytest.fixture
+def ctx_with_city():
+    """Context with user city set for nearby queries."""
+    return SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="en",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+        user_profile={"city": "Brooklyn"},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Quick mode (Gemini Google Search Grounding)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_quick_mode_default(skill, message, ctx):
+async def test_quick_mode_default(skill, message, ctx_with_city):
     """Default (no detail_mode, no API key) uses Gemini grounding."""
     with (
         patch("src.skills.maps_search.handler.settings") as mock_settings,
@@ -57,9 +73,15 @@ async def test_quick_mode_default(skill, message, ctx):
         ) as mock_grounding,
     ):
         mock_settings.google_maps_api_key = ""
-        result = await skill.execute(message, ctx, {"maps_query": "coffee near me"})
+        result = await skill.execute(
+            message, ctx_with_city, {"maps_query": "coffee near me"}
+        )
 
-    mock_grounding.assert_awaited_once_with("coffee near me", "en")
+    mock_grounding.assert_awaited_once()
+    args, kwargs = mock_grounding.call_args
+    assert "coffee near me" in args[0]
+    assert "Brooklyn" in args[0]  # city appended to nearby query
+    assert "Brooklyn" in kwargs.get("location_hint", "")
     assert "Starbucks" in result.response_text
 
 
@@ -109,8 +131,15 @@ async def test_grounding_calls_gemini_with_google_search_tool(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_detail_mode_uses_api(skill, message, ctx):
+async def test_detail_mode_uses_api(skill, ctx_with_city):
     """detail_mode=True + API key → uses search_places (REST API)."""
+    msg = IncomingMessage(
+        id="msg-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="coffee near me",
+    )
     with (
         patch("src.skills.maps_search.handler.settings") as mock_settings,
         patch(
@@ -121,10 +150,10 @@ async def test_detail_mode_uses_api(skill, message, ctx):
     ):
         mock_settings.google_maps_api_key = "fake-key"
         result = await skill.execute(
-            message, ctx, {"maps_query": "coffee near me", "detail_mode": True}
+            msg, ctx_with_city, {"maps_query": "coffee near me", "detail_mode": True}
         )
 
-    mock_api.assert_awaited_once_with("coffee near me", "en")
+    mock_api.assert_awaited_once()
     assert "Starbucks" in result.response_text
 
 
@@ -153,7 +182,10 @@ async def test_directions_default_uses_grounding(skill, ctx):
             {"maps_mode": "directions", "maps_query": "Home", "destination": "Walmart"},
         )
 
-    mock_grounding.assert_awaited_once_with("directions from Home to Walmart", "en")
+    mock_grounding.assert_awaited_once()
+    args = mock_grounding.call_args[0]
+    assert args[0] == "directions from Home to Walmart"
+    assert args[1] == "en"
 
 
 @pytest.mark.asyncio
@@ -248,7 +280,8 @@ async def test_uses_message_text_as_fallback(skill, ctx):
         mock_settings.google_maps_api_key = ""
         result = await skill.execute(msg, ctx, {})
 
-    mock_grounding.assert_awaited_once_with("best pizza in Brooklyn", "en")
+    mock_grounding.assert_awaited_once()
+    assert mock_grounding.call_args[0][0] == "best pizza in Brooklyn"
     assert "Di Fara" in result.response_text
 
 
@@ -291,3 +324,109 @@ def test_format_places_raw_closed():
 def test_system_prompt_includes_language(skill, ctx):
     prompt = skill.get_system_prompt(ctx)
     assert "en" in prompt
+
+
+# ---------------------------------------------------------------------------
+# Location-awareness
+# ---------------------------------------------------------------------------
+
+
+def test_is_nearby_query_english():
+    assert _is_nearby_query("coffee near me") is True
+    assert _is_nearby_query("restaurants nearby") is True
+    assert _is_nearby_query("best pizza in Brooklyn") is False
+
+
+def test_is_nearby_query_russian():
+    assert _is_nearby_query("кофе рядом") is True
+    assert _is_nearby_query("ближайшая аптека") is True
+    assert _is_nearby_query("пиццерия в Бруклине") is False
+
+
+@pytest.mark.asyncio
+async def test_nearby_without_city_prompts_for_location(skill, ctx):
+    """Nearby query without user city returns a location prompt."""
+    msg = IncomingMessage(
+        id="msg-loc-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="coffee near me",
+    )
+    result = await skill.execute(msg, ctx, {"maps_query": "coffee near me"})
+    assert "location" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_nearby_without_city_prompts_russian(skill):
+    """Nearby query in Russian without city returns Russian prompt."""
+    ctx_ru = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="ru",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+    )
+    msg = IncomingMessage(
+        id="msg-loc-2",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="кофе рядом",
+    )
+    result = await skill.execute(msg, ctx_ru, {"maps_query": "кофе рядом"})
+    assert "геолокацию" in result.response_text.lower() or "город" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_nearby_with_city_appends_city(skill, ctx_with_city):
+    """Nearby query with city set appends city to query."""
+    msg = IncomingMessage(
+        id="msg-loc-3",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="pizza nearby",
+    )
+    with (
+        patch("src.skills.maps_search.handler.settings") as mock_settings,
+        patch(
+            "src.skills.maps_search.handler.search_places_grounding",
+            new_callable=AsyncMock,
+            return_value="<b>Joe's Pizza</b>",
+        ) as mock_grounding,
+    ):
+        mock_settings.google_maps_api_key = ""
+        await skill.execute(msg, ctx_with_city, {"maps_query": "pizza nearby"})
+
+    args, kwargs = mock_grounding.call_args
+    assert "pizza nearby, Brooklyn" == args[0]
+    assert "Brooklyn" in kwargs.get("location_hint", "")
+
+
+@pytest.mark.asyncio
+async def test_non_nearby_query_no_city_works(skill, ctx):
+    """Non-nearby queries work even without a city."""
+    msg = IncomingMessage(
+        id="msg-loc-4",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="Statue of Liberty",
+    )
+    with (
+        patch("src.skills.maps_search.handler.settings") as mock_settings,
+        patch(
+            "src.skills.maps_search.handler.search_places_grounding",
+            new_callable=AsyncMock,
+            return_value="<b>Statue of Liberty</b>",
+        ) as mock_grounding,
+    ):
+        mock_settings.google_maps_api_key = ""
+        result = await skill.execute(msg, ctx, {"maps_query": "Statue of Liberty"})
+
+    mock_grounding.assert_awaited_once()
+    assert "Statue of Liberty" in result.response_text

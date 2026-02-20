@@ -140,6 +140,22 @@ async def _dispatch_message(
     if message.type == MessageType.callback:
         return await _handle_callback(message, context)
 
+    # Handle location pins: reverse-geocode and save as user's city
+    if message.type == MessageType.location and message.text:
+        city = await _reverse_geocode_city(message.text)
+        if city:
+            await _save_user_city(context.user_id, city)
+            return OutgoingMessage(
+                text=f"Got it — your location is set to <b>{city}</b>. "
+                "Now try your search again!",
+                chat_id=message.chat_id,
+            )
+        return OutgoingMessage(
+            text="Could not determine your city from the pin. "
+            "Please type your city name instead.",
+            chat_id=message.chat_id,
+        )
+
     # Voice transcription: convert voice to text, then process as text
     if message.type == MessageType.voice:
         from src.core.voice import transcribe_voice
@@ -187,6 +203,7 @@ async def _dispatch_message(
 
         # Fetch recent dialog context for intent disambiguation
         recent_context = None
+        recent_msgs: list[dict] = []
         try:
             recent_msgs = await sliding_window.get_recent_messages(context.user_id, limit=2)
             if recent_msgs:
@@ -198,6 +215,11 @@ async def _dispatch_message(
                 recent_context = "\n".join(lines)
         except Exception as e:
             logger.debug("Failed to fetch recent context for intent: %s", e)
+
+        # City-setting: if bot just asked for location and user responds with a city
+        city_result = await _try_set_city_from_text(message, context, recent_msgs)
+        if city_result:
+            return city_result
 
         # Intent detection
         result = await detect_intent(
@@ -1046,3 +1068,160 @@ async def _save_scanned_document(
             text="Ошибка при сохранении. Попробуйте ещё раз.",
             chat_id=message.chat_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# Location helpers (reverse-geocode, save city, city-from-text)
+# ---------------------------------------------------------------------------
+
+
+async def _reverse_geocode_city(coords_text: str) -> str | None:
+    """Reverse-geocode 'lat,lng' string to a city name.
+
+    Uses Google Maps Geocoding API when available, falls back to Nominatim.
+    """
+    import httpx
+
+    from src.core.config import settings
+
+    try:
+        lat, lng = coords_text.split(",")
+        lat, lng = lat.strip(), lng.strip()
+    except ValueError:
+        return None
+
+    # Try Google Maps Geocoding API
+    if settings.google_maps_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    "https://maps.googleapis.com/maps/api/geocode/json",
+                    params={
+                        "latlng": f"{lat},{lng}",
+                        "key": settings.google_maps_api_key,
+                        "result_type": "locality",
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                results = data.get("results", [])
+                if results:
+                    for component in results[0].get("address_components", []):
+                        if "locality" in component.get("types", []):
+                            return component["long_name"]
+                    # Fallback: first part of formatted address
+                    formatted = results[0].get("formatted_address", "")
+                    if formatted:
+                        return formatted.split(",")[0].strip()
+        except Exception as e:
+            logger.warning("Google reverse geocode failed: %s", e)
+
+    # Fallback: Nominatim (OpenStreetMap) — free, no key needed
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params={"lat": lat, "lon": lng, "format": "json", "zoom": 10},
+                headers={"User-Agent": "FinanceBot/1.0"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            address = data.get("address", {})
+            return address.get("city") or address.get("town") or address.get("village")
+    except Exception as e:
+        logger.warning("Nominatim reverse geocode failed: %s", e)
+
+    return None
+
+
+async def _save_user_city(user_id: str, city: str) -> None:
+    """Persist city to the user's profile in user_profiles table."""
+    try:
+        from sqlalchemy import update
+
+        from src.core.models.user_profile import UserProfile
+
+        async with async_session() as session:
+            result = await session.execute(
+                update(UserProfile)
+                .where(UserProfile.user_id == uuid.UUID(user_id))
+                .values(city=city)
+            )
+            if result.rowcount == 0:
+                logger.warning("No user_profile found for user %s to save city", user_id)
+            await session.commit()
+    except Exception as e:
+        logger.error("Failed to save user city: %s", e)
+
+
+async def _try_set_city_from_text(
+    message: IncomingMessage,
+    context: SessionContext,
+    recent_msgs: list[dict],
+) -> OutgoingMessage | None:
+    """Detect when the user responds to a 'share your location' prompt with a city name.
+
+    Returns an OutgoingMessage confirming the city was saved, or None to continue
+    normal intent detection.
+    """
+    if not message.text or not recent_msgs:
+        return None
+
+    # Find the last bot message
+    last_bot = None
+    for m in reversed(recent_msgs):
+        if m["role"] == "assistant":
+            last_bot = m["content"]
+            break
+
+    if not last_bot:
+        return None
+
+    # Was the bot asking the user for their location?
+    location_ask_keywords = (
+        "know your location",
+        "need to know your",
+        "знать ваш город",
+        "мне нужно знать",
+        "share your location",
+        "отправьте геолокацию",
+    )
+    if not any(kw in last_bot.lower() for kw in location_ask_keywords):
+        return None
+
+    # Extract city from user text
+    text = message.text.strip()
+
+    # Strip common prefixes like "I'm in", "я в"
+    prefixes = (
+        "i'm in ",
+        "i am in ",
+        "im in ",
+        "i live in ",
+        "я в ",
+        "я живу в ",
+        "мой город ",
+        "город ",
+        "я из ",
+        "i'm from ",
+        "i am from ",
+    )
+    text_lower = text.lower()
+    for prefix in prefixes:
+        if text_lower.startswith(prefix):
+            text = text[len(prefix) :].strip()
+            break
+
+    # Sanity: city names are short, no digits, no commas, max 4 words
+    if not text or len(text) > 50 or any(c.isdigit() for c in text):
+        return None
+    if len(text.split()) > 4 or "," in text:
+        return None
+
+    city = text.title()
+    await _save_user_city(context.user_id, city)
+
+    return OutgoingMessage(
+        text=f"Got it — your location is set to <b>{city}</b>. Now try your search again!",
+        chat_id=message.chat_id,
+    )

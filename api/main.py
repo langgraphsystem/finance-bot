@@ -73,11 +73,15 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
-        # Load user profile for timezone
+        # Load user profile for timezone + city
         prof_result = await session.execute(
-            select(UserProfile.timezone).where(UserProfile.user_id == user.id).limit(1)
+            select(UserProfile.timezone, UserProfile.city)
+            .where(UserProfile.user_id == user.id)
+            .limit(1)
         )
-        user_timezone = prof_result.scalar_one_or_none() or "America/New_York"
+        prof_row = prof_result.one_or_none()
+        user_timezone = prof_row[0] if prof_row else "America/New_York"
+        user_city = prof_row[1] if prof_row else None
 
         return SessionContext(
             user_id=str(user.id),
@@ -90,6 +94,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             merchant_mappings=mappings,
             profile_config=profile,
             timezone=user_timezone,
+            user_profile={"city": user_city} if user_city else {},
         )
 
 
@@ -133,9 +138,13 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
         prof_result = await session.execute(
-            select(UserProfile.timezone).where(UserProfile.user_id == user.id).limit(1)
+            select(UserProfile.timezone, UserProfile.city)
+            .where(UserProfile.user_id == user.id)
+            .limit(1)
         )
-        user_timezone = prof_result.scalar_one_or_none() or "America/New_York"
+        prof_row = prof_result.one_or_none()
+        user_timezone = prof_row[0] if prof_row else "America/New_York"
+        user_city = prof_row[1] if prof_row else None
 
         return SessionContext(
             user_id=str(user.id),
@@ -148,6 +157,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             merchant_mappings=mappings,
             profile_config=profile,
             timezone=user_timezone,
+            user_profile={"city": user_city} if user_city else {},
         )
 
 

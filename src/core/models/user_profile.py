@@ -17,6 +17,7 @@ class UserProfile(Base, TimestampMixin):
     )
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     timezone: Mapped[str] = mapped_column(String(50), default="America/New_York")
+    city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(10), default="en")
     occupation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tone_preference: Mapped[str] = mapped_column(String(50), default="friendly")
