@@ -47,5 +47,9 @@ alembic/versions/*.pyc
 *.log
 logs/
 
+# Node
+node_modules/
+package-lock.json
+
 # Docker
 docker-compose.override.yml
