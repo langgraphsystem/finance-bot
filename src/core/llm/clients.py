@@ -72,7 +72,7 @@ async def generate_text(
         client = openai_client()
         resp = await client.chat.completions.create(
             model=model,
-            max_tokens=max_tokens,
+            max_completion_tokens=max_tokens,
             **PromptAdapter.for_openai(system, messages),
         )
         return resp.choices[0].message.content or ""

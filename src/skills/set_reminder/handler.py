@@ -156,7 +156,7 @@ async def _extract_from_context(
 
     response = await client.chat.completions.create(
         model="gpt-5.2",
-        max_tokens=512,
+        max_completion_tokens=512,
         response_format={"type": "json_object"},
         **PromptAdapter.for_openai(system, [{"role": "user", "content": user_prompt}]),
     )
