@@ -36,8 +36,21 @@ class GenerateCardSkill:
                 ),
             )
 
-        html = await generate_card_html(topic)
-        png_bytes = html_to_png(html)
+        try:
+            html = await generate_card_html(topic)
+        except Exception as e:
+            logger.error("Card HTML generation failed: %s", e)
+            return SkillResult(
+                response_text="Не удалось сгенерировать карточку. Попробуйте ещё раз.",
+            )
+
+        try:
+            png_bytes = html_to_png(html)
+        except Exception as e:
+            logger.error("Card PNG rendering failed: %s", e)
+            return SkillResult(
+                response_text="Ошибка при рендеринге карточки. Попробуйте другой запрос.",
+            )
 
         return SkillResult(response_text="", photo_bytes=png_bytes)
 

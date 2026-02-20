@@ -36,14 +36,24 @@ def _strip_markdown_fences(text: str) -> str:
     return text
 
 
+FALLBACK_MODELS = ["claude-sonnet-4-6", "gpt-5.2"]
+
+
 @observe(name="generate_card_html")
 async def generate_card_html(prompt: str) -> str:
-    """Ask Claude Sonnet to generate HTML+CSS for a visual card."""
+    """Generate HTML+CSS for a visual card with model fallback."""
     messages = [{"role": "user", "content": prompt}]
-    raw = await generate_text(
-        "claude-sonnet-4-6", CARD_SYSTEM_PROMPT, messages, max_tokens=4096
-    )
-    return _strip_markdown_fences(raw)
+    last_error = None
+    for model in FALLBACK_MODELS:
+        try:
+            raw = await generate_text(
+                model, CARD_SYSTEM_PROMPT, messages, max_tokens=4096
+            )
+            return _strip_markdown_fences(raw)
+        except Exception as e:
+            logger.warning("generate_card_html failed with %s: %s", model, e)
+            last_error = e
+    raise last_error  # type: ignore[misc]
 
 
 def html_to_png(html_content: str, resolution: int = 192) -> bytes:
