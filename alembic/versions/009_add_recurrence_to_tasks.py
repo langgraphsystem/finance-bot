@@ -15,8 +15,10 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute(
-        "CREATE TYPE IF NOT EXISTS reminder_recurrence "
-        "AS ENUM ('none', 'daily', 'weekly', 'monthly')"
+        "DO $$ BEGIN "
+        "CREATE TYPE reminder_recurrence AS ENUM ('none', 'daily', 'weekly', 'monthly'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; "
+        "END $$"
     )
     op.execute(
         "ALTER TABLE tasks "
