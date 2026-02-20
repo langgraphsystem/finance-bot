@@ -56,12 +56,28 @@ async def generate_card_html(prompt: str) -> str:
     raise last_error  # type: ignore[misc]
 
 
-def html_to_png(html_content: str, resolution: int = 192) -> bytes:
-    """Convert an HTML string to PNG bytes using WeasyPrint.
+def html_to_png(html_content: str, scale: int = 3) -> bytes:
+    """Convert an HTML string to PNG bytes.
 
-    Separated into its own function to allow easy mocking in tests
-    (WeasyPrint requires system libraries that may not be available in CI).
+    WeasyPrint >= 53 removed write_png(), so we render to PDF first,
+    then convert the first page to PNG via pypdfium2 (PDFium bindings).
+
+    Args:
+        html_content: The HTML string to render.
+        scale: Rendering scale factor (3 = 216 DPI for crisp Telegram images).
     """
+    import io
+
+    import pypdfium2 as pdfium
     from weasyprint import HTML  # lazy import — requires system GTK/Pango libs
 
-    return HTML(string=html_content).write_png(resolution=resolution)
+    pdf_bytes = HTML(string=html_content).write_pdf()
+
+    pdf = pdfium.PdfDocument(pdf_bytes)
+    page = pdf[0]
+    bitmap = page.render(scale=scale)
+    pil_image = bitmap.to_pil()
+
+    buf = io.BytesIO()
+    pil_image.save(buf, format="PNG")
+    return buf.getvalue()
