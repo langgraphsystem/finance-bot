@@ -5,7 +5,14 @@ PROCESS_TYPE="${RAILWAY_PROCESS_TYPE:-web}"
 
 if [ "$PROCESS_TYPE" = "worker" ]; then
     echo "Starting Taskiq worker..."
-    exec python -m taskiq worker src.core.tasks.broker:broker
+    exec python -m taskiq worker src.core.tasks.broker:broker \
+        src.core.tasks.memory_tasks \
+        src.core.tasks.notification_tasks \
+        src.core.tasks.life_tasks \
+        src.core.tasks.reminder_tasks \
+        src.core.tasks.profile_tasks \
+        src.core.tasks.proactivity_tasks \
+        src.core.tasks.booking_tasks
 else
     echo "Running database migrations..."
     python -m alembic upgrade head
