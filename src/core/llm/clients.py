@@ -97,9 +97,20 @@ async def generate_text(
         from google.genai import types
 
         client = google_client()
+        # Single message → pass as plain string; multi-turn → structured contents
+        if len(messages) == 1:
+            contents = messages[0]["content"]
+        else:
+            contents = [
+                {
+                    "role": ("user" if m["role"] == "user" else "model"),
+                    "parts": [{"text": m["content"]}],
+                }
+                for m in messages
+            ]
         resp = await client.aio.models.generate_content(
             model=model,
-            contents=messages[-1]["content"] if messages else "",
+            contents=contents,
             config=types.GenerateContentConfig(
                 system_instruction=system,
                 max_output_tokens=max_tokens,

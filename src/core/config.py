@@ -57,7 +57,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_host: str = "http://localhost:3000"
 
-    # Google OAuth (Phase 2 — Gmail + Calendar)
+    # Composio (Gmail + Calendar integration)
+    composio_api_key: str = ""
+
+    # Google OAuth (legacy — replaced by Composio)
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = ""

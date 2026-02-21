@@ -9,6 +9,8 @@ Always generates web-based apps (Flask/HTML). Runs in E2B sandbox
 and sends a public URL. Code available via inline button on request.
 """
 
+import base64
+import html as html_mod
 import logging
 import re
 import unicodedata
@@ -158,12 +160,12 @@ def _extract_description(code: str) -> str:
         if len(desc) > 10:
             return desc
 
-    # Try single-line comment
+    # Try single-line comment (skip dependency comments)
     for line in code.split("\n")[:10]:
         line = line.strip()
         if line.startswith("#") and not line.startswith("#!"):
             desc = line.lstrip("# ").strip()
-            if len(desc) > 10:
+            if len(desc) > 10 and not desc.lower().startswith(("pip install", "npm install")):
                 return desc
 
     # Try HTML comment or title
@@ -172,6 +174,27 @@ def _extract_description(code: str) -> str:
         return match.group(1).strip()
 
     return ""
+
+
+def _wrap_html_as_flask(html_code: str) -> str:
+    """Wrap standalone HTML/CSS in a Flask app so E2B can serve it."""
+    encoded = base64.b64encode(html_code.encode("utf-8")).decode("ascii")
+    return (
+        "# pip install flask\n"
+        "import base64\n"
+        "from flask import Flask\n"
+        "\n"
+        "app = Flask(__name__)\n"
+        f'_HTML = base64.b64decode("{encoded}").decode("utf-8")\n'
+        "\n"
+        "\n"
+        "@app.route('/')\n"
+        "def index():\n"
+        "    return _HTML\n"
+        "\n"
+        "\n"
+        "app.run(host='0.0.0.0', port=5000, debug=False)\n"
+    )
 
 
 class GenerateProgramSkill:
@@ -188,7 +211,6 @@ class GenerateProgramSkill:
     ) -> SkillResult:
         description = (
             intent_data.get("program_description")
-            or intent_data.get("description")
             or message.text
             or ""
         ).strip()
@@ -246,12 +268,20 @@ class GenerateProgramSkill:
 
         # Execute in E2B sandbox if configured
         if e2b_runner.is_configured():
-            e2b_lang = e2b_runner._map_language(ext)
-            is_web = e2b_runner._is_web_app(code)
+            # Standalone HTML/CSS can't run as Python — wrap in Flask
+            is_html = ext == ".html"
+            if is_html:
+                run_code = _wrap_html_as_flask(code)
+                e2b_lang = "python"
+                is_web = True
+            else:
+                run_code = code
+                e2b_lang = e2b_runner._map_language(ext)
+                is_web = e2b_runner._is_web_app(code)
             timeout = 60 if is_web else 30
 
             exec_result = await e2b_runner.execute_code(
-                code, language=e2b_lang, timeout=timeout,
+                run_code, language=e2b_lang, timeout=timeout,
             )
 
             # Auto-retry on error (once)
@@ -268,8 +298,9 @@ class GenerateProgramSkill:
                 )
                 fixed_code = _strip_markdown_fences(fixed_code)
 
+                run_fixed = _wrap_html_as_flask(fixed_code) if is_html else fixed_code
                 exec_result = await e2b_runner.execute_code(
-                    fixed_code, language=e2b_lang, timeout=timeout,
+                    run_fixed, language=e2b_lang, timeout=timeout,
                 )
 
                 if not exec_result.error:
@@ -314,11 +345,11 @@ class GenerateProgramSkill:
                 f"\n<i>(active ~5 min)</i>"
             )
         elif exec_result.error:
-            err = _truncate(exec_result.error, 500)
+            err = html_mod.escape(_truncate(exec_result.error, 500))
             parts.append(f"<b>\u274c {filename}</b>")
             parts.append(f"\n<b>Error:</b>\n<code>{err}</code>")
         elif exec_result.stdout:
-            out = _truncate(exec_result.stdout, 1000)
+            out = html_mod.escape(_truncate(exec_result.stdout, 1000))
             parts.append(f"<b>\u2705 {filename}</b>")
             if description:
                 parts.append(f"\n{description}")
@@ -387,9 +418,25 @@ def _detect_extension(code: str, language: str) -> str:
     return ".py"
 
 
+_STRIP_PREFIXES = (
+    "напиши программу ", "напиши скрипт ", "напиши код ",
+    "создай программу ", "создай скрипт ", "создай код ",
+    "сделай программу ", "сделай скрипт ", "сделай ",
+    "сгенерируй ", "напиши ", "создай ", "generate ", "build ",
+    "write a program ", "write a script ", "write a ",
+    "create a program ", "create a script ", "create a ",
+    "make a ", "code a ",
+)
+
+
 def _make_filename(description: str, ext: str) -> str:
     """Generate a slug filename from the description."""
-    text = description.lower()[:60]
+    text = description.lower().strip()
+    for prefix in _STRIP_PREFIXES:
+        if text.startswith(prefix):
+            text = text[len(prefix):]
+            break
+    text = text[:60]
     translit = {
         "а": "a", "б": "b", "в": "v", "г": "g", "д": "d",
         "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i",

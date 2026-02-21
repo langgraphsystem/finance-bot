@@ -436,12 +436,43 @@ async def health():
 # ------------------------------------------------------------------
 # Telegram webhook
 # ------------------------------------------------------------------
+
+# Deduplication: track recently seen update_ids to prevent Telegram retries
+# from processing the same message multiple times.
+_DEDUP_TTL = 300  # 5 minutes
+
+
+async def _is_duplicate_update(update_id: int) -> bool:
+    """Check if this Telegram update was already processed (Redis-based dedup)."""
+    key = f"tg_update:{update_id}"
+    # SET NX returns True only if the key was newly created
+    was_set = await redis.set(key, "1", ex=_DEDUP_TTL, nx=True)
+    return not was_set  # If not set → key already existed → duplicate
+
+
 @app.post("/webhook")
 async def webhook(request: Request):
     data = await request.json()
-    if gateway:
-        await gateway.feed_update(data)
+    if not gateway:
+        return Response(status_code=200)
+
+    # Deduplicate: Telegram retries webhooks if we don't respond quickly
+    update_id = data.get("update_id")
+    if update_id and await _is_duplicate_update(update_id):
+        logger.debug("Skipping duplicate Telegram update %s", update_id)
+        return Response(status_code=200)
+
+    # Return 200 immediately, process in background to avoid Telegram retries
+    asyncio.create_task(_process_update(data))
     return Response(status_code=200)
+
+
+async def _process_update(data: dict) -> None:
+    """Process a Telegram update in the background."""
+    try:
+        await gateway.feed_update(data)
+    except Exception:
+        logger.exception("Error processing Telegram update %s", data.get("update_id"))
 
 
 # ------------------------------------------------------------------

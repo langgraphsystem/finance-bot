@@ -118,7 +118,7 @@ async def test_send_email_returns_preview_with_buttons(skill, message, ctx):
 
 @pytest.mark.asyncio
 async def test_execute_send_success():
-    """execute_send sends email via Gmail API."""
+    """execute_send sends email via Composio Gmail."""
     from src.skills.send_email.handler import execute_send
 
     mock_google = AsyncMock()
@@ -138,7 +138,11 @@ async def test_execute_send_success():
         result = await execute_send(action_data, "user-1")
 
     assert "отправлен" in result.lower()
-    mock_google.send_message.assert_awaited_once()
+    mock_google.send_message.assert_awaited_once_with(
+        to="sarah@example.com",
+        subject="Test",
+        body="Hello!",
+    )
 
 
 def test_system_prompt_includes_language(skill, ctx):

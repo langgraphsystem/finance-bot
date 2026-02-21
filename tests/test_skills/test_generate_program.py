@@ -1,5 +1,6 @@
 """Tests for generate_program skill (v3 — web-first, code on request)."""
 
+import html as html_mod
 import uuid
 from unittest.mock import AsyncMock, patch
 
@@ -15,6 +16,7 @@ from src.skills.generate_program.handler import (
     _make_filename,
     _select_model,
     _strip_markdown_fences,
+    _wrap_html_as_flask,
 )
 
 
@@ -609,3 +611,169 @@ def test_make_filename_empty():
 def test_make_filename_truncates_long():
     name = _make_filename("a" * 100, ".py")
     assert len(name) <= 44  # 40 chars + ".py"
+
+
+# --- HTML wrapping tests ---
+
+
+def test_wrap_html_as_flask_produces_runnable_python():
+    """Wrapped HTML produces valid Python with Flask."""
+    html = "<!DOCTYPE html><html><body><h1>Hello</h1></body></html>"
+    wrapped = _wrap_html_as_flask(html)
+    assert "from flask import Flask" in wrapped
+    assert "app.run(" in wrapped
+    assert "host='0.0.0.0'" in wrapped
+    assert "base64" in wrapped
+    # Must be valid Python (no SyntaxError)
+    compile(wrapped, "<test>", "exec")
+
+
+def test_wrap_html_preserves_css_with_degrees():
+    """CSS with linear-gradient(135deg, ...) survives wrapping."""
+    html = (
+        "<style>body{background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);}"
+        "</style><h1>Test</h1>"
+    )
+    wrapped = _wrap_html_as_flask(html)
+    compile(wrapped, "<test>", "exec")  # No SyntaxError
+
+    # Verify roundtrip
+    import base64
+
+    # Extract the base64 string and verify it decodes to original HTML
+    import re
+
+    m = re.search(r'base64\.b64decode\("([^"]+)"\)', wrapped)
+    assert m
+    decoded = base64.b64decode(m.group(1)).decode("utf-8")
+    assert decoded == html
+
+
+async def test_html_file_wrapped_for_e2b(skill, ctx):
+    """HTML files are wrapped in Flask before E2B execution."""
+    html_code = "<!DOCTYPE html><html><body><h1>Calorie Calc</h1></body></html>"
+    exec_result = ExecutionResult(url="https://5000-abc.e2b.app")
+
+    exec_mock = AsyncMock(return_value=exec_result)
+
+    with (
+        _patch_gen(html_code),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.is_configured",
+            return_value=True,
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.execute_code",
+            exec_mock,
+        ),
+        _patch_redis(),
+    ):
+        result = await skill.execute(
+            _msg("напиши калькулятор калорий"),
+            ctx,
+            {"program_description": "калькулятор калорий", "program_language": "html"},
+        )
+
+    # E2B received wrapped Python code, not raw HTML
+    call_code = exec_mock.call_args[0][0]
+    assert "from flask import Flask" in call_code
+    assert "base64" in call_code
+    assert exec_mock.call_args[1]["language"] == "python"
+    assert exec_mock.call_args[1]["timeout"] == 60  # web app timeout
+
+    # Response shows the URL
+    assert "https://5000-abc.e2b.app" in result.response_text
+
+
+# --- Bug fix regression tests ---
+
+
+async def test_xss_in_stdout_escaped(skill, ctx):
+    """stdout containing HTML tags is escaped in response (XSS fix)."""
+    code = '# Simple hello world script for testing\nprint("<img onerror=alert(1)>")'
+    malicious_output = '</code><script>alert(1)</script><code>'
+    exec_result = ExecutionResult(stdout=malicious_output)
+    p_cfg, p_exec, p_lang, p_web = _patch_e2b_on(exec_result)
+
+    with _patch_gen(code), p_cfg, p_exec, p_lang, p_web, _patch_redis():
+        result = await skill.execute(
+            _msg("hello"), ctx, {"program_description": "hello"},
+        )
+
+    # Raw HTML must NOT appear — it must be escaped
+    assert "<script>" not in result.response_text
+    assert html_mod.escape(malicious_output) in result.response_text
+
+
+async def test_xss_in_error_escaped(skill, ctx):
+    """Error messages containing HTML tags are escaped (XSS fix)."""
+    code = "broken"
+    malicious_error = '<img src=x onerror="alert(1)">'
+    exec_result = ExecutionResult(error=malicious_error)
+    p_cfg, p_exec, p_lang, p_web = _patch_e2b_on(exec_result)
+
+    gen_mock = AsyncMock(return_value=code)
+    with (
+        patch("src.skills.generate_program.handler.generate_text", gen_mock),
+        p_cfg, p_exec, p_lang, p_web, _patch_redis(),
+    ):
+        result = await skill.execute(
+            _msg("test"), ctx, {"program_description": "test"},
+        )
+
+    assert 'onerror="alert(1)"' not in result.response_text
+    assert html_mod.escape(malicious_error) in result.response_text
+
+
+async def test_css_file_not_wrapped_in_flask(skill, ctx):
+    """CSS files should NOT be wrapped in Flask (CSS wrapping fix)."""
+    css_code = "body { background: #333; color: #fff; }"
+    exec_result = ExecutionResult(stdout="")
+    exec_mock = AsyncMock(return_value=exec_result)
+
+    with (
+        _patch_gen(css_code),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.is_configured",
+            return_value=True,
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.execute_code",
+            exec_mock,
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner._map_language",
+            return_value="python",
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner._is_web_app",
+            return_value=False,
+        ),
+        _patch_redis(),
+    ):
+        await skill.execute(
+            _msg("dark mode stylesheet"),
+            ctx,
+            {"program_description": "dark mode stylesheet", "program_language": "css"},
+        )
+
+    # E2B received raw CSS, NOT Flask-wrapped code
+    call_code = exec_mock.call_args[0][0]
+    assert "from flask import Flask" not in call_code
+    assert "body" in call_code
+
+
+async def test_description_fallback_skips_generic_field(skill, ctx):
+    """Handler uses program_description or message.text, never generic description."""
+    code = '# Simple hello world script for testing\nprint("hello")'
+    with _patch_gen(code) as mock_gen, _patch_e2b_off(), _patch_redis():
+        await skill.execute(
+            _msg("напиши программу калькулятор"),
+            ctx,
+            {"description": "$100.50"},  # generic finance field — must be ignored
+        )
+
+    # Should use message.text, not the finance-domain "description" field
+    prompt_arg = mock_gen.call_args.kwargs["prompt"]
+    assert "$100.50" not in prompt_arg
+    assert "калькулятор" in prompt_arg

@@ -1,126 +1,74 @@
-"""Google OAuth 2.0 endpoints for Gmail + Calendar integration."""
+"""OAuth endpoints — Composio-managed Google connection for Gmail + Calendar."""
 
+import asyncio
 import logging
-import secrets
-from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from src.core.config import settings
-from src.core.crypto import encrypt_token
-from src.core.db import async_session, redis
+from src.core.db import redis
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/oauth", tags=["oauth"])
 
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-SCOPES = [
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/calendar",
-]
+
+def _composio_client():
+    from composio import Composio
+
+    return Composio(api_key=settings.composio_api_key)
 
 
 @router.get("/google/start")
 async def google_oauth_start(state: str = Query(...)):
-    """Start the Google OAuth flow. The state token links back to the user."""
-    # Verify the state token exists in Redis (set by the bot when user says "connect email")
+    """Start Google OAuth flow via Composio connection initiation."""
     user_id = await redis.get(f"oauth_state:{state}")
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid or expired state token.")
 
-    import urllib.parse
+    # Decode bytes if needed
+    if isinstance(user_id, bytes):
+        user_id = user_id.decode()
 
-    params = urllib.parse.urlencode(
-        {
-            "client_id": settings.google_client_id,
-            "redirect_uri": settings.google_redirect_uri,
-            "response_type": "code",
-            "scope": " ".join(SCOPES),
-            "access_type": "offline",
-            "prompt": "consent",
-            "state": state,
-        }
-    )
-    redirect_url = f"{GOOGLE_AUTH_URL}?{params}"
+    try:
+        composio = _composio_client()
 
-    from fastapi.responses import RedirectResponse
+        # Build callback URL for when Composio completes the connection
+        if settings.google_redirect_uri:
+            base_url = settings.google_redirect_uri.rsplit("/oauth/", 1)[0]
+        elif settings.telegram_webhook_url:
+            base_url = settings.telegram_webhook_url.rsplit("/", 1)[0]
+        else:
+            base_url = "https://localhost:8000"
+        callback_url = f"{base_url}/oauth/google/callback?state={state}"
 
-    return RedirectResponse(url=redirect_url)
+        def _initiate():
+            return composio.connected_accounts.initiate(
+                user_id=user_id,
+                app="GMAIL",
+                redirect_url=callback_url,
+            )
+
+        loop = asyncio.get_running_loop()
+        connection_request = await loop.run_in_executor(None, _initiate)
+
+        redirect_url = getattr(connection_request, "redirect_url", None) or str(connection_request)
+        return RedirectResponse(url=redirect_url)
+
+    except Exception as e:
+        logger.error("Composio connection initiation failed: %s", e)
+        raise HTTPException(status_code=502, detail="Failed to start Google connection.")
 
 
 @router.get("/google/callback")
 async def google_oauth_callback(
-    code: str = Query(...),
     state: str = Query(...),
 ):
-    """Handle the Google OAuth callback — exchange code for tokens."""
-    # Verify state
+    """Handle the Composio OAuth callback after user authorizes."""
     user_id = await redis.get(f"oauth_state:{state}")
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid or expired state token.")
-
-    # Exchange code for tokens
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "code": code,
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "redirect_uri": settings.google_redirect_uri,
-                "grant_type": "authorization_code",
-            },
-        )
-        if resp.status_code != 200:
-            logger.error("OAuth token exchange failed: %s", resp.text)
-            raise HTTPException(status_code=502, detail="Failed to exchange OAuth code.")
-
-        token_data = resp.json()
-
-    # Store encrypted tokens
-    from src.core.models.oauth_token import OAuthToken
-    from src.core.models.user import User
-
-    async with async_session() as session:
-        from sqlalchemy import select
-
-        user = await session.scalar(select(User).where(User.id == user_id))
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found.")
-
-        # Upsert: update existing token or create new one
-        existing = await session.scalar(
-            select(OAuthToken).where(OAuthToken.user_id == user.id, OAuthToken.provider == "google")
-        )
-
-        encrypted_access = encrypt_token(token_data["access_token"])
-        encrypted_refresh = encrypt_token(token_data.get("refresh_token", ""))
-        expires = datetime.now(UTC) + timedelta(seconds=token_data.get("expires_in", 3600))
-        scopes = token_data.get("scope", "").split()
-
-        if existing:
-            existing.access_token_encrypted = encrypted_access
-            existing.refresh_token_encrypted = encrypted_refresh
-            existing.expires_at = expires
-            existing.scopes = scopes
-        else:
-            session.add(
-                OAuthToken(
-                    user_id=user.id,
-                    family_id=user.family_id,
-                    provider="google",
-                    access_token_encrypted=encrypted_access,
-                    refresh_token_encrypted=encrypted_refresh,
-                    expires_at=expires,
-                    scopes=scopes,
-                )
-            )
-        await session.commit()
 
     # Clean up state
     await redis.delete(f"oauth_state:{state}")
@@ -132,11 +80,13 @@ async def google_oauth_callback(
     )
 
 
-async def generate_oauth_link(user_id: str) -> str:
-    """Generate an OAuth deep link for a user. Called by skills when needed."""
+async def generate_composio_connect_link(user_id: str) -> str:
+    """Generate a Composio connection link for a user. Called by skills."""
+    import secrets
+
     state = secrets.token_urlsafe(32)
     await redis.set(f"oauth_state:{state}", user_id, ex=600)  # 10 min TTL
-    # Derive base URL from redirect_uri or webhook_url
+
     if settings.google_redirect_uri:
         base_url = settings.google_redirect_uri.rsplit("/oauth/", 1)[0]
     elif settings.telegram_webhook_url:
@@ -144,3 +94,7 @@ async def generate_oauth_link(user_id: str) -> str:
     else:
         base_url = "https://localhost:8000"
     return f"{base_url}/oauth/google/start?state={state}"
+
+
+# Keep backward-compat alias
+generate_oauth_link = generate_composio_connect_link

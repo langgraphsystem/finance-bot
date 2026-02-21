@@ -45,11 +45,13 @@ dependencies = [
     "quickchart-io>=2.0.0",
     # Utils
     "python-multipart>=0.0.18",
-    "aiogoogle>=5.17.0",
+    "composio>=0.11.0",
     "cryptography>=46.0.5",
     "langgraph>=1.0.8",
     "pypdfium2>=5.5.0",
+    "playwright>=1.54.0",
     "e2b-code-interpreter>=2.4.1",
+    "browser-use>=0.11.11",
 ]
 
 [dependency-groups]

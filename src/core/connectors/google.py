@@ -1,8 +1,4 @@
-"""Google connector — wraps existing OAuth flow into BaseConnector protocol.
-
-Delegates to ``src.core.google_auth`` for token management and to
-``src.tools.google_workspace.GoogleWorkspaceClient`` for API access.
-"""
+"""Google connector — wraps Composio-managed connection for Gmail + Calendar."""
 
 import logging
 
@@ -12,39 +8,41 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleConnector:
-    """Google Workspace connector (Gmail + Calendar)."""
+    """Google Workspace connector (Gmail + Calendar) via Composio."""
 
     name: str = "google"
 
     @property
     def is_configured(self) -> bool:
-        return bool(settings.google_client_id and settings.google_client_secret)
+        return bool(settings.composio_api_key)
 
     async def connect(self, user_id: str) -> str:
-        """Return an OAuth authorization URL for the user."""
-        from api.oauth import generate_oauth_link
+        """Return a Composio OAuth authorization URL for the user."""
+        from api.oauth import generate_composio_connect_link
 
-        return await generate_oauth_link(user_id)
+        return await generate_composio_connect_link(user_id)
 
     async def disconnect(self, user_id: str) -> bool:
-        """Remove stored tokens for the user."""
-        import uuid
-
-        from sqlalchemy import delete
-
-        from src.core.db import async_session
-        from src.core.models.oauth_token import OAuthToken
-
+        """Disconnect the user's Google account in Composio."""
         try:
-            async with async_session() as session:
-                await session.execute(
-                    delete(OAuthToken).where(
-                        OAuthToken.user_id == uuid.UUID(user_id),
-                        OAuthToken.provider == "google",
-                    )
+            import asyncio
+
+            from src.core.google_auth import _composio_client
+
+            composio = _composio_client()
+
+            def _disconnect():
+                accounts = composio.connected_accounts.list(
+                    user_id=user_id,
+                    toolkit="GMAIL",
                 )
-                await session.commit()
-            return True
+                for account in accounts:
+                    account_id = getattr(account, "id", None)
+                    if account_id:
+                        composio.connected_accounts.delete(account_id)
+                return True
+
+            return await asyncio.get_running_loop().run_in_executor(None, _disconnect)
         except Exception as e:
             logger.error("Failed to disconnect Google for user %s: %s", user_id, e)
             return False
@@ -55,13 +53,13 @@ class GoogleConnector:
         return await has_google_connection(user_id)
 
     async def get_client(self, user_id: str):
-        """Return a ready-to-use ``GoogleWorkspaceClient`` (auto-refreshes tokens)."""
+        """Return a ready-to-use ``GoogleWorkspaceClient``."""
         from src.core.google_auth import get_google_client
 
         return await get_google_client(user_id)
 
     async def refresh_if_needed(self, user_id: str) -> None:
-        """Refresh is handled transparently inside ``get_client``."""
+        """Refresh is handled transparently by Composio."""
 
 
 google_connector = GoogleConnector()

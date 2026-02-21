@@ -1,128 +1,84 @@
-"""Google OAuth token management — bridge between DB tokens and GoogleWorkspaceClient."""
+"""Google auth via Composio — connection check and client factory."""
+
+from __future__ import annotations
 
 import logging
-import uuid
-from datetime import UTC, datetime, timedelta
-
-import httpx
-from aiogoogle.auth.creds import ClientCreds, UserCreds
-from sqlalchemy import select
+from typing import TYPE_CHECKING
 
 from src.core.config import settings
-from src.core.crypto import decrypt_token, encrypt_token
-from src.core.db import async_session
-from src.core.models.oauth_token import OAuthToken
-from src.skills.base import SkillResult
-from src.tools.google_workspace import GoogleWorkspaceClient
+
+if TYPE_CHECKING:
+    from src.skills.base import SkillResult
+    from src.tools.google_workspace import GoogleWorkspaceClient
 
 logger = logging.getLogger(__name__)
 
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+
+def _composio_client():
+    from composio import Composio
+
+    return Composio(api_key=settings.composio_api_key)
 
 
 async def has_google_connection(user_id: str) -> bool:
-    """Check if user has Google OAuth tokens in DB."""
+    """Check if user has a Google connection in Composio."""
     try:
-        async with async_session() as session:
-            result = await session.scalar(
-                select(OAuthToken.id)
-                .where(OAuthToken.user_id == uuid.UUID(user_id))
-                .where(OAuthToken.provider == "google")
-                .limit(1)
-            )
-            return result is not None
+        import asyncio
+
+        composio = _composio_client()
+
+        def _check():
+            try:
+                accounts = composio.connected_accounts.list(
+                    user_id=user_id,
+                    toolkit="GMAIL",
+                )
+                return bool(accounts)
+            except Exception:
+                return False
+
+        return await asyncio.get_running_loop().run_in_executor(None, _check)
     except Exception as e:
-        logger.warning("Failed to check Google connection: %s", e)
+        logger.warning("Failed to check Composio connection: %s", e)
         return False
 
 
 async def require_google_or_prompt(user_id: str) -> SkillResult | None:
-    """Return SkillResult with OAuth link if not connected, None if connected."""
+    """Return SkillResult with Composio connect link if not connected, None if connected."""
+    from src.skills.base import SkillResult
+
     if await has_google_connection(user_id):
         return None
 
     try:
-        from api.oauth import generate_oauth_link
+        from api.oauth import generate_composio_connect_link
 
-        link = await generate_oauth_link(user_id)
+        link = await generate_composio_connect_link(user_id)
         return SkillResult(
             response_text=(
-                "Для работы с почтой и календарём нужно подключить Google.\nНажмите кнопку ниже:"
+                "To use email and calendar features, connect your Google account.\n"
+                "Click the button below:"
             ),
-            buttons=[{"text": "🔗 Подключить Google", "url": link}],
+            buttons=[{"text": "\U0001f517 Connect Google", "url": link}],
         )
     except Exception as e:
-        logger.warning("Failed to generate OAuth link: %s", e)
+        logger.warning("Failed to generate Composio connect link: %s", e)
         return SkillResult(
-            response_text=("Для работы с почтой и календарём подключите Google командой /connect"),
+            response_text="To use email and calendar, connect Google with /connect",
         )
 
 
 async def get_google_client(user_id: str) -> GoogleWorkspaceClient | None:
-    """Load OAuth tokens from DB, refresh if expired, return GoogleWorkspaceClient."""
+    """Return a Composio-backed GoogleWorkspaceClient for the user."""
+    from src.tools.google_workspace import GoogleWorkspaceClient
+
     try:
-        async with async_session() as session:
-            token = await session.scalar(
-                select(OAuthToken)
-                .where(OAuthToken.user_id == uuid.UUID(user_id))
-                .where(OAuthToken.provider == "google")
-                .order_by(OAuthToken.created_at.desc())
-                .limit(1)
-            )
-            if not token:
-                return None
-
-            # Refresh if expiring within 5 minutes
-            if token.expires_at < datetime.now(UTC) + timedelta(minutes=5):
-                await _refresh_token(token, session)
-
-            access_token = decrypt_token(token.access_token_encrypted)
-            refresh_token = decrypt_token(token.refresh_token_encrypted)
-
-            user_creds = UserCreds(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                token_uri=GOOGLE_TOKEN_URL,
-                scopes=token.scopes or [],
-            )
-            client_creds = ClientCreds(
-                client_id=settings.google_client_id,
-                client_secret=settings.google_client_secret,
-            )
-            return GoogleWorkspaceClient(user_creds, client_creds)
-
+        if not await has_google_connection(user_id):
+            return None
+        return GoogleWorkspaceClient(user_id)
     except Exception as e:
         logger.error("Failed to get Google client for user %s: %s", user_id, e)
         return None
-
-
-async def _refresh_token(token: OAuthToken, session) -> None:
-    """Refresh an expired Google access token."""
-    refresh_token = decrypt_token(token.refresh_token_encrypted)
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            },
-        )
-        if resp.status_code != 200:
-            logger.error("Token refresh failed: %s", resp.text)
-            return
-
-        data = resp.json()
-        token.access_token_encrypted = encrypt_token(data["access_token"])
-        token.expires_at = datetime.now(UTC) + timedelta(seconds=data.get("expires_in", 3600))
-        # Google may return a new refresh token
-        if data.get("refresh_token"):
-            token.refresh_token_encrypted = encrypt_token(data["refresh_token"])
-
-        await session.commit()
-        logger.info("Refreshed Google token for user %s", token.user_id)
 
 
 def parse_email_headers(msg: dict) -> dict:
@@ -133,7 +89,7 @@ def parse_email_headers(msg: dict) -> dict:
         "id": msg.get("id", ""),
         "thread_id": msg.get("threadId", ""),
         "from": headers.get("from", ""),
-        "subject": headers.get("subject", "(без темы)"),
+        "subject": headers.get("subject", "(no subject)"),
         "date": headers.get("date", ""),
         "snippet": msg.get("snippet", ""),
     }

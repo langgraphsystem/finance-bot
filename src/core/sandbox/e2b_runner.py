@@ -98,6 +98,18 @@ def _map_language(ext: str) -> str:
     return mapping.get(ext, "python")
 
 
+_SANDBOX_TTL = 300  # Close web app sandboxes after 5 minutes
+
+
+async def _close_sandbox_later(sandbox, delay: int = _SANDBOX_TTL) -> None:
+    """Close a web app sandbox after a delay to free E2B resources."""
+    try:
+        await asyncio.sleep(delay)
+        await sandbox.close()
+    except Exception:
+        pass
+
+
 def is_configured() -> bool:
     """Check if E2B API key is configured."""
     return bool(settings.e2b_api_key)
@@ -228,7 +240,9 @@ async def execute_code(
         logger.exception("E2B execution error")
         result.error = str(e)
     finally:
-        if not web_app:
+        if web_app:
+            asyncio.create_task(_close_sandbox_later(sandbox))
+        else:
             try:
                 await sandbox.close()
             except Exception:

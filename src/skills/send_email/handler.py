@@ -1,8 +1,6 @@
-"""Send email skill — composes email via LLM, sends via Gmail API."""
+"""Send email skill — composes email via LLM, sends via Composio Gmail."""
 
-import base64
 import logging
-from email.mime.text import MIMEText
 from typing import Any
 
 from src.core.context import SessionContext
@@ -116,17 +114,17 @@ async def _draft_body(to: str, subject: str, hint: str, user_text: str, language
 
 
 async def execute_send(action_data: dict, user_id: str) -> str:
-    """Actually send the email via Gmail API. Called after user confirms."""
+    """Actually send the email via Composio Gmail. Called after user confirms."""
     google = await get_google_client(user_id)
     if not google:
         return "Ошибка подключения к Gmail. Попробуйте /connect"
 
     try:
-        mime_msg = MIMEText(action_data["email_body"])
-        mime_msg["to"] = action_data["email_to"]
-        mime_msg["subject"] = action_data["email_subject"]
-        raw = base64.urlsafe_b64encode(mime_msg.as_bytes()).decode()
-        await google.send_message(raw)
+        await google.send_message(
+            to=action_data["email_to"],
+            subject=action_data["email_subject"],
+            body=action_data["email_body"],
+        )
     except Exception as e:
         logger.error("Gmail send failed: %s", e)
         return "Не удалось отправить email. Попробуйте позже."

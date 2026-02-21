@@ -7,99 +7,112 @@
     <title>Finance Bot | ИИ-ассистент для жизни и бизнеса</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
 
-    <!-- Animated background -->
-    <div class="bg-mesh">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
-    </div>
+    <!-- Radial Glow Backgrounds -->
+    <div class="glow-bg glow-top"></div>
 
     <!-- Navigation -->
     <nav class="navbar reveal">
         <div class="logo">
-            <i class="fa-solid fa-robot"></i>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" />
+                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                    stroke-linejoin="round" />
+            </svg>
             <span>Finance AI</span>
         </div>
         <div class="nav-links">
             <a href="#features">Возможности</a>
             <a href="#how-it-works">Как работает</a>
             <a href="#pricing">Тарифы</a>
+            <a href="#">Документация</a>
+            <a href="#">Блог</a>
         </div>
-        <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><i class="fab fa-telegram-plane"></i> Открыть
-            в Telegram</a>
+        <div class="nav-actions">
+            <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn">Войти</a>
+            <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn">Начать бесплатно <i
+                    class="fa-solid fa-arrow-right"></i></a>
+        </div>
     </nav>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content reveal">
-            <div class="badge">Работает на Claude 3.5 & Gemini Flash</div>
+            <div class="badge-wrap">
+                <div class="badge">
+                    <span class="badge-dot"></span>
+                    <span class="badge-text">Работает на Claude 3.5 & Gemini Flash</span>
+                </div>
+            </div>
+
             <h1 class="hero-title">Ваш персональный <br><span class="gradient-text type-effect">финансовый
                     AI-ассистент</span></h1>
             <p class="hero-subtitle">Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально
                 для малого бизнеса, фрилансеров и семей.</p>
             <div class="hero-cta">
-                <a href="https://t.me/YourBotName" class="btn btn-glow"><i class="fab fa-telegram-plane"></i> Начать
-                    бесплатно</a>
-                <a href="#features" class="btn btn-outline">Узнать больше</a>
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large">Начать использовать <i
+                        class="fa-solid fa-arrow-right"></i></a>
+                <a href="#features" class="btn btn-outline btn-large code-btn"><i class="fa-solid fa-terminal"></i>
+                    Читать документацию</a>
             </div>
         </div>
 
-        <!-- Interactive Interface Demo -->
+        <!-- Terminal Demo -->
         <div class="hero-visual reveal delay-1">
-            <div class="mockup-container tilt-effect">
-                <div class="mockup-header">
-                    <div class="dots">
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <div class="window-controls">
                         <span></span><span></span><span></span>
                     </div>
-                    <div class="mockup-title">Telegram - Finance AI</div>
+                    <div class="terminal-title">finance-ai — bash — 80x24</div>
                 </div>
-                <div class="mockup-body">
-                    <div class="chat-message user-message">
-                        Заправил трак на 150 баксов 🚚
+                <div class="terminal-body" id="terminal-body">
+                    <div class="cmd-line"><span class="prompt">~ %</span> <span class="cmd-input">finance record
+                            expense</span></div>
+                    <div class="cmd-response hidden" id="cmd-resp-1">
+                        <span class="clr-blue">?</span> Enter amount Details: <span class="clr-green">"Заправил трак на
+                            150 баксов"</span><br>
+                        <span class="clr-dim">Processing with Finance AI...</span>
                     </div>
-                    <div class="chat-message ai-message loading-message" id="demo-bot-msg">
-                        <div class="typing-indicator">
-                            <span></span><span></span><span></span>
-                        </div>
-                    </div>
-                    <div class="chat-message ai-message final-message hidden" id="demo-bot-res">
-                        <strong>🚗 Транспорт / Топливо</strong><br>
-                        Сумма: $150.00<br>
-                        <em>Записано в расходы. Это 15% от бюджета на топливо на этот месяц.</em>
-                        <div class="chart-demo"></div>
+                    <div class="cmd-response hidden" id="cmd-resp-2">
+                        <br>
+                        <span class="clr-green">✔</span> <strong>Success!</strong> Recorded to your Tracker.<br>
+                        <span class="clr-purple">Category:</span> Транспорт / Топливо<br>
+                        <span class="clr-purple">Amount:</span> $150.00<br>
+                        <span class="clr-dim">Note: Записано в расходы. Это 15% от бюджета на месяц.</span><br>
+                        <br>
+                        <span class="prompt">~ %</span> <span class="cursor-blink">_</span>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Integrations Marquee -->
-    <section class="integrations">
-        <p class="section-label text-center">РАБОТАЕТ ТАМ, ГДЕ УДОБНО ВАМ</p>
+    <!-- Integrations Logos -->
+    <section class="integrations reveal">
+        <p class="section-label text-center">ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ ИНСТРУМЕНТАМИ</p>
         <div class="marquee-wrapper">
-            <div class="marquee-content">
-                <div class="integration-pill"><i class="fab fa-telegram"></i> Telegram</div>
-                <div class="integration-pill"><i class="fab fa-whatsapp"></i> WhatsApp</div>
-                <div class="integration-pill"><i class="fab fa-slack"></i> Slack</div>
-                <div class="integration-pill"><i class="fas fa-comment-sms"></i> SMS</div>
-                <div class="integration-pill"><i class="fab fa-google"></i> Google Calendar</div>
-                <div class="integration-pill"><i class="fab fa-stripe"></i> Stripe</div>
-                <!-- Duplicate for seamless scroll -->
-                <div class="integration-pill"><i class="fab fa-telegram"></i> Telegram</div>
-                <div class="integration-pill"><i class="fab fa-whatsapp"></i> WhatsApp</div>
-                <div class="integration-pill"><i class="fab fa-slack"></i> Slack</div>
-                <div class="integration-pill"><i class="fas fa-comment-sms"></i> SMS</div>
-                <div class="integration-pill"><i class="fab fa-google"></i> Google Calendar</div>
-                <div class="integration-pill"><i class="fab fa-stripe"></i> Stripe</div>
+            <div class="marquee-content" style="display: flex;">
+                <div class="integration-logo"><i class="fab fa-telegram"></i> Telegram</div>
+                <div class="integration-logo"><i class="fab fa-whatsapp"></i> WhatsApp</div>
+                <div class="integration-logo"><i class="fab fa-slack"></i> Slack</div>
+                <div class="integration-logo"><i class="fas fa-comment-sms"></i> SMS</div>
+                <div class="integration-logo"><i class="fab fa-google"></i> Google Calendar</div>
+                <div class="integration-logo"><i class="fab fa-stripe"></i> Stripe</div>
+                <div class="integration-logo"><i class="fab fa-cc-visa"></i> Visa</div>
+                <div class="integration-logo"><i class="fa-solid fa-file-invoice"></i> PDF Invoices</div>
+                <div class="integration-logo"><i class="fa-solid fa-microphone"></i> Voice Notes</div>
             </div>
         </div>
     </section>
@@ -107,150 +120,203 @@
     <!-- Bento Box Features -->
     <section id="features" class="features section-padding">
         <div class="section-header reveal">
-            <h2 class="section-title">Всё, что вам нужно. В <span class="gradient-text">одном</span> чате.</h2>
-            <p class="section-subtitle">Забудьте о сложных таблицах и десятках приложений. Просто напишите или отправьте
-                фото.</p>
+            <div class="badge-wrap">
+                <div class="badge">
+                    <span class="badge-text">ПОЛНЫЙ КОНТРОЛЬ</span>
+                </div>
+            </div>
+            <h2 class="section-title">Всё, что вам нужно. <br>В <span class="gradient-text">одном</span> чате.</h2>
+            <p class="section-subtitle">Забудьте о сложных таблицах и десятках приложений. Просто напишите команду или
+                отправьте фото.</p>
         </div>
 
         <div class="bento-grid">
             <!-- Feature 1: OCR -->
-            <div class="bento-card card-large reveal tilt-effect">
+            <div class="bento-card card-large reveal hover-glow" data-glow-color="rgba(34, 197, 94, 0.15)">
+                <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
                     <h3>Smart OCR чеков</h3>
-                    <p>Отправьте фото скомканного чека. AI мгновенно распознает мерчанта, товары, налоги и раскидает по
-                        категориям с помощью Gemini Flash 3.</p>
-                </div>
-                <div class="bento-visual">
-                    <div class="receipt-scan-demo">
-                        <div class="scan-line"></div>
-                        <i class="fa-solid fa-file-invoice-dollar"></i>
+                    <p class="clr-dim">Умное извлечение данных. Отправьте фото скомканного чека. AI мгновенно распознает
+                        мерчанта, товары, налоги и раскидает по категориям с помощью Gemini Flash 3.</p>
+
+                    <div class="code-preview mt-4">
+                        <div class="code-header">receipt_parser.py</div>
+                        <pre><code><span class="clr-pink">import</span> finance_ai
+
+receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
+<span class="clr-blue">print</span>(receipt.merchant) <span class="clr-dim"># -> "Shell"</span>
+<span class="clr-blue">print</span>(receipt.total)    <span class="clr-dim"># -> 150.00</span></code></pre>
                     </div>
                 </div>
             </div>
 
             <!-- Feature 2: Voice -->
-            <div class="bento-card card-medium reveal delay-1 tilt-effect">
+            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(168, 85, 247, 0.15)">
+                <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
                     <h3>Голосовой ввод</h3>
-                    <p>За рулем? Просто скажите: "Я купил материалы на две тысячи". Идеально распознает любой язык.</p>
+                    <p class="clr-dim">За рулем? Просто скажите: "Я купил материалы на две тысячи". Идеально распознает
+                        и структурирует любой язык в реальном времени.</p>
                 </div>
             </div>
 
             <!-- Feature 3: Life Tracker -->
-            <div class="bento-card card-medium reveal delay-2 tilt-effect">
+            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(59, 130, 246, 0.15)">
+                <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
                     <h3>Life & Calendar</h3>
-                    <p>Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные утренние сводки.
-                    </p>
+                    <p class="clr-dim">Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные
+                        утренние сводки через Telegram.</p>
                 </div>
             </div>
 
             <!-- Feature 4: Analytics -->
-            <div class="bento-card card-wide reveal tilt-effect">
+            <div class="bento-card card-wide reveal hover-glow" data-glow-color="rgba(236, 72, 153, 0.15)">
+                <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
                     <h3>Мульти-агентная аналитика</h3>
-                    <p>Запрашивайте сложные отчеты: "Покажи мои траты на авто за полгода по месяцам". Claude 3.5 Sonnet
-                        генерирует точные графики прямо в чат.</p>
+                    <p class="clr-dim">Запрашивайте сложные отчеты: "Покажи мои траты на авто за полгода по месяцам".
+                        Claude 3.5 Sonnet генерирует точные графики прямо в чат.</p>
                 </div>
-                <div class="bento-visual horizontal chart-visual">
-                    <div class="bar bar-1"></div>
-                    <div class="bar bar-2"></div>
-                    <div class="bar bar-3"></div>
-                    <div class="bar bar-4"></div>
-                    <div class="bar bar-5"></div>
+                <div class="bento-visual">
+                    <div class="chart-demo-code">
+                        <pre><code><span class="clr-pink">{</span>
+  <span class="clr-green">"query"</span>: <span class="clr-blue">"Авто за полгода"</span>,
+  <span class="clr-green">"result"</span>: <span class="clr-pink">{</span>
+    <span class="clr-green">"Jul"</span>: 120, <span class="clr-green">"Aug"</span>: 150, <span class="clr-green">"Sep"</span>: 300,
+    <span class="clr-green">"Oct"</span>: 110, <span class="clr-green">"Nov"</span>: 180, <span class="clr-green">"Dec"</span>: 90
+  <span class="clr-pink">}</span>
+<span class="clr-pink">}</span></code></pre>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Use Cases Tabs -->
+    <!-- Use Cases List -->
     <section id="how-it-works" class="use-cases section-padding">
         <div class="section-header reveal">
+            <div class="badge-wrap">
+                <div class="badge">
+                    <span class="badge-text">USE CASES</span>
+                </div>
+            </div>
             <h2 class="section-title">Создан под <span class="gradient-text">вашу</span> жизнь</h2>
         </div>
 
-        <div class="tabs-container reveal">
-            <div class="tabs-nav">
-                <button class="tab-btn active" data-tab="freelancer">Малый бизнес</button>
-                <button class="tab-btn" data-tab="family">Семья</button>
-                <button class="tab-btn" data-tab="driver">Такси & Траки</button>
-            </div>
-
-            <div class="tab-content active" id="tab-freelancer">
-                <div class="use-case-card">
-                    <div class="uc-info">
-                        <h3>Для малого бизнеса и фриланса</h3>
-                        <p>Бот запоминает категории ваших расходов (Материалы, Реклама, Подрядчики). Фотографируйте
-                            накладные, чтобы ничего не забыть для налоговой, и ведите CRM-контакты клиентов.</p>
-                        <ul class="uc-list">
-                            <li><i class="fa-solid fa-check text-green"></i> Инвойсы и чеки</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Напоминания о встречах</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Аналитика рентабельности</li>
-                        </ul>
-                    </div>
+        <div class="use-cases-grid reveal">
+            <!-- Case 1 -->
+            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+                <div class="glow-mouse"></div>
+                <div class="uc-icon"><i class="fa-solid fa-briefcase"></i></div>
+                <div class="uc-content">
+                    <h3>Для малого бизнеса и фриланса</h3>
+                    <p class="clr-dim">Бот запоминает категории ваших расходов (Материалы, Реклама, Подрядчики).
+                        Фотографируйте накладные, чтобы ничего не забыть для налоговой, и ведите CRM-контакты клиентов.
+                    </p>
+                </div>
+                <div class="uc-tags">
+                    <span class="tag">Инвойсы</span>
+                    <span class="tag">CRM</span>
+                    <span class="tag">Налоги</span>
                 </div>
             </div>
 
-            <div class="tab-content" id="tab-family">
-                <div class="use-case-card">
-                    <div class="uc-info">
-                        <h3>Совместный семейный бюджет</h3>
-                        <p>Подключите супругов к одному семейному аккаунту в Telegram. Каждый вносит свои траты, а
-                            владелец видит полную картину.</p>
-                        <ul class="uc-list">
-                            <li><i class="fa-solid fa-check text-green"></i> Списки покупок синхронизируются</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Общие бюджеты на месяц</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Приватность личных расходов</li>
-                        </ul>
-                    </div>
+            <!-- Case 2 -->
+            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+                <div class="glow-mouse"></div>
+                <div class="uc-icon"><i class="fa-solid fa-people-roof"></i></div>
+                <div class="uc-content">
+                    <h3>Совместный семейный бюджет</h3>
+                    <p class="clr-dim">Подключите супругов к одному семейному аккаунту в Telegram. Каждый вносит свои
+                        траты, а владелец видит полную картину с разделением доступов.</p>
+                </div>
+                <div class="uc-tags">
+                    <span class="tag">Синхронизация</span>
+                    <span class="tag">Списки покупок</span>
                 </div>
             </div>
 
-            <div class="tab-content" id="tab-driver">
-                <div class="use-case-card">
-                    <div class="uc-info">
-                        <h3>Для таксистов и дальнобойщиков</h3>
-                        <p>Записывайте топливо, ремонт и сборы на ходу с помощью голосовых команд. Получайте сводки для
-                            IFTA-отчетов.</p>
-                        <ul class="uc-list">
-                            <li><i class="fa-solid fa-check text-green"></i> Голосовой ввод за рулем</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Фото заправок и Tolls</li>
-                            <li><i class="fa-solid fa-check text-green"></i> Мгновенное вычисление чистого плюса</li>
-                        </ul>
-                    </div>
+            <!-- Case 3 -->
+            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+                <div class="glow-mouse"></div>
+                <div class="uc-icon"><i class="fa-solid fa-truck"></i></div>
+                <div class="uc-content">
+                    <h3>Для таксистов и дальнобойщиков</h3>
+                    <p class="clr-dim">Записывайте топливо, ремонт и сборы на ходу с помощью голосовых команд. Получайте
+                        сводки для IFTA-отчетов без отрыва от руля.</p>
+                </div>
+                <div class="uc-tags">
+                    <span class="tag">Голос</span>
+                    <span class="tag">Tolls</span>
+                    <span class="tag">IFTA</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Pricing CTA -->
+    <!-- Pricing / Bottom CTA -->
     <section id="pricing" class="cta-section section-padding reveal">
-        <div class="glass-cta tilt-effect">
+        <div class="glow-bg glow-bottom"></div>
+        <div class="cta-box">
             <h2 class="section-title">Готовы делегировать хаос <span class="gradient-text">ИИ</span>?</h2>
-            <p>Начните управлять своей жизнью уже сегодня. Без скачивания лишних приложений.</p>
-            <br>
-            <div class="pricing-badge">$49 / месяц</div>
-            <p class="pricing-sub">Полный доступ ко всем модулям AI, распознаванию чеков и интеграции с календарем.</p>
-            <a href="https://t.me/YourBotName" class="btn btn-glow btn-large"><i class="fab fa-telegram-plane"></i>
-                Перейти в Telegram</a>
+            <p class="clr-dim">Стройте свои финансы как код. Без скачивания лишних приложений.</p>
+
+            <div class="pricing-card">
+                <div class="price">
+                    <span class="currency">$</span>
+                    <span class="amount">49</span>
+                    <span class="period">/месяц</span>
+                </div>
+                <p class="pricing-sub">Полный доступ ко всем модулям AI, распознаванию чеков, интеграции с календарем и
+                    приоритетная поддержка.</p>
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full">Перейти в Telegram <i
+                        class="fa-solid fa-arrow-right"></i></a>
+            </div>
         </div>
     </section>
 
     <!-- Footer -->
     <footer>
         <div class="footer-content">
-            <div class="logo">
-                <i class="fa-solid fa-robot"></i>
-                <span>Finance AI</span>
+            <div class="footer-col brand">
+                <div class="logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" />
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    <span>Finance AI</span>
+                </div>
+                <p class="clr-dim mt-2">© 2026 Finance Bot. Все права защищены.</p>
             </div>
-            <p>© 2026 Finance Bot. Все права защищены.</p>
             <div class="footer-links">
-                <a href="#">Политика конфиденциальности</a>
-                <a href="#">Условия использования</a>
+                <div class="link-group">
+                    <h4>Продукт</h4>
+                    <a href="#">Возможности</a>
+                    <a href="#">Интеграции</a>
+                    <a href="#">Тарифы</a>
+                    <a href="#">Changelog</a>
+                </div>
+                <div class="link-group">
+                    <h4>Ресурсы</h4>
+                    <a href="#">Документация</a>
+                    <a href="#">Блог</a>
+                    <a href="#">Поддержка</a>
+                </div>
+                <div class="link-group">
+                    <h4>Компания</h4>
+                    <a href="#">О нас</a>
+                    <a href="#">Политика конфиденциальности</a>
+                    <a href="#">Условия использования</a>
+                </div>
             </div>
         </div>
     </footer>
