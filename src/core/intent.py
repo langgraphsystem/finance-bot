@@ -1,12 +1,78 @@
 import json
 import logging
+import re
 from datetime import date
 
 from src.core.llm.clients import get_instructor_anthropic, google_client
 from src.core.observability import observe
-from src.core.schemas.intent import IntentDetectionResult
+from src.core.schemas.intent import IntentData, IntentDetectionResult
 
 logger = logging.getLogger(__name__)
+
+DELETE_VERBS = (
+    "удали",
+    "удалить",
+    "delete",
+    "remove",
+    "очисти",
+    "сотри",
+    "clear",
+)
+
+UNDO_LAST_HINTS = (
+    "последн",
+    "undo",
+    "отмени послед",
+    "верни обратно",
+)
+
+DELETE_SCOPE_KEYWORDS: list[tuple[str, str]] = [
+    ("все данные", "all"),
+    ("all data", "all"),
+    ("расход", "expenses"),
+    ("expense", "expenses"),
+    ("доход", "income"),
+    ("income", "income"),
+    ("транзакц", "transactions"),
+    ("transaction", "transactions"),
+    ("напиток", "drinks"),
+    ("напитк", "drinks"),
+    ("вода", "drinks"),
+    ("кофе", "drinks"),
+    ("чай", "drinks"),
+    ("drink", "drinks"),
+    ("еда", "food"),
+    ("питани", "food"),
+    ("food", "food"),
+    ("настроен", "mood"),
+    ("mood", "mood"),
+    ("заметк", "notes"),
+    ("note", "notes"),
+    ("задач", "tasks"),
+    ("task", "tasks"),
+    ("покуп", "shopping"),
+    ("shopping", "shopping"),
+    ("сообщен", "messages"),
+    ("истори", "messages"),
+    ("history", "messages"),
+    ("life", "life_events"),
+    ("жизн", "life_events"),
+]
+
+DELETE_PERIOD_KEYWORDS: list[tuple[str, str]] = [
+    ("сегодня", "today"),
+    ("today", "today"),
+    ("вчера", "yesterday"),
+    ("yesterday", "yesterday"),
+    ("недел", "week"),
+    ("week", "week"),
+    ("месяц", "month"),
+    ("month", "month"),
+    ("год", "year"),
+    ("year", "year"),
+]
+
+LIFE_SCOPES = {"food", "drinks", "mood", "notes", "life_events"}
 
 INTENT_DETECTION_PROMPT = """Определи намерение пользователя из сообщения.
 
@@ -398,6 +464,77 @@ intent_type: "action", confidence: 0.92
 }}"""
 
 
+def _extract_delete_scope(text: str) -> str | None:
+    """Infer delete_data scope from a destructive command text."""
+    for keyword, scope in DELETE_SCOPE_KEYWORDS:
+        if keyword in text:
+            return scope
+    return None
+
+
+def _extract_period_hint(text: str) -> str | None:
+    """Infer period from text if it is explicit."""
+    for keyword, period in DELETE_PERIOD_KEYWORDS:
+        if keyword in text:
+            return period
+    return None
+
+
+def _looks_like_specific_life_entry(text: str) -> bool:
+    """Detect whether user targets a specific life entry (not all records)."""
+    if re.search(r"\d", text):
+        return True
+    if re.search(r"\b\d+(?:[.,]\d+)?\s*(?:ml|мл|l|л)\b", text):
+        return True
+    markers = (
+        "(",
+        ")",
+        "предыдущ",
+        "конкретн",
+        "эту запись",
+        "this entry",
+        "напиток",
+        "заметку",
+        "настроение",
+        "вода",
+        "кофе",
+        "чай",
+    )
+    return any(marker in text for marker in markers)
+
+
+def _rule_based_delete_intent(text: str) -> IntentDetectionResult | None:
+    """Fast-path delete_data routing to avoid undo_last misclassification."""
+    text_lower = text.lower().strip()
+    if not text_lower:
+        return None
+
+    if not any(verb in text_lower for verb in DELETE_VERBS):
+        return None
+
+    scope = _extract_delete_scope(text_lower)
+    if not scope:
+        return None
+
+    # Keep legacy "undo last transaction" behavior when explicitly requested.
+    if scope in {"expenses", "income", "transactions"} and any(
+        hint in text_lower for hint in UNDO_LAST_HINTS
+    ):
+        return None
+
+    period = _extract_period_hint(text_lower)
+    if not period and scope in LIFE_SCOPES and _looks_like_specific_life_entry(text_lower):
+        period = "today"
+
+    return IntentDetectionResult(
+        intent="delete_data",
+        confidence=0.96,
+        intent_type="action",
+        data=IntentData(delete_scope=scope, period=period),
+        response=None,
+    )
+
+
 @observe(name="detect_intent")
 async def detect_intent(
     text: str,
@@ -406,6 +543,10 @@ async def detect_intent(
     recent_context: str | None = None,
 ) -> IntentDetectionResult:
     """Detect user intent using Gemini Flash (primary) with Claude Haiku fallback."""
+    delete_fast_path = _rule_based_delete_intent(text)
+    if delete_fast_path:
+        return delete_fast_path
+
     categories_str = ""
     if categories:
         categories_str = "\n".join(

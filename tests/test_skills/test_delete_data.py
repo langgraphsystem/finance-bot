@@ -1,7 +1,7 @@
 """Tests for delete_data skill."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -179,6 +179,49 @@ async def test_scope_alias_resolves(skill, msg, ctx):
     assert result.buttons is not None
 
 
+async def test_specific_drink_entry_returns_single_delete_confirmation(skill, ctx):
+    """A specific drink item should trigger one-record delete confirmation."""
+    message = IncomingMessage(
+        id="msg-2",
+        user_id="tg_user_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="удалить Напиток вода (250ml)",
+    )
+    event = MagicMock()
+    event.id = uuid.uuid4()
+    event.data = {"item": "вода", "volume_ml": 250, "count": 1}
+    event.text = "вода x1"
+    event.created_at = datetime(2026, 2, 20, 16, 14)
+
+    with (
+        patch(
+            f"{MODULE}._find_single_drink_event",
+            new_callable=AsyncMock,
+            return_value=event,
+        ) as mock_find,
+        patch(
+            f"{MODULE}.store_pending_action",
+            new_callable=AsyncMock,
+            return_value="single123",
+        ),
+        patch(
+            f"{MODULE}._count_records",
+            new_callable=AsyncMock,
+            return_value=999,
+        ) as mock_count,
+    ):
+        result = await skill.execute(message, ctx, {"delete_scope": "drinks"})
+
+    assert "Удалить запись?" in result.response_text
+    assert "250ml" in result.response_text
+    assert result.buttons is not None
+    assert result.buttons[0]["callback"] == "confirm_action:single123"
+    assert result.buttons[1]["callback"] == "cancel_action:single123"
+    mock_find.assert_awaited_once()
+    mock_count.assert_not_awaited()
+
+
 # ---- execute_delete tests ----
 
 
@@ -243,6 +286,40 @@ async def test_execute_delete_all_scope():
     # "all" scope deletes across 5 sub-scopes, each returning 2 = 10 total
     assert "10" in result
     assert "все данные" in result
+
+
+async def test_execute_delete_single_life_event():
+    """execute_delete should handle single life event deletion path."""
+    from src.skills.delete_data.handler import execute_delete
+
+    mock_session = AsyncMock()
+    mock_session.commit = AsyncMock()
+    mock_session.flush = AsyncMock()
+    mock_session.add = MagicMock()
+
+    mock_ctx = AsyncMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    action_data = {
+        "scope": "drinks",
+        "single_life_event_id": str(uuid.uuid4()),
+        "single_life_event_preview": "Напиток: вода (250ml)\nДата: 2026-02-20 16:14",
+    }
+
+    with (
+        patch(f"{MODULE}.async_session", return_value=mock_ctx),
+        patch(
+            f"{MODULE}._delete_single_life_event",
+            new_callable=AsyncMock,
+            return_value=1,
+        ) as mock_single_delete,
+    ):
+        result = await execute_delete(action_data, str(uuid.uuid4()), str(uuid.uuid4()))
+
+    assert "Удалена 1 запись" in result
+    assert "250ml" in result
+    mock_single_delete.assert_awaited_once()
 
 
 def test_skill_attributes():

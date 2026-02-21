@@ -194,3 +194,78 @@ async def test_detect_intent_both_fail_returns_default():
 
     assert result.intent == "general_chat"
     assert result.confidence == 0.5
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_delete_drink_specific_entry():
+    """Delete drink-like commands should route to delete_data before LLM call."""
+    with (
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+        ) as mock_gemini,
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+        ) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("удалить Напиток вода (250ml)")
+
+    assert result.intent == "delete_data"
+    assert result.data is not None
+    assert result.data.delete_scope == "drinks"
+    assert result.data.period == "today"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_delete_with_period():
+    """Explicit period in delete command should be propagated."""
+    with (
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+        ) as mock_gemini,
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+        ) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("удали напитки за неделю")
+
+    assert result.intent == "delete_data"
+    assert result.data is not None
+    assert result.data.delete_scope == "drinks"
+    assert result.data.period == "week"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_undo_last_phrase_not_overridden_by_fast_path():
+    """Legacy 'delete last transaction' must stay on normal LLM routing."""
+    expected = IntentDetectionResult(intent="undo_last", confidence=0.93, response="OK")
+
+    with (
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as mock_gemini,
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+        ) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("удали последнюю транзакцию")
+
+    assert result.intent == "undo_last"
+    mock_gemini.assert_awaited_once()
+    mock_claude.assert_not_awaited()
