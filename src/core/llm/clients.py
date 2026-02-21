@@ -58,14 +58,23 @@ def google_client() -> genai.Client:
 async def generate_text(
     model: str,
     system: str,
-    messages: list[dict[str, str]],
+    messages: list[dict[str, str]] | None = None,
     max_tokens: int = 1024,
+    *,
+    prompt: str | None = None,
 ) -> str:
     """Unified LLM call — routes to the correct SDK based on model ID.
 
     Supports OpenAI (gpt-*), Anthropic (claude-*), and Google (gemini-*) models.
     Returns the generated text content.
+
+    Pass either ``messages`` (list of dicts) or ``prompt`` (single string).
     """
+    if prompt is not None and messages is None:
+        messages = [{"role": "user", "content": prompt}]
+    if not messages:
+        raise ValueError("Either messages or prompt is required")
+
     from src.core.llm.prompts import PromptAdapter
 
     if model.startswith("gpt-"):

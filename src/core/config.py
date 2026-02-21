@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""
 
+    # E2B (code sandbox execution)
+    e2b_api_key: str = ""
+
     # App
     app_env: str = "development"
     log_level: str = "INFO"

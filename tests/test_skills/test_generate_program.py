@@ -6,11 +6,13 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.core.context import SessionContext
+from src.core.sandbox.e2b_runner import ExecutionResult
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.generate_program.handler import (
     GenerateProgramSkill,
     _detect_extension,
     _make_filename,
+    _select_model,
     _strip_markdown_fences,
 )
 
@@ -44,15 +46,42 @@ def _msg(text: str) -> IncomingMessage:
     )
 
 
+def _patch_gen(return_value: str):
+    return patch(
+        "src.skills.generate_program.handler.generate_text",
+        new_callable=AsyncMock,
+        return_value=return_value,
+    )
+
+
+def _patch_e2b_off():
+    """Disable E2B execution."""
+    return patch(
+        "src.skills.generate_program.handler.e2b_runner.is_configured",
+        return_value=False,
+    )
+
+
+def _patch_e2b_on(result: ExecutionResult):
+    """Enable E2B execution with a given result."""
+    return patch(
+        "src.skills.generate_program.handler.e2b_runner.is_configured",
+        return_value=True,
+    ), patch(
+        "src.skills.generate_program.handler.e2b_runner.execute_code",
+        new_callable=AsyncMock,
+        return_value=result,
+    )
+
+
+# --- Core skill tests ---
+
+
 @pytest.mark.asyncio
 async def test_generates_python_file(skill, ctx):
     """Generates a .py file and returns as document."""
     code = '#!/usr/bin/env python3\n"""Calorie tracker."""\nprint("hello")'
-    with patch(
-        "src.skills.generate_program.handler.generate_text",
-        new_callable=AsyncMock,
-        return_value=code,
-    ):
+    with _patch_gen(code), _patch_e2b_off():
         result = await skill.execute(
             _msg("напиши калькулятор калорий"),
             ctx,
@@ -68,11 +97,7 @@ async def test_generates_python_file(skill, ctx):
 async def test_generates_js_when_requested(skill, ctx):
     """Uses .js extension when JavaScript is specified."""
     code = 'console.log("hello");'
-    with patch(
-        "src.skills.generate_program.handler.generate_text",
-        new_callable=AsyncMock,
-        return_value=code,
-    ):
+    with _patch_gen(code), _patch_e2b_off():
         result = await skill.execute(
             _msg("write a JS script"),
             ctx,
@@ -86,11 +111,7 @@ async def test_generates_js_when_requested(skill, ctx):
 async def test_strips_markdown_fences(skill, ctx):
     """Markdown fences are stripped from LLM output."""
     raw = '```python\nprint("hello")\n```'
-    with patch(
-        "src.skills.generate_program.handler.generate_text",
-        new_callable=AsyncMock,
-        return_value=raw,
-    ):
+    with _patch_gen(raw), _patch_e2b_off():
         result = await skill.execute(
             _msg("hello world"),
             ctx,
@@ -105,14 +126,215 @@ async def test_empty_description_asks_for_details(skill, ctx):
     """Empty description returns a prompt asking what to generate."""
     result = await skill.execute(_msg(""), ctx, {})
 
-    assert "describe" in result.response_text.lower() or "program" in result.response_text.lower()
+    assert (
+        "describe" in result.response_text.lower()
+        or "program" in result.response_text.lower()
+    )
     assert result.document is None
 
 
 @pytest.mark.asyncio
 async def test_model_is_sonnet(skill):
-    """Skill uses Claude Sonnet 4.6."""
+    """Skill default model is Claude Sonnet 4.6."""
     assert skill.model == "claude-sonnet-4-6"
+
+
+# --- Multi-model routing tests ---
+
+
+@pytest.mark.asyncio
+async def test_routes_python_to_sonnet(skill, ctx):
+    """Python code routes to Claude Sonnet 4.6."""
+    code = 'print("hello")'
+    with _patch_gen(code) as mock_gen, _patch_e2b_off():
+        await skill.execute(
+            _msg("write a python script"),
+            ctx,
+            {"program_description": "hello world", "program_language": "python"},
+        )
+
+    mock_gen.assert_called_once()
+    assert mock_gen.call_args.kwargs["model"] == "claude-sonnet-4-6"
+
+
+@pytest.mark.asyncio
+async def test_routes_bash_to_gpt(skill, ctx):
+    """Bash code routes to GPT-5.2."""
+    code = '#!/bin/bash\necho "hello"'
+    with _patch_gen(code) as mock_gen, _patch_e2b_off():
+        await skill.execute(
+            _msg("write a bash script"),
+            ctx,
+            {"program_description": "backup script", "program_language": "bash"},
+        )
+
+    mock_gen.assert_called_once()
+    assert mock_gen.call_args.kwargs["model"] == "gpt-5.2"
+
+
+@pytest.mark.asyncio
+async def test_routes_html_to_gemini(skill, ctx):
+    """HTML code routes to Gemini 3 Flash."""
+    code = "<!DOCTYPE html><html><body>Hello</body></html>"
+    with _patch_gen(code) as mock_gen, _patch_e2b_off():
+        await skill.execute(
+            _msg("create an HTML page"),
+            ctx,
+            {"program_description": "landing page", "program_language": "html"},
+        )
+
+    mock_gen.assert_called_once()
+    assert mock_gen.call_args.kwargs["model"] == "gemini-3-flash-preview"
+
+
+@pytest.mark.asyncio
+async def test_routes_docker_description_to_gpt(skill, ctx):
+    """Docker-related description routes to GPT-5.2 even without language."""
+    code = "FROM python:3.12\nCOPY . .\nCMD [\"python\", \"app.py\"]"
+    with _patch_gen(code) as mock_gen, _patch_e2b_off():
+        await skill.execute(
+            _msg("create a dockerfile"),
+            ctx,
+            {"program_description": "dockerfile for my flask app"},
+        )
+
+    mock_gen.assert_called_once()
+    assert mock_gen.call_args.kwargs["model"] == "gpt-5.2"
+
+
+@pytest.mark.asyncio
+async def test_routes_react_description_to_gemini(skill, ctx):
+    """React-related description routes to Gemini 3 Flash."""
+    code = "import React from 'react';\nexport default function App() {}"
+    with _patch_gen(code) as mock_gen, _patch_e2b_off():
+        await skill.execute(
+            _msg("make a react component"),
+            ctx,
+            {"program_description": "react component for todo list"},
+        )
+
+    mock_gen.assert_called_once()
+    assert mock_gen.call_args.kwargs["model"] == "gemini-3-flash-preview"
+
+
+# --- E2B execution tests ---
+
+
+@pytest.mark.asyncio
+async def test_execution_output_shown(skill, ctx):
+    """Successful execution output appears in response."""
+    code = 'print("Hello World")'
+    exec_result = ExecutionResult(stdout="Hello World\n")
+    p_cfg, p_exec = _patch_e2b_on(exec_result)
+
+    with _patch_gen(code), p_cfg, p_exec:
+        result = await skill.execute(
+            _msg("hello world script"),
+            ctx,
+            {"program_description": "hello world"},
+        )
+
+    assert "Hello World" in result.response_text
+    assert "<b>Output:</b>" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_execution_error_shown(skill, ctx):
+    """Execution error appears in response."""
+    code = "1 / 0"
+    exec_result = ExecutionResult(error="ZeroDivisionError: division by zero")
+    p_cfg, p_exec = _patch_e2b_on(exec_result)
+
+    with _patch_gen(code), p_cfg, p_exec:
+        result = await skill.execute(
+            _msg("divide by zero"),
+            ctx,
+            {"program_description": "divide by zero"},
+        )
+
+    assert "ZeroDivisionError" in result.response_text
+    assert "<b>Error:</b>" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_execution_web_app_url(skill, ctx):
+    """Web app URL appears in response."""
+    code = 'from flask import Flask\napp = Flask(__name__)\napp.run()'
+    exec_result = ExecutionResult(url="https://5000-abc123.e2b.app")
+    p_cfg, p_exec = _patch_e2b_on(exec_result)
+
+    with _patch_gen(code), p_cfg, p_exec:
+        result = await skill.execute(
+            _msg("flask app"),
+            ctx,
+            {"program_description": "flask hello world"},
+        )
+
+    assert "https://5000-abc123.e2b.app" in result.response_text
+    assert "Open in browser" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_no_execution_without_api_key(skill, ctx):
+    """Without E2B key, only file is returned (no execution output)."""
+    code = 'print("hello")'
+    with _patch_gen(code), _patch_e2b_off():
+        result = await skill.execute(
+            _msg("hello"),
+            ctx,
+            {"program_description": "hello"},
+        )
+
+    assert result.document is not None
+    assert "<b>Output:</b>" not in result.response_text
+    assert "Open in browser" not in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_execution_timeout_shown(skill, ctx):
+    """Timeout message appears in response."""
+    code = "import time\ntime.sleep(100)"
+    exec_result = ExecutionResult(
+        timed_out=True,
+        error="Execution timed out after 30s",
+    )
+    p_cfg, p_exec = _patch_e2b_on(exec_result)
+
+    with _patch_gen(code), p_cfg, p_exec:
+        result = await skill.execute(
+            _msg("slow script"),
+            ctx,
+            {"program_description": "slow script"},
+        )
+
+    assert "timed out" in result.response_text.lower()
+
+
+# --- Unit tests for _select_model ---
+
+
+def test_select_model_python():
+    assert _select_model("python", "anything") == "claude-sonnet-4-6"
+
+
+def test_select_model_bash():
+    assert _select_model("bash", "anything") == "gpt-5.2"
+
+
+def test_select_model_javascript():
+    assert _select_model("javascript", "anything") == "gemini-3-flash-preview"
+
+
+def test_select_model_docker_from_description():
+    assert _select_model("", "create a dockerfile") == "gpt-5.2"
+
+
+def test_select_model_react_from_description():
+    assert _select_model("", "build a react component") == "gemini-3-flash-preview"
+
+
+def test_select_model_default():
+    assert _select_model("", "some program") == "claude-sonnet-4-6"
 
 
 # --- Unit tests for helper functions ---
