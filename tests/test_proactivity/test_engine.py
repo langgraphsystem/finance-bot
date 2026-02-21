@@ -183,3 +183,41 @@ async def test_format_trigger_overdue_invoice_ru():
     assert "Просроченных платежей" in msg
     assert "$1500" in msg
     assert "Показать список" in msg
+
+
+# --- Non-EN/RU locale → LLM fallback ---
+
+
+async def test_format_trigger_budget_alert_es_uses_llm():
+    """Spanish (or any non-EN/RU) should fall through to LLM for localization."""
+    data = {
+        "name": "budget_alert",
+        "action": "budget_warning",
+        "data": {"total_budget": 2000, "total_spent": 1800, "ratio_pct": 90},
+    }
+    mock_response = type("R", (), {
+        "content": [type("B", (), {"text": "Alerta de presupuesto: $1800 de $2000"})()],
+    })()
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
+    with patch("src.proactivity.engine.anthropic_client", return_value=mock_client):
+        msg = await _format_trigger(data, "es")
+    assert "1800" in msg
+    mock_client.messages.create.assert_awaited_once()
+
+
+async def test_format_trigger_task_deadline_es_uses_llm():
+    """Task deadline in Spanish should use LLM, not hardcoded template."""
+    data = {
+        "name": "task_deadline",
+        "action": "deadline_warning",
+        "data": {"tasks": [{"title": "Comprar leche", "due_at": "2026-02-19T14:00:00"}]},
+    }
+    mock_response = type("R", (), {
+        "content": [type("B", (), {"text": "Plazos próximos: Comprar leche"})()],
+    })()
+    mock_client = AsyncMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_response)
+    with patch("src.proactivity.engine.anthropic_client", return_value=mock_client):
+        msg = await _format_trigger(data, "es")
+    assert "Comprar leche" in msg

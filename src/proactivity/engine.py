@@ -112,58 +112,90 @@ async def run_for_user(
     return messages
 
 
-def _is_ru(language: str) -> bool:
-    return language.lower().startswith("ru")
+def _lang_key(language: str) -> str:
+    """Return normalized language key: 'en', 'ru', or original for LLM fallback."""
+    low = language.lower().strip()
+    if low.startswith("ru"):
+        return "ru"
+    if low.startswith("en"):
+        return "en"
+    return low
 
 
-async def _format_trigger(trigger_data: dict[str, Any], language: str) -> str:
-    """Format a single fired trigger into a user-facing message."""
-    name = trigger_data["name"]
-    data = trigger_data["data"]
-    ru = _is_ru(language)
+def _format_task_deadline(data: dict, lang: str) -> str | None:
+    tasks = data.get("tasks", [])
+    if lang == "ru":
+        header, footer, due = "Ближайшие дедлайны:", "\nПеренести что-нибудь?", "до"
+    elif lang == "en":
+        header, footer, due = "Upcoming deadlines:", "\nWant me to reschedule any of these?", "due"
+    else:
+        return None  # unknown language → LLM
+    lines = [f"<b>{header}</b>"]
+    for t in tasks:
+        lines.append(f"- {t['title']} ({due} {t['due_at'][:16]})")
+    lines.append(footer)
+    return "\n".join(lines)
 
-    # Simple triggers — format without LLM
-    if name == "task_deadline":
-        tasks = data.get("tasks", [])
-        header = "Ближайшие дедлайны:" if ru else "Upcoming deadlines:"
-        footer = "\nПеренести что-нибудь?" if ru else "\nWant me to reschedule any of these?"
-        due_label = "до" if ru else "due"
-        lines = [f"<b>{header}</b>"]
-        for t in tasks:
-            lines.append(f"- {t['title']} ({due_label} {t['due_at'][:16]})")
-        lines.append(footer)
-        return "\n".join(lines)
 
-    if name == "budget_alert":
-        pct = data.get("ratio_pct", 0)
-        spent = data.get("total_spent", 0)
-        budget = data.get("total_budget", 0)
-        if ru:
-            return (
-                f"<b>Бюджет:</b> потрачено ${spent:.0f} из ${budget:.0f} ({pct}%).\n"
-                f"Показать разбивку по категориям?"
-            )
+def _format_budget_alert(data: dict, lang: str) -> str | None:
+    pct = data.get("ratio_pct", 0)
+    spent = data.get("total_spent", 0)
+    budget = data.get("total_budget", 0)
+    if lang == "ru":
+        return (
+            f"<b>Бюджет:</b> потрачено ${spent:.0f} из ${budget:.0f} ({pct}%).\n"
+            f"Показать разбивку по категориям?"
+        )
+    if lang == "en":
         return (
             f"<b>Budget alert:</b> You've spent ${spent:.0f} of your "
             f"${budget:.0f} monthly budget ({pct}%).\n"
             f"Want to see a breakdown by category?"
         )
+    return None
 
-    if name == "overdue_invoice":
-        overdue = data.get("overdue", [])
-        total = sum(o["amount"] for o in overdue)
-        if ru:
-            count = len(overdue)
-            return (
-                f"<b>Просроченных платежей: {count}</b> на ${total:.0f}.\n"
-                f"Показать список?"
-            )
+
+def _format_overdue_invoice(data: dict, lang: str) -> str | None:
+    overdue = data.get("overdue", [])
+    total = sum(o["amount"] for o in overdue)
+    count = len(overdue)
+    if lang == "ru":
         return (
-            f"<b>{len(overdue)} overdue payment(s)</b> totaling ${total:.0f}.\n"
+            f"<b>Просроченных платежей: {count}</b> на ${total:.0f}.\n"
+            f"Показать список?"
+        )
+    if lang == "en":
+        return (
+            f"<b>{count} overdue payment(s)</b> totaling ${total:.0f}.\n"
             f"Want me to list them?"
         )
+    return None
 
-    # Fallback: use LLM for unknown trigger types
+
+_SIMPLE_FORMATTERS: dict[str, Any] = {
+    "task_deadline": _format_task_deadline,
+    "budget_alert": _format_budget_alert,
+    "overdue_invoice": _format_overdue_invoice,
+}
+
+
+async def _format_trigger(trigger_data: dict[str, Any], language: str) -> str:
+    """Format a single fired trigger into a user-facing message.
+
+    Uses fast templates for EN/RU, falls back to LLM for any other language.
+    """
+    name = trigger_data["name"]
+    data = trigger_data["data"]
+    lang = _lang_key(language)
+
+    # Try fast template (returns None if language not supported)
+    formatter = _SIMPLE_FORMATTERS.get(name)
+    if formatter:
+        result = formatter(data, lang)
+        if result is not None:
+            return result
+
+    # LLM fallback: unknown trigger type OR unsupported language
     client = anthropic_client()
     system = PROACTIVE_SYSTEM_PROMPT.format(language=language)
     user_content = f"Trigger: {name}\nData: {data}"
