@@ -35,6 +35,8 @@ Rules:
 - For Python: ALWAYS use Flask with inline HTML templates \
 (render_template_string). Never use input()/stdin.
   Minimal pattern: Flask app with routes that render HTML forms.
+  CRITICAL: always use app.run(host='0.0.0.0', port=5000, debug=False).
+  CRITICAL: always add "# pip install flask" comment at the very first line.
 - For JavaScript: create a standalone HTML page with embedded <script>.
 - For HTML/CSS: create a standalone HTML page.
 - Include all HTML inline (no separate template files).

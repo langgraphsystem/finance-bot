@@ -137,6 +137,13 @@ async def execute_code(
     try:
         # Install dependencies if detected
         deps = _extract_deps(code, language)
+
+        # Auto-install Flask for Python web apps if not explicitly listed
+        if web_app and language == "python":
+            has_flask_dep = any("flask" in d.lower() for d in deps)
+            if not has_flask_dep:
+                deps.insert(0, "pip install flask")
+
         for dep_cmd in deps:
             logger.info("Installing dependency: %s", dep_cmd)
             await sandbox.run_code(dep_cmd, language="bash", timeout=60)
@@ -144,6 +151,17 @@ async def execute_code(
         if web_app:
             # For web apps: run in background, wait briefly, get URL
             port = _detect_port(code)
+
+            # Ensure Flask binds to 0.0.0.0 (not 127.0.0.1)
+            if language == "python" and "host=" not in code:
+                code = code.replace(
+                    "app.run()",
+                    "app.run(host='0.0.0.0', port=5000)",
+                )
+                code = code.replace(
+                    "app.run(debug=True)",
+                    "app.run(host='0.0.0.0', port=5000, debug=True)",
+                )
 
             # Start the server (non-blocking — it will keep running)
             stdout_parts: list[str] = []
@@ -164,8 +182,8 @@ async def execute_code(
                     pass
 
             asyncio.create_task(_run())
-            # Wait for the server to start
-            await asyncio.sleep(3)
+            # Wait for the server to start (5s for pip install + startup)
+            await asyncio.sleep(5)
 
             # Get public URL
             try:
