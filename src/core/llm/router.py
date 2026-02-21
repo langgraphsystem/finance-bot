@@ -13,7 +13,7 @@ class ModelConfig:
 TASK_MODEL_MAP: dict[str, ModelConfig] = {
     "intent_detection": ModelConfig(
         provider="google",
-        model_id="gemini-3-flash-preview",
+        model_id="gemini-3.1-pro-preview",
         fallback_provider="anthropic",
         fallback_model_id="claude-haiku-4-5",
     ),
