@@ -72,6 +72,9 @@ SCOPE_ALIASES: dict[str, str] = {
     "жизнь": "life_events",
     "tasks": "tasks",
     "задачи": "tasks",
+    "reminders": "reminders",
+    "напоминания": "reminders",
+    "напоминание": "reminders",
     "shopping": "shopping",
     "покупки": "shopping",
     "список покупок": "shopping",
@@ -94,6 +97,7 @@ SCOPE_LABELS: dict[str, str] = {
     "notes": "заметки",
     "life_events": "life-записи (еда, напитки, настроение, заметки)",
     "tasks": "задачи",
+    "reminders": "напоминания",
     "shopping": "элементы списка покупок",
     "messages": "историю сообщений",
     "all": "все данные",
@@ -573,6 +577,10 @@ async def _delete_records(
             q = delete(LifeEvent).where(LifeEvent.user_id == uid)
             if start and end:
                 q = q.where(LifeEvent.date >= start, LifeEvent.date <= end)
+        elif scope == "reminders":
+            q = delete(Task).where(Task.user_id == uid, Task.reminder_at.isnot(None))
+            if start and end:
+                q = q.where(func.date(Task.created_at) >= start, func.date(Task.created_at) <= end)
         elif scope == "tasks":
             q = delete(Task).where(Task.user_id == uid)
             if start and end:
