@@ -33,16 +33,23 @@
             <span>Finance AI</span>
         </div>
         <div class="nav-links">
-            <a href="#features">Возможности</a>
-            <a href="#how-it-works">Как работает</a>
-            <a href="#pricing">Тарифы</a>
-            <a href="#">Документация</a>
-            <a href="#">Блог</a>
+            <a href="#features" data-i18n="nav_features">Возможности</a>
+            <a href="#how-it-works" data-i18n="nav_how">Как работает</a>
+            <a href="#pricing" data-i18n="nav_pricing">Тарифы</a>
+            <a href="#" data-i18n="nav_docs">Документация</a>
+            <a href="#" data-i18n="nav_blog">Блог</a>
         </div>
         <div class="nav-actions">
-            <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn">Войти</a>
-            <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn">Начать бесплатно <i
-                    class="fa-solid fa-arrow-right"></i></a>
+            <div class="lang-selector">
+                <select id="language-select" class="btn-outline">
+                    <option value="ru">🇷🇺 RU</option>
+                    <option value="en">🇺🇸 EN</option>
+                    <option value="es">🇪🇸 ES</option>
+                </select>
+            </div>
+            <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn" data-i18n="nav_login">Войти</a>
+            <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><span data-i18n="nav_start">Начать
+                    бесплатно</span> <i class="fa-solid fa-arrow-right"></i></a>
         </div>
     </nav>
 
@@ -52,19 +59,20 @@
             <div class="badge-wrap">
                 <div class="badge">
                     <span class="badge-dot"></span>
-                    <span class="badge-text">Работает на Claude 3.5 & Gemini Flash</span>
+                    <span class="badge-text" data-i18n="hero_badge">Работает на Claude 3.5 & Gemini Flash</span>
                 </div>
             </div>
 
-            <h1 class="hero-title">Ваш персональный <br><span class="gradient-text type-effect">финансовый
-                    AI-ассистент</span></h1>
-            <p class="hero-subtitle">Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально
-                для малого бизнеса, фрилансеров и семей.</p>
+            <h1 class="hero-title" data-i18n="hero_title">Ваш персональный <br><span
+                    class="gradient-text type-effect">финансовый AI-ассистент</span></h1>
+            <p class="hero-subtitle" data-i18n="hero_subtitle">Управляйте деньгами, задачами и расписанием прямо в
+                любимом мессенджере. Идеально для малого бизнеса, фрилансеров и семей.</p>
             <div class="hero-cta">
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large">Начать использовать <i
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large"><span
+                        data-i18n="hero_btn_start">Начать использовать</span> <i
                         class="fa-solid fa-arrow-right"></i></a>
                 <a href="#features" class="btn btn-outline btn-large code-btn"><i class="fa-solid fa-terminal"></i>
-                    Читать документацию</a>
+                    <span data-i18n="hero_btn_docs">Читать документацию</span></a>
             </div>
         </div>
 
@@ -81,16 +89,17 @@
                     <div class="cmd-line"><span class="prompt">~ %</span> <span class="cmd-input">finance record
                             expense</span></div>
                     <div class="cmd-response hidden" id="cmd-resp-1">
-                        <span class="clr-blue">?</span> Enter amount Details: <span class="clr-green">"Заправил трак на
-                            150 баксов"</span><br>
-                        <span class="clr-dim">Processing with Finance AI...</span>
+                        <span class="clr-blue">?</span> Enter amount Details: <span class="clr-green"
+                            id="term_input">"Заправил трак на 150 баксов"</span><br>
+                        <span class="clr-dim" id="term_processing">Processing with Finance AI...</span>
                     </div>
                     <div class="cmd-response hidden" id="cmd-resp-2">
                         <br>
                         <span class="clr-green">✔</span> <strong>Success!</strong> Recorded to your Tracker.<br>
-                        <span class="clr-purple">Category:</span> Транспорт / Топливо<br>
+                        <span class="clr-purple">Category:</span> <span id="term_cat">Транспорт / Топливо</span><br>
                         <span class="clr-purple">Amount:</span> $150.00<br>
-                        <span class="clr-dim">Note: Записано в расходы. Это 15% от бюджета на месяц.</span><br>
+                        <span class="clr-dim" id="term_note">Note: Записано в расходы. Это 15% от бюджета на
+                            месяц.</span><br>
                         <br>
                         <span class="prompt">~ %</span> <span class="cursor-blink">_</span>
                     </div>
@@ -101,7 +110,8 @@
 
     <!-- Integrations Logos -->
     <section class="integrations reveal">
-        <p class="section-label text-center">ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ ИНСТРУМЕНТАМИ</p>
+        <p class="section-label text-center" data-i18n="integrations_label">ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ
+            ИНСТРУМЕНТАМИ</p>
         <div class="marquee-wrapper">
             <div class="marquee-content" style="display: flex;">
                 <div class="integration-logo"><i class="fab fa-telegram"></i> Telegram</div>
@@ -122,12 +132,13 @@
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
-                    <span class="badge-text">ПОЛНЫЙ КОНТРОЛЬ</span>
+                    <span class="badge-text" data-i18n="features_badge">ПОЛНЫЙ КОНТРОЛЬ</span>
                 </div>
             </div>
-            <h2 class="section-title">Всё, что вам нужно. <br>В <span class="gradient-text">одном</span> чате.</h2>
-            <p class="section-subtitle">Забудьте о сложных таблицах и десятках приложений. Просто напишите команду или
-                отправьте фото.</p>
+            <h2 class="section-title" data-i18n="features_title">Всё, что вам нужно. <br>В <span
+                    class="gradient-text">одном</span> чате.</h2>
+            <p class="section-subtitle" data-i18n="features_subtitle">Забудьте о сложных таблицах и десятках приложений.
+                Просто напишите команду или отправьте фото.</p>
         </div>
 
         <div class="bento-grid">
@@ -136,9 +147,10 @@
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
-                    <h3>Smart OCR чеков</h3>
-                    <p class="clr-dim">Умное извлечение данных. Отправьте фото скомканного чека. AI мгновенно распознает
-                        мерчанта, товары, налоги и раскидает по категориям с помощью Gemini Flash 3.</p>
+                    <h3 data-i18n="f1_title">Smart OCR чеков</h3>
+                    <p class="clr-dim" data-i18n="f1_desc">Умное извлечение данных. Отправьте фото скомканного чека. AI
+                        мгновенно распознает мерчанта, товары, налоги и раскидает по категориям с помощью Gemini Flash
+                        3.</p>
 
                     <div class="code-preview mt-4">
                         <div class="code-header">receipt_parser.py</div>
@@ -156,9 +168,9 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
-                    <h3>Голосовой ввод</h3>
-                    <p class="clr-dim">За рулем? Просто скажите: "Я купил материалы на две тысячи". Идеально распознает
-                        и структурирует любой язык в реальном времени.</p>
+                    <h3 data-i18n="f2_title">Голосовой ввод</h3>
+                    <p class="clr-dim" data-i18n="f2_desc">За рулем? Просто скажите: "Я купил материалы на две тысячи".
+                        Идеально распознает и структурирует любой язык в реальном времени.</p>
                 </div>
             </div>
 
@@ -167,9 +179,9 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
-                    <h3>Life & Calendar</h3>
-                    <p class="clr-dim">Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные
-                        утренние сводки через Telegram.</p>
+                    <h3 data-i18n="f3_title">Life & Calendar</h3>
+                    <p class="clr-dim" data-i18n="f3_desc">Трекайте настроение, задачи и встречи в Google Calendar.
+                        Получайте проактивные утренние сводки через Telegram.</p>
                 </div>
             </div>
 
@@ -178,14 +190,14 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
-                    <h3>Мульти-агентная аналитика</h3>
-                    <p class="clr-dim">Запрашивайте сложные отчеты: "Покажи мои траты на авто за полгода по месяцам".
-                        Claude 3.5 Sonnet генерирует точные графики прямо в чат.</p>
+                    <h3 data-i18n="f4_title">Мульти-агентная аналитика</h3>
+                    <p class="clr-dim" data-i18n="f4_desc">Запрашивайте сложные отчеты: "Покажи мои траты на авто за
+                        полгода по месяцам". Claude 3.5 Sonnet генерирует точные графики прямо в чат.</p>
                 </div>
                 <div class="bento-visual">
                     <div class="chart-demo-code">
                         <pre><code><span class="clr-pink">{</span>
-  <span class="clr-green">"query"</span>: <span class="clr-blue">"Авто за полгода"</span>,
+  <span class="clr-green">"query"</span>: <span class="clr-blue" id="code_query">"Авто за полгода"</span>,
   <span class="clr-green">"result"</span>: <span class="clr-pink">{</span>
     <span class="clr-green">"Jul"</span>: 120, <span class="clr-green">"Aug"</span>: 150, <span class="clr-green">"Sep"</span>: 300,
     <span class="clr-green">"Oct"</span>: 110, <span class="clr-green">"Nov"</span>: 180, <span class="clr-green">"Dec"</span>: 90
@@ -202,56 +214,56 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
-                    <span class="badge-text">USE CASES</span>
+                    <span class="badge-text" data-i18n="uc_badge">USE CASES</span>
                 </div>
             </div>
-            <h2 class="section-title">Создан под <span class="gradient-text">вашу</span> жизнь</h2>
+            <h2 class="section-title" data-i18n="uc_title">Создан под <span class="gradient-text">вашу</span> жизнь</h2>
         </div>
 
         <div class="use-cases-grid reveal">
             <!-- Case 1 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
                 <div class="glow-mouse"></div>
                 <div class="uc-icon"><i class="fa-solid fa-briefcase"></i></div>
                 <div class="uc-content">
-                    <h3>Для малого бизнеса и фриланса</h3>
-                    <p class="clr-dim">Бот запоминает категории ваших расходов (Материалы, Реклама, Подрядчики).
-                        Фотографируйте накладные, чтобы ничего не забыть для налоговой, и ведите CRM-контакты клиентов.
-                    </p>
+                    <h3 data-i18n="uc1_title">Для малого бизнеса и фриланса</h3>
+                    <p class="clr-dim" data-i18n="uc1_desc">Бот запоминает категории ваших расходов (Материалы, Реклама,
+                        Подрядчики). Фотографируйте накладные, чтобы ничего не забыть для налоговой, и ведите
+                        CRM-контакты клиентов.</p>
                 </div>
                 <div class="uc-tags">
-                    <span class="tag">Инвойсы</span>
+                    <span class="tag" data-i18n="tag_invoice">Инвойсы</span>
                     <span class="tag">CRM</span>
-                    <span class="tag">Налоги</span>
+                    <span class="tag" data-i18n="tag_taxes">Налоги</span>
                 </div>
             </div>
 
             <!-- Case 2 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
                 <div class="glow-mouse"></div>
                 <div class="uc-icon"><i class="fa-solid fa-people-roof"></i></div>
                 <div class="uc-content">
-                    <h3>Совместный семейный бюджет</h3>
-                    <p class="clr-dim">Подключите супругов к одному семейному аккаунту в Telegram. Каждый вносит свои
-                        траты, а владелец видит полную картину с разделением доступов.</p>
+                    <h3 data-i18n="uc2_title">Совместный семейный бюджет</h3>
+                    <p class="clr-dim" data-i18n="uc2_desc">Подключите супругов к одному семейному аккаунту в Telegram.
+                        Каждый вносит свои траты, а владелец видит полную картину с разделением доступов.</p>
                 </div>
                 <div class="uc-tags">
-                    <span class="tag">Синхронизация</span>
-                    <span class="tag">Списки покупок</span>
+                    <span class="tag" data-i18n="tag_sync">Синхронизация</span>
+                    <span class="tag" data-i18n="tag_list">Списки покупок</span>
                 </div>
             </div>
 
             <!-- Case 3 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(255, 255, 255, 0.05)">
+            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
                 <div class="glow-mouse"></div>
                 <div class="uc-icon"><i class="fa-solid fa-truck"></i></div>
                 <div class="uc-content">
-                    <h3>Для таксистов и дальнобойщиков</h3>
-                    <p class="clr-dim">Записывайте топливо, ремонт и сборы на ходу с помощью голосовых команд. Получайте
-                        сводки для IFTA-отчетов без отрыва от руля.</p>
+                    <h3 data-i18n="uc3_title">Для таксистов и дальнобойщиков</h3>
+                    <p class="clr-dim" data-i18n="uc3_desc">Записывайте топливо, ремонт и сборы на ходу с помощью
+                        голосовых команд. Получайте сводки для IFTA-отчетов без отрыва от руля.</p>
                 </div>
                 <div class="uc-tags">
-                    <span class="tag">Голос</span>
+                    <span class="tag" data-i18n="tag_voice">Голос</span>
                     <span class="tag">Tolls</span>
                     <span class="tag">IFTA</span>
                 </div>
@@ -263,19 +275,21 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
     <section id="pricing" class="cta-section section-padding reveal">
         <div class="glow-bg glow-bottom"></div>
         <div class="cta-box">
-            <h2 class="section-title">Готовы делегировать хаос <span class="gradient-text">ИИ</span>?</h2>
-            <p class="clr-dim">Стройте свои финансы как код. Без скачивания лишних приложений.</p>
+            <h2 class="section-title" data-i18n="pricing_title">Готовы делегировать хаос <span
+                    class="gradient-text">ИИ</span>?</h2>
+            <p class="clr-dim" data-i18n="pricing_subtitle">Стройте свои финансы как код. Без скачивания лишних
+                приложений.</p>
 
             <div class="pricing-card">
                 <div class="price">
                     <span class="currency">$</span>
                     <span class="amount">49</span>
-                    <span class="period">/месяц</span>
+                    <span class="period" data-i18n="pricing_period">/месяц</span>
                 </div>
-                <p class="pricing-sub">Полный доступ ко всем модулям AI, распознаванию чеков, интеграции с календарем и
-                    приоритетная поддержка.</p>
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full">Перейти в Telegram <i
-                        class="fa-solid fa-arrow-right"></i></a>
+                <p class="pricing-sub" data-i18n="pricing_desc">Полный доступ ко всем модулям AI, распознаванию чеков,
+                    интеграции с календарем и приоритетная поддержка.</p>
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full"><span
+                        data-i18n="pricing_btn">Перейти в Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
             </div>
         </div>
     </section>
@@ -295,27 +309,27 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     </svg>
                     <span>Finance AI</span>
                 </div>
-                <p class="clr-dim mt-2">© 2026 Finance Bot. Все права защищены.</p>
+                <p class="clr-dim mt-2" data-i18n="footer_copy">© 2026 Finance Bot. Все права защищены.</p>
             </div>
             <div class="footer-links">
                 <div class="link-group">
-                    <h4>Продукт</h4>
-                    <a href="#">Возможности</a>
-                    <a href="#">Интеграции</a>
-                    <a href="#">Тарифы</a>
+                    <h4 data-i18n="footer_prod">Продукт</h4>
+                    <a href="#" data-i18n="nav_features">Возможности</a>
+                    <a href="#" data-i18n="footer_int">Интеграции</a>
+                    <a href="#" data-i18n="nav_pricing">Тарифы</a>
                     <a href="#">Changelog</a>
                 </div>
                 <div class="link-group">
-                    <h4>Ресурсы</h4>
-                    <a href="#">Документация</a>
-                    <a href="#">Блог</a>
-                    <a href="#">Поддержка</a>
+                    <h4 data-i18n="footer_res">Ресурсы</h4>
+                    <a href="#" data-i18n="nav_docs">Документация</a>
+                    <a href="#" data-i18n="nav_blog">Блог</a>
+                    <a href="#" data-i18n="footer_sup">Поддержка</a>
                 </div>
                 <div class="link-group">
-                    <h4>Компания</h4>
-                    <a href="#">О нас</a>
-                    <a href="#">Политика конфиденциальности</a>
-                    <a href="#">Условия использования</a>
+                    <h4 data-i18n="footer_comp">Компания</h4>
+                    <a href="#" data-i18n="footer_about">О нас</a>
+                    <a href="#" data-i18n="footer_priv">Политика конфиденциальности</a>
+                    <a href="#" data-i18n="footer_terms">Условия использования</a>
                 </div>
             </div>
         </div>
