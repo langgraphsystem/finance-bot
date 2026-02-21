@@ -246,6 +246,16 @@ async def _dispatch_message(
         if intent_name == "onboarding" and context.family_id:
             intent_name = "general_chat"
 
+        # Low confidence → redirect to universal fallback
+        if result.confidence < 0.5 and intent_name != "general_chat":
+            logger.info(
+                "Low confidence %.2f for intent %s, redirecting to general_chat",
+                result.confidence,
+                intent_name,
+            )
+            intent_data["original_intent"] = intent_name
+            intent_name = "general_chat"
+
         logger.info(
             "Intent: %s (%.2f) for user %s",
             intent_name,

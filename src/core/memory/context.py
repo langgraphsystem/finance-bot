@@ -59,7 +59,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "query_report": {"mem": "profile", "hist": 0, "sql": True, "sum": False},
     "correct_category": {"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     "complex_query": {"mem": "all", "hist": 5, "sql": True, "sum": True},
-    "general_chat": {"mem": False, "hist": 5, "sql": False, "sum": False},
+    "general_chat": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "undo_last": {"mem": False, "hist": 5, "sql": False, "sum": False},
     "delete_data": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "set_budget": {"mem": "budgets", "hist": 3, "sql": True, "sum": False},
