@@ -1,7 +1,10 @@
 """General chat skill — fallback for non-financial queries."""
 
 import logging
+import random
+from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
@@ -10,6 +13,56 @@ from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+# Fast-path: simple greetings answered without LLM
+_GREETING_WORDS = frozenset({
+    "привет", "здравствуй", "здравствуйте", "приветик", "хай", "хэй",
+    "hi", "hello", "hey", "добрый день", "доброе утро", "добрый вечер",
+    "йо", "yo", "здаров", "здарова", "прив", "ку", "хелло", "салам",
+    "ола", "hola", "здрасте", "здрасьте", "приветствую",
+})
+
+_GREETINGS_MORNING = [
+    "Доброе утро! Чем могу помочь?",
+    "Утро доброе! Что нужно сделать?",
+    "Доброе утро! Слушаю.",
+]
+_GREETINGS_DAY = [
+    "Привет! Чем могу помочь?",
+    "Привет! Что нужно?",
+    "Добрый день! Слушаю.",
+]
+_GREETINGS_EVENING = [
+    "Добрый вечер! Чем помочь?",
+    "Привет! Что нужно сделать?",
+    "Добрый вечер! Слушаю.",
+]
+_GREETINGS_NIGHT = [
+    "Привет! Не спится? Чем помочь?",
+    "Ещё не спишь? Чем могу помочь?",
+    "Привет! Слушаю.",
+]
+
+
+def _is_greeting(text: str) -> bool:
+    """Check if the message is a simple greeting."""
+    return text.lower().strip().rstrip("!.?  ") in _GREETING_WORDS
+
+
+def _time_greeting(tz_name: str) -> str:
+    """Return a time-appropriate greeting."""
+    try:
+        now = datetime.now(ZoneInfo(tz_name))
+    except Exception:
+        now = datetime.now(timezone(timedelta(hours=-5)))  # fallback EST
+    hour = now.hour
+    if 5 <= hour < 12:
+        return random.choice(_GREETINGS_MORNING)
+    if 12 <= hour < 18:
+        return random.choice(_GREETINGS_DAY)
+    if 18 <= hour < 23:
+        return random.choice(_GREETINGS_EVENING)
+    return random.choice(_GREETINGS_NIGHT)
 
 CHAT_SYSTEM_PROMPT = """\
 Ты — персональный AI-ассистент пользователя в Telegram.
@@ -65,6 +118,11 @@ class GeneralChatSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        # Fast-path: simple greetings — no LLM needed
+        text_raw = (message.text or "").strip()
+        if text_raw and _is_greeting(text_raw):
+            return SkillResult(response_text=_time_greeting(context.timezone))
+
         from src.core.memory import sliding_window
 
         # Log if this is a redirect from low-confidence intent

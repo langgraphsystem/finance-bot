@@ -112,24 +112,37 @@ async def run_for_user(
     return messages
 
 
+def _is_ru(language: str) -> bool:
+    return language.lower().startswith("ru")
+
+
 async def _format_trigger(trigger_data: dict[str, Any], language: str) -> str:
     """Format a single fired trigger into a user-facing message."""
     name = trigger_data["name"]
     data = trigger_data["data"]
+    ru = _is_ru(language)
 
     # Simple triggers — format without LLM
     if name == "task_deadline":
         tasks = data.get("tasks", [])
-        lines = ["<b>Upcoming deadlines:</b>"]
+        header = "Ближайшие дедлайны:" if ru else "Upcoming deadlines:"
+        footer = "\nПеренести что-нибудь?" if ru else "\nWant me to reschedule any of these?"
+        due_label = "до" if ru else "due"
+        lines = [f"<b>{header}</b>"]
         for t in tasks:
-            lines.append(f"- {t['title']} (due {t['due_at'][:16]})")
-        lines.append("\nWant me to reschedule any of these?")
+            lines.append(f"- {t['title']} ({due_label} {t['due_at'][:16]})")
+        lines.append(footer)
         return "\n".join(lines)
 
     if name == "budget_alert":
         pct = data.get("ratio_pct", 0)
         spent = data.get("total_spent", 0)
         budget = data.get("total_budget", 0)
+        if ru:
+            return (
+                f"<b>Бюджет:</b> потрачено ${spent:.0f} из ${budget:.0f} ({pct}%).\n"
+                f"Показать разбивку по категориям?"
+            )
         return (
             f"<b>Budget alert:</b> You've spent ${spent:.0f} of your "
             f"${budget:.0f} monthly budget ({pct}%).\n"
@@ -139,6 +152,12 @@ async def _format_trigger(trigger_data: dict[str, Any], language: str) -> str:
     if name == "overdue_invoice":
         overdue = data.get("overdue", [])
         total = sum(o["amount"] for o in overdue)
+        if ru:
+            count = len(overdue)
+            return (
+                f"<b>Просроченных платежей: {count}</b> на ${total:.0f}.\n"
+                f"Показать список?"
+            )
         return (
             f"<b>{len(overdue)} overdue payment(s)</b> totaling ${total:.0f}.\n"
             f"Want me to list them?"
