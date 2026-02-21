@@ -551,6 +551,59 @@ def _rule_based_delete_intent(text: str) -> IntentDetectionResult | None:
     )
 
 
+_PROGRAM_VERBS_RU = ("напиши", "создай", "сделай", "сгенерируй", "генерируй", "разработай")
+_PROGRAM_VERBS_EN = ("write", "create", "make", "generate", "build", "develop", "code")
+_PROGRAM_NOUNS_RU = (
+    "программ", "скрипт", "код", "парсер", "бот", "калькулятор",
+    "конвертер", "утилит", "автоматизаци", "генератор", "приложени",
+    "игр", "сервис", "api", "сайт", "страниц",
+)
+_PROGRAM_NOUNS_EN = (
+    "program", "script", "code", "parser", "bot", "calculator",
+    "converter", "utility", "automation", "generator", "app",
+    "game", "service", "api", "website", "page", "tool",
+)
+
+
+def _rule_based_generate_program(text: str) -> IntentDetectionResult | None:
+    """Fast-path generate_program for clear 'write a program' requests."""
+    lower = text.lower().strip()
+    if not lower:
+        return None
+
+    has_verb = any(v in lower for v in _PROGRAM_VERBS_RU + _PROGRAM_VERBS_EN)
+    if not has_verb:
+        return None
+
+    has_noun = any(n in lower for n in _PROGRAM_NOUNS_RU + _PROGRAM_NOUNS_EN)
+    if not has_noun:
+        return None
+
+    # Extract description: everything after the verb+noun pattern
+    description = lower
+    for v in _PROGRAM_VERBS_RU + _PROGRAM_VERBS_EN:
+        if v in description:
+            idx = description.find(v) + len(v)
+            description = description[idx:].strip()
+            break
+
+    # Strip leading noun if present (e.g., "программу калькулятор" → "калькулятор")
+    for n in _PROGRAM_NOUNS_RU + _PROGRAM_NOUNS_EN:
+        if description.startswith(n):
+            after = description[len(n):].strip()
+            if after:
+                description = after
+            break
+
+    return IntentDetectionResult(
+        intent="generate_program",
+        confidence=0.97,
+        intent_type="action",
+        data=IntentData(program_description=text.strip()),
+        response=None,
+    )
+
+
 @observe(name="detect_intent")
 async def detect_intent(
     text: str,
@@ -562,6 +615,10 @@ async def detect_intent(
     delete_fast_path = _rule_based_delete_intent(text)
     if delete_fast_path:
         return delete_fast_path
+
+    program_fast_path = _rule_based_generate_program(text)
+    if program_fast_path:
+        return program_fast_path
 
     categories_str = ""
     if categories:
