@@ -288,12 +288,13 @@ general_chat — крайний случай. Если сообщение хот
 анализирует видео, даёт маршруты, извлекает транскрипции
 
 Правила приоритета (writing vs general_chat):
-- "write/draft/compose/напиши/составь" + тема → draft_message
+- СНАЧАЛА ПРОВЕРЬ: "напиши/write/create/сделай" + программу/скрипт/парсер/код/бот/ \
+калькулятор/утилиту/конвертер/генератор/автоматизацию → generate_program (НЕ draft_message!)
+- "сделай карточку/трекер/картинку" → generate_card (НЕ generate_program)
+- "write/draft/compose/напиши/составь" + тема (НЕ код/программа) → draft_message
 - "translate/переведи" → translate_text
 - "review response/ответ на отзыв/caption/пост" → write_post
 - "proofread/check/проверь/fix grammar/исправь" → proofread
-- "напиши программу/скрипт/парсер/код/бот" → generate_program (НЕ draft_message)
-- "сделай карточку/трекер/картинку" → generate_card (НЕ generate_program)
 - Общая болтовня без запроса на написание → general_chat
 
 Правила приоритета (email/calendar — ВАЖНО):
