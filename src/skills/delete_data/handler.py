@@ -3,7 +3,7 @@
 import logging
 import re
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import delete, func, select
@@ -128,6 +128,122 @@ def _canonical_drink_key(text: str | None) -> str | None:
 def _extract_drink_key(text: str) -> str | None:
     """Extract drink name from raw user text."""
     return _canonical_drink_key(text)
+
+
+# --- Life event reference parsing (from timeline format) ---
+
+# Maps timeline emojis to LifeEventType
+_EMOJI_TO_TYPE: dict[str, LifeEventType] = {
+    "\U0001f4dd": LifeEventType.note,       # 📝
+    "\U0001f37d": LifeEventType.food,       # 🍽
+    "\u2615": LifeEventType.drink,           # ☕
+    "\U0001f60a": LifeEventType.mood,       # 😊
+    "\u2705": LifeEventType.task,            # ✅
+    "\U0001f319": LifeEventType.reflection, # 🌙
+    "\U0001f4cc": None,                      # 📌 generic
+}
+
+# Pattern: optional date (DD.MM.YYYY) + optional time (HH:MM) + emoji + text
+_LIFE_REF_PATTERN = re.compile(
+    r"(\d{1,2}\.\d{1,2}\.\d{4})?"      # optional date DD.MM.YYYY
+    r"\s*"
+    r"(\d{1,2}:\d{2})?"                 # optional time HH:MM
+    r"\s*"
+    r"([\U0001f4dd\U0001f37d\u2615\U0001f60a\u2705\U0001f319\U0001f4cc])"  # emoji
+    r"\s*"
+    r"(.+)",                             # event text
+    re.UNICODE,
+)
+
+
+def _parse_life_event_ref(text: str) -> dict[str, Any] | None:
+    """Try to parse a life event reference from user message.
+
+    Handles formats like:
+    - "17.02.2026  19:46 📝 нужно исправить кнопку"
+    - "📝 нужно исправить кнопку"
+    - "19:46 📝 нужно исправить кнопку"
+    """
+    m = _LIFE_REF_PATTERN.search(text)
+    if not m:
+        return None
+
+    date_str, time_str, emoji, event_text = m.groups()
+    event_type = _EMOJI_TO_TYPE.get(emoji)
+
+    parsed_date = None
+    if date_str:
+        try:
+            parsed_date = datetime.strptime(date_str, "%d.%m.%Y").date()
+        except ValueError:
+            pass
+
+    parsed_time = None
+    if time_str:
+        try:
+            parts = time_str.split(":")
+            parsed_time = (int(parts[0]), int(parts[1]))
+        except (ValueError, IndexError):
+            pass
+
+    return {
+        "date": parsed_date,
+        "time": parsed_time,  # (hour, minute) tuple or None
+        "type": event_type,
+        "text": event_text.strip(),
+    }
+
+
+async def _find_life_event_by_ref(
+    user_id: str,
+    family_id: str,
+    ref: dict[str, Any],
+) -> LifeEvent | None:
+    """Find a specific life event matching the parsed reference."""
+    uid = uuid.UUID(user_id)
+    fid = uuid.UUID(family_id)
+
+    async with async_session() as session:
+        stmt = (
+            select(LifeEvent)
+            .where(LifeEvent.user_id == uid, LifeEvent.family_id == fid)
+        )
+
+        if ref["type"]:
+            stmt = stmt.where(LifeEvent.type == ref["type"])
+
+        if ref["date"]:
+            stmt = stmt.where(LifeEvent.date == ref["date"])
+
+        stmt = stmt.order_by(LifeEvent.created_at.desc()).limit(50)
+        result = await session.execute(stmt)
+        events = list(result.scalars().all())
+
+    ref_text = ref["text"].lower().strip()
+
+    for event in events:
+        # Match by time if available
+        if ref["time"] and event.created_at:
+            if (event.created_at.hour, event.created_at.minute) != ref["time"]:
+                continue
+
+        # Match by text content
+        event_text = (event.text or "").lower().strip()
+        if ref_text and event_text and (ref_text in event_text or event_text in ref_text):
+            return event
+
+    return None
+
+
+def _format_life_event_preview(event: LifeEvent) -> str:
+    """Human-readable preview for a life event deletion."""
+    from src.core.life_helpers import _TYPE_LABELS, _type_icon
+
+    icon = _type_icon(event.type)
+    label = _TYPE_LABELS.get(event.type, "Запись")
+    text = (event.text or "")[:100]
+    timestamp = event.created_at.strftime("%d.%m.%Y %H:%M") if event.created_at else ""
+    return f"{icon} <b>{label}</b>\n{text}\nДата: {timestamp}"
 
 
 def _is_specific_drink_delete_request(
@@ -551,6 +667,40 @@ class DeleteDataSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        raw_text = message.text or ""
+
+        # Fast-path: user pasted a specific life event from timeline
+        ref = _parse_life_event_ref(raw_text)
+        if ref:
+            event = await _find_life_event_by_ref(
+                context.user_id, context.family_id, ref,
+            )
+            if event:
+                preview = _format_life_event_preview(event)
+                scope_key = {
+                    LifeEventType.note: "notes",
+                    LifeEventType.food: "food",
+                    LifeEventType.drink: "drinks",
+                    LifeEventType.mood: "mood",
+                }.get(event.type, "life_events")
+                pending_id = await store_pending_action(
+                    intent="delete_data",
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    action_data={
+                        "scope": scope_key,
+                        "single_life_event_id": str(event.id),
+                        "single_life_event_preview": preview,
+                    },
+                )
+                return SkillResult(
+                    response_text=f"Удалить запись?\n\n{preview}",
+                    buttons=[
+                        {"text": "\U0001f5d1 Удалить", "callback": f"confirm_action:{pending_id}"},
+                        {"text": "\u274c Отмена", "callback": f"cancel_action:{pending_id}"},
+                    ],
+                )
+
         raw_scope = intent_data.get("delete_scope") or ""
         scope = SCOPE_ALIASES.get(raw_scope.lower().strip(), raw_scope.lower().strip())
 
@@ -569,7 +719,6 @@ class DeleteDataSkill:
         period = intent_data.get("period")
         date_from = intent_data.get("date_from")
         date_to = intent_data.get("date_to")
-        raw_text = message.text or ""
 
         # If user references a concrete drink entry (e.g. "Напиток вода (250ml)"),
         # delete exactly one matching record instead of wiping the whole scope.
