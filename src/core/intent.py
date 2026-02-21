@@ -210,6 +210,12 @@ mood/notes/life_events/tasks/shopping/messages/all
 ("сделай трекер чтения на 30 дней", "нарисуй карточку списка покупок", \
 "create a habit tracker image", "сгенерируй красивую карточку"). \
 Извлеки card_topic: полное описание запроса пользователя
+- generate_program: написать/создать программу, скрипт, код, парсер, \
+калькулятор, утилиту, автоматизацию ("напиши парсер для сайта", \
+"сделай калькулятор калорий", "create a CSV converter script", \
+"напиши бота для телеграм", "write a Python script"). \
+Извлеки program_description: описание программы, \
+program_language: язык если указан (python, js, bash...)
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -286,6 +292,8 @@ general_chat — крайний случай. Если сообщение хот
 - "translate/переведи" → translate_text
 - "review response/ответ на отзыв/caption/пост" → write_post
 - "proofread/check/проверь/fix grammar/исправь" → proofread
+- "напиши программу/скрипт/парсер/код/бот" → generate_program (НЕ draft_message)
+- "сделай карточку/трекер/картинку" → generate_card (НЕ generate_program)
 - Общая болтовня без запроса на написание → general_chat
 
 Правила приоритета (email/calendar — ВАЖНО):

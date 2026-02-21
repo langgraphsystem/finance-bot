@@ -101,6 +101,10 @@ class IntentData(BaseModel):
     # Visual card generation
     card_topic: str | None = None
 
+    # Code generation
+    program_description: str | None = None
+    program_language: str | None = None
+
     # Geolocation: auto-detected city from message text
     detected_city: str | None = None
 
