@@ -1,14 +1,17 @@
 """Mood check-in skill — track mood, energy, stress, and sleep."""
 
 import logging
+from datetime import date, timedelta
 from typing import Any
 
 from src.core.context import SessionContext
 from src.core.life_helpers import (
     format_save_response,
     get_communication_mode,
+    query_life_events,
     save_life_event,
 )
+from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -20,11 +23,18 @@ MOOD_CHECKIN_SYSTEM_PROMPT = """Ты помогаешь пользователю
 Параметры: mood (настроение), energy (энергия), stress (стресс) — шкала 1-10.
 sleep_hours — количество часов сна (напр. 7.5)."""
 
+COACHING_SYSTEM_PROMPT = """\
+Ты помогаешь пользователю отрефлексировать своё состояние.
+Тебе даны текущие показатели и тренд за последние дни (если есть).
+Дай краткий, эмпатичный совет. Не ставь диагнозов.
+Если тренд ухудшается — мягко предложи действие.
+2-3 предложения. Используй HTML-теги для Telegram (<b>, <i>). Отвечай на языке пользователя."""
+
 
 class MoodCheckinSkill:
     name = "mood_checkin"
     intents = ["mood_checkin"]
-    model = "gpt-5.2"
+    model = "claude-sonnet-4-6"
 
     @observe(name="mood_checkin")
     async def execute(
@@ -86,21 +96,53 @@ class MoodCheckinSkill:
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
-            scale_vals = [v for k, v in data.items() if k != "sleep_hours"]
-            avg = sum(scale_vals) / len(scale_vals) if scale_vals else 5
-            tip = (
-                "Отличный день! Так держать."
-                if avg >= 7
-                else "Средний день — это нормально. Отдохните вечером."
-                if avg >= 4
-                else "Непростой день. Попробуйте прогулку или дыхательные упражнения."
-            )
-            return SkillResult(response_text=response + f"\n\U0001f4a1 {tip}")
+            try:
+                trend = await _get_mood_trend(context.family_id, context.user_id)
+                prompt_parts = [f"Текущие показатели: {summary}"]
+                if trend:
+                    prompt_parts.append(f"Тренд за последние дни:\n{trend}")
+                tip = await generate_text(
+                    model=self.model,
+                    system=COACHING_SYSTEM_PROMPT,
+                    prompt="\n".join(prompt_parts),
+                    max_tokens=200,
+                )
+            except Exception:
+                logger.exception("LLM coaching call failed for mood_checkin")
+                tip = "\U0001f4a1 Следите за динамикой — это помогает понять себя лучше."
+            return SkillResult(response_text=f"{response}\n{tip}")
         else:
             return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return MOOD_CHECKIN_SYSTEM_PROMPT
+
+
+async def _get_mood_trend(family_id: str, user_id: str) -> str:
+    """Build a short summary of mood events from the last 7 days."""
+    events = await query_life_events(
+        family_id=family_id,
+        user_id=user_id,
+        event_type=LifeEventType.mood,
+        date_from=date.today() - timedelta(days=7),
+        limit=14,
+    )
+    if not events:
+        return ""
+    lines: list[str] = []
+    for e in events:
+        d = e.data or {}
+        parts = []
+        if "mood" in d:
+            parts.append(f"mood={d['mood']}")
+        if "energy" in d:
+            parts.append(f"energy={d['energy']}")
+        if "stress" in d:
+            parts.append(f"stress={d['stress']}")
+        if parts:
+            day = e.created_at.strftime("%d.%m") if e.created_at else "?"
+            lines.append(f"{day}: {', '.join(parts)}")
+    return "\n".join(lines)
 
 
 skill = MoodCheckinSkill()

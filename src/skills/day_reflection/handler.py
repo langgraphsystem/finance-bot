@@ -9,6 +9,7 @@ from src.core.life_helpers import (
     get_communication_mode,
     save_life_event,
 )
+from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -19,6 +20,13 @@ logger = logging.getLogger(__name__)
 DAY_REFLECTION_SYSTEM_PROMPT = """Ты помогаешь пользователю подвести итоги дня.
 Если пользователь написал рефлексию, сохрани её.
 Если просто попросил "рефлексия" без деталей, задай наводящий вопрос."""
+
+COACHING_SYSTEM_PROMPT = """\
+Ты помогаешь пользователю осмыслить прошедший день.
+Пользователь поделился рефлексией. Дай тёплую, эмпатичную обратную связь.
+Найди позитивный инсайт. Не оценивай, не критикуй.
+2-3 предложения максимум. Используй HTML-теги для Telegram (<b>, <i>).
+Отвечай на языке пользователя."""
 
 # Trigger words that indicate the user wants to start a reflection
 # but hasn't provided actual content yet
@@ -35,7 +43,7 @@ BARE_TRIGGERS = {
 class DayReflectionSkill:
     name = "day_reflection"
     intents = ["day_reflection"]
-    model = "gpt-5.2"
+    model = "claude-sonnet-4-6"
 
     @observe(name="day_reflection")
     async def execute(
@@ -70,10 +78,17 @@ class DayReflectionSkill:
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
-            return SkillResult(
-                response_text=response
-                + "\n\U0001f4a1 Регулярная рефлексия улучшает осознанность и продуктивность."
-            )
+            try:
+                tip = await generate_text(
+                    model=self.model,
+                    system=COACHING_SYSTEM_PROMPT,
+                    prompt=f"Рефлексия пользователя:\n{text_stripped}",
+                    max_tokens=200,
+                )
+            except Exception:
+                logger.exception("LLM coaching call failed for day_reflection")
+                tip = "\U0001f4a1 Регулярная рефлексия улучшает осознанность и продуктивность."
+            return SkillResult(response_text=f"{response}\n{tip}")
         else:
             return SkillResult(response_text=response)
 

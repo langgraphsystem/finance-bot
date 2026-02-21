@@ -123,40 +123,102 @@ async def test_values_clamped_to_max_10(skill, message, ctx):
 
 
 @pytest.mark.asyncio
-async def test_coaching_tip_high_average(skill, message, ctx):
-    """Coaching tip for high average (>= 7) is positive."""
+async def test_coaching_mode_calls_llm(skill, message, ctx):
+    """Coaching mode calls generate_text and includes LLM response."""
     intent_data = {"mood": 8, "energy": 9}
     p_save, p_mode = _patch_helpers(mode="coaching")
 
-    with p_save, p_mode:
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.mood_checkin.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="<b>Отличные показатели!</b> Продолжайте в том же духе.",
+        ) as mock_llm,
+        patch(
+            "src.skills.mood_checkin.handler._get_mood_trend",
+            new_callable=AsyncMock,
+            return_value="20.02: mood=7, energy=6",
+        ),
+    ):
         result = await skill.execute(message, ctx, intent_data)
 
-    assert "\U0001f4a1" in result.response_text
-    assert "Отличный день" in result.response_text
+    mock_llm.assert_awaited_once()
+    assert "Отличные показатели" in result.response_text
+    # Verify trend was passed to LLM
+    call_kwargs = mock_llm.call_args
+    assert "20.02" in call_kwargs.kwargs.get("prompt", call_kwargs[1].get("prompt", ""))
 
 
 @pytest.mark.asyncio
-async def test_coaching_tip_medium_average(skill, message, ctx):
-    """Coaching tip for medium average (4-6) suggests rest."""
-    intent_data = {"mood": 5, "energy": 5}
+async def test_coaching_mode_without_trend(skill, message, ctx):
+    """Coaching mode works when no mood history exists."""
+    intent_data = {"mood": 5}
     p_save, p_mode = _patch_helpers(mode="coaching")
 
-    with p_save, p_mode:
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.mood_checkin.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="Средний день — отдохните.",
+        ) as mock_llm,
+        patch(
+            "src.skills.mood_checkin.handler._get_mood_trend",
+            new_callable=AsyncMock,
+            return_value="",
+        ),
+    ):
         result = await skill.execute(message, ctx, intent_data)
 
+    mock_llm.assert_awaited_once()
     assert "Средний день" in result.response_text
 
 
 @pytest.mark.asyncio
-async def test_coaching_tip_low_average(skill, message, ctx):
-    """Coaching tip for low average (< 4) suggests self-care."""
+async def test_coaching_mode_fallback_on_llm_error(skill, message, ctx):
+    """Coaching mode falls back to template when LLM fails."""
     intent_data = {"mood": 2, "energy": 3}
     p_save, p_mode = _patch_helpers(mode="coaching")
 
-    with p_save, p_mode:
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.mood_checkin.handler.generate_text",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("LLM unavailable"),
+        ),
+        patch(
+            "src.skills.mood_checkin.handler._get_mood_trend",
+            new_callable=AsyncMock,
+            return_value="",
+        ),
+    ):
         result = await skill.execute(message, ctx, intent_data)
 
-    assert "Непростой день" in result.response_text
+    assert "\U0001f4a1" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_receipt_mode_does_not_call_llm(skill, message, ctx):
+    """Receipt mode does NOT call generate_text."""
+    intent_data = {"mood": 7, "energy": 6}
+    p_save, p_mode = _patch_helpers(mode="receipt")
+
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.mood_checkin.handler.generate_text",
+            new_callable=AsyncMock,
+        ) as mock_llm,
+    ):
+        await skill.execute(message, ctx, intent_data)
+
+    mock_llm.assert_not_awaited()
 
 
 @pytest.mark.asyncio

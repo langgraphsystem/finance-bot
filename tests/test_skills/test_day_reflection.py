@@ -141,16 +141,64 @@ async def test_silent_mode(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_coaching_mode(skill, ctx):
-    """Coaching mode includes a reflection insight."""
+async def test_coaching_mode_calls_llm(skill, ctx):
+    """Coaching mode calls generate_text and includes LLM response."""
     msg = _msg("Сегодня всё успел")
     p_save, p_mode = _patch_helpers(mode="coaching")
 
-    with p_save, p_mode:
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_reflection.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="<b>Отлично!</b> Вы продуктивно провели день.",
+        ) as mock_llm,
+    ):
+        result = await skill.execute(msg, ctx, {})
+
+    mock_llm.assert_awaited_once()
+    assert "Отлично" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_coaching_mode_fallback_on_llm_error(skill, ctx):
+    """Coaching mode falls back to template when LLM fails."""
+    msg = _msg("Сегодня всё успел")
+    p_save, p_mode = _patch_helpers(mode="coaching")
+
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_reflection.handler.generate_text",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("LLM unavailable"),
+        ),
+    ):
         result = await skill.execute(msg, ctx, {})
 
     assert "\U0001f4a1" in result.response_text
     assert "рефлексия" in result.response_text.lower()
+
+
+@pytest.mark.asyncio
+async def test_receipt_mode_does_not_call_llm(skill, ctx):
+    """Receipt mode does NOT call generate_text."""
+    msg = _msg("Устал но доволен")
+    p_save, p_mode = _patch_helpers(mode="receipt")
+
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_reflection.handler.generate_text",
+            new_callable=AsyncMock,
+        ) as mock_llm,
+    ):
+        await skill.execute(msg, ctx, {})
+
+    mock_llm.assert_not_awaited()
 
 
 @pytest.mark.asyncio

@@ -5,6 +5,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.life_helpers import get_communication_mode, save_life_event
+from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -16,11 +17,18 @@ DAY_PLAN_SYSTEM_PROMPT = """Ты помогаешь пользователю с�
 Извлеки список задач из сообщения. Первая задача = top1 (главный приоритет),
 остальные = normal."""
 
+COACHING_SYSTEM_PROMPT = """\
+Ты помогаешь составить осмысленный план дня.
+Пользователь перечислил задачи. Помоги расставить приоритеты.
+Учитывай количество задач — если много, предложи отложить неважные.
+Будь реалистичен по времени. Краткий совет, 2-3 предложения.
+Используй HTML-теги для Telegram (<b>, <i>). Отвечай на языке пользователя."""
+
 
 class DayPlanSkill:
     name = "day_plan"
     intents = ["day_plan"]
-    model = "gpt-5.2"
+    model = "claude-sonnet-4-6"
 
     @observe(name="day_plan")
     async def execute(
@@ -78,9 +86,18 @@ class DayPlanSkill:
         if mode == "silent":
             return SkillResult(response_text="")
         elif mode == "coaching":
+            try:
+                tip = await generate_text(
+                    model=self.model,
+                    system=COACHING_SYSTEM_PROMPT,
+                    prompt=f"Задачи на день:\n{plan_text}",
+                    max_tokens=200,
+                )
+            except Exception:
+                logger.exception("LLM coaching call failed for day_plan")
+                tip = "\U0001f4a1 Фокус на первой задаче — остальное подождёт."
             return SkillResult(
-                response_text=f"<b>План на день:</b>\n{plan_text}"
-                f"\n\n\U0001f4a1 Фокус на первой задаче — остальное подождёт."
+                response_text=f"<b>План на день:</b>\n{plan_text}\n\n{tip}"
             )
         else:
             return SkillResult(response_text=f"<b>План на день:</b>\n{plan_text}")

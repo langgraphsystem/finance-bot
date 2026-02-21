@@ -186,16 +186,65 @@ async def test_silent_mode(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_coaching_mode_includes_tip(skill, ctx):
-    """Coaching mode includes a focus tip."""
+async def test_coaching_mode_calls_llm(skill, ctx):
+    """Coaching mode calls generate_text and includes LLM response."""
     msg = _msg("задача1, задача2")
     p_save, p_mode = _patch_helpers(mode="coaching")
 
-    with p_save, p_mode:
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_plan.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="<b>Совет:</b> Начните с задача1.",
+        ) as mock_llm,
+    ):
+        result = await skill.execute(msg, ctx, {})
+
+    mock_llm.assert_awaited_once()
+    assert "Совет" in result.response_text
+    assert "задача1" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_coaching_mode_fallback_on_llm_error(skill, ctx):
+    """Coaching mode falls back to template tip when LLM fails."""
+    msg = _msg("задача1, задача2")
+    p_save, p_mode = _patch_helpers(mode="coaching")
+
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_plan.handler.generate_text",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("LLM unavailable"),
+        ),
+    ):
         result = await skill.execute(msg, ctx, {})
 
     assert "\U0001f4a1" in result.response_text
     assert "Фокус" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_receipt_mode_does_not_call_llm(skill, ctx):
+    """Receipt mode does NOT call generate_text."""
+    msg = _msg("задача1, задача2")
+    p_save, p_mode = _patch_helpers(mode="receipt")
+
+    with (
+        p_save,
+        p_mode,
+        patch(
+            "src.skills.day_plan.handler.generate_text",
+            new_callable=AsyncMock,
+        ) as mock_llm,
+    ):
+        await skill.execute(msg, ctx, {})
+
+    mock_llm.assert_not_awaited()
 
 
 @pytest.mark.asyncio
