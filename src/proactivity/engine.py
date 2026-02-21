@@ -9,16 +9,26 @@ The engine respects:
 - Max 5 proactive messages per user per day.
 - User's communication mode (silent = skip all except critical budget alerts).
 - User's suppression preferences in learned_patterns.
+- Per-trigger cooldown via Redis to prevent spamming the same notification.
 """
 
 import logging
 from typing import Any
 
+from src.core.db import redis
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.proactivity.evaluator import MAX_DAILY_PROACTIVE, evaluate_triggers
 
 logger = logging.getLogger(__name__)
+
+# Cooldown in seconds per trigger type — prevents sending the same notification repeatedly
+TRIGGER_COOLDOWN: dict[str, int] = {
+    "task_deadline": 4 * 3600,      # 4 hours
+    "budget_alert": 24 * 3600,      # 24 hours
+    "overdue_invoice": 24 * 3600,   # 24 hours
+}
+DEFAULT_COOLDOWN = 4 * 3600  # 4 hours for unknown triggers
 
 PROACTIVE_SYSTEM_PROMPT = """\
 You generate short proactive notification messages for a personal AI assistant.
@@ -60,15 +70,24 @@ async def run_for_user(
     # Filter suppressed
     active = [t for t in fired if t["name"] not in suppressed]
 
-    # Cap at max daily
-    active = active[:MAX_DAILY_PROACTIVE]
+    # Filter by cooldown — skip triggers sent recently
+    cooled: list[dict[str, Any]] = []
+    for t in active:
+        cooldown_key = f"proactive:{user_id}:{t['name']}"
+        if await redis.exists(cooldown_key):
+            logger.debug("Trigger %s for user %s still in cooldown", t["name"], user_id)
+            continue
+        cooled.append(t)
 
-    if not active:
+    # Cap at max daily
+    cooled = cooled[:MAX_DAILY_PROACTIVE]
+
+    if not cooled:
         return []
 
     # Generate messages for each fired trigger
     messages: list[dict[str, Any]] = []
-    for trigger_data in active:
+    for trigger_data in cooled:
         try:
             msg = await _format_trigger(trigger_data, language)
             if msg:
@@ -79,6 +98,10 @@ async def run_for_user(
                         "message": msg,
                     }
                 )
+                # Set cooldown after successful send
+                ttl = TRIGGER_COOLDOWN.get(trigger_data["name"], DEFAULT_COOLDOWN)
+                cooldown_key = f"proactive:{user_id}:{trigger_data['name']}"
+                await redis.set(cooldown_key, "1", ex=ttl)
         except Exception:
             logger.exception(
                 "Failed to format trigger %s for user %s",

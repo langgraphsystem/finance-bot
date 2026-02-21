@@ -2,7 +2,19 @@
 
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from src.proactivity.engine import _format_trigger, run_for_user
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis():
+    """Mock Redis for all engine tests — cooldown keys don't exist by default."""
+    mock = AsyncMock()
+    mock.exists = AsyncMock(return_value=0)
+    mock.set = AsyncMock()
+    with patch("src.proactivity.engine.redis", mock):
+        yield mock
 
 
 async def test_run_for_user_no_triggers():
@@ -50,7 +62,7 @@ async def test_run_for_user_suppressed_triggers():
     assert result == []
 
 
-async def test_run_for_user_formats_budget_alert():
+async def test_run_for_user_formats_budget_alert(_mock_redis):
     fired = [
         {
             "name": "budget_alert",
@@ -73,6 +85,29 @@ async def test_run_for_user_formats_budget_alert():
     assert result[0]["action"] == "budget_warning"
     assert "90%" in result[0]["message"]
     assert "$900" in result[0]["message"]
+    # Verify cooldown was set in Redis
+    _mock_redis.set.assert_called_once()
+    call_args = _mock_redis.set.call_args
+    assert "proactive:uid:budget_alert" in call_args[0]
+
+
+async def test_run_for_user_skips_cooldown(_mock_redis):
+    """When a trigger was sent recently, it should be skipped."""
+    _mock_redis.exists = AsyncMock(return_value=1)  # cooldown key exists
+    fired = [
+        {
+            "name": "budget_alert",
+            "action": "budget_warning",
+            "data": {"total_budget": 1000, "total_spent": 900, "ratio_pct": 90},
+        },
+    ]
+    with patch(
+        "src.proactivity.engine.evaluate_triggers",
+        new_callable=AsyncMock,
+        return_value=fired,
+    ):
+        result = await run_for_user("uid", "fid")
+    assert result == []
 
 
 async def test_format_trigger_task_deadline():
