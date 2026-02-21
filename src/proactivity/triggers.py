@@ -66,6 +66,7 @@ class DeadlineWarning(DataTrigger):
                     Task.due_at.isnot(None),
                     Task.due_at > now,
                     Task.due_at <= horizon,
+                    Task.deadline_notified_at.is_(None),
                 )
                 .order_by(Task.due_at.asc())
                 .limit(5)
@@ -79,7 +80,8 @@ class DeadlineWarning(DataTrigger):
             "tasks": [
                 {"title": t.title, "due_at": t.due_at.isoformat()}
                 for t in tasks
-            ]
+            ],
+            "task_ids": [str(t.id) for t in tasks],
         }
 
 

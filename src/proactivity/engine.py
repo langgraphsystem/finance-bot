@@ -69,11 +69,15 @@ async def run_for_user(
         try:
             msg = await _format_trigger(trigger_data, language)
             if msg:
-                messages.append({
+                entry: dict[str, Any] = {
                     "action": trigger_data["action"],
                     "trigger": trigger_data["name"],
                     "message": msg,
-                })
+                }
+                # Forward task_ids so the caller can mark them as notified
+                if "task_ids" in trigger_data.get("data", {}):
+                    entry["task_ids"] = trigger_data["data"]["task_ids"]
+                messages.append(entry)
         except Exception:
             logger.exception(
                 "Failed to format trigger %s for user %s",

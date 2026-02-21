@@ -1,10 +1,13 @@
 """Proactivity scheduled tasks — evaluates triggers for all users."""
 
 import logging
+import uuid as uuid_mod
+from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from src.core.db import async_session
+from src.core.models.task import Task
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
 from src.core.tasks.broker import broker
@@ -65,5 +68,23 @@ async def evaluate_proactive_triggers():
                     telegram_id,
                 )
 
+                # Mark deadline tasks as notified to prevent duplicate notifications
+                if msg["trigger"] == "task_deadline":
+                    task_ids = msg.get("task_ids", [])
+                    if task_ids:
+                        await _mark_deadline_notified(task_ids)
+
         except Exception:
             logger.exception("Proactivity failed for user %s", user_id)
+
+
+async def _mark_deadline_notified(task_ids: list[str]) -> None:
+    """Set deadline_notified_at on tasks so they won't trigger again."""
+    uuids = [uuid_mod.UUID(tid) for tid in task_ids]
+    async with async_session() as session:
+        await session.execute(
+            update(Task)
+            .where(Task.id.in_(uuids))
+            .values(deadline_notified_at=datetime.now(UTC))
+        )
+        await session.commit()

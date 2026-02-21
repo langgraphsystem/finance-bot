@@ -31,6 +31,9 @@ class Task(Base, TimestampMixin):
     assigned_to: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=True
     )
+    deadline_notified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     domain: Mapped[str | None] = mapped_column(String(50), nullable=True)
     source_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
