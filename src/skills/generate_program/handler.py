@@ -1,19 +1,22 @@
-"""Generate program skill — create code files from user descriptions.
+"""Generate program skill — web-first code generation.
 
 Routes to the best LLM by language/task type:
 - Python/Go/Rust/SQL → Claude Sonnet 4.6
 - Bash/Docker/YAML → GPT-5.2
 - HTML/CSS/JS/TS → Gemini 3 Flash
 
-If E2B is configured, runs the code in a cloud sandbox and returns output.
+Always generates web-based apps (Flask/HTML). Runs in E2B sandbox
+and sends a public URL. Code available via inline button on request.
 """
 
 import logging
 import re
 import unicodedata
+import uuid
 from typing import Any
 
 from src.core.context import SessionContext
+from src.core.db import redis
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.core.sandbox import e2b_runner
@@ -22,21 +25,38 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
+# TTL for stored code in Redis (24 hours)
+CODE_TTL_S = 86400
+
 CODE_GEN_SYSTEM_PROMPT = """\
-You are a code generator. The user describes a program they need.
-Generate clean, runnable code. Include comments explaining key parts.
+You are a code generator. Create WEB-BASED programs that run in a browser.
 
 Rules:
-- Default language: Python 3.12+
-- If user specifies another language — use it
-- Include shebang/imports at the top
-- Add a brief docstring explaining what the program does
-- Handle basic errors (try/except for I/O, network)
-- If dependencies needed — add a comment "# pip install ..." at top
-- If the task is too complex for a single file — generate the most \
-important part and explain in comments what else is needed
-- DO NOT add placeholder/TODO sections — generate working code
-- Respond ONLY with code, no explanations outside the code"""
+- For Python: ALWAYS use Flask with inline HTML templates \
+(render_template_string). Never use input()/stdin.
+  Minimal pattern: Flask app with routes that render HTML forms.
+- For JavaScript: create a standalone HTML page with embedded <script>.
+- For HTML/CSS: create a standalone HTML page.
+- Include all HTML inline (no separate template files).
+- If dependencies needed — add "# pip install flask ..." comment at top.
+- Make the UI clean and simple. Use basic CSS for styling.
+- The app MUST work as a single file.
+- Add a brief docstring/comment at the top describing what the app does.
+- DO NOT add placeholder/TODO sections — generate working code.
+- Respond ONLY with code, no explanations outside the code."""
+
+FIX_CODE_PROMPT = """\
+The following code failed to run with this error:
+
+Error: {error}
+
+Original code:
+```
+{code}
+```
+
+Fix the code so it runs without errors. Keep the same functionality.
+Respond ONLY with the fixed code, no explanations."""
 
 # Maps language hints to file extensions
 LANG_EXTENSIONS: dict[str, str] = {
@@ -96,14 +116,12 @@ CODE_MODEL_MAP: dict[str, str] = {
     "css": "gemini-3-flash-preview",
 }
 
-# Keywords in description that hint at bash/infra tasks
 _INFRA_KEYWORDS = {
     "bash", "shell", "docker", "dockerfile", "nginx",
     "deploy", "ci/cd", "ci-cd", "github actions", "cron",
     "backup", "migration", "devops", "ansible", "terraform",
 }
 
-# Keywords that hint at frontend/UI tasks
 _FRONTEND_KEYWORDS = {
     "html", "css", "react", "frontend", "ui", "webpage",
     "website", "landing", "page", "web page", "svg",
@@ -127,6 +145,31 @@ def _select_model(language: str, description: str) -> str:
             return "gemini-3-flash-preview"
 
     return "claude-sonnet-4-6"
+
+
+def _extract_description(code: str) -> str:
+    """Extract a brief description from the code's docstring or comment."""
+    # Try Python docstring
+    match = re.search(r'"""(.+?)"""', code[:500], re.DOTALL)
+    if match:
+        desc = match.group(1).strip().split("\n")[0]
+        if len(desc) > 10:
+            return desc
+
+    # Try single-line comment
+    for line in code.split("\n")[:10]:
+        line = line.strip()
+        if line.startswith("#") and not line.startswith("#!"):
+            desc = line.lstrip("# ").strip()
+            if len(desc) > 10:
+                return desc
+
+    # Try HTML comment or title
+    match = re.search(r"<title>(.+?)</title>", code[:500], re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
+
+    return ""
 
 
 class GenerateProgramSkill:
@@ -178,51 +221,117 @@ class GenerateProgramSkill:
             prompt=prompt,
             max_tokens=4096,
         )
-
-        # Strip markdown fences if present
         code = _strip_markdown_fences(code)
 
         # Detect extension + filename
         ext = _detect_extension(code, language)
         filename = _make_filename(description, ext)
-        code_bytes = code.encode("utf-8")
 
-        # Build response parts
-        parts: list[str] = [f"<b>{filename}</b>"]
+        # Save code to Redis for "show code" button
+        prog_id = str(uuid.uuid4())[:8]
+        code_payload = f"{filename}\n---\n{code}"
+        await redis.setex(
+            f"program:{prog_id}", CODE_TTL_S, code_payload,
+        )
+
+        # Extract description from generated code
+        code_desc = _extract_description(code)
+
+        # Build response
+        buttons = [
+            {"text": "\U0001f4c4 Code", "callback": f"show_code:{prog_id}"},
+        ]
 
         # Execute in E2B sandbox if configured
         if e2b_runner.is_configured():
             e2b_lang = e2b_runner._map_language(ext)
+            is_web = e2b_runner._is_web_app(code)
+            timeout = 60 if is_web else 30
+
             exec_result = await e2b_runner.execute_code(
-                code, language=e2b_lang, timeout=30,
+                code, language=e2b_lang, timeout=timeout,
             )
 
-            if exec_result.url:
-                parts.append(
-                    f'\n\U0001f310 <a href="{exec_result.url}">'
-                    f"Open in browser</a>"
-                    f"\n<i>(link active ~5 min)</i>"
+            # Auto-retry on error (once)
+            if exec_result.error and not exec_result.timed_out:
+                logger.info("Auto-retry: fixing code after error")
+                fix_prompt = FIX_CODE_PROMPT.format(
+                    error=exec_result.error, code=code,
                 )
-            elif exec_result.error:
-                err = _truncate(exec_result.error, 500)
-                parts.append(
-                    f"\n<b>Error:</b>\n<code>{err}</code>"
+                fixed_code = await generate_text(
+                    model=model,
+                    system=CODE_GEN_SYSTEM_PROMPT,
+                    prompt=fix_prompt,
+                    max_tokens=4096,
                 )
-            elif exec_result.stdout:
-                out = _truncate(exec_result.stdout, 1000)
-                parts.append(
-                    f"\n<b>Output:</b>\n<code>{out}</code>"
+                fixed_code = _strip_markdown_fences(fixed_code)
+
+                exec_result = await e2b_runner.execute_code(
+                    fixed_code, language=e2b_lang, timeout=timeout,
                 )
 
-            if exec_result.timed_out:
-                parts.append(
-                    "\n<i>Execution timed out (30s limit)</i>"
-                )
+                if not exec_result.error:
+                    # Update stored code with fixed version
+                    code = fixed_code
+                    code_payload = f"{filename}\n---\n{code}"
+                    await redis.setex(
+                        f"program:{prog_id}",
+                        CODE_TTL_S,
+                        code_payload,
+                    )
+
+            # Build response based on execution result
+            return self._build_response(
+                filename, code_desc, exec_result, buttons,
+            )
+
+        # Fallback: no E2B — send code as file
+        return SkillResult(
+            response_text=f"<b>{filename}</b>",
+            document=code.encode("utf-8"),
+            document_name=filename,
+        )
+
+    def _build_response(
+        self,
+        filename: str,
+        description: str,
+        exec_result: e2b_runner.ExecutionResult,
+        buttons: list[dict],
+    ) -> SkillResult:
+        """Build SkillResult from E2B execution result."""
+        parts: list[str] = []
+
+        if exec_result.url:
+            parts.append(f"<b>\u2705 {filename}</b>")
+            if description:
+                parts.append(f"\n{description}")
+            parts.append(
+                f'\n\U0001f310 <a href="{exec_result.url}">'
+                f"Open app</a>"
+                f"\n<i>(active ~5 min)</i>"
+            )
+        elif exec_result.error:
+            err = _truncate(exec_result.error, 500)
+            parts.append(f"<b>\u274c {filename}</b>")
+            parts.append(f"\n<b>Error:</b>\n<code>{err}</code>")
+        elif exec_result.stdout:
+            out = _truncate(exec_result.stdout, 1000)
+            parts.append(f"<b>\u2705 {filename}</b>")
+            if description:
+                parts.append(f"\n{description}")
+            parts.append(f"\n<b>Output:</b>\n<code>{out}</code>")
+        else:
+            parts.append(f"<b>\u2705 {filename}</b>")
+            if description:
+                parts.append(f"\n{description}")
+
+        if exec_result.timed_out:
+            parts.append("\n<i>Execution timed out</i>")
 
         return SkillResult(
             response_text="\n".join(parts),
-            document=code_bytes,
-            document_name=filename,
+            buttons=buttons,
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:

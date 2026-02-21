@@ -856,6 +856,29 @@ async def _handle_callback(
         await delete_pending_action(pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
+    elif action == "show_code":
+        from src.core.db import redis
+
+        prog_id = parts[1] if len(parts) > 1 else ""
+        raw = await redis.get(f"program:{prog_id}")
+        if raw:
+            payload = raw if isinstance(raw, str) else raw.decode("utf-8")
+            # Format: "filename\n---\ncode"
+            if "\n---\n" in payload:
+                filename, code = payload.split("\n---\n", 1)
+            else:
+                filename, code = "program.py", payload
+            return OutgoingMessage(
+                text=f"<b>{filename}</b>",
+                chat_id=message.chat_id,
+                document=code.encode("utf-8"),
+                document_name=filename,
+            )
+        return OutgoingMessage(
+            text="Code expired. Generate a new program.",
+            chat_id=message.chat_id,
+        )
+
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>
         pending_id = parts[1] if len(parts) > 1 else ""
