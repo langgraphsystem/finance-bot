@@ -77,6 +77,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "reschedule_event": Domain.calendar,
     "morning_brief": Domain.brief,
     # Browser + monitor (Phase 5)
+    "browser_action": Domain.web,
     "web_action": Domain.web,
     "price_check": Domain.web,
     "price_alert": Domain.monitor,

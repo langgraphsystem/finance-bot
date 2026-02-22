@@ -3,6 +3,7 @@ from src.skills.add_expense.handler import skill as add_expense_skill
 from src.skills.add_income.handler import skill as add_income_skill
 from src.skills.add_recurring.handler import skill as add_recurring_skill
 from src.skills.base import SkillRegistry
+from src.skills.browser_action.handler import skill as browser_action_skill
 from src.skills.cancel_booking.handler import skill as cancel_booking_skill
 from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
@@ -144,4 +145,6 @@ def create_registry() -> SkillRegistry:
     registry.register(generate_card_skill)
     registry.register(generate_program_skill)
     registry.register(modify_program_skill)
+    # Browser action (authenticated sessions)
+    registry.register(browser_action_skill)
     return registry

@@ -109,6 +109,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "shopping_list_remove": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "shopping_list_clear": {"mem": False, "hist": 0, "sql": False, "sum": False},
     # Browser + monitor intents (Phase 5)
+    "browser_action": {"mem": False, "hist": 5, "sql": False, "sum": False},
     "web_action": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "price_check": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "price_alert": {"mem": "profile", "hist": 3, "sql": False, "sum": False},

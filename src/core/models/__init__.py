@@ -1,6 +1,8 @@
 from src.core.models.audit import AuditLog
 from src.core.models.base import Base
 from src.core.models.booking import Booking
+from src.core.models.browser_action_log import BrowserActionLog
+from src.core.models.browser_session import UserBrowserSession
 from src.core.models.budget import Budget
 from src.core.models.calendar_cache import CalendarCache
 from src.core.models.category import Category
@@ -97,4 +99,6 @@ __all__ = [
     "Task",
     "UsageLog",
     "UserProfile",
+    "UserBrowserSession",
+    "BrowserActionLog",
 ]

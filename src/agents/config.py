@@ -145,6 +145,7 @@ AGENTS: list[AgentConfig] = [
             "youtube_search",
             "price_check",
             "web_action",
+            "browser_action",
         ],
         default_model="gemini-3-flash-preview",
         context_config={"mem": False, "hist": 3, "sql": False, "sum": False},

@@ -187,6 +187,12 @@ async def _dispatch_message(
             raw=message.raw,
         )
 
+    # Intercept active browser login flow BEFORE intent detection
+    if message.type == MessageType.text and message.text:
+        login_result = await _check_browser_login_flow(message, context)
+        if login_result:
+            return login_result
+
     # Handle photos and documents as scan_document
     if message.type in (MessageType.photo, MessageType.document):
         intent_name = "scan_document"
@@ -644,6 +650,22 @@ async def _execute_pending_action(
             from src.skills.delete_data.handler import execute_delete
 
             result_text = await execute_delete(action_data, context.user_id, context.family_id)
+
+        elif intent == "browser_action":
+            from src.tools import browser_service
+
+            task_text = action_data.get("task", "")
+            site = action_data.get("site", "")
+            result = await browser_service.execute_with_session(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                site=site,
+                task=task_text,
+            )
+            if result["success"]:
+                result_text = result["result"]
+            else:
+                result_text = f"Browser task failed: {result['result']}"
 
         elif intent == "delete_all":
             from src.core.gdpr import MemoryGDPR
@@ -1319,3 +1341,58 @@ async def _execute_pending_maps_search(
     )
 
 
+async def _check_browser_login_flow(
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage | None:
+    """Check if user has an active browser login flow and handle the next step.
+
+    Returns an OutgoingMessage if a login step was handled, None otherwise.
+    """
+    from src.tools import browser_login, browser_service
+
+    login_state = await browser_login.get_login_state(context.user_id)
+    if not login_state:
+        return None
+
+    # User has an active login flow — intercept this message
+    result = await browser_login.handle_step(
+        user_id=context.user_id,
+        family_id=context.family_id,
+        message_text=message.text or "",
+        chat_id=message.chat_id,
+        message_id=message.id,
+    )
+
+    action = result.get("action", "error")
+    text = result.get("text", "")
+    screenshot = result.get("screenshot_bytes")
+
+    if action == "login_success":
+        # Login succeeded — now execute the original task
+        task = result.get("task", "")
+        site = result.get("site", "")
+        if task and site:
+            browser_result = await browser_service.execute_with_session(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                site=site,
+                task=task,
+            )
+            task_text = browser_result["result"] if browser_result["success"] else (
+                f"Login successful but task failed: {browser_result['result']}"
+            )
+            return OutgoingMessage(
+                text=f"{text}\n\n{task_text}",
+                chat_id=message.chat_id,
+            )
+        return OutgoingMessage(text=text, chat_id=message.chat_id)
+
+    if action == "no_flow":
+        return None
+
+    return OutgoingMessage(
+        text=text,
+        chat_id=message.chat_id,
+        photo_bytes=screenshot,
+    )

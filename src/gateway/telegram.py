@@ -110,6 +110,15 @@ class TelegramGateway:
     async def send_typing(self, chat_id: str) -> None:
         await self.bot.send_chat_action(chat_id=int(chat_id), action="typing")
 
+    async def delete_message(self, chat_id: str, message_id: str) -> None:
+        """Delete a message from chat (used for password security)."""
+        try:
+            await self.bot.delete_message(
+                chat_id=int(chat_id), message_id=int(message_id)
+            )
+        except Exception as e:
+            logger.warning("Failed to delete message %s: %s", message_id, e)
+
     async def start(self) -> None:
         if self.webhook_url:
             await self.bot.set_webhook(self.webhook_url)
