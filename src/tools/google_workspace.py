@@ -34,10 +34,16 @@ class GoogleWorkspaceClient:
 
     def _execute(self, slug: str, arguments: dict | None = None) -> dict:
         """Synchronous Composio tool execution (for internal wrapping)."""
+        # Determine toolkit from slug prefix (GMAIL_* or GOOGLECALENDAR_*)
+        if slug.startswith("GOOGLECALENDAR"):
+            toolkit = "googlecalendar"
+        else:
+            toolkit = "gmail"
         return self._composio.tools.execute(
             slug=slug,
             user_id=self._user_id,
             arguments=arguments or {},
+            toolkit_versions={toolkit: "latest"},
         )
 
     async def _aexecute(self, slug: str, arguments: dict | None = None) -> dict:
