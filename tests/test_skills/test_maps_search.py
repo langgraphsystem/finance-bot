@@ -607,3 +607,116 @@ async def test_pending_maps_returns_none_when_no_pending():
         result = await _execute_pending_maps_search("user-123", "Brooklyn", msg)
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Reverse geocoding
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_finds_locality_in_second_result():
+    """Reverse geocode searches all results for locality, not just the first."""
+    from src.core.router import _reverse_geocode_city
+
+    # First result has no locality, second result does
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "results": [
+            {
+                "address_components": [
+                    {"long_name": "Kings County", "types": ["administrative_area_level_2"]},
+                ],
+                "formatted_address": "Kings County, NY, USA",
+            },
+            {
+                "address_components": [
+                    {"long_name": "Brooklyn", "types": ["locality", "political"]},
+                ],
+                "formatted_address": "Brooklyn, NY 11201, USA",
+            },
+        ],
+    }
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("src.core.config.settings") as mock_settings,
+        patch("httpx.AsyncClient", return_value=mock_client),
+    ):
+        mock_settings.google_maps_api_key = "test-key"
+        city = await _reverse_geocode_city("40.6892,-73.9857")
+
+    assert city == "Brooklyn"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_fallback_to_formatted_address():
+    """When no locality found, fall back to first part of formatted_address."""
+    from src.core.router import _reverse_geocode_city
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "results": [
+            {
+                "address_components": [
+                    {"long_name": "Some County", "types": ["administrative_area_level_2"]},
+                ],
+                "formatted_address": "Schaumburg, IL 60173, USA",
+            },
+        ],
+    }
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("src.core.config.settings") as mock_settings,
+        patch("httpx.AsyncClient", return_value=mock_client),
+    ):
+        mock_settings.google_maps_api_key = "test-key"
+        city = await _reverse_geocode_city("41.9742,-88.0844")
+
+    assert city == "Schaumburg"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_nominatim_fallback():
+    """When Google API has no key, falls back to Nominatim."""
+    from src.core.router import _reverse_geocode_city
+
+    mock_response = MagicMock()
+    mock_response.raise_for_status = MagicMock()
+    mock_response.json.return_value = {
+        "address": {"city": "New York", "state": "New York", "country": "USA"},
+    }
+
+    mock_client = AsyncMock()
+    mock_client.get = AsyncMock(return_value=mock_response)
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("src.core.config.settings") as mock_settings,
+        patch("httpx.AsyncClient", return_value=mock_client),
+    ):
+        mock_settings.google_maps_api_key = ""  # No Google key
+        city = await _reverse_geocode_city("40.7128,-74.0060")
+
+    assert city == "New York"
+
+
+@pytest.mark.asyncio
+async def test_reverse_geocode_invalid_coords():
+    """Invalid coordinates return None."""
+    from src.core.router import _reverse_geocode_city
+
+    result = await _reverse_geocode_city("not-coordinates")
+    assert result is None

@@ -1167,17 +1167,18 @@ async def _reverse_geocode_city(coords_text: str) -> str | None:
                     params={
                         "latlng": f"{lat},{lng}",
                         "key": settings.google_maps_api_key,
-                        "result_type": "locality",
                     },
                 )
                 resp.raise_for_status()
                 data = resp.json()
                 results = data.get("results", [])
-                if results:
-                    for component in results[0].get("address_components", []):
+                # Search all results for locality component
+                for result in results:
+                    for component in result.get("address_components", []):
                         if "locality" in component.get("types", []):
                             return component["long_name"]
-                    # Fallback: first part of formatted address
+                # Fallback: first part of formatted address
+                if results:
                     formatted = results[0].get("formatted_address", "")
                     if formatted:
                         return formatted.split(",")[0].strip()
