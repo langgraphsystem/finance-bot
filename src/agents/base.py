@@ -58,6 +58,20 @@ class AgentRouter:
         """Return all registered agent configs."""
         return list(self._agents.values())
 
+    @staticmethod
+    def _add_language_instruction(system_prompt: str, context: SessionContext) -> str:
+        """Append a language instruction to the system prompt."""
+        lang = context.language or "en"
+        instruction = (
+            f"\n\nIMPORTANT: Always respond in the same language as the user's message. "
+            f"User's preferred language: {lang}. "
+            f"If the user writes in Kyrgyz, respond in Kyrgyz. "
+            f"If in Russian, respond in Russian. "
+            f"If in English, respond in English. "
+            f"Match the language of their last message."
+        )
+        return system_prompt + instruction
+
     @observe(name="agent_route")
     async def route(
         self,
@@ -83,12 +97,13 @@ class AgentRouter:
         if agent:
             # Assemble context with agent-specific system prompt
             try:
+                prompt = self._add_language_instruction(agent.system_prompt, context)
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,
                     current_message=message.text or ".",
                     intent=intent,
-                    system_prompt=agent.system_prompt,
+                    system_prompt=prompt,
                 )
                 intent_data["_assembled"] = assembled
                 intent_data["_agent"] = agent.name
@@ -135,6 +150,7 @@ class AgentRouter:
         if skill:
             try:
                 system_prompt = skill.get_system_prompt(context)
+                system_prompt = self._add_language_instruction(system_prompt, context)
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,
