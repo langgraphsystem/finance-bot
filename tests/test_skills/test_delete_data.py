@@ -135,36 +135,53 @@ async def test_empty_scope_triggers_ai_fallback(skill, msg, ctx):
 
 
 async def test_zero_records_returns_nothing(skill, msg, ctx):
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = 0
-
-    mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
-
-    mock_ctx = AsyncMock()
-    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with patch(f"{MODULE}.async_session", return_value=mock_ctx):
+    """When AI search finds no matching records, user sees 'not found' message."""
+    llm_json = json.dumps({
+        "tables": ["transactions"],
+        "search_text": "расходы",
+        "transaction_type": "expense",
+        "confidence": 0.9,
+        "explanation_ru": "расходы за сегодня",
+    })
+    with (
+        patch(f"{MODULE}.generate_text", new_callable=AsyncMock, return_value=llm_json),
+        patch(
+            f"{MODULE}._search_records_for_deletion",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+    ):
         result = await skill.execute(msg, ctx, {"delete_scope": "expenses", "period": "today"})
 
-    assert "Нет записей" in result.response_text
+    assert "ничего не найдено" in result.response_text
     assert result.buttons is None
 
 
 async def test_returns_confirmation_with_buttons(skill, msg, ctx):
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = 5
-
-    mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
-
-    mock_ctx = AsyncMock()
-    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
+    """When AI search finds records, user sees preview with confirm/cancel buttons."""
+    llm_json = json.dumps({
+        "tables": ["transactions"],
+        "search_text": "",
+        "transaction_type": "expense",
+        "confidence": 0.9,
+        "explanation_ru": "расходы за январь",
+    })
+    found = [
+        FoundRecord(
+            table="transactions",
+            record_id=str(uuid.uuid4()),
+            preview_text=f"📉 Expense #{i}",
+            created_at=None,
+        )
+        for i in range(5)
+    ]
     with (
-        patch(f"{MODULE}.async_session", return_value=mock_ctx),
+        patch(f"{MODULE}.generate_text", new_callable=AsyncMock, return_value=llm_json),
+        patch(
+            f"{MODULE}._search_records_for_deletion",
+            new_callable=AsyncMock,
+            return_value=found,
+        ),
         patch(f"{MODULE}.store_pending_action", new_callable=AsyncMock, return_value="abc123"),
     ):
         result = await skill.execute(
@@ -179,32 +196,24 @@ async def test_returns_confirmation_with_buttons(skill, msg, ctx):
     assert "cancel_action:abc123" in result.buttons[1]["callback"]
 
 
-async def test_scope_alias_resolves(skill, msg, ctx):
-    """Russian alias 'расходы' should resolve to 'expenses'."""
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = 3
-
-    mock_session = AsyncMock()
-    mock_session.execute.return_value = mock_result
-
-    mock_ctx = AsyncMock()
-    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with (
-        patch(f"{MODULE}.async_session", return_value=mock_ctx),
-        patch(f"{MODULE}.store_pending_action", new_callable=AsyncMock, return_value="def456"),
-    ):
+async def test_all_deletes_go_through_ai_search(skill, msg, ctx):
+    """All delete requests (including scope aliases) route through AI search."""
+    with patch.object(
+        skill,
+        "_ai_search_and_delete",
+        new_callable=AsyncMock,
+        return_value=MagicMock(response_text="AI found 3 records", buttons=[]),
+    ) as mock_ai:
         result = await skill.execute(
             msg, ctx, {"delete_scope": "расходы", "period": "week"}
         )
 
-    assert "3" in result.response_text
-    assert result.buttons is not None
+    mock_ai.assert_awaited_once_with(msg.text, ctx)
+    assert "AI found 3 records" in result.response_text
 
 
-async def test_specific_drink_entry_returns_single_delete_confirmation(skill, ctx):
-    """A specific drink item should trigger one-record delete confirmation."""
+async def test_specific_drink_entry_goes_through_ai_search(skill, ctx):
+    """A specific drink delete request goes through AI search like everything else."""
     message = IncomingMessage(
         id="msg-2",
         user_id="tg_user_1",
@@ -212,38 +221,41 @@ async def test_specific_drink_entry_returns_single_delete_confirmation(skill, ct
         type=MessageType.text,
         text="удалить Напиток вода (250ml)",
     )
-    event = MagicMock()
-    event.id = uuid.uuid4()
-    event.data = {"item": "вода", "volume_ml": 250, "count": 1}
-    event.text = "вода x1"
-    event.created_at = datetime(2026, 2, 20, 16, 14)
-
+    llm_json = json.dumps({
+        "tables": ["life_events"],
+        "search_text": "вода",
+        "life_event_type": "drink",
+        "confidence": 0.95,
+        "explanation_ru": "напиток вода 250ml",
+    })
+    found = [
+        FoundRecord(
+            table="life_events",
+            record_id=str(uuid.uuid4()),
+            preview_text="☕ вода x1 (250ml)\nДата: 2026-02-20 16:14",
+            created_at=datetime(2026, 2, 20, 16, 14),
+        ),
+    ]
     with (
+        patch(f"{MODULE}.generate_text", new_callable=AsyncMock, return_value=llm_json),
         patch(
-            f"{MODULE}._find_single_drink_event",
+            f"{MODULE}._search_records_for_deletion",
             new_callable=AsyncMock,
-            return_value=event,
-        ) as mock_find,
+            return_value=found,
+        ),
         patch(
             f"{MODULE}.store_pending_action",
             new_callable=AsyncMock,
             return_value="single123",
         ),
-        patch(
-            f"{MODULE}._count_records",
-            new_callable=AsyncMock,
-            return_value=999,
-        ) as mock_count,
     ):
         result = await skill.execute(message, ctx, {"delete_scope": "drinks"})
 
-    assert "Удалить запись?" in result.response_text
+    assert "Найдено: 1" in result.response_text
     assert "250ml" in result.response_text
     assert result.buttons is not None
     assert result.buttons[0]["callback"] == "confirm_action:single123"
     assert result.buttons[1]["callback"] == "cancel_action:single123"
-    mock_find.assert_awaited_once()
-    mock_count.assert_not_awaited()
 
 
 # ---- execute_delete tests ----

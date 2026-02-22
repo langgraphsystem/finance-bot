@@ -1066,89 +1066,9 @@ class DeleteDataSkill:
                     ],
                 )
 
-        # Fast-path 2: rule-based scope matching
-        raw_scope = intent_data.get("delete_scope") or ""
-        scope = SCOPE_ALIASES.get(raw_scope.lower().strip(), raw_scope.lower().strip())
-
-        if scope not in VALID_SCOPES:
-            # AI fallback: use Sonnet 4.6 to understand the request
-            return await self._ai_search_and_delete(raw_text, context)
-
-        # If user mentions specific content (e.g. "удали заметку про пароль"),
-        # use AI search instead of batch delete to find the exact record.
-        if scope in {"notes", "food", "drinks", "mood", "life_events"}:
-            if _has_specific_content(raw_text, scope):
-                return await self._ai_search_and_delete(raw_text, context)
-
-        period = intent_data.get("period")
-        date_from = intent_data.get("date_from")
-        date_to = intent_data.get("date_to")
-
-        # Drink-specific single-entry fast-path
-        if _is_specific_drink_delete_request(scope, raw_text, period, date_from, date_to):
-            event = await _find_single_drink_event(
-                user_id=context.user_id, family_id=context.family_id, raw_text=raw_text
-            )
-            if event:
-                preview = _format_single_drink_preview(event)
-                pending_id = await store_pending_action(
-                    intent="delete_data",
-                    user_id=context.user_id,
-                    family_id=context.family_id,
-                    action_data={
-                        "scope": scope,
-                        "single_life_event_id": str(event.id),
-                        "single_life_event_preview": preview,
-                    },
-                )
-                return SkillResult(
-                    response_text=f"Удалить запись?\n\n{preview}",
-                    buttons=[
-                        {"text": "\U0001f5d1 Удалить", "callback": f"confirm_action:{pending_id}"},
-                        {"text": "\u274c Отмена", "callback": f"cancel_action:{pending_id}"},
-                    ],
-                )
-
-        # Batch deletion with confirmation
-        start, end = _resolve_date_range(period, date_from, date_to)
-        count = await _count_records(scope, context.user_id, context.family_id, start, end)
-
-        if count == 0:
-            label = SCOPE_LABELS.get(scope, scope)
-            return SkillResult(response_text=f"Нет записей для удаления ({label}).")
-
-        label = SCOPE_LABELS.get(scope, scope)
-        period_text = f" за {start.isoformat()} — {end.isoformat()}" if start and end else ""
-        confirm_text = (
-            f"Вы хотите удалить <b>{count}</b> записей ({label}){period_text}.\n\n"
-            "Это действие <b>необратимо</b>. Подтвердите удаление:"
-        )
-
-        pending_id = await store_pending_action(
-            intent="delete_data",
-            user_id=context.user_id,
-            family_id=context.family_id,
-            action_data={
-                "scope": scope,
-                "period": period,
-                "date_from": date_from,
-                "date_to": date_to,
-                "count": count,
-                "start": start.isoformat() if start else None,
-                "end": end.isoformat() if end else None,
-            },
-        )
-
-        return SkillResult(
-            response_text=confirm_text,
-            buttons=[
-                {
-                    "text": f"\U0001f5d1 Удалить ({count})",
-                    "callback": f"confirm_action:{pending_id}",
-                },
-                {"text": "\u274c Отмена", "callback": f"cancel_action:{pending_id}"},
-            ],
-        )
+        # All delete requests go through AI search (Claude Sonnet 4.6)
+        # for precise record matching by content, date, and type.
+        return await self._ai_search_and_delete(raw_text, context)
 
     async def _ai_search_and_delete(self, raw_text: str, context: SessionContext) -> SkillResult:
         """AI-powered fallback: use Sonnet 4.6 to parse request, search DB, show preview."""
