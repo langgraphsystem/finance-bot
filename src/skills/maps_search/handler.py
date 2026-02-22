@@ -1,5 +1,6 @@
 """Maps search skill — dual-mode: Gemini Search Grounding (quick) + Google Maps API (detailed)."""
 
+import json
 import logging
 import re
 from typing import Any
@@ -9,6 +10,7 @@ from google.genai import types
 
 from src.core.config import settings
 from src.core.context import SessionContext
+from src.core.db import redis
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
@@ -96,25 +98,46 @@ class MapsSearchSkill:
         has_api_key = bool(settings.google_maps_api_key)
 
         # Location awareness: inject user's city for "nearby" queries
+        # Check both extracted query AND original message text —
+        # LLM may strip "рядом"/"near me" from maps_query
         user_city = context.user_profile.get("city")
-        is_nearby = _is_nearby_query(query)
+        is_nearby = _is_nearby_query(query) or _is_nearby_query(message.text or "")
 
         if is_nearby and not user_city:
-            # Ask user to set their location
+            # Store pending search so router can auto-execute after location
+            pending = {
+                "query": query,
+                "maps_mode": maps_mode,
+                "destination": destination,
+                "detail_mode": detail_mode,
+                "language": language,
+            }
+            await redis.set(
+                f"maps_pending:{context.user_id}",
+                json.dumps(pending),
+                ex=1800,  # 30 min TTL
+            )
+
             if language.startswith("ru"):
                 return SkillResult(
                     response_text=(
                         "Чтобы найти места рядом, мне нужно знать ваш город.\n\n"
-                        "Отправьте геолокацию (📎 → Геопозиция) или напишите "
+                        "Нажмите кнопку ниже или напишите "
                         'свой город, например: <b>"я в Бруклине"</b>'
-                    )
+                    ),
+                    reply_keyboard=[
+                        {"text": "\U0001f4cd Поделиться геолокацией", "request_location": True},
+                    ],
                 )
             return SkillResult(
                 response_text=(
                     "To find nearby places, I need to know your location.\n\n"
-                    "Share your location pin or tell me your city, "
+                    "Tap the button below or tell me your city, "
                     'e.g. <b>"I\'m in Brooklyn"</b>'
-                )
+                ),
+                reply_keyboard=[
+                    {"text": "\U0001f4cd Share location", "request_location": True},
+                ],
             )
 
         # Enrich query with city for nearby searches

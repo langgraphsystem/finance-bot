@@ -145,6 +145,10 @@ async def _dispatch_message(
         city = await _reverse_geocode_city(message.text)
         if city:
             await _save_user_city(context.user_id, city)
+            # Auto-execute pending maps search if one was stored
+            result = await _execute_pending_maps_search(context.user_id, city, message)
+            if result:
+                return result
             return OutgoingMessage(
                 text=f"Got it — your location is set to <b>{city}</b>. "
                 "Now try your search again!",
@@ -1235,6 +1239,84 @@ async def _save_user_city(user_id: str, city: str) -> None:
             await session.commit()
     except Exception as e:
         logger.error("Failed to save user city: %s", e)
+
+
+async def _execute_pending_maps_search(
+    user_id: str, city: str, message: IncomingMessage
+) -> OutgoingMessage | None:
+    """Auto-execute a pending maps search after the user shares location.
+
+    Returns OutgoingMessage with search results, or None if no pending search.
+    """
+    import json
+
+    from src.core.db import redis
+
+    pending_key = f"maps_pending:{user_id}"
+    pending_raw = await redis.get(pending_key)
+    if not pending_raw:
+        return None
+
+    await redis.delete(pending_key)
+
+    try:
+        pending = json.loads(pending_raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    query = pending.get("query", "")
+    if not query:
+        return None
+
+    language = pending.get("language", "en")
+    maps_mode = pending.get("maps_mode", "search")
+    destination = pending.get("destination", "")
+    detail_mode = pending.get("detail_mode", False)
+
+    # Enrich query with resolved city
+    enriched_query = f"{query}, {city}"
+    location_hint = (
+        f"\nUser's location: {city}. "
+        "For 'nearby' queries, ONLY show places in or near this city. "
+        "Do NOT show places from other cities or countries."
+    )
+
+    from src.core.config import settings
+    from src.skills.maps_search.handler import (
+        get_directions,
+        search_places,
+        search_places_grounding,
+    )
+
+    has_api_key = bool(settings.google_maps_api_key)
+
+    try:
+        if detail_mode and has_api_key:
+            if maps_mode == "directions" and destination:
+                answer = await get_directions(enriched_query, destination, language)
+            else:
+                answer = await search_places(enriched_query, language)
+        else:
+            grounding_query = enriched_query
+            if maps_mode == "directions" and destination:
+                grounding_query = f"directions from {enriched_query} to {destination}"
+            answer = await search_places_grounding(
+                grounding_query, language, location_hint=location_hint
+            )
+    except Exception as e:
+        logger.error("Pending maps search failed: %s", e)
+        return OutgoingMessage(
+            text=f"Got it — your location is set to <b>{city}</b>. "
+            "Now try your search again!",
+            chat_id=message.chat_id,
+            remove_reply_keyboard=True,
+        )
+
+    return OutgoingMessage(
+        text=answer,
+        chat_id=message.chat_id,
+        remove_reply_keyboard=True,
+    )
 
 
 async def _try_set_city_from_text(

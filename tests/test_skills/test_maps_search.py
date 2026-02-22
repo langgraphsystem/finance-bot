@@ -1,5 +1,6 @@
 """Tests for maps_search skill — quick (grounding) + detailed (API) modes."""
 
+import json
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -86,8 +87,15 @@ async def test_quick_mode_default(skill, message, ctx_with_city):
 
 
 @pytest.mark.asyncio
-async def test_quick_mode_with_api_key_no_detail(skill, message, ctx):
+async def test_quick_mode_with_api_key_no_detail(skill, ctx):
     """Even with API key, no detail_mode means grounding mode."""
+    msg = IncomingMessage(
+        id="msg-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="coffee in Manhattan",
+    )
     with (
         patch("src.skills.maps_search.handler.settings") as mock_settings,
         patch(
@@ -97,7 +105,7 @@ async def test_quick_mode_with_api_key_no_detail(skill, message, ctx):
         ) as mock_grounding,
     ):
         mock_settings.google_maps_api_key = "fake-key"
-        result = await skill.execute(message, ctx, {"maps_query": "coffee"})
+        result = await skill.execute(msg, ctx, {"maps_query": "coffee in Manhattan"})
 
     mock_grounding.assert_awaited_once()
     assert "Coffee" in result.response_text
@@ -224,8 +232,15 @@ async def test_directions_detail_mode_uses_api(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_detail_mode_no_api_key_falls_to_grounding(skill, message, ctx):
+async def test_detail_mode_no_api_key_falls_to_grounding(skill, ctx):
     """detail_mode=True without API key gracefully falls to grounding."""
+    msg = IncomingMessage(
+        id="msg-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="coffee shops in Manhattan",
+    )
     with (
         patch("src.skills.maps_search.handler.settings") as mock_settings,
         patch(
@@ -235,7 +250,7 @@ async def test_detail_mode_no_api_key_falls_to_grounding(skill, message, ctx):
         ) as mock_grounding,
     ):
         mock_settings.google_maps_api_key = ""
-        await skill.execute(message, ctx, {"maps_query": "coffee", "detail_mode": True})
+        await skill.execute(msg, ctx, {"maps_query": "coffee in Manhattan", "detail_mode": True})
 
     mock_grounding.assert_awaited_once()
 
@@ -345,7 +360,7 @@ def test_is_nearby_query_russian():
 
 @pytest.mark.asyncio
 async def test_nearby_without_city_prompts_for_location(skill, ctx):
-    """Nearby query without user city returns a location prompt."""
+    """Nearby query without user city returns a location prompt + reply_keyboard."""
     msg = IncomingMessage(
         id="msg-loc-1",
         user_id="tg_1",
@@ -353,13 +368,23 @@ async def test_nearby_without_city_prompts_for_location(skill, ctx):
         type=MessageType.text,
         text="coffee near me",
     )
-    result = await skill.execute(msg, ctx, {"maps_query": "coffee near me"})
+    with patch("src.skills.maps_search.handler.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        result = await skill.execute(msg, ctx, {"maps_query": "coffee near me"})
+
     assert "location" in result.response_text.lower()
+    # Must include location button
+    assert result.reply_keyboard is not None
+    assert result.reply_keyboard[0]["request_location"] is True
+    # Must store pending query in Redis
+    mock_redis.set.assert_awaited_once()
+    call_args = mock_redis.set.call_args
+    assert call_args[0][0] == f"maps_pending:{ctx.user_id}"
 
 
 @pytest.mark.asyncio
 async def test_nearby_without_city_prompts_russian(skill):
-    """Nearby query in Russian without city returns Russian prompt."""
+    """Nearby query in Russian without city returns Russian prompt + button."""
     ctx_ru = SessionContext(
         user_id=str(uuid.uuid4()),
         family_id=str(uuid.uuid4()),
@@ -377,8 +402,13 @@ async def test_nearby_without_city_prompts_russian(skill):
         type=MessageType.text,
         text="кофе рядом",
     )
-    result = await skill.execute(msg, ctx_ru, {"maps_query": "кофе рядом"})
-    assert "геолокацию" in result.response_text.lower() or "город" in result.response_text.lower()
+    with patch("src.skills.maps_search.handler.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        result = await skill.execute(msg, ctx_ru, {"maps_query": "кофе рядом"})
+
+    assert "город" in result.response_text.lower()
+    assert result.reply_keyboard is not None
+    assert result.reply_keyboard[0]["request_location"] is True
 
 
 @pytest.mark.asyncio
@@ -408,6 +438,69 @@ async def test_nearby_with_city_appends_city(skill, ctx_with_city):
 
 
 @pytest.mark.asyncio
+async def test_nearby_in_message_but_not_in_query_prompts(skill, ctx):
+    """When message.text has 'рядом' but maps_query doesn't, still detect as nearby."""
+    msg = IncomingMessage(
+        id="msg-loc-5",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="Найди гостиницу рядом где я сейчас",
+    )
+    with patch("src.skills.maps_search.handler.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        # LLM extracted just "гостиница" without "рядом"
+        result = await skill.execute(msg, ctx, {"maps_query": "гостиница"})
+    # Should ask for location, NOT hallucinate a city
+    assert "город" in result.response_text.lower() or "location" in result.response_text.lower()
+    assert result.reply_keyboard is not None
+
+
+@pytest.mark.asyncio
+async def test_nearby_in_message_but_not_in_query_prompts_en(skill, ctx):
+    """English: message has 'near me' but maps_query is stripped."""
+    msg = IncomingMessage(
+        id="msg-loc-6",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="find a hotel near me",
+    )
+    with patch("src.skills.maps_search.handler.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        result = await skill.execute(msg, ctx, {"maps_query": "hotel"})
+    assert "location" in result.response_text.lower()
+    assert result.reply_keyboard is not None
+
+
+@pytest.mark.asyncio
+async def test_nearby_in_message_with_city_works(skill, ctx_with_city):
+    """Nearby detected from message.text + city set → search proceeds."""
+    msg = IncomingMessage(
+        id="msg-loc-7",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="Найди гостиницу рядом где я сейчас",
+    )
+    with (
+        patch("src.skills.maps_search.handler.settings") as mock_settings,
+        patch(
+            "src.skills.maps_search.handler.search_places_grounding",
+            new_callable=AsyncMock,
+            return_value="<b>Hilton Brooklyn</b>",
+        ) as mock_grounding,
+    ):
+        mock_settings.google_maps_api_key = ""
+        result = await skill.execute(msg, ctx_with_city, {"maps_query": "гостиница"})
+
+    mock_grounding.assert_awaited_once()
+    args = mock_grounding.call_args[0]
+    assert "Brooklyn" in args[0]
+    assert "Hilton" in result.response_text
+
+
+@pytest.mark.asyncio
 async def test_non_nearby_query_no_city_works(skill, ctx):
     """Non-nearby queries work even without a city."""
     msg = IncomingMessage(
@@ -430,3 +523,76 @@ async def test_non_nearby_query_no_city_works(skill, ctx):
 
     mock_grounding.assert_awaited_once()
     assert "Statue of Liberty" in result.response_text
+
+
+# ---------------------------------------------------------------------------
+# Router: auto-execute pending maps search after location
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_pending_maps_auto_executes_after_location():
+    """Router auto-executes pending maps search after receiving location."""
+    from src.core.router import _execute_pending_maps_search
+
+    user_id = str(uuid.uuid4())
+    pending_data = json.dumps({
+        "query": "гостиница",
+        "maps_mode": "search",
+        "destination": "",
+        "detail_mode": False,
+        "language": "ru",
+    })
+
+    msg = IncomingMessage(
+        id="loc-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.location,
+        text="40.7128,-74.0060",
+    )
+
+    with (
+        patch("src.core.db.redis") as mock_redis,
+        patch(
+            "src.skills.maps_search.handler.search_places_grounding",
+            new_callable=AsyncMock,
+            return_value="<b>Hilton Brooklyn</b> — 4.5/5",
+        ) as mock_grounding,
+        patch("src.core.config.settings") as mock_settings,
+    ):
+        mock_redis.get = AsyncMock(return_value=pending_data)
+        mock_redis.delete = AsyncMock()
+        mock_settings.google_maps_api_key = ""
+
+        result = await _execute_pending_maps_search(user_id, "Brooklyn", msg)
+
+    assert result is not None
+    assert "Hilton" in result.text
+    assert result.remove_reply_keyboard is True
+    # Verify query was enriched with city
+    args = mock_grounding.call_args[0]
+    assert "Brooklyn" in args[0]
+    assert "гостиница" in args[0]
+    # Verify pending key was deleted
+    mock_redis.delete.assert_awaited_once_with(f"maps_pending:{user_id}")
+
+
+@pytest.mark.asyncio
+async def test_pending_maps_returns_none_when_no_pending():
+    """No pending search → returns None (router falls back to default message)."""
+    from src.core.router import _execute_pending_maps_search
+
+    msg = IncomingMessage(
+        id="loc-2",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.location,
+        text="40.7128,-74.0060",
+    )
+
+    with patch("src.core.db.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value=None)
+        result = await _execute_pending_maps_search("user-123", "Brooklyn", msg)
+
+    assert result is None
