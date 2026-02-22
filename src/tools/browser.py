@@ -21,6 +21,20 @@ from urllib.parse import quote_plus
 logger = logging.getLogger(__name__)
 
 BROWSER_TIMEOUT_S = 120
+_REALISTIC_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/133.0.0.0 Safari/537.36"
+)
+_STEALTH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-infobars",
+    "--disable-background-timer-throttling",
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+]
 _URL_RE = re.compile(r"https?://[^\s)]+", re.IGNORECASE)
 # Match bare domains like "homedepot.com", "amazon.co.uk"
 _BARE_DOMAIN_RE = re.compile(
@@ -108,8 +122,12 @@ class BrowserTool:
 
         try:
             llm = BrowserUseChatAnthropic(model=self._model)
-            # Disable default extensions to avoid slow first-run downloads/timeouts.
-            browser_profile = BrowserProfile(headless=True, enable_default_extensions=False)
+            browser_profile = BrowserProfile(
+                headless=True,
+                enable_default_extensions=False,
+                user_agent=_REALISTIC_UA,
+                args=_STEALTH_ARGS,
+            )
             agent = BrowserAgent(task=task, llm=llm, browser_profile=browser_profile)
             result = await asyncio.wait_for(
                 agent.run(max_steps=max_steps),
@@ -171,9 +189,12 @@ class BrowserTool:
         timeout_ms = max(int(timeout * 1000), 1_000)
 
         try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=True)
-                page = await browser.new_page()
+            from playwright_stealth import Stealth
+
+            async with Stealth().use_async(async_playwright()) as pw:
+                browser = await pw.chromium.launch(headless=True, args=_STEALTH_ARGS)
+                context = await browser.new_context(user_agent=_REALISTIC_UA)
+                page = await context.new_page()
                 await page.goto(start_url, wait_until="domcontentloaded", timeout=timeout_ms)
 
                 title = await page.title()
