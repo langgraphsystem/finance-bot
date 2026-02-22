@@ -32,14 +32,15 @@ class GoogleConnector:
             composio = _composio_client()
 
             def _disconnect():
-                result = composio.connected_accounts.list(
-                    user_ids=[user_id],
-                    toolkit_slugs=["GMAIL"],
-                )
-                for account in result.items:
-                    account_id = getattr(account, "id", None)
-                    if account_id:
-                        composio.connected_accounts.delete(account_id)
+                for toolkit in ("GMAIL", "GOOGLECALENDAR"):
+                    result = composio.connected_accounts.list(
+                        user_ids=[user_id],
+                        toolkit_slugs=[toolkit],
+                    )
+                    for account in result.items:
+                        account_id = getattr(account, "id", None)
+                        if account_id:
+                            composio.connected_accounts.delete(account_id)
                 return True
 
             return await asyncio.get_running_loop().run_in_executor(None, _disconnect)

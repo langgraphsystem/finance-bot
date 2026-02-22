@@ -20,6 +20,12 @@ def _composio_client():
     return Composio(api_key=settings.composio_api_key)
 
 
+_AUTH_CONFIG_IDS = {
+    "gmail": lambda: settings.composio_gmail_auth_config_id,
+    "calendar": lambda: settings.composio_calendar_auth_config_id,
+}
+
+
 @router.get("/google/start")
 async def google_oauth_start(state: str = Query(...)):
     """Start Google OAuth flow via Composio connection initiation."""
@@ -30,10 +36,19 @@ async def google_oauth_start(state: str = Query(...)):
     if isinstance(user_id, bytes):
         user_id = user_id.decode()
 
-    auth_config_id = settings.composio_gmail_auth_config_id
+    # Determine which service this connection is for
+    service = await redis.get(f"oauth_service:{state}")
+    if isinstance(service, bytes):
+        service = service.decode()
+    service = service or "gmail"
+
+    getter = _AUTH_CONFIG_IDS.get(service, _AUTH_CONFIG_IDS["gmail"])
+    auth_config_id = getter()
     if not auth_config_id:
-        logger.error("COMPOSIO_GMAIL_AUTH_CONFIG_ID is not set")
-        raise HTTPException(status_code=500, detail="Gmail auth config not configured.")
+        logger.error("Composio auth config not set for service: %s", service)
+        raise HTTPException(
+            status_code=500, detail=f"Auth config not configured for {service}."
+        )
 
     try:
         composio = _composio_client()
@@ -78,6 +93,7 @@ async def google_oauth_callback(
 
     # Clean up state
     await redis.delete(f"oauth_state:{state}")
+    await redis.delete(f"oauth_service:{state}")
 
     return HTMLResponse(
         "<html><body><h2>Connected!</h2>"
@@ -86,12 +102,15 @@ async def google_oauth_callback(
     )
 
 
-async def generate_composio_connect_link(user_id: str) -> str:
+async def generate_composio_connect_link(
+    user_id: str, service: str = "gmail"
+) -> str:
     """Generate a Composio connection link for a user. Called by skills."""
     import secrets
 
     state = secrets.token_urlsafe(32)
     await redis.set(f"oauth_state:{state}", user_id, ex=600)  # 10 min TTL
+    await redis.set(f"oauth_service:{state}", service, ex=600)
 
     if settings.google_redirect_uri:
         base_url = settings.google_redirect_uri.rsplit("/oauth/", 1)[0]

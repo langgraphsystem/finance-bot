@@ -87,7 +87,7 @@ async def test_require_google_returns_prompt_when_not_connected():
         result = await require_google_or_prompt(str(uuid.uuid4()))
 
     assert result is not None
-    assert "Connect Google" in (result.buttons[0]["text"] if result.buttons else "")
+    assert "Connect" in (result.buttons[0]["text"] if result.buttons else "")
     assert "connect" in result.response_text.lower()
 
 

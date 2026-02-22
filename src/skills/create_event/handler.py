@@ -46,7 +46,7 @@ class CreateEventSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        prompt_result = await require_google_or_prompt(context.user_id)
+        prompt_result = await require_google_or_prompt(context.user_id, service="calendar")
         if prompt_result:
             return prompt_result
 

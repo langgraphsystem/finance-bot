@@ -20,8 +20,20 @@ def _composio_client():
     return Composio(api_key=settings.composio_api_key)
 
 
-async def has_google_connection(user_id: str) -> bool:
+_TOOLKIT_SLUGS = {
+    "gmail": "GMAIL",
+    "calendar": "GOOGLECALENDAR",
+}
+
+_SERVICE_LABELS = {
+    "gmail": "Gmail",
+    "calendar": "Google Calendar",
+}
+
+
+async def has_google_connection(user_id: str, service: str = "gmail") -> bool:
     """Check if user has an active Google connection in Composio."""
+    toolkit = _TOOLKIT_SLUGS.get(service, "GMAIL")
     try:
         import asyncio
 
@@ -31,7 +43,7 @@ async def has_google_connection(user_id: str) -> bool:
             try:
                 result = composio.connected_accounts.list(
                     user_ids=[user_id],
-                    toolkit_slugs=["GMAIL"],
+                    toolkit_slugs=[toolkit],
                     statuses=["ACTIVE"],
                 )
                 return bool(result.items)
@@ -40,32 +52,33 @@ async def has_google_connection(user_id: str) -> bool:
 
         return await asyncio.get_running_loop().run_in_executor(None, _check)
     except Exception as e:
-        logger.warning("Failed to check Composio connection: %s", e)
+        logger.warning("Failed to check Composio connection for %s: %s", service, e)
         return False
 
 
-async def require_google_or_prompt(user_id: str) -> SkillResult | None:
+async def require_google_or_prompt(
+    user_id: str, service: str = "gmail"
+) -> SkillResult | None:
     """Return SkillResult with Composio connect link if not connected, None if connected."""
     from src.skills.base import SkillResult
 
-    if await has_google_connection(user_id):
+    if await has_google_connection(user_id, service=service):
         return None
 
+    label = _SERVICE_LABELS.get(service, "Google")
     try:
         from api.oauth import generate_composio_connect_link
 
-        link = await generate_composio_connect_link(user_id)
+        link = await generate_composio_connect_link(user_id, service=service)
         return SkillResult(
-            response_text=(
-                "To use email and calendar features, connect your Google account.\n"
-                "Click the button below:"
-            ),
-            buttons=[{"text": "\U0001f517 Connect Google", "url": link}],
+            response_text=f"To use {label}, connect your Google account.\n"
+            "Click the button below:",
+            buttons=[{"text": f"\U0001f517 Connect {label}", "url": link}],
         )
     except Exception as e:
         logger.warning("Failed to generate Composio connect link: %s", e)
         return SkillResult(
-            response_text="To use email and calendar, connect Google with /connect",
+            response_text=f"To use {label}, connect Google with /connect",
         )
 
 
