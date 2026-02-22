@@ -32,15 +32,66 @@ async def test_browser_action_empty_message(sample_context):
     assert "what" in result.response_text.lower() or "website" in result.response_text.lower()
 
 
-async def test_browser_action_payment_needs_approval(sample_context):
+async def test_browser_action_vague_booking_asks_details(sample_context):
+    """Vague booking request without city/dates should ask for details."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
-        text="buy a ticket on aviasales.ru",
+        text="забронируй отель на booking.com",
     )
     intent_data = {
-        "browser_task": "buy a ticket on aviasales.ru",
-        "browser_target_site": "aviasales.ru",
+        "browser_task": "забронируй отель на booking.com",
+        "browser_target_site": "booking.com",
+    }
+    with (
+        patch(
+            "src.skills.browser_action.handler.browser_login.get_login_state",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+    ):
+        result = await skill.execute(msg, sample_context, intent_data)
+    # Should ask for missing details, not start login
+    assert "missing" in result.response_text.lower() or "need" in result.response_text.lower()
+    assert "booking.com" in result.response_text
+
+
+async def test_browser_action_detailed_booking_proceeds(sample_context):
+    """Booking with city + dates should proceed to approval."""
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1", user_id="u1", chat_id="c1", type=MessageType.text,
+        text="забронируй отель в Барселоне на 15-18 марта на booking.com",
+    )
+    intent_data = {
+        "browser_task": "забронируй отель в Барселоне на 15-18 марта",
+        "browser_target_site": "booking.com",
+    }
+    with (
+        patch(
+            "src.skills.browser_action.handler.browser_login.get_login_state",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("src.skills.browser_action.handler.approval_manager") as mock_approval,
+    ):
+        mock_approval.request_approval = AsyncMock(
+            return_value=AsyncMock(response_text="Confirm?", buttons=[])
+        )
+        await skill.execute(msg, sample_context, intent_data)
+        mock_approval.request_approval.assert_called_once()
+
+
+async def test_browser_action_payment_needs_approval(sample_context):
+    """Non-booking payment task with enough details should go to approval."""
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1", user_id="u1", chat_id="c1", type=MessageType.text,
+        text="buy Sony WH-1000XM5 headphones on amazon.com",
+    )
+    intent_data = {
+        "browser_task": "buy Sony WH-1000XM5 headphones",
+        "browser_target_site": "amazon.com",
     }
     with (
         patch(
@@ -172,3 +223,24 @@ async def test_browser_action_expired_session_relogins(sample_context):
         result = await skill.execute(msg, sample_context, intent_data)
     mock_delete.assert_called_once()
     assert "email" in result.response_text.lower()
+
+
+async def test_browser_action_vague_shopping_asks_product(sample_context):
+    """Vague shopping request without product should ask what to buy."""
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1", user_id="u1", chat_id="c1", type=MessageType.text,
+        text="купи на amazon.com",
+    )
+    intent_data = {
+        "browser_task": "купи",
+        "browser_target_site": "amazon.com",
+    }
+    with patch(
+        "src.skills.browser_action.handler.browser_login.get_login_state",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        result = await skill.execute(msg, sample_context, intent_data)
+    assert "amazon.com" in result.response_text
+    assert "what" in result.response_text.lower() or "find" in result.response_text.lower()

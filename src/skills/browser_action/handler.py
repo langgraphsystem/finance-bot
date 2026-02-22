@@ -25,11 +25,6 @@ from src.tools import browser_login, browser_service
 
 logger = logging.getLogger(__name__)
 
-_PAYMENT_KEYWORDS = (
-    "pay", "payment", "checkout", "purchase", "buy",
-    "оплат", "купи", "покуп", "заказ", "оформ",
-)
-
 _FORMAT_PROMPT = """\
 The user asked: "{task}"
 Browser returned this raw data:
@@ -94,7 +89,12 @@ class BrowserActionSkill:
 
         domain = browser_service.extract_domain(site)
 
-        # 3. Check if this is a payment task requiring approval
+        # 3. Check if the task is too vague — ask for details first
+        missing = self._check_missing_details(task, domain)
+        if missing:
+            return SkillResult(response_text=missing)
+
+        # 4. Check if this is a payment task requiring approval
         if self._is_payment_task(task):
             return await approval_manager.request_approval(
                 user_id=context.user_id,
@@ -107,7 +107,7 @@ class BrowserActionSkill:
                 ),
             )
 
-        # 4. Check for saved session
+        # 5. Check for saved session
         storage_state = await browser_service.get_storage_state(
             context.user_id, domain
         )
@@ -136,7 +136,7 @@ class BrowserActionSkill:
                 response_text=f"Browser task failed: {result['result']}"
             )
 
-        # 5. No saved session — start login flow
+        # 6. No saved session — start login flow
         return await self._start_login_flow(
             context.user_id, context.family_id, domain, task
         )
@@ -196,10 +196,107 @@ class BrowserActionSkill:
             logger.warning("Failed to format browser result: %s", e)
             return SkillResult(response_text=raw)
 
-    def _is_payment_task(self, task: str) -> bool:
-        """Check if the task involves payment/purchase."""
+    def _check_missing_details(self, task: str, domain: str) -> str | None:
+        """Check if a booking/purchase task has enough details to proceed.
+
+        Returns a clarification prompt if details are missing, None if OK.
+        """
+        import re
+
         task_lower = task.lower()
-        return any(kw in task_lower for kw in _PAYMENT_KEYWORDS)
+
+        # Only check for booking/hotel/flight/purchase sites
+        booking_domains = (
+            "booking.com", "airbnb.com", "hotels.com", "expedia.com",
+            "agoda.com", "trivago.com", "kayak.com", "aviasales.ru",
+            "skyscanner.com", "ostrovok.ru",
+        )
+        shopping_domains = (
+            "amazon.com", "ebay.com", "aliexpress.com", "ozon.ru",
+            "wildberries.ru", "walmart.com",
+        )
+
+        is_booking_site = any(d in domain for d in booking_domains)
+        is_shopping_site = any(d in domain for d in shopping_domains)
+
+        # Only validate details for BOOKING actions, not read-only checks
+        booking_verbs = (
+            "забронир", "бронир", "book ", "reserve", "заказа", "order ",
+            "купи", "buy ",
+        )
+        is_booking_action = any(v in task_lower for v in booking_verbs)
+
+        # For booking sites: need city/location + dates at minimum
+        if is_booking_site and is_booking_action:
+            has_location = bool(re.search(
+                r"(?:в |in |to |at )\w{2,}|барселон|москв|paris|london|"
+                r"new york|berlin|rome|tokyo|dubai|istanbul|"
+                r"[A-ZА-ЯЁ][a-zа-яё]{2,}",
+                task,
+            ))
+            has_dates = bool(re.search(
+                r"\d{1,2}[\s./\-]\d{1,2}|\d{1,2}\s*(?:янв|фев|мар|апр|"
+                r"ма[йя]|июн|июл|авг|сен|окт|ноя|дек|jan|feb|mar|apr|"
+                r"may|jun|jul|aug|sep|oct|nov|dec)|"
+                r"завтра|послезавтра|tomorrow|next week|на выходные|"
+                r"на неделю|на \d+ дн|на \d+ ноч|for \d+ night",
+                task_lower,
+            ))
+
+            missing = []
+            if not has_location:
+                missing.append("city/location")
+            if not has_dates:
+                missing.append("dates")
+
+            if missing:
+                details = ", ".join(missing)
+                return (
+                    f"To book on <b>{domain}</b>, I need more details:\n\n"
+                    f"Missing: <b>{details}</b>\n\n"
+                    "Example: <i>\"забронируй отель в Барселоне "
+                    "на 15-18 марта, до $150/ночь\"</i>"
+                )
+
+        # For shopping sites: need product name at minimum (only for purchase actions)
+        purchase_verbs = ("купи", "закажи", "buy ", "order ", "purchase")
+        is_purchase_action = any(v in task_lower for v in purchase_verbs)
+        if is_shopping_site and is_purchase_action:
+            # If task is just "купи на amazon" without product details
+            words = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task)  # strip domain
+            words = re.sub(
+                r"\b(купи|закажи|найди|buy|order|get|на|on|from|с)\b",
+                "", words, flags=re.IGNORECASE,
+            )
+            if len(words.strip()) < 3:
+                return (
+                    f"What would you like me to find on <b>{domain}</b>?\n\n"
+                    "Example: <i>\"купи наушники Sony WH-1000XM5 "
+                    "на amazon.com\"</i>"
+                )
+
+        return None
+
+    def _is_payment_task(self, task: str) -> bool:
+        """Check if the task involves payment/purchase.
+
+        Uses regex word boundaries for English keywords and substring
+        match for Russian (where \\b doesn't work with Cyrillic).
+        """
+        import re
+
+        task_lower = task.lower()
+        # Russian keywords — substring match is fine (unique stems)
+        ru_payment = ("оплат", "купи", "покуп", "заказа", "оформ", "бронир", "забронир")
+        if any(kw in task_lower for kw in ru_payment):
+            return True
+        # English keywords — use word boundaries to avoid "booking"→"book" false positive
+        # Strip domains first so "booking.com" doesn't interfere
+        text_no_domains = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task_lower)
+        return bool(re.search(
+            r"\b(pay|payment|checkout|purchase|buy|book|reserve|order)\b",
+            text_no_domains,
+        ))
 
     def _extract_site_from_task(self, task: str) -> str | None:
         """Try to extract a website domain from the task text."""
