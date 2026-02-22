@@ -187,6 +187,27 @@ def _extract_drink_volume_ml(text: str) -> int | None:
     return None
 
 
+_SCOPE_NOISE_WORDS = {
+    "удали", "удалить", "удалите", "delete", "remove", "убери",
+    "очисти", "сотри", "clear",
+    "заметк", "заметку", "заметки", "notes", "note",
+    "еда", "еду", "food", "напитк", "напитки", "drinks", "drink",
+    "настроен", "mood", "записи", "записей", "запись",
+    "life", "жизн", "мои", "мою", "все",
+    "на", "за", "от", "про", "о", "об",
+    "пожалуйста", "please",
+}
+
+
+def _has_specific_content(text: str, scope: str) -> bool:
+    """Check if the message has meaningful content beyond delete verb + scope keyword."""
+    words = re.findall(r"[а-яёa-z]+", text.lower())
+    meaningful = [w for w in words if w not in _SCOPE_NOISE_WORDS and len(w) > 1]
+    # If there are meaningful words beyond the standard delete/scope keywords,
+    # the user is targeting specific content (e.g. "пароль", "blender", "банк")
+    return len(meaningful) >= 1
+
+
 def _canonical_drink_key(text: str | None) -> str | None:
     if not text:
         return None
@@ -1052,6 +1073,12 @@ class DeleteDataSkill:
         if scope not in VALID_SCOPES:
             # AI fallback: use Sonnet 4.6 to understand the request
             return await self._ai_search_and_delete(raw_text, context)
+
+        # If user mentions specific content (e.g. "удали заметку про пароль"),
+        # use AI search instead of batch delete to find the exact record.
+        if scope in {"notes", "food", "drinks", "mood", "life_events"}:
+            if _has_specific_content(raw_text, scope):
+                return await self._ai_search_and_delete(raw_text, context)
 
         period = intent_data.get("period")
         date_from = intent_data.get("date_from")

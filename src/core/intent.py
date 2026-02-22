@@ -506,6 +506,42 @@ def _extract_period_hint(text: str) -> str | None:
     return None
 
 
+_MONTH_MAP: dict[str, int] = {
+    "январ": 1, "january": 1, "jan": 1,
+    "феврал": 2, "february": 2, "feb": 2,
+    "март": 3, "марта": 3, "march": 3, "mar": 3,
+    "апрел": 4, "april": 4, "apr": 4,
+    "ма": 5, "may": 5,
+    "июн": 6, "june": 6, "jun": 6,
+    "июл": 7, "july": 7, "jul": 7,
+    "август": 8, "august": 8, "aug": 8,
+    "сентябр": 9, "september": 9, "sep": 9,
+    "октябр": 10, "october": 10, "oct": 10,
+    "ноябр": 11, "november": 11, "nov": 11,
+    "декабр": 12, "december": 12, "dec": 12,
+}
+
+
+def _extract_specific_date(text: str) -> str | None:
+    """Extract a specific date (e.g. '16 февраля 2026') from text. Returns ISO format."""
+    # Pattern: "16 февраля 2026" or "16 февраля"
+    m = re.search(r"(\d{1,2})\s+([а-яa-z]+)(?:\s+(\d{4}))?", text, re.IGNORECASE)
+    if not m:
+        return None
+    day = int(m.group(1))
+    month_text = m.group(2).lower()
+    year = int(m.group(3)) if m.group(3) else date.today().year
+    if day < 1 or day > 31:
+        return None
+    for prefix, month_num in _MONTH_MAP.items():
+        if month_text.startswith(prefix):
+            try:
+                return date(year, month_num, day).isoformat()
+            except ValueError:
+                return None
+    return None
+
+
 def _looks_like_specific_life_entry(text: str) -> bool:
     """Detect whether user targets a specific life entry (not all records)."""
     if re.search(r"\d", text):
@@ -549,14 +585,22 @@ def _rule_based_delete_intent(text: str) -> IntentDetectionResult | None:
         return None
 
     period = _extract_period_hint(text_lower)
-    if not period and scope in LIFE_SCOPES and _looks_like_specific_life_entry(text_lower):
+    specific_date = _extract_specific_date(text_lower) if not period else None
+    is_specific = _looks_like_specific_life_entry(text_lower)
+    if not period and not specific_date and scope in LIFE_SCOPES and is_specific:
         period = "today"
+
+    data = IntentData(delete_scope=scope, period=period)
+    if specific_date:
+        data.date_from = specific_date
+        data.date_to = specific_date
+        data.period = "custom"
 
     return IntentDetectionResult(
         intent="delete_data",
         confidence=0.96,
         intent_type="action",
-        data=IntentData(delete_scope=scope, period=period),
+        data=data,
         response=None,
     )
 
