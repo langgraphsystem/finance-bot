@@ -222,11 +222,6 @@ async def _dispatch_message(
         except Exception as e:
             logger.debug("Failed to fetch recent context for intent: %s", e)
 
-        # City-setting: if bot just asked for location and user responds with a city
-        city_result = await _try_set_city_from_text(message, context, recent_msgs)
-        if city_result:
-            return city_result
-
         # Intent detection
         result = await detect_intent(
             text=message.text or "",
@@ -268,9 +263,10 @@ async def _dispatch_message(
         )
 
         # Auto-save detected city to user profile (background)
+        # Always update — user may have moved to a new city
         detected_city = intent_data.get("detected_city")
         if detected_city and context.user_id and context.family_id:
-            if not context.user_profile.get("city"):
+            if detected_city != context.user_profile.get("city"):
                 asyncio.create_task(_save_user_city(context.user_id, detected_city))
 
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
@@ -1322,85 +1318,3 @@ async def _execute_pending_maps_search(
     )
 
 
-async def _try_set_city_from_text(
-    message: IncomingMessage,
-    context: SessionContext,
-    recent_msgs: list[dict],
-) -> OutgoingMessage | None:
-    """Detect when the user responds to a 'share your location' prompt with a city name.
-
-    Returns an OutgoingMessage confirming the city was saved, or None to continue
-    normal intent detection.
-    """
-    if not message.text or not recent_msgs:
-        return None
-
-    # Find the last bot message
-    last_bot = None
-    for m in reversed(recent_msgs):
-        if m["role"] == "assistant":
-            last_bot = m["content"]
-            break
-
-    if not last_bot:
-        return None
-
-    # Was the bot asking the user for their location?
-    location_ask_keywords = (
-        "know your location",
-        "need to know your",
-        "знать ваш город",
-        "мне нужно знать",
-        "share your location",
-        "отправьте геолокацию",
-    )
-    if not any(kw in last_bot.lower() for kw in location_ask_keywords):
-        return None
-
-    # Extract city from user text
-    text = message.text.strip()
-
-    # Strip common prefixes like "I'm in", "я в"
-    prefixes = (
-        "i'm in ",
-        "i am in ",
-        "im in ",
-        "i live in ",
-        "я в ",
-        "я живу в ",
-        "мой город ",
-        "город ",
-        "я из ",
-        "i'm from ",
-        "i am from ",
-    )
-    text_lower = text.lower()
-    for prefix in prefixes:
-        if text_lower.startswith(prefix):
-            text = text[len(prefix) :].strip()
-            break
-
-    # Sanity: city names are short, no digits, no commas, max 3 words
-    if not text or len(text) > 40 or any(c.isdigit() for c in text):
-        return None
-    if len(text.split()) > 3 or "," in text:
-        return None
-
-    # Reject common action words — this is a query, not a city name
-    not_city_words = {
-        "find", "search", "show", "get", "where", "how", "what", "cafe",
-        "coffee", "restaurant", "hotel", "nearby", "near", "around",
-        "найди", "найти", "покажи", "ищи", "где", "кафе", "кофе",
-        "ресторан", "гостиница", "отель", "рядом", "ближайш", "поблизости",
-        "encuentra", "busca", "cerca", "buscar",
-    }
-    if any(w in text_lower.split() for w in not_city_words):
-        return None
-
-    city = text.title()
-    await _save_user_city(context.user_id, city)
-
-    return OutgoingMessage(
-        text=f"Got it — your location is set to <b>{city}</b>. Now try your search again!",
-        chat_id=message.chat_id,
-    )
