@@ -30,6 +30,7 @@ from src.skills.list_events.handler import skill as list_events_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
+from src.skills.modify_program.handler import skill as modify_program_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
 
@@ -142,4 +143,5 @@ def create_registry() -> SkillRegistry:
     # Visual card generation
     registry.register(generate_card_skill)
     registry.register(generate_program_skill)
+    registry.register(modify_program_skill)
     return registry

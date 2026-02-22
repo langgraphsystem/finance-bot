@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 63
+    assert len(skills) == 65
 
 
 def test_registry_routes_intents(skill_registry):
@@ -12,6 +12,7 @@ def test_registry_routes_intents(skill_registry):
         "add_income",
         "onboarding",
         "scan_receipt",
+        "scan_document",
         "query_stats",
         "general_chat",
         "correct_category",
@@ -74,6 +75,9 @@ def test_registry_routes_intents(skill_registry):
         "send_to_client",
         # Visual card generation
         "generate_card",
+        # Code generation & modification
+        "generate_program",
+        "modify_program",
     ]
     for intent in intents:
         skill = skill_registry.get(intent)

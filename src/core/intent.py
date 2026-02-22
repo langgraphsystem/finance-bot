@@ -219,6 +219,12 @@ mood/notes/life_events/tasks/shopping/messages/reminders/all
 "напиши бота для телеграм", "write a Python script"). \
 Извлеки program_description: описание программы, \
 program_language: язык если указан (python, js, bash...)
+- modify_program: изменить/исправить/обновить/доработать уже созданную \
+программу ("измени программу", "исправь ошибку в коде", \
+"добавь кнопку к программе", "поменяй цвет на синий", \
+"modify the program", "fix the code", "update the script"). \
+Извлеки program_changes: описание изменений, \
+program_id: ID программы если указан
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -227,12 +233,12 @@ general_chat — крайний случай. Если сообщение хот
 финансы, почту, календарь, задачи, заметки, еду, напитки, настроение, \
 планирование, поиск — выбирай соответствующий интент.
 
-КРИТИЧНО — generate_program (ПРОВЕРЬ ПЕРВЫМ): \
-если пользователь просит НАПИСАТЬ/СОЗДАТЬ/СДЕЛАТЬ программу, скрипт, код, \
-парсер, бот, калькулятор, конвертер, утилиту, автоматизацию, игру — \
-это ВСЕГДА generate_program. НЕ quick_answer, НЕ draft_message, НЕ general_chat. \
-Примеры: "напиши программу калькулятор калорий", "сделай скрипт для бэкапа", \
-"create a Python script", "напиши бота для телеграм", "сделай калькулятор".
+КРИТИЧНО — modify_program vs generate_program (ПРОВЕРЬ ПЕРВЫМ): \
+если пользователь просит ИЗМЕНИТЬ/ИСПРАВИТЬ/ОБНОВИТЬ/ДОРАБОТАТЬ уже \
+существующую программу — это modify_program. \
+Примеры: "измени программу", "поменяй цвет", "добавь кнопку", "fix the bug". \
+Если просит НАПИСАТЬ/СОЗДАТЬ/СДЕЛАТЬ НОВУЮ программу — generate_program. \
+Примеры: "напиши калькулятор", "создай скрипт", "create a Python script".
 
 Правила приоритета (shopping list vs tasks):
 - "add X to my list/shopping list/grocery list" / "добавь в список покупок" → shopping_list_add
@@ -569,6 +575,35 @@ _PROGRAM_NOUNS_EN = (
 )
 
 
+_MODIFY_VERBS_RU = ("измени", "исправь", "обнови", "доработай", "поменяй", "переделай")
+_MODIFY_VERBS_EN = ("modify", "fix", "update", "change", "adjust", "tweak", "improve")
+_MODIFY_NOUNS_RU = ("программ", "скрипт", "код", "функци", "приложени")
+_MODIFY_NOUNS_EN = ("program", "script", "code", "function", "app")
+
+
+def _rule_based_modify_program(text: str) -> IntentDetectionResult | None:
+    """Fast-path modify_program for clear 'edit/fix the code' requests."""
+    lower = text.lower().strip()
+    if not lower:
+        return None
+
+    has_verb = any(v in lower for v in _MODIFY_VERBS_RU + _MODIFY_VERBS_EN)
+    if not has_verb:
+        return None
+
+    has_noun = any(n in lower for n in _MODIFY_NOUNS_RU + _MODIFY_NOUNS_EN)
+    if not has_noun:
+        return None
+
+    return IntentDetectionResult(
+        intent="modify_program",
+        confidence=0.97,
+        intent_type="action",
+        data=IntentData(program_changes=text.strip()),
+        response=None,
+    )
+
+
 def _rule_based_generate_program(text: str) -> IntentDetectionResult | None:
     """Fast-path generate_program for clear 'write a program' requests."""
     lower = text.lower().strip()
@@ -619,6 +654,10 @@ async def detect_intent(
     delete_fast_path = _rule_based_delete_intent(text)
     if delete_fast_path:
         return delete_fast_path
+
+    modify_fast_path = _rule_based_modify_program(text)
+    if modify_fast_path:
+        return modify_fast_path
 
     program_fast_path = _rule_based_generate_program(text)
     if program_fast_path:

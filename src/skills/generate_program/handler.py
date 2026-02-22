@@ -20,6 +20,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.llm.clients import generate_text
+from src.core.memory.mem0_client import add_memory
 from src.core.observability import observe
 from src.core.sandbox import e2b_runner
 from src.gateway.types import IncomingMessage
@@ -29,6 +30,9 @@ logger = logging.getLogger(__name__)
 
 # TTL for stored code in Redis (24 hours)
 CODE_TTL_S = 86400
+
+# Max auto-fix attempts when E2B execution fails
+MAX_FIX_ATTEMPTS = 3
 
 CODE_GEN_SYSTEM_PROMPT = """\
 You are a code generator. Create WEB-BASED programs that run in a browser.
@@ -257,6 +261,10 @@ class GenerateProgramSkill:
         await redis.setex(
             f"program:{prog_id}", CODE_TTL_S, code_payload,
         )
+        # Save pointer for modify_program lookups
+        await redis.setex(
+            f"user_last_program:{context.user_id}", CODE_TTL_S, prog_id,
+        )
 
         # Extract description from generated code
         code_desc = _extract_description(code)
@@ -265,6 +273,20 @@ class GenerateProgramSkill:
         buttons = [
             {"text": "\U0001f4c4 Code", "callback": f"show_code:{prog_id}"},
         ]
+
+        # Mem0 background task — remember what was generated
+        async def _mem0_task():
+            try:
+                mem_text = f"Generated program: {description}"
+                if language:
+                    mem_text += f" (language: {language})"
+                await add_memory(
+                    content=mem_text,
+                    user_id=context.user_id,
+                    metadata={"type": "program", "language": language or "auto"},
+                )
+            except Exception as e:
+                logger.warning("Mem0 storage for program failed: %s", e)
 
         # Execute in E2B sandbox if configured
         if e2b_runner.is_configured():
@@ -284,9 +306,14 @@ class GenerateProgramSkill:
                 run_code, language=e2b_lang, timeout=timeout,
             )
 
-            # Auto-retry on error (once)
-            if exec_result.error and not exec_result.timed_out:
-                logger.info("Auto-retry: fixing code after error")
+            # Auto-retry loop on error (up to MAX_FIX_ATTEMPTS)
+            for attempt in range(MAX_FIX_ATTEMPTS):
+                if not exec_result.error or exec_result.timed_out:
+                    break
+                logger.info(
+                    "Auto-retry %d/%d: fixing code after error",
+                    attempt + 1, MAX_FIX_ATTEMPTS,
+                )
                 fix_prompt = FIX_CODE_PROMPT.format(
                     error=exec_result.error, code=code,
                 )
@@ -304,7 +331,6 @@ class GenerateProgramSkill:
                 )
 
                 if not exec_result.error:
-                    # Update stored code with fixed version
                     code = fixed_code
                     code_payload = f"{filename}\n---\n{code}"
                     await redis.setex(
@@ -312,59 +338,21 @@ class GenerateProgramSkill:
                         CODE_TTL_S,
                         code_payload,
                     )
+                    break
 
             # Build response based on execution result
-            return self._build_response(
+            result = _build_code_response(
                 filename, code_desc, exec_result, buttons,
             )
+            result.background_tasks = [_mem0_task]
+            return result
 
         # Fallback: no E2B — send code as file
         return SkillResult(
             response_text=f"<b>{filename}</b>",
             document=code.encode("utf-8"),
             document_name=filename,
-        )
-
-    def _build_response(
-        self,
-        filename: str,
-        description: str,
-        exec_result: e2b_runner.ExecutionResult,
-        buttons: list[dict],
-    ) -> SkillResult:
-        """Build SkillResult from E2B execution result."""
-        parts: list[str] = []
-
-        if exec_result.url:
-            parts.append(f"<b>\u2705 {filename}</b>")
-            if description:
-                parts.append(f"\n{description}")
-            parts.append(
-                f'\n\U0001f310 <a href="{exec_result.url}">'
-                f"Open app</a>"
-                f"\n<i>(active ~5 min)</i>"
-            )
-        elif exec_result.error:
-            err = html_mod.escape(_truncate(exec_result.error, 500))
-            parts.append(f"<b>\u274c {filename}</b>")
-            parts.append(f"\n<b>Error:</b>\n<code>{err}</code>")
-        elif exec_result.stdout:
-            out = html_mod.escape(_truncate(exec_result.stdout, 1000))
-            parts.append(f"<b>\u2705 {filename}</b>")
-            if description:
-                parts.append(f"\n{description}")
-            parts.append(f"\n<b>Output:</b>\n<code>{out}</code>")
-        else:
-            parts.append(f"<b>\u2705 {filename}</b>")
-            if description:
-                parts.append(f"\n{description}")
-
-        if exec_result.timed_out:
-            parts.append("\n<i>Execution timed out</i>")
-
-        return SkillResult(
-            response_text="\n".join(parts),
-            buttons=buttons,
+            background_tasks=[_mem0_task],
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -372,6 +360,48 @@ class GenerateProgramSkill:
 
 
 # --- Helper functions ---
+
+
+def _build_code_response(
+    filename: str,
+    description: str,
+    exec_result: e2b_runner.ExecutionResult,
+    buttons: list[dict],
+) -> SkillResult:
+    """Build SkillResult from E2B execution result."""
+    parts: list[str] = []
+
+    if exec_result.url:
+        parts.append(f"<b>\u2705 {filename}</b>")
+        if description:
+            parts.append(f"\n{description}")
+        parts.append(
+            f'\n\U0001f310 <a href="{exec_result.url}">'
+            f"Open app</a>"
+            f"\n<i>(active ~5 min)</i>"
+        )
+    elif exec_result.error:
+        err = html_mod.escape(_truncate(exec_result.error, 500))
+        parts.append(f"<b>\u274c {filename}</b>")
+        parts.append(f"\n<b>Error:</b>\n<code>{err}</code>")
+    elif exec_result.stdout:
+        out = html_mod.escape(_truncate(exec_result.stdout, 1000))
+        parts.append(f"<b>\u2705 {filename}</b>")
+        if description:
+            parts.append(f"\n{description}")
+        parts.append(f"\n<b>Output:</b>\n<code>{out}</code>")
+    else:
+        parts.append(f"<b>\u2705 {filename}</b>")
+        if description:
+            parts.append(f"\n{description}")
+
+    if exec_result.timed_out:
+        parts.append("\n<i>Execution timed out</i>")
+
+    return SkillResult(
+        response_text="\n".join(parts),
+        buttons=buttons,
+    )
 
 
 def _truncate(text: str, max_len: int) -> str:

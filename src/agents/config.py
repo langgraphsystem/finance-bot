@@ -163,7 +163,7 @@ AGENTS: list[AgentConfig] = [
         system_prompt=WRITING_AGENT_PROMPT,
         skills=[
             "draft_message", "translate_text", "write_post", "proofread",
-            "generate_card", "generate_program",
+            "generate_card", "generate_program", "modify_program",
         ],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},

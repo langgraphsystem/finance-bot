@@ -104,6 +104,9 @@ class IntentData(BaseModel):
     # Code generation
     program_description: str | None = None
     program_language: str | None = None
+    # Code modification
+    program_changes: str | None = None
+    program_id: str | None = None
 
     # Geolocation: auto-detected city from message text
     detected_city: str | None = None

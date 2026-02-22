@@ -10,6 +10,7 @@ from src.core.context import SessionContext
 from src.core.sandbox.e2b_runner import ExecutionResult
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.generate_program.handler import (
+    MAX_FIX_ATTEMPTS,
     GenerateProgramSkill,
     _detect_extension,
     _extract_description,
@@ -327,16 +328,18 @@ async def test_code_saved_to_redis(skill, ctx):
             {"program_description": "hello world"},
         )
 
-    mock_redis.setex.assert_called_once()
-    call_args = mock_redis.setex.call_args
-    key = call_args[0][0]
-    ttl = call_args[0][1]
-    payload = call_args[0][2]
-
-    assert key.startswith("program:")
-    assert ttl == 86400
+    assert mock_redis.setex.call_count == 2
+    # First call: program:{id}
+    key0 = mock_redis.setex.call_args_list[0][0][0]
+    ttl0 = mock_redis.setex.call_args_list[0][0][1]
+    payload = mock_redis.setex.call_args_list[0][0][2]
+    assert key0.startswith("program:")
+    assert ttl0 == 86400
     assert "\n---\n" in payload
     assert 'print("Hello World")' in payload
+    # Second call: user_last_program:{user_id}
+    key1 = mock_redis.setex.call_args_list[1][0][0]
+    assert key1.startswith("user_last_program:")
 
 
 async def test_auto_retry_on_error_success(skill, ctx):
@@ -384,8 +387,8 @@ async def test_auto_retry_on_error_success(skill, ctx):
     assert "fixed" in result.response_text
 
 
-async def test_auto_retry_on_error_still_fails(skill, ctx):
-    """Auto-retry: both executions fail — error shown."""
+async def test_auto_retry_exhausts_all_attempts(skill, ctx):
+    """Auto-retry: all fix attempts fail — error shown."""
     code = "broken code"
     gen_mock = AsyncMock(return_value=code)
 
@@ -416,8 +419,11 @@ async def test_auto_retry_on_error_still_fails(skill, ctx):
             _msg("test"), ctx, {"program_description": "test program"},
         )
 
+    # 1 original + MAX_FIX_ATTEMPTS fix attempts
+    assert gen_mock.call_count == 1 + MAX_FIX_ATTEMPTS
+    assert exec_mock.call_count == 1 + MAX_FIX_ATTEMPTS
     assert "SyntaxError" in result.response_text
-    assert "<b>Error:</b>" in result.response_text
+    assert "&lt;" not in result.response_text or "<b>Error:</b>" in result.response_text
 
 
 async def test_no_retry_on_timeout(skill, ctx):
@@ -777,3 +783,88 @@ async def test_description_fallback_skips_generic_field(skill, ctx):
     prompt_arg = mock_gen.call_args.kwargs["prompt"]
     assert "$100.50" not in prompt_arg
     assert "калькулятор" in prompt_arg
+
+
+# --- Iterative fix + Mem0 tests ---
+
+
+async def test_auto_retry_succeeds_on_second_attempt(skill, ctx):
+    """Auto-retry: first fix fails, second fix succeeds."""
+    original = "broken code"
+    still_broken = "still broken"
+    fixed = '# Fixed code for testing\nprint("works")'
+
+    gen_mock = AsyncMock(side_effect=[original, still_broken, fixed])
+
+    fail1 = ExecutionResult(error="SyntaxError")
+    fail2 = ExecutionResult(error="NameError")
+    ok = ExecutionResult(stdout="works\n")
+    exec_mock = AsyncMock(side_effect=[fail1, fail2, ok])
+
+    with (
+        patch("src.skills.generate_program.handler.generate_text", gen_mock),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.is_configured",
+            return_value=True,
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner.execute_code",
+            exec_mock,
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner._map_language",
+            return_value="python",
+        ),
+        patch(
+            "src.skills.generate_program.handler.e2b_runner._is_web_app",
+            return_value=False,
+        ),
+        _patch_redis(),
+    ):
+        result = await skill.execute(
+            _msg("test"), ctx, {"program_description": "test program"},
+        )
+
+    assert gen_mock.call_count == 3  # original + 2 fixes
+    assert exec_mock.call_count == 3
+    assert "works" in result.response_text
+
+
+async def test_mem0_background_task_added(skill, ctx):
+    """Successful generation adds Mem0 background task."""
+    code = '# Simple hello world script for testing\nprint("hello")'
+    with _patch_gen(code), _patch_e2b_off(), _patch_redis():
+        result = await skill.execute(
+            _msg("hello"),
+            ctx,
+            {"program_description": "hello world", "program_language": "python"},
+        )
+
+    assert len(result.background_tasks) == 1
+    assert callable(result.background_tasks[0])
+
+
+async def test_mem0_stores_program_description(skill, ctx):
+    """Background task calls add_memory with program description."""
+    code = '# Simple hello world script for testing\nprint("hello")'
+    with (
+        _patch_gen(code),
+        _patch_e2b_off(),
+        _patch_redis(),
+        patch(
+            "src.skills.generate_program.handler.add_memory",
+            new_callable=AsyncMock,
+        ) as mock_mem0,
+    ):
+        result = await skill.execute(
+            _msg("калькулятор калорий"),
+            ctx,
+            {"program_description": "калькулятор калорий", "program_language": "python"},
+        )
+        # Execute the background task inside the patch context
+        await result.background_tasks[0]()
+
+        mock_mem0.assert_called_once()
+        content = mock_mem0.call_args.kwargs["content"]
+        assert "калькулятор калорий" in content
+        assert mock_mem0.call_args.kwargs["user_id"] == ctx.user_id

@@ -125,6 +125,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     # Visual card generation
     "generate_card": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "generate_program": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "modify_program": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
 }
 
 
