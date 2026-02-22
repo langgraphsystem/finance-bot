@@ -54,8 +54,11 @@ class PriceCheckSkill:
             )
 
         task = (
-            f"Go to the relevant website and find the current price for: {query}. "
-            "Return the product name, price, and store URL."
+            f"Find the current price for: {query}. "
+            "Return the product name, price, and store URL. "
+            "IMPORTANT: If the website blocks your access or shows error pages, "
+            "do NOT keep retrying the same site. Instead, search Google for the "
+            "price and return the information you find in Google search snippets."
         )
 
         result = await browser_tool.execute_task(task, max_steps=15, timeout=120)

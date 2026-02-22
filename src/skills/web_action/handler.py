@@ -70,7 +70,12 @@ class WebActionSkill:
             )
 
         # Read-only task — execute directly
-        result = await browser_tool.execute_task(task, max_steps=15, timeout=120)
+        browser_task = (
+            f"{task}. "
+            "IMPORTANT: If the website blocks your access or shows error pages, "
+            "do NOT keep retrying. Search Google instead and return what you find."
+        )
+        result = await browser_tool.execute_task(browser_task, max_steps=15, timeout=120)
 
         if result["success"]:
             raw = result["result"]
