@@ -1301,7 +1301,10 @@ async def _execute_pending_maps_search(
             if maps_mode == "directions" and destination:
                 grounding_query = f"directions from {enriched_query} to {destination}"
             answer = await search_places_grounding(
-                grounding_query, language, location_hint=location_hint
+                grounding_query,
+                language,
+                location_hint=location_hint,
+                original_message=query,
             )
     except Exception as e:
         logger.error("Pending maps search failed: %s", e)

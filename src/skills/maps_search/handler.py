@@ -30,7 +30,8 @@ and transport options (subway, bus, car, walk).
 - Describe places in useful detail — hours, phone, website, what to expect.
 - Include Google Maps links where possible.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- ALWAYS respond in the same language as the user's message/query.
+- ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
+User's preferred language: {language}.
 {location_hint}"""
 
 MAPS_API_PROMPT = """\
@@ -183,7 +184,10 @@ class MapsSearchSkill:
             if maps_mode == "directions" and destination:
                 grounding_query = f"directions from {query} to {destination}"
             answer = await search_places_grounding(
-                grounding_query, language, location_hint=location_hint
+                grounding_query,
+                language,
+                location_hint=location_hint,
+                original_message=message.text or query,
             )
 
         # For nearby queries with a saved city, offer location update button
@@ -228,12 +232,15 @@ class MapsSearchSkill:
 
 
 async def search_places_grounding(
-    query: str, language: str, *, location_hint: str = ""
+    query: str, language: str, *, location_hint: str = "", original_message: str = ""
 ) -> str:
     """Search for places using Gemini with Google Search grounding."""
     client = google_client()
     system = MAPS_GROUNDING_PROMPT.format(language=language, location_hint=location_hint)
-    prompt = f"{system}\n\nFind places: {query}"
+    user_msg = original_message or query
+    prompt = (
+        f"{system}\n\nUser's original message: {user_msg}\nSearch query: {query}"
+    )
 
     try:
         response = await client.aio.models.generate_content(
