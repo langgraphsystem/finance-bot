@@ -143,6 +143,25 @@ class MapsSearchSkill:
         # Enrich query with city for nearby searches
         if is_nearby and user_city:
             query = f"{query}, {user_city}"
+            # Store pending search so user can update location and auto-re-search
+            pending = {
+                "query": (
+                    intent_data.get("maps_query")
+                    or intent_data.get("search_topic")
+                    or intent_data.get("search_query")
+                    or message.text
+                    or ""
+                ).strip(),
+                "maps_mode": maps_mode,
+                "destination": destination,
+                "detail_mode": detail_mode,
+                "language": language,
+            }
+            await redis.set(
+                f"maps_pending:{context.user_id}",
+                json.dumps(pending),
+                ex=1800,
+            )
 
         location_hint = ""
         if user_city:
@@ -165,6 +184,34 @@ class MapsSearchSkill:
                 grounding_query = f"directions from {query} to {destination}"
             answer = await search_places_grounding(
                 grounding_query, language, location_hint=location_hint
+            )
+
+        # For nearby queries with a saved city, offer location update button
+        if is_nearby and user_city:
+            if language.startswith("ru"):
+                hint = (
+                    f"\n\n<i>Ищу в {user_city}. Если вы в другом городе — "
+                    "отправьте геолокацию или напишите, например: "
+                    '"я в Бишкеке"</i>'
+                )
+            else:
+                hint = (
+                    f"\n\n<i>Searching in {user_city}. If you're somewhere else, "
+                    "share your location or type your city, "
+                    'e.g. "I\'m in Brooklyn"</i>'
+                )
+            return SkillResult(
+                response_text=answer + hint,
+                reply_keyboard=[
+                    {
+                        "text": (
+                            "\U0001f4cd Обновить геолокацию"
+                            if language.startswith("ru")
+                            else "\U0001f4cd Update location"
+                        ),
+                        "request_location": True,
+                    },
+                ],
             )
 
         return SkillResult(response_text=answer)

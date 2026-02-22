@@ -72,7 +72,9 @@ async def test_quick_mode_default(skill, message, ctx_with_city):
             new_callable=AsyncMock,
             return_value="<b>Starbucks</b> — 4.2/5 | Open now",
         ) as mock_grounding,
+        patch("src.skills.maps_search.handler.redis") as mock_redis,
     ):
+        mock_redis.set = AsyncMock()
         mock_settings.google_maps_api_key = ""
         result = await skill.execute(
             message, ctx_with_city, {"maps_query": "coffee near me"}
@@ -155,7 +157,9 @@ async def test_detail_mode_uses_api(skill, ctx_with_city):
             new_callable=AsyncMock,
             return_value="<b>Starbucks</b> — 4.2/5 | Open now | 123 Main St",
         ) as mock_api,
+        patch("src.skills.maps_search.handler.redis") as mock_redis,
     ):
+        mock_redis.set = AsyncMock()
         mock_settings.google_maps_api_key = "fake-key"
         result = await skill.execute(
             msg, ctx_with_city, {"maps_query": "coffee near me", "detail_mode": True}
@@ -428,13 +432,18 @@ async def test_nearby_with_city_appends_city(skill, ctx_with_city):
             new_callable=AsyncMock,
             return_value="<b>Joe's Pizza</b>",
         ) as mock_grounding,
+        patch("src.skills.maps_search.handler.redis") as mock_redis,
     ):
+        mock_redis.set = AsyncMock()
         mock_settings.google_maps_api_key = ""
-        await skill.execute(msg, ctx_with_city, {"maps_query": "pizza nearby"})
+        result = await skill.execute(msg, ctx_with_city, {"maps_query": "pizza nearby"})
 
     args, kwargs = mock_grounding.call_args
     assert "pizza nearby, Brooklyn" == args[0]
     assert "Brooklyn" in kwargs.get("location_hint", "")
+    # Nearby with city should offer location update button
+    assert result.reply_keyboard is not None
+    assert result.reply_keyboard[0]["request_location"] is True
 
 
 @pytest.mark.asyncio
@@ -490,7 +499,9 @@ async def test_nearby_in_message_with_city_works(skill, ctx_with_city):
             new_callable=AsyncMock,
             return_value="<b>Hilton Brooklyn</b>",
         ) as mock_grounding,
+        patch("src.skills.maps_search.handler.redis") as mock_redis,
     ):
+        mock_redis.set = AsyncMock()
         mock_settings.google_maps_api_key = ""
         result = await skill.execute(msg, ctx_with_city, {"maps_query": "гостиница"})
 
