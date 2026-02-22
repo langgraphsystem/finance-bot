@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import delete, func, or_, select
 
 from src.core.audit import log_action
 from src.core.context import SessionContext
@@ -27,6 +27,7 @@ from src.core.models.task import Task
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.core.pending_actions import store_pending_action
+from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -674,17 +675,6 @@ def _parse_ai_search_result(raw: str) -> dict[str, Any] | None:
     return None
 
 
-def _split_search_words(text: str) -> list[str]:
-    """Split search_text into meaningful words (3+ chars), dropping stop words."""
-    stop = {"and", "or", "the", "for", "и", "или", "для", "на", "за", "от", "про", "в", "с", "по"}
-    return [w for w in re.findall(r"[а-яёa-z0-9]+", text.lower()) if w not in stop and len(w) >= 2]
-
-
-def _ilike_all_words(column, words: list[str]):
-    """Build AND condition: column ILIKE '%word1%' AND column ILIKE '%word2%' ..."""
-    return and_(*(column.ilike(f"%{w}%") for w in words))
-
-
 async def _search_life_events(
     session: Any, uid: uuid.UUID, fid: uuid.UUID, params: dict, limit: int
 ) -> list[FoundRecord]:
@@ -705,9 +695,9 @@ async def _search_life_events(
         except ValueError:
             pass
     if params.get("search_text"):
-        words = _split_search_words(params["search_text"])
+        words = split_search_words(params["search_text"])
         if words:
-            stmt = stmt.where(_ilike_all_words(LifeEvent.text, words))
+            stmt = stmt.where(ilike_all_words(LifeEvent.text, words))
     stmt = stmt.order_by(LifeEvent.created_at.desc()).limit(limit)
     result = await session.execute(stmt)
     return [
@@ -733,11 +723,11 @@ async def _search_transactions(
     if params.get("merchant"):
         stmt = stmt.where(Transaction.merchant.ilike(f"%{params['merchant']}%"))
     if params.get("search_text") and not params.get("merchant"):
-        words = _split_search_words(params["search_text"])
+        words = split_search_words(params["search_text"])
         if words:
             stmt = stmt.where(or_(
-                _ilike_all_words(Transaction.merchant, words),
-                _ilike_all_words(Transaction.description, words),
+                ilike_all_words(Transaction.merchant, words),
+                ilike_all_words(Transaction.description, words),
             ))
     if params.get("amount_min") is not None:
         stmt = stmt.where(Transaction.amount >= params["amount_min"])
@@ -771,11 +761,11 @@ async def _search_tasks(
 ) -> list[FoundRecord]:
     stmt = select(Task).where(Task.user_id == uid)
     if params.get("search_text"):
-        words = _split_search_words(params["search_text"])
+        words = split_search_words(params["search_text"])
         if words:
             stmt = stmt.where(or_(
-                _ilike_all_words(Task.title, words),
-                _ilike_all_words(Task.description, words),
+                ilike_all_words(Task.title, words),
+                ilike_all_words(Task.description, words),
             ))
     if params.get("task_status"):
         stmt = stmt.where(Task.status == params["task_status"])
@@ -807,9 +797,9 @@ async def _search_shopping(
 ) -> list[FoundRecord]:
     stmt = select(ShoppingListItem).where(ShoppingListItem.family_id == fid)
     if params.get("search_text"):
-        words = _split_search_words(params["search_text"])
+        words = split_search_words(params["search_text"])
         if words:
-            stmt = stmt.where(_ilike_all_words(ShoppingListItem.name, words))
+            stmt = stmt.where(ilike_all_words(ShoppingListItem.name, words))
     stmt = stmt.order_by(ShoppingListItem.created_at.desc()).limit(limit)
     result = await session.execute(stmt)
     return [
@@ -828,9 +818,9 @@ async def _search_messages(
 ) -> list[FoundRecord]:
     stmt = select(ConversationMessage).where(ConversationMessage.user_id == uid)
     if params.get("search_text"):
-        words = _split_search_words(params["search_text"])
+        words = split_search_words(params["search_text"])
         if words:
-            stmt = stmt.where(_ilike_all_words(ConversationMessage.content, words))
+            stmt = stmt.where(ilike_all_words(ConversationMessage.content, words))
     if params.get("date_from"):
         try:
             stmt = stmt.where(

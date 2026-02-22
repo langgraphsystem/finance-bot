@@ -11,6 +11,7 @@ from src.core.db import async_session
 from src.core.models.enums import LifeEventType
 from src.core.models.life_event import LifeEvent
 from src.core.models.user_context import UserContext
+from src.core.search_utils import ilike_all_words, split_search_words
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,11 @@ async def query_life_events(
             # JSONB containment: tags @> '["tag1"]'
             stmt = stmt.where(LifeEvent.tags.op("@>")(tags))
         if search_text:
-            stmt = stmt.where(LifeEvent.text.ilike(f"%{search_text}%"))
+            words = split_search_words(search_text)
+            if words:
+                stmt = stmt.where(ilike_all_words(LifeEvent.text, words))
+            else:
+                stmt = stmt.where(LifeEvent.text.ilike(f"%{search_text}%"))
 
         stmt = stmt.order_by(LifeEvent.created_at.desc()).limit(limit)
         result = await session.execute(stmt)

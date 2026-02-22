@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.core.context import SessionContext
+from src.core.search_utils import split_search_words
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.delete_data.handler import (
     DeleteDataSkill,
@@ -16,7 +17,6 @@ from src.skills.delete_data.handler import (
     _parse_ai_search_result,
     _parse_life_event_ref,
     _resolve_date_range,
-    _split_search_words,
 )
 
 MODULE = "src.skills.delete_data.handler"
@@ -403,28 +403,28 @@ def test_parse_ai_search_result_no_tables_key():
     assert _parse_ai_search_result(raw) is None
 
 
-# ---- _split_search_words tests ----
+# ---- split_search_words tests ----
 
 
-def test_split_search_words_basic():
+def testsplit_search_words_basic():
     """Splits text into meaningful words, dropping stop words."""
-    assert _split_search_words("сухур и ифтар") == ["сухур", "ифтар"]
+    assert split_search_words("сухур и ифтар") == ["сухур", "ифтар"]
 
 
-def test_split_search_words_drops_short():
-    assert _split_search_words("a и b") == []
+def testsplit_search_words_drops_short():
+    assert split_search_words("a и b") == []
 
 
-def test_split_search_words_mixed_lang():
-    assert _split_search_words("delete notes for January") == ["delete", "notes", "january"]
+def testsplit_search_words_mixed_lang():
+    assert split_search_words("delete notes for January") == ["delete", "notes", "january"]
 
 
-def test_split_search_words_empty():
-    assert _split_search_words("") == []
+def testsplit_search_words_empty():
+    assert split_search_words("") == []
 
 
-def test_split_search_words_single_keyword():
-    assert _split_search_words("молоко") == ["молоко"]
+def testsplit_search_words_single_keyword():
+    assert split_search_words("молоко") == ["молоко"]
 
 
 # ---- _parse_life_event_ref tests ----

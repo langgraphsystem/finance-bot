@@ -11,6 +11,7 @@ from src.core.db import async_session
 from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.observability import observe
+from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -81,12 +82,15 @@ class CreateBookingSkill:
             from src.core.models.contact import Contact
 
             async with async_session() as session:
+                words = split_search_words(contact_name)
+                name_filter = (
+                    ilike_all_words(Contact.name, words)
+                    if words
+                    else Contact.name.ilike(f"%{contact_name}%")
+                )
                 result = await session.execute(
                     select(Contact)
-                    .where(
-                        Contact.family_id == context.family_id,
-                        Contact.name.ilike(f"%{contact_name}%"),
-                    )
+                    .where(Contact.family_id == context.family_id, name_filter)
                     .limit(1)
                 )
                 contact = result.scalar_one_or_none()

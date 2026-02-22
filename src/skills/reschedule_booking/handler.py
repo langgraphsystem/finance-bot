@@ -12,6 +12,7 @@ from src.core.db import async_session
 from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.observability import observe
+from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -83,7 +84,11 @@ class RescheduleBookingSkill:
                 .order_by(Booking.start_at)
             )
             if search:
-                query = query.where(Booking.title.ilike(f"%{search}%"))
+                words = split_search_words(search)
+                if words:
+                    query = query.where(ilike_all_words(Booking.title, words))
+                else:
+                    query = query.where(Booking.title.ilike(f"%{search}%"))
 
             result = await session.execute(query.limit(1))
             booking = result.scalar_one_or_none()

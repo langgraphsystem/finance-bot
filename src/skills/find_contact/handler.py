@@ -9,6 +9,7 @@ from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.models.contact import Contact
 from src.core.observability import observe
+from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
@@ -39,18 +40,24 @@ class FindContactSkill:
         if not query:
             return SkillResult(response_text="Who are you looking for?")
 
-        pattern = f"%{query}%"
+        words = split_search_words(query)
         async with async_session() as session:
+            if words:
+                search_condition = or_(
+                    ilike_all_words(Contact.name, words),
+                    ilike_all_words(Contact.phone, words),
+                    ilike_all_words(Contact.email, words),
+                )
+            else:
+                pattern = f"%{query}%"
+                search_condition = or_(
+                    Contact.name.ilike(pattern),
+                    Contact.phone.ilike(pattern),
+                    Contact.email.ilike(pattern),
+                )
             result = await session.execute(
                 select(Contact)
-                .where(
-                    Contact.family_id == context.family_id,
-                    or_(
-                        Contact.name.ilike(pattern),
-                        Contact.phone.ilike(pattern),
-                        Contact.email.ilike(pattern),
-                    ),
-                )
+                .where(Contact.family_id == context.family_id, search_condition)
                 .order_by(Contact.name)
                 .limit(20)
             )
