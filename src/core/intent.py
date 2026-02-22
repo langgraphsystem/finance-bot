@@ -704,7 +704,7 @@ async def _detect_with_gemini(
 ) -> IntentDetectionResult:
     client = google_client()
     response = await client.aio.models.generate_content(
-        model="gemini-3.1-pro-preview",
+        model="gemini-3-pro-preview",
         contents=f"{system_prompt}\n\nЯзык ответа: {language}\n\n{user_prompt}",
         config={"response_mime_type": "application/json"},
     )
@@ -775,7 +775,7 @@ async def _classify_domain(text: str, language: str = "ru") -> str:
     prompt = f"{DOMAIN_CLASSIFICATION_PROMPT}\n\nЯзык: {language}\n\nСообщение: {text}"
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-pro-preview",
+            model="gemini-3-pro-preview",
             contents=prompt,
             config={"response_mime_type": "application/json"},
         )
