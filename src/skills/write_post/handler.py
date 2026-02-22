@@ -25,8 +25,7 @@ Instagram = casual with line breaks, business response = calm and solution-orien
 - Max length: appropriate for the platform (Google review ~100 words, social post ~150 words).
 - End with "Want me to adjust the tone?" (in the user's language).
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
-- If no preference is set, match the language of their message."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 
 class WritePostSkill:

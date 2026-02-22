@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 ADD_CONTACT_PROMPT = """\
 You help users add contacts and clients to their CRM.
 Extract: name (required), phone, email, role (client/vendor/partner/friend/family/doctor/other).
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class AddContactSkill:

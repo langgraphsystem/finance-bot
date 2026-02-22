@@ -22,7 +22,7 @@ Rules:
 - Do NOT rewrite for style — only fix mechanical errors.
 - Do NOT change meaning, tone, or word choice.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
+- ALWAYS respond in the same language as the user's message/query.
 - If no preference is set, match the language of the text being proofread."""
 
 

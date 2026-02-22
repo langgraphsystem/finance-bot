@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 LIST_BOOKINGS_PROMPT = """\
 You help users view their booking schedule.
 Show bookings in a clear, organized format.
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class ListBookingsSkill:

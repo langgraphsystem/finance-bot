@@ -22,8 +22,7 @@ provide ALL the data directly — do NOT summarize or redirect to websites.
 - If you're unsure, say "based on my training data" and give your best answer.
 - Never make up statistics or cite fake sources.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
-- If no preference is set, match the language of their message."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 
 class QuickAnswerSkill:

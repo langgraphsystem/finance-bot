@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 LIST_CONTACTS_PROMPT = """\
 You help users view their contact list.
 Format contacts clearly with name, phone, email, and role.
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class ListContactsSkill:

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 SET_REMINDER_SYSTEM_PROMPT = """\
 You help users set reminders. Extract the reminder text, time, and recurrence.
-Respond in the user's preferred language: {language}.
+ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
 
 CONTEXT_EXTRACTION_PROMPT = """\

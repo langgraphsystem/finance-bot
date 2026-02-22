@@ -28,7 +28,7 @@ and transport options (subway, bus, car, walk).
 - Describe places in useful detail — hours, phone, website, what to expect.
 - Include Google Maps links where possible.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
+- ALWAYS respond in the same language as the user's message/query.
 {location_hint}"""
 
 MAPS_API_PROMPT = """\
@@ -40,7 +40,7 @@ Rules:
 - For directions: show total distance, travel time, and numbered steps.
 - Present ALL results — the user asked for a detailed list.
 - Use HTML tags only (<b>, <i>). No Markdown.
-- Respond in the user's preferred language: {language}."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 MAPS_API_BASE = "https://maps.googleapis.com/maps/api"
 

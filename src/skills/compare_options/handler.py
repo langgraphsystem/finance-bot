@@ -23,8 +23,7 @@ Rules:
 - Max 10 lines. Dense and scannable.
 - If comparing more than 4 items, ask the user to narrow down to 3-4.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
-- If no preference is set, match the language of their message."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 
 class CompareOptionsSkill:

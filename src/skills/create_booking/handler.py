@@ -20,7 +20,7 @@ CREATE_BOOKING_PROMPT = """\
 You help users create bookings and appointments.
 Extract: title/service, date+time, duration, location, client name.
 Current date/time in user's timezone ({timezone}): {now_local}.
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 def _parse_datetime(raw: str | None, tz: ZoneInfo) -> datetime | None:

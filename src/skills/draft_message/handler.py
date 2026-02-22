@@ -23,8 +23,7 @@ Rules:
 - If the user provides a name, use it for sign-off. Otherwise, skip the signature.
 - End with a line break and "Want me to change anything?" (in the user's language).
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
-- If no preference is set, match the language of their message."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 
 class DraftMessageSkill:

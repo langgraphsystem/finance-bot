@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 SEND_TO_CLIENT_PROMPT = """\
 You help business owners communicate with their clients.
 Extract: client name, message content, and channel preference (SMS/WhatsApp/call).
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class SendToClientSkill:

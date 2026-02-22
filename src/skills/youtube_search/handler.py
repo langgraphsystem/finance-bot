@@ -40,7 +40,7 @@ extract key steps, tips, conclusions, or transcription highlights.
 - For product videos: mention price, features, and recommendation.
 - Show video title (bold), channel name, and a YouTube URL.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 YOUTUBE_API_PROMPT = """\
 You are a YouTube research assistant. Summarize video content for the user.
@@ -54,7 +54,7 @@ Rules:
 - Present ALL videos from the list — the user asked for a detailed list.
 - Use bullet points for steps or comparisons.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 YOUTUBE_ANALYZE_PROMPT = """\
 You are a YouTube video analyst with access to Google Search.
@@ -70,7 +70,7 @@ Rules:
 - Show video title (bold), channel name, view count if available.
 - Include the original YouTube URL as a clickable link.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 

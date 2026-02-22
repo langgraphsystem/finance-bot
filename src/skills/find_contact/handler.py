@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 FIND_CONTACT_PROMPT = """\
 You help users search for contacts in their CRM.
 Extract the search query (name, phone, or keyword).
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class FindContactSkill:

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 CANCEL_BOOKING_PROMPT = """\
 You help users cancel bookings.
 Identify which booking to cancel from the user's message.
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 class CancelBookingSkill:

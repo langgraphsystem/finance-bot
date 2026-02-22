@@ -21,7 +21,7 @@ RESCHEDULE_BOOKING_PROMPT = """\
 You help users reschedule bookings to a new date/time.
 Extract: which booking, new date/time.
 Current date/time ({timezone}): {now_local}.
-Respond in the user's preferred language: {language}."""
+ALWAYS respond in the same language as the user's message/query."""
 
 
 def _parse_datetime(raw: str | None, tz: ZoneInfo) -> datetime | None:

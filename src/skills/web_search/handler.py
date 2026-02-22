@@ -25,8 +25,7 @@ provide ALL the data the user asked for — do NOT summarize or redirect \
 to external websites. Present the full information directly.
 - If search results are thin, say what you found and suggest a better query.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- Respond in the user's preferred language: {language}.
-- If no preference is set, match the language of their message."""
+- ALWAYS respond in the same language as the user's message/query."""
 
 FALLBACK_DISCLAIMER = "\n\n<i>Based on my training data — may not reflect current info.</i>"
 
