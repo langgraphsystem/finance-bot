@@ -129,13 +129,22 @@ class BrowserTool:
                 args=_STEALTH_ARGS,
             )
             agent = BrowserAgent(task=task, llm=llm, browser_profile=browser_profile)
-            result = await asyncio.wait_for(
+            history = await asyncio.wait_for(
                 agent.run(max_steps=max_steps),
                 timeout=timeout,
             )
+            # Extract clean result text from AgentHistoryList
+            final = history.final_result() if hasattr(history, "final_result") else None
+            if not final:
+                # Fallback: collect extracted_content from all action results
+                parts = []
+                for ar in history.all_results:
+                    if ar.extracted_content:
+                        parts.append(ar.extracted_content)
+                final = "\n".join(parts) if parts else str(history)
             return {
-                "success": True,
-                "result": str(result),
+                "success": bool(final),
+                "result": final or "Browser-Use completed but returned no data.",
                 "steps": max_steps,
                 "engine": "browser_use",
             }
