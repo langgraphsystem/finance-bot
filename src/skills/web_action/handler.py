@@ -5,6 +5,7 @@ All actions with side effects require user approval via the approval system.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -57,9 +58,15 @@ class WebActionSkill:
         if not task:
             return SkillResult(response_text="What would you like me to do on the web?")
 
-        # Check if this is a write action that needs approval
-        write_signals = ["fill", "submit", "order", "book", "register", "sign up", "buy"]
-        is_write = any(signal in task.lower() for signal in write_signals)
+        # Check if this is a write action that needs approval.
+        # Use word boundaries so "booking.com" doesn't match "book".
+        _write_re = re.compile(
+            r"\b(fill|submit|order|book|register|sign\s*up|buy|checkout|purchase)\b",
+            re.IGNORECASE,
+        )
+        # Strip domain names before checking to avoid false positives
+        text_without_urls = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task)
+        is_write = bool(_write_re.search(text_without_urls))
 
         if is_write:
             return await approval_manager.request_approval(
