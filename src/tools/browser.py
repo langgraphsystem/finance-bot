@@ -294,9 +294,19 @@ class BrowserTool:
         return target_url
 
     def _is_write_task(self, task: str) -> bool:
-        """Detect likely side-effecting tasks."""
-        text = (task or "").lower()
-        return any(hint in text for hint in _WRITE_TASK_HINTS)
+        """Detect likely side-effecting tasks.
+
+        Strips domain names first so 'booking.com' doesn't match 'book'.
+        """
+        text = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task or "")
+        return bool(
+            re.search(
+                r"\b(fill|submit|order|book|register|sign\s*up|signup"
+                r"|buy|checkout|purchase)\b",
+                text,
+                re.IGNORECASE,
+            )
+        )
 
     def _compact_text(self, text: str, max_chars: int = 1_200) -> str:
         """Normalize whitespace and clamp output size."""
