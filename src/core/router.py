@@ -1380,10 +1380,21 @@ async def _try_set_city_from_text(
             text = text[len(prefix) :].strip()
             break
 
-    # Sanity: city names are short, no digits, no commas, max 4 words
-    if not text or len(text) > 50 or any(c.isdigit() for c in text):
+    # Sanity: city names are short, no digits, no commas, max 3 words
+    if not text or len(text) > 40 or any(c.isdigit() for c in text):
         return None
-    if len(text.split()) > 4 or "," in text:
+    if len(text.split()) > 3 or "," in text:
+        return None
+
+    # Reject common action words — this is a query, not a city name
+    not_city_words = {
+        "find", "search", "show", "get", "where", "how", "what", "cafe",
+        "coffee", "restaurant", "hotel", "nearby", "near", "around",
+        "найди", "найти", "покажи", "ищи", "где", "кафе", "кофе",
+        "ресторан", "гостиница", "отель", "рядом", "ближайш", "поблизости",
+        "encuentra", "busca", "cerca", "buscar",
+    }
+    if any(w in text_lower.split() for w in not_city_words):
         return None
 
     city = text.title()
