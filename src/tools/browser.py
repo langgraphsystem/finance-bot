@@ -149,6 +149,16 @@ class BrowserTool:
                 "engine": "browser_use",
             }
         except TimeoutError:
+            # Try to salvage partial results from agent history
+            partial = self._extract_partial_results(agent)
+            if partial:
+                logger.info("Browser-Use timed out but salvaged partial results")
+                return {
+                    "success": True,
+                    "result": partial,
+                    "steps": 0,
+                    "engine": "browser_use",
+                }
             return {
                 "success": False,
                 "result": f"Browser-Use task timed out after {timeout}s.",
@@ -307,6 +317,24 @@ class BrowserTool:
                 re.IGNORECASE,
             )
         )
+
+    def _extract_partial_results(self, agent: Any) -> str | None:
+        """Try to salvage extracted content from a Browser-Use agent after timeout."""
+        try:
+            history = getattr(agent, "_history", None) or getattr(agent, "history", None)
+            if not history:
+                return None
+            results = getattr(history, "all_results", None)
+            if not results:
+                return None
+            parts = []
+            for ar in results:
+                content = getattr(ar, "extracted_content", None)
+                if content:
+                    parts.append(content)
+            return "\n".join(parts) if parts else None
+        except Exception:
+            return None
 
     def _compact_text(self, text: str, max_chars: int = 1_200) -> str:
         """Normalize whitespace and clamp output size."""

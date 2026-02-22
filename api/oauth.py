@@ -27,9 +27,13 @@ async def google_oauth_start(state: str = Query(...)):
     if not user_id:
         raise HTTPException(status_code=400, detail="Invalid or expired state token.")
 
-    # Decode bytes if needed
     if isinstance(user_id, bytes):
         user_id = user_id.decode()
+
+    auth_config_id = settings.composio_gmail_auth_config_id
+    if not auth_config_id:
+        logger.error("COMPOSIO_GMAIL_AUTH_CONFIG_ID is not set")
+        raise HTTPException(status_code=500, detail="Gmail auth config not configured.")
 
     try:
         composio = _composio_client()
@@ -46,14 +50,16 @@ async def google_oauth_start(state: str = Query(...)):
         def _initiate():
             return composio.connected_accounts.initiate(
                 user_id=user_id,
-                app="GMAIL",
-                redirect_url=callback_url,
+                auth_config_id=auth_config_id,
+                callback_url=callback_url,
             )
 
         loop = asyncio.get_running_loop()
         connection_request = await loop.run_in_executor(None, _initiate)
 
-        redirect_url = getattr(connection_request, "redirect_url", None) or str(connection_request)
+        redirect_url = getattr(connection_request, "redirect_url", None) or str(
+            connection_request
+        )
         return RedirectResponse(url=redirect_url)
 
     except Exception as e:

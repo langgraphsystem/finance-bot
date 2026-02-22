@@ -59,6 +59,7 @@ class Settings(BaseSettings):
 
     # Composio (Gmail + Calendar integration)
     composio_api_key: str = ""
+    composio_gmail_auth_config_id: str = ""
 
     # Google OAuth (legacy — replaced by Composio)
     google_client_id: str = ""

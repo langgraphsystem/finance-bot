@@ -16,7 +16,9 @@ from src.core.google_auth import (
 async def test_has_connection_true():
     """Returns True when user has Composio connection."""
     mock_composio = MagicMock()
-    mock_composio.connected_accounts.list.return_value = [MagicMock()]
+    mock_result = MagicMock()
+    mock_result.items = [MagicMock(status="ACTIVE")]
+    mock_composio.connected_accounts.list.return_value = mock_result
 
     with patch("src.core.google_auth._composio_client", return_value=mock_composio):
         result = await has_google_connection(str(uuid.uuid4()))
@@ -28,7 +30,9 @@ async def test_has_connection_true():
 async def test_has_connection_false():
     """Returns False when user has no Composio connection."""
     mock_composio = MagicMock()
-    mock_composio.connected_accounts.list.return_value = []
+    mock_result = MagicMock()
+    mock_result.items = []
+    mock_composio.connected_accounts.list.return_value = mock_result
 
     with patch("src.core.google_auth._composio_client", return_value=mock_composio):
         result = await has_google_connection(str(uuid.uuid4()))

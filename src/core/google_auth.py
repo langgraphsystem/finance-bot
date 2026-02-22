@@ -21,7 +21,7 @@ def _composio_client():
 
 
 async def has_google_connection(user_id: str) -> bool:
-    """Check if user has a Google connection in Composio."""
+    """Check if user has an active Google connection in Composio."""
     try:
         import asyncio
 
@@ -29,11 +29,12 @@ async def has_google_connection(user_id: str) -> bool:
 
         def _check():
             try:
-                accounts = composio.connected_accounts.list(
-                    user_id=user_id,
-                    toolkit="GMAIL",
+                result = composio.connected_accounts.list(
+                    user_ids=[user_id],
+                    toolkit_slugs=["GMAIL"],
+                    statuses=["ACTIVE"],
                 )
-                return bool(accounts)
+                return bool(result.items)
             except Exception:
                 return False
 
