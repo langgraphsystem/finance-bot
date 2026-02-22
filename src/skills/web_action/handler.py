@@ -10,6 +10,7 @@ from typing import Any
 
 from src.core.approval import approval_manager
 from src.core.context import SessionContext
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -23,8 +24,16 @@ You are a browser automation assistant. The user asks you to perform
 actions on websites. For read-only tasks (check price, look up info),
 execute directly. For write tasks (fill form, submit order), require
 approval first.
+ALWAYS respond in the same language as the user's message/query."""
 
-Respond in: {language}."""
+_FORMAT_PROMPT = """\
+The user asked: "{task}"
+Browser returned this raw data:
+
+{raw}
+
+Extract the key information and respond concisely in the same language as the user's message.
+Use Telegram HTML (<b>, <i>). If the data is not useful, say what happened."""
 
 
 class WebActionSkill:
@@ -61,11 +70,29 @@ class WebActionSkill:
             )
 
         # Read-only task — execute directly
-        result = await browser_tool.execute_task(task)
+        result = await browser_tool.execute_task(task, max_steps=15, timeout=60)
 
         if result["success"]:
-            return SkillResult(response_text=result["result"])
+            raw = result["result"]
+            if result.get("engine") == "playwright":
+                return await self._format_playwright_result(task, raw)
+            return SkillResult(response_text=raw)
         return SkillResult(response_text=f"I couldn't complete that: {result['result']}")
+
+    async def _format_playwright_result(self, task: str, raw: str) -> SkillResult:
+        """Process raw Playwright output through LLM for clean response."""
+        try:
+            prompt = _FORMAT_PROMPT.format(task=task, raw=raw[:2000])
+            answer = await generate_text(
+                "gemini-3-flash-preview",
+                "You format browser data into concise answers.",
+                [{"role": "user", "content": prompt}],
+                max_tokens=512,
+            )
+            return SkillResult(response_text=answer)
+        except Exception as e:
+            logger.warning("Failed to format playwright result: %s", e)
+            return SkillResult(response_text=raw)
 
 
 skill = WebActionSkill()

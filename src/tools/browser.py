@@ -22,6 +22,12 @@ logger = logging.getLogger(__name__)
 
 BROWSER_TIMEOUT_S = 60
 _URL_RE = re.compile(r"https?://[^\s)]+", re.IGNORECASE)
+# Match bare domains like "homedepot.com", "amazon.co.uk"
+_BARE_DOMAIN_RE = re.compile(
+    r"\b([a-zA-Z0-9-]+\.(?:com|org|net|io|co|ru|uk|de|fr|es|it|ca|au|"
+    r"co\.uk|co\.jp|com\.br|com\.au)[^\s]*)",
+    re.IGNORECASE,
+)
 _WRITE_TASK_HINTS = (
     "fill",
     "submit",
@@ -209,11 +215,14 @@ class BrowserTool:
             }
 
     def _extract_url(self, task: str) -> str | None:
-        """Extract first URL from task text."""
+        """Extract first URL from task text (supports bare domains like homedepot.com)."""
         match = _URL_RE.search(task or "")
-        if not match:
-            return None
-        return match.group(0).rstrip(".,;")
+        if match:
+            return match.group(0).rstrip(".,;")
+        bare = _BARE_DOMAIN_RE.search(task or "")
+        if bare:
+            return f"https://{bare.group(1).rstrip('.,;')}"
+        return None
 
     def _is_write_task(self, task: str) -> bool:
         """Detect likely side-effecting tasks."""
