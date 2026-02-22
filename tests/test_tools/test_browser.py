@@ -21,6 +21,50 @@ def test_extract_url():
     assert tool._extract_url("no url here") is None
 
 
+def test_extract_url_bare_domain():
+    tool = BrowserTool()
+    assert tool._extract_url("go to homedepot.com and find 2x4") == "https://homedepot.com"
+    assert tool._extract_url("check amazon.co.uk for deals") == "https://amazon.co.uk"
+
+
+def test_build_playwright_url_no_target():
+    tool = BrowserTool()
+    url = tool._build_playwright_url("what is the weather today", None)
+    assert "google.com/search" in url
+    assert "weather+today" in url
+
+
+def test_build_playwright_url_domain_with_query():
+    tool = BrowserTool()
+    url = tool._build_playwright_url(
+        "Go to homedepot.com and find the price of 2x4 board",
+        "https://homedepot.com",
+    )
+    assert "google.com/search" in url
+    assert "site%3Ahomedepot.com" in url
+    assert "2x4" in url
+
+
+def test_build_playwright_url_domain_only():
+    tool = BrowserTool()
+    url = tool._build_playwright_url(
+        "go to homedepot.com",
+        "https://homedepot.com",
+    )
+    # No extra query after removing domain + instruction words → go directly
+    assert url == "https://homedepot.com"
+
+
+def test_build_playwright_url_russian_query():
+    tool = BrowserTool()
+    url = tool._build_playwright_url(
+        "зайди на homedepot.com и найди цену на доску 2x4",
+        "https://homedepot.com",
+    )
+    assert "google.com/search" in url
+    assert "site%3Ahomedepot.com" in url
+
+
 def test_is_write_task():
     tool = BrowserTool()
     assert tool._is_write_task("submit order on website") is True

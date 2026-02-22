@@ -165,7 +165,9 @@ class BrowserTool:
             }
 
         target_url = self._extract_url(task)
-        start_url = target_url or f"https://duckduckgo.com/?q={quote_plus(task)}"
+        # If task has a target domain + search intent, use Google site: search
+        # instead of loading the homepage (many sites block headless browsers).
+        start_url = self._build_playwright_url(task, target_url)
         timeout_ms = max(int(timeout * 1000), 1_000)
 
         try:
@@ -183,7 +185,7 @@ class BrowserTool:
                 except Exception:
                     body_text = ""
 
-                compact_text = self._compact_text(body_text, max_chars=1_200)
+                compact_text = self._compact_text(body_text, max_chars=2_000)
                 await browser.close()
 
             snippet = compact_text if compact_text else "No readable text extracted."
@@ -223,6 +225,43 @@ class BrowserTool:
         if bare:
             return f"https://{bare.group(1).rstrip('.,;')}"
         return None
+
+    def _build_playwright_url(self, task: str, target_url: str | None) -> str:
+        """Build the best URL for Playwright fallback.
+
+        If we have a target domain AND extra search terms, use Google site:
+        search instead of going to the homepage (avoids anti-bot blocks).
+        """
+        if not target_url:
+            return f"https://www.google.com/search?q={quote_plus(task)}"
+
+        # Extract the domain from target_url
+        domain_match = re.match(r"https?://(?:www\.)?([^/]+)", target_url)
+        if not domain_match:
+            return target_url
+
+        domain = domain_match.group(1)
+        # Remove URL/domain from task to get the search query part
+        query = task
+        for pattern in [target_url, domain, f"www.{domain}"]:
+            query = query.replace(pattern, "")
+        # Clean up common instruction words
+        query = re.sub(
+            r"\b(go to|navigate to|open|visit|check|find|зайди на|зайти на|найди|найти"
+            r"|цену?|price of|the)\b",
+            "",
+            query,
+            flags=re.IGNORECASE,
+        )
+        query = re.sub(r"\s+", " ", query).strip(" .,;:-")
+
+        if query:
+            # Use Google with site: operator for targeted search
+            google_q = f"site:{domain} {query}"
+            return f"https://www.google.com/search?q={quote_plus(google_q)}"
+
+        # No extra query — just go to the site directly
+        return target_url
 
     def _is_write_task(self, task: str) -> bool:
         """Detect likely side-effecting tasks."""
