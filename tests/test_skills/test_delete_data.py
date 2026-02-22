@@ -16,6 +16,7 @@ from src.skills.delete_data.handler import (
     _parse_ai_search_result,
     _parse_life_event_ref,
     _resolve_date_range,
+    _split_search_words,
 )
 
 MODULE = "src.skills.delete_data.handler"
@@ -400,6 +401,30 @@ def test_parse_ai_search_result_invalid():
 def test_parse_ai_search_result_no_tables_key():
     raw = json.dumps({"search_text": "test", "confidence": 0.5})
     assert _parse_ai_search_result(raw) is None
+
+
+# ---- _split_search_words tests ----
+
+
+def test_split_search_words_basic():
+    """Splits text into meaningful words, dropping stop words."""
+    assert _split_search_words("сухур и ифтар") == ["сухур", "ифтар"]
+
+
+def test_split_search_words_drops_short():
+    assert _split_search_words("a и b") == []
+
+
+def test_split_search_words_mixed_lang():
+    assert _split_search_words("delete notes for January") == ["delete", "notes", "january"]
+
+
+def test_split_search_words_empty():
+    assert _split_search_words("") == []
+
+
+def test_split_search_words_single_keyword():
+    assert _split_search_words("молоко") == ["молоко"]
 
 
 # ---- _parse_life_event_ref tests ----
