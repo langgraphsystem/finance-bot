@@ -195,14 +195,14 @@ class MapsSearchSkill:
             if language.startswith("ru"):
                 hint = (
                     f"\n\n<i>Ищу в {user_city}. Если вы в другом городе — "
-                    "отправьте геолокацию или напишите, например: "
-                    '"я в Бишкеке"</i>'
+                    "нажмите кнопку ниже или напишите "
+                    '"я в [город]"</i>'
                 )
             else:
                 hint = (
-                    f"\n\n<i>Searching in {user_city}. If you're somewhere else, "
-                    "share your location or type your city, "
-                    'e.g. "I\'m in Brooklyn"</i>'
+                    f"\n\n<i>Searching in {user_city}. Wrong city? "
+                    "Tap the button below or type "
+                    '"I\'m in [city]"</i>'
                 )
             return SkillResult(
                 response_text=answer + hint,
