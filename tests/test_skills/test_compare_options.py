@@ -76,7 +76,7 @@ async def test_compare_from_message_text(skill, ctx):
     ) as mock_gen:
         result = await skill.execute(msg, ctx, {})
 
-    mock_gen.assert_awaited_once_with("Costco vs Sam's Club", "en")
+    mock_gen.assert_awaited_once_with("Costco vs Sam's Club", "en", "Costco vs Sam's Club")
     assert "Costco" in result.response_text
 
 
@@ -114,7 +114,9 @@ async def test_compare_uses_language(skill, message):
     ) as mock_gen:
         await skill.execute(message, ctx, {})
 
-    mock_gen.assert_awaited_once_with("compare PEX vs copper pipe", "ru")
+    mock_gen.assert_awaited_once_with(
+        "compare PEX vs copper pipe", "ru", "compare PEX vs copper pipe"
+    )
 
 
 def test_system_prompt_includes_language(skill, ctx):

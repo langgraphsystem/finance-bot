@@ -70,7 +70,9 @@ async def test_web_search_from_message_text(skill, ctx):
     ) as mock_search:
         result = await skill.execute(msg, ctx, {})
 
-    mock_search.assert_awaited_once_with("best plumber in Queens", "en")
+    mock_search.assert_awaited_once_with(
+        "best plumber in Queens", "en", "best plumber in Queens"
+    )
     assert "plumber" in result.response_text.lower()
 
 

@@ -23,7 +23,8 @@ Rules:
 - Max 10 lines. Dense and scannable.
 - If comparing more than 4 items, ask the user to narrow down to 3-4.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- ALWAYS respond in the same language as the user's message/query."""
+- ALWAYS respond in the language of the user's ORIGINAL message. \
+User's preferred language: {language}."""
 
 
 class CompareOptionsSkill:
@@ -46,20 +47,25 @@ class CompareOptionsSkill:
         if not query:
             return SkillResult(response_text="What would you like me to compare?")
 
-        answer = await generate_comparison(query, context.language or "en")
+        original_text = message.text or query
+        answer = await generate_comparison(query, context.language or "en", original_text)
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return COMPARE_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
-async def generate_comparison(query: str, language: str) -> str:
+async def generate_comparison(
+    query: str, language: str, original_message: str = ""
+) -> str:
     """Generate a structured comparison using Claude Sonnet."""
     client = anthropic_client()
     system = COMPARE_SYSTEM_PROMPT.format(language=language)
+    user_msg = original_message or query
+    user_content = f"Original message: {user_msg}\n\nCompare: {query}"
     prompt_data = PromptAdapter.for_claude(
         system=system,
-        messages=[{"role": "user", "content": query}],
+        messages=[{"role": "user", "content": user_content}],
     )
 
     try:

@@ -22,7 +22,8 @@ provide ALL the data directly — do NOT summarize or redirect to websites.
 - If you're unsure, say "based on my training data" and give your best answer.
 - Never make up statistics or cite fake sources.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- ALWAYS respond in the same language as the user's message/query."""
+- ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
+User's preferred language: {language}."""
 
 
 class QuickAnswerSkill:
@@ -45,22 +46,26 @@ class QuickAnswerSkill:
         if not query:
             return SkillResult(response_text="What would you like to know?")
 
-        answer = await generate_answer(query, context.language or "en")
+        original_text = message.text or query
+        answer = await generate_answer(query, context.language or "en", original_text)
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return QUICK_ANSWER_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
-async def generate_answer(query: str, language: str) -> str:
+async def generate_answer(
+    query: str, language: str, original_message: str = ""
+) -> str:
     """Generate a factual answer using Gemini Flash."""
     client = google_client()
     system = QUICK_ANSWER_SYSTEM_PROMPT.format(language=language)
+    user_msg = original_message or query
 
     try:
         response = await client.aio.models.generate_content(
             model="gemini-3-flash-preview",
-            contents=f"{system}\n\nQuestion: {query}",
+            contents=f"{system}\n\nUser's original message: {user_msg}\nQuestion: {query}",
         )
         return response.text or "I couldn't find an answer. Try rephrasing?"
     except Exception as e:

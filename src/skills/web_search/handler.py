@@ -25,7 +25,8 @@ provide ALL the data the user asked for — do NOT summarize or redirect \
 to external websites. Present the full information directly.
 - If search results are thin, say what you found and suggest a better query.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
-- ALWAYS respond in the same language as the user's message/query."""
+- ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
+User's preferred language: {language}."""
 
 FALLBACK_DISCLAIMER = "\n\n<i>Based on my training data — may not reflect current info.</i>"
 
@@ -50,18 +51,22 @@ class WebSearchSkill:
         if not query:
             return SkillResult(response_text="What would you like me to search for?")
 
-        answer = await search_and_answer(query, context.language or "en")
+        original_text = message.text or query
+        answer = await search_and_answer(query, context.language or "en", original_text)
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return WEB_SEARCH_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
-async def search_and_answer(query: str, language: str) -> str:
+async def search_and_answer(
+    query: str, language: str, original_message: str = ""
+) -> str:
     """Search the web via Gemini grounding and return a summarized answer."""
     client = google_client()
     system = WEB_SEARCH_SYSTEM_PROMPT.format(language=language)
-    prompt = f"{system}\n\nSearch query: {query}"
+    user_msg = original_message or query
+    prompt = f"{system}\n\nUser's original message: {user_msg}\nSearch query: {query}"
 
     # Try with Google Search grounding first
     try:
