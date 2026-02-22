@@ -20,7 +20,7 @@ from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
-BROWSER_TIMEOUT_S = 60
+BROWSER_TIMEOUT_S = 120
 _URL_RE = re.compile(r"https?://[^\s)]+", re.IGNORECASE)
 # Match bare domains like "homedepot.com", "amazon.co.uk"
 _BARE_DOMAIN_RE = re.compile(

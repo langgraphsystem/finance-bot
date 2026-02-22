@@ -70,7 +70,7 @@ class WebActionSkill:
             )
 
         # Read-only task — execute directly
-        result = await browser_tool.execute_task(task, max_steps=15, timeout=60)
+        result = await browser_tool.execute_task(task, max_steps=15, timeout=120)
 
         if result["success"]:
             raw = result["result"]

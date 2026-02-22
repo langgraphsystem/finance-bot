@@ -11,8 +11,8 @@ def test_browser_tool_singleton_exists():
     assert isinstance(browser_tool, BrowserTool)
 
 
-def test_browser_timeout_is_60():
-    assert BROWSER_TIMEOUT_S == 60
+def test_browser_timeout_is_120():
+    assert BROWSER_TIMEOUT_S == 120
 
 
 def test_extract_url():
