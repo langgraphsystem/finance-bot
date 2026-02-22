@@ -51,24 +51,6 @@ FALLBACK_NOTE = (
     "\n\n<i>Based on Google Search — for bulk place lists, configure GOOGLE_MAPS_API_KEY.</i>"
 )
 
-_NEARBY_KEYWORDS = (
-    "рядом",
-    "nearby",
-    "near me",
-    "ближайш",
-    "поблизости",
-    "around me",
-    "неподалеку",
-    "close to me",
-)
-
-
-def _is_nearby_query(query: str) -> bool:
-    """Check if query contains nearby/location-dependent keywords."""
-    q = query.lower()
-    return any(kw in q for kw in _NEARBY_KEYWORDS)
-
-
 class MapsSearchSkill:
     name = "maps_search"
     intents = ["maps_search"]
@@ -98,14 +80,12 @@ class MapsSearchSkill:
         detail_mode = bool(intent_data.get("detail_mode"))
         has_api_key = bool(settings.google_maps_api_key)
 
-        # Location awareness: inject user's city for "nearby" queries
-        # Check both extracted query AND original message text —
-        # LLM may strip "рядом"/"near me" from maps_query
+        # LLM-driven location awareness (replaces keyword-based _is_nearby_query)
+        location_specified = bool(intent_data.get("location_specified"))
         user_city = context.user_profile.get("city")
-        is_nearby = _is_nearby_query(query) or _is_nearby_query(message.text or "")
 
-        if is_nearby and not user_city:
-            # Store pending search so router can auto-execute after location
+        # Case 1: No location specified + no saved city → prompt for geolocation
+        if not location_specified and not user_city:
             pending = {
                 "query": query,
                 "maps_mode": maps_mode,
@@ -122,7 +102,7 @@ class MapsSearchSkill:
             if language.startswith("ru"):
                 return SkillResult(
                     response_text=(
-                        "Чтобы найти места рядом, мне нужно знать ваш город.\n\n"
+                        "Чтобы найти подходящие места, мне нужно знать ваш город.\n\n"
                         "Нажмите кнопку ниже или напишите "
                         'свой город, например: <b>"я в Бруклине"</b>'
                     ),
@@ -132,7 +112,7 @@ class MapsSearchSkill:
                 )
             return SkillResult(
                 response_text=(
-                    "To find nearby places, I need to know your location.\n\n"
+                    "To find places for you, I need to know your location.\n\n"
                     "Tap the button below or tell me your city, "
                     'e.g. <b>"I\'m in Brooklyn"</b>'
                 ),
@@ -141,18 +121,19 @@ class MapsSearchSkill:
                 ],
             )
 
-        # Enrich query with city for nearby searches
-        if is_nearby and user_city:
+        # Case 2: No location specified + saved city → enrich query with city
+        if not location_specified and user_city:
             query = f"{query}, {user_city}"
-            # Store pending search so user can update location and auto-re-search
+            # Store pending so user can update location and auto-re-search
+            original_query = (
+                intent_data.get("maps_query")
+                or intent_data.get("search_topic")
+                or intent_data.get("search_query")
+                or message.text
+                or ""
+            ).strip()
             pending = {
-                "query": (
-                    intent_data.get("maps_query")
-                    or intent_data.get("search_topic")
-                    or intent_data.get("search_query")
-                    or message.text
-                    or ""
-                ).strip(),
+                "query": original_query,
                 "maps_mode": maps_mode,
                 "destination": destination,
                 "detail_mode": detail_mode,
@@ -164,12 +145,14 @@ class MapsSearchSkill:
                 ex=1800,
             )
 
+        # Case 3: location_specified=True → query used as-is (no enrichment)
+
         location_hint = ""
         if user_city:
             location_hint = (
                 f"\nUser's location: {user_city}. "
-                "For 'nearby' queries, ONLY show places in or near this city. "
-                "Do NOT show places from other cities or countries."
+                "For queries without a specific location, ONLY show places "
+                "in or near this city. Do NOT show places from other cities."
             )
 
         # API only when user explicitly asks for more / detailed list
@@ -190,8 +173,8 @@ class MapsSearchSkill:
                 original_message=message.text or query,
             )
 
-        # For nearby queries with a saved city, offer location update button
-        if is_nearby and user_city:
+        # For non-location-specified queries with saved city, offer location update
+        if not location_specified and user_city:
             if language.startswith("ru"):
                 hint = (
                     f"\n\n<i>Ищу в {user_city}. Если вы в другом городе — "

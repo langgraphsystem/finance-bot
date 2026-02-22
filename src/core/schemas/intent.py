@@ -110,6 +110,8 @@ class IntentData(BaseModel):
 
     # Geolocation: auto-detected city from message text
     detected_city: str | None = None
+    # maps_search: whether user specified an explicit location (address, place, city)
+    location_specified: bool | None = None
 
 
 class IntentDetectionResult(BaseModel):

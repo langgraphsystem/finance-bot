@@ -387,6 +387,22 @@ date_from: "YYYY-MM-DD", date_to: "YYYY-MM-DD"
 - "кафе рядом" → detected_city: null (нет конкретного города)
 - Если города нет в тексте → detected_city: null
 
+Правила извлечения location_specified (для maps_search):
+- location_specified: true если пользователь указал КОНКРЕТНОЕ место, адрес, город, район, \
+страну или достопримечательность в запросе maps_search
+- "кафе в Бруклине" → true (город указан)
+- "Times Square" → true (конкретное место)
+- "маршрут от Бруклина до Манхэттена" → true (оба пункта указаны)
+- "рестораны на Манхэттене" → true (район указан)
+- "Eiffel Tower" → true (достопримечательность)
+- "123 Main Street" → true (адрес)
+- "кафе рядом" → false (нет конкретного места, только "рядом")
+- "кафе" → false (место не указано)
+- "найди гостиницу" → false (место не указано)
+- "coffee near me" → false (только "near me", нет адреса)
+- "ближайшая аптека" → false (нет конкретного места)
+- Только для maps_search. Для других интентов → null
+
 Классификация intent_type:
 - "action" — пользователь хочет ВЫПОЛНИТЬ действие \
 (запись расхода/дохода, отправка email, создание события, удаление, поиск, генерация отчёта)
@@ -484,7 +500,8 @@ intent_type: "action", confidence: 0.92
     "contact_name": "имя контакта/клиента" или null,
     "contact_phone": "телефон" или null,
     "contact_email": "email" или null,
-    "detected_city": "city name IN ENGLISH if user mentions a specific city" или null
+    "detected_city": "city name IN ENGLISH if user mentions a specific city" или null,
+    "location_specified": true/false для maps_search (указано ли место/адрес/город), null иначе
   }},
   "response": "краткий ответ для пользователя"
 }}"""
