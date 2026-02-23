@@ -120,28 +120,41 @@ async def do_login():
         page = await context.new_page()
         await page.goto(LOGIN_URL, wait_until="domcontentloaded")
 
-        print("  Waiting for login... (checking every 3s, max 2 min)\n")
+        print("  Waiting for login... (checking every 3s, max 3 min)")
+        print("  Login is detected when the page leaves sign-in URL\n")
 
-        for attempt in range(40):  # 2 min
+        for attempt in range(60):  # 3 min
             await asyncio.sleep(3)
-            cookies = await context.cookies("https://www.booking.com")
-            names = {c["name"] for c in cookies}
 
-            # Real login indicators
-            has_login = "logintoken" in names or "pcm_personalization" in names
-            has_auth = any(
-                c["name"] == "bkng_sso_auth" and len(c["value"]) > 50
-                for c in cookies
+            # Check if page navigated away from sign-in
+            current_url = page.url
+            left_signin = (
+                "sign-in" not in current_url
+                and "signin" not in current_url
+                and "login" not in current_url
             )
 
-            if has_login or has_auth:
-                print(f"  Login detected! ({len(cookies)} cookies)")
+            # Also check cookies
+            cookies = await context.cookies("https://www.booking.com")
+            names = {c["name"] for c in cookies}
+            has_login_cookie = (
+                "logintoken" in names or "pcm_personalization" in names
+            )
+
+            if left_signin or has_login_cookie:
+                print(f"  Login detected! Page: {current_url[:60]}")
+                print(f"  Cookies: {len(cookies)}")
+                # Wait a bit for all cookies to settle
+                await asyncio.sleep(3)
                 break
 
             if attempt % 10 == 0:
-                print(f"  [{attempt * 3}s] waiting... ({len(cookies)} cookies)")
+                elapsed = attempt * 3
+                print(f"  [{elapsed}s] waiting... "
+                      f"(page: {'sign-in' if not left_signin else 'other'}, "
+                      f"{len(cookies)} cookies)")
         else:
-            print("  Timeout — saving whatever cookies we have.")
+            print("  Timeout (3 min) — saving whatever cookies we have.")
 
         await asyncio.sleep(2)
         storage_state = await context.storage_state()
