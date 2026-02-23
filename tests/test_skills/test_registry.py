@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 66
+    assert len(skills) == 67
 
 
 def test_registry_routes_intents(skill_registry):
@@ -73,7 +73,8 @@ def test_registry_routes_intents(skill_registry):
         "cancel_booking",
         "reschedule_booking",
         "send_to_client",
-        # Visual card generation
+        # Image / visual card generation
+        "generate_image",
         "generate_card",
         # Code generation & modification
         "generate_program",

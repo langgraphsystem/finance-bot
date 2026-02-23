@@ -23,6 +23,7 @@ from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.generate_card.handler import skill as generate_card_skill
+from src.skills.generate_image.handler import skill as generate_image_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
@@ -141,7 +142,8 @@ def create_registry() -> SkillRegistry:
     registry.register(cancel_booking_skill)
     registry.register(reschedule_booking_skill)
     registry.register(send_to_client_skill)
-    # Visual card generation
+    # Visual card / image generation
+    registry.register(generate_image_skill)
     registry.register(generate_card_skill)
     registry.register(generate_program_skill)
     registry.register(modify_program_skill)

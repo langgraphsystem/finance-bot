@@ -101,6 +101,9 @@ class IntentData(BaseModel):
     # Visual card generation
     card_topic: str | None = None
 
+    # Image generation
+    image_prompt: str | None = None
+
     # Code generation
     program_description: str | None = None
     program_language: str | None = None

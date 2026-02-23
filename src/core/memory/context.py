@@ -123,7 +123,8 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "list_contacts": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "find_contact": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "send_to_client": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
-    # Visual card generation
+    # Visual card / image generation
+    "generate_image": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "generate_card": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "generate_program": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "modify_program": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
