@@ -262,7 +262,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
     from src.tools import browser_service
 
     state = await get_booking_state(user_id)
-    if not state or state.get("step") != "confirming":
+    if not state or state.get("step") not in ("confirming", "awaiting_login"):
         return {"action": "error", "text": "No booking to confirm."}
 
     selected_idx = state.get("selected_idx")

@@ -1415,7 +1415,21 @@ async def _check_browser_login_flow(
     screenshot = result.get("screenshot_bytes")
 
     if action == "login_success":
-        # Login succeeded — now execute the original task
+        # Login succeeded — check for pending booking flow first
+        from src.tools import browser_booking
+
+        booking_state = await browser_booking.get_booking_state(context.user_id)
+        if booking_state and booking_state.get("step") == "awaiting_login":
+            # Resume booking flow — execute the booking with fresh cookies
+            booking_result = await browser_booking.execute_booking(context.user_id)
+            booking_text = booking_result.get("text", "")
+            return OutgoingMessage(
+                text=f"{text}\n\n{booking_text}",
+                chat_id=message.chat_id,
+                photo_bytes=booking_result.get("screenshot_bytes"),
+            )
+
+        # No booking flow — execute the original task directly
         task = result.get("task", "")
         site = result.get("site", "")
         if task and site:
