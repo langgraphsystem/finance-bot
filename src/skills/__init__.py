@@ -68,6 +68,7 @@ from src.skills.translate_text.handler import skill as translate_text_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
 from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
+from src.skills.weekly_digest.handler import skill as weekly_digest_skill
 from src.skills.write_post.handler import skill as write_post_skill
 from src.skills.youtube_search.handler import skill as youtube_search_skill
 
@@ -125,6 +126,8 @@ def create_registry() -> SkillRegistry:
     registry.register(shopping_list_remove_skill)
     registry.register(shopping_list_clear_skill)
     registry.register(evening_recap_skill)
+    # Phase 7: Intelligence & Export skills
+    registry.register(weekly_digest_skill)
     # Data management
     registry.register(delete_data_skill)
     # Phase 5: Browser + monitor skills

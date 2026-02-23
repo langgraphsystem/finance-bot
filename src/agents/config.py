@@ -199,6 +199,7 @@ AGENTS: list[AgentConfig] = [
             "life_search",
             "set_comm_mode",
             "evening_recap",
+            "weekly_digest",
             "price_alert",
             "news_monitor",
         ],

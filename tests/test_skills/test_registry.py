@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 66
+    assert len(skills) == 67
 
 
 def test_registry_routes_intents(skill_registry):
@@ -58,6 +58,8 @@ def test_registry_routes_intents(skill_registry):
         "shopping_list_remove",
         "shopping_list_clear",
         "evening_recap",
+        # Phase 7: Intelligence & Export
+        "weekly_digest",
         "web_action",
         "price_check",
         "price_alert",
