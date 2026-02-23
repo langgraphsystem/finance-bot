@@ -1,5 +1,7 @@
 """Tests for WhatsApp gateway."""
 
+from unittest.mock import patch
+
 import pytest
 
 from src.gateway.types import MessageType, OutgoingMessage
@@ -25,7 +27,12 @@ def test_is_configured(gw):
 
 
 def test_not_configured():
-    gw = WhatsAppGateway(api_token="", phone_number_id="")
+    with patch("src.gateway.whatsapp_gw.settings") as mock_settings:
+        mock_settings.whatsapp_api_token = ""
+        mock_settings.whatsapp_phone_number_id = ""
+        mock_settings.whatsapp_verify_token = ""
+        mock_settings.whatsapp_app_secret = ""
+        gw = WhatsAppGateway(api_token="", phone_number_id="")
     assert not gw.is_configured
 
 
@@ -58,7 +65,12 @@ def test_verify_signature_invalid(gw):
 
 
 def test_verify_signature_no_secret():
-    gw = WhatsAppGateway(api_token="t", phone_number_id="p", app_secret="")
+    with patch("src.gateway.whatsapp_gw.settings") as mock_settings:
+        mock_settings.whatsapp_api_token = ""
+        mock_settings.whatsapp_phone_number_id = ""
+        mock_settings.whatsapp_verify_token = ""
+        mock_settings.whatsapp_app_secret = ""
+        gw = WhatsAppGateway(api_token="t", phone_number_id="p", app_secret="")
     assert gw.verify_signature(b"anything", "sha256=anything")
 
 

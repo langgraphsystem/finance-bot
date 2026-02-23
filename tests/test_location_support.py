@@ -162,7 +162,7 @@ async def test_save_user_city_updates_profile():
 
 
 async def test_save_user_city_no_profile_logs_warning():
-    """Logs warning when no profile exists for the user."""
+    """Logs warning when no user exists for the user_id."""
     user_id = str(uuid.uuid4())
 
     mock_result = MagicMock()
@@ -172,6 +172,7 @@ async def test_save_user_city_no_profile_logs_warning():
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
     mock_session.__aexit__ = AsyncMock(return_value=False)
     mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.scalar = AsyncMock(return_value=None)  # No User found
     mock_session.commit = AsyncMock()
 
     with (
@@ -236,6 +237,11 @@ async def test_location_pin_saves_city_and_responds():
             "src.core.router._save_user_city",
             new_callable=AsyncMock,
         ) as mock_save,
+        patch(
+            "src.core.router._execute_pending_maps_search",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
     ):
         result = await _dispatch_message(msg, ctx, registry)
 
