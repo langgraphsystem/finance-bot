@@ -34,7 +34,7 @@
         </div>
         <div class="nav-links">
             <a href="#features" data-i18n="nav_features">Возможности</a>
-            <a href="#how-it-works" data-i18n="nav_how">Как работает</a>
+            <a href="#agents" data-i18n="nav_agents">Агенты</a>
             <a href="#pricing" data-i18n="nav_pricing">Тарифы</a>
             <a href="#" data-i18n="nav_docs">Документация</a>
             <a href="#" data-i18n="nav_blog">Блог</a>
@@ -59,14 +59,15 @@
             <div class="badge-wrap">
                 <div class="badge">
                     <span class="badge-dot"></span>
-                    <span class="badge-text" data-i18n="hero_badge">Работает на Claude 3.5 & Gemini Flash</span>
+                    <span class="badge-text" data-i18n="hero_badge">Powered by Claude 4.6 & Gemini 3 Flash</span>
                 </div>
             </div>
 
             <h1 class="hero-title" data-i18n="hero_title">Ваш персональный <br><span
-                    class="gradient-text type-effect">финансовый AI-ассистент</span></h1>
-            <p class="hero-subtitle" data-i18n="hero_subtitle">Управляйте деньгами, задачами и расписанием прямо в
-                любимом мессенджере. Идеально для малого бизнеса, фрилансеров и семей.</p>
+                    class="gradient-text type-effect">AI-ассистент</span></h1>
+            <p class="hero-subtitle" data-i18n="hero_subtitle">Управляйте деньгами, задачами, расписанием и клиентами
+                прямо в
+                Telegram, WhatsApp, Slack или по SMS.</p>
             <div class="hero-cta">
                 <a href="https://t.me/YourBotName" class="btn btn-primary btn-large"><span
                         data-i18n="hero_btn_start">Начать использовать</span> <i
@@ -108,6 +109,32 @@
         </div>
     </section>
 
+    <!-- Stats Section -->
+    <section class="stats-section section-padding reveal">
+        <div class="stats-grid">
+            <div class="stat-card hover-glow" data-glow-color="rgba(147, 51, 234, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="stat-value"><span class="counter" data-target="11">0</span></div>
+                <div class="stat-label" data-i18n="stat_agents">AI Агентов</div>
+            </div>
+            <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="stat-value"><span class="counter" data-target="66">0</span></div>
+                <div class="stat-label" data-i18n="stat_skills">Навыков</div>
+            </div>
+            <div class="stat-card hover-glow" data-glow-color="rgba(22, 163, 74, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="stat-value"><span class="counter" data-target="4">0</span></div>
+                <div class="stat-label" data-i18n="stat_channels">Канала связи</div>
+            </div>
+            <div class="stat-card hover-glow" data-glow-color="rgba(219, 39, 119, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="stat-value">$<span class="counter" data-target="49">0</span></div>
+                <div class="stat-label" data-i18n="stat_price">в месяц</div>
+            </div>
+        </div>
+    </section>
+
     <!-- Integrations Logos -->
     <section class="integrations reveal">
         <p class="section-label text-center" data-i18n="integrations_label">ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ
@@ -119,6 +146,7 @@
                 <div class="integration-logo"><i class="fab fa-slack"></i> Slack</div>
                 <div class="integration-logo"><i class="fas fa-comment-sms"></i> SMS</div>
                 <div class="integration-logo"><i class="fab fa-google"></i> Google Calendar</div>
+                <div class="integration-logo"><i class="fa-solid fa-envelope"></i> Gmail</div>
                 <div class="integration-logo"><i class="fab fa-stripe"></i> Stripe</div>
                 <div class="integration-logo"><i class="fab fa-cc-visa"></i> Visa</div>
                 <div class="integration-logo"><i class="fa-solid fa-file-invoice"></i> PDF Invoices</div>
@@ -132,13 +160,13 @@
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
-                    <span class="badge-text" data-i18n="features_badge">ПОЛНЫЙ КОНТРОЛЬ</span>
+                    <span class="badge-text" data-i18n="features_badge">66 НАВЫКОВ В ОДНОМ ЧАТЕ</span>
                 </div>
             </div>
             <h2 class="section-title" data-i18n="features_title">Всё, что вам нужно. <br>В <span
-                    class="gradient-text">одном</span> чате.</h2>
-            <p class="section-subtitle" data-i18n="features_subtitle">Забудьте о сложных таблицах и десятках приложений.
-                Просто напишите команду или отправьте фото.</p>
+                    class="gradient-text">одном</span> месте.</h2>
+            <p class="section-subtitle" data-i18n="features_subtitle">Мощная LangGraph-архитектура сама распределяет
+                задачи между агентами. Забудьте о десятках приложений.</p>
         </div>
 
         <div class="bento-grid">
@@ -148,9 +176,8 @@
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
                     <h3 data-i18n="f1_title">Smart OCR чеков</h3>
-                    <p class="clr-dim" data-i18n="f1_desc">Умное извлечение данных. Отправьте фото скомканного чека. AI
-                        мгновенно распознает мерчанта, товары, налоги и раскидает по категориям с помощью Gemini Flash
-                        3.</p>
+                    <p class="clr-dim" data-i18n="f1_desc">Отправьте фото скомканного чека. AI мгновенно распознает
+                        мерчанта, товары, налоги и раскидает по категориям через Gemini 3 Flash.</p>
 
                     <div class="code-preview mt-4">
                         <div class="code-header">receipt_parser.py</div>
@@ -163,25 +190,25 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 </div>
             </div>
 
-            <!-- Feature 2: Voice -->
-            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(168, 85, 247, 0.15)">
+            <!-- Feature 2: Email -->
+            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(147, 51, 234, 0.15)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
-                    <h3 data-i18n="f2_title">Голосовой ввод</h3>
-                    <p class="clr-dim" data-i18n="f2_desc">За рулем? Просто скажите: "Я купил материалы на две тысячи".
-                        Идеально распознает и структурирует любой язык в реальном времени.</p>
+                    <div class="icon-box"><i class="fa-solid fa-envelope-open-text"></i></div>
+                    <h3 data-i18n="f_email_title">Email Оркестратор</h3>
+                    <p class="clr-dim" data-i18n="f_email_desc">Авто-чтение входящих писем, составление драфтов ответов
+                        и фоллоу-апов силами Claude Sonnet.</p>
                 </div>
             </div>
 
-            <!-- Feature 3: Life Tracker -->
-            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(59, 130, 246, 0.15)">
+            <!-- Feature 3: Calendar -->
+            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(245, 158, 11, 0.15)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
-                    <h3 data-i18n="f3_title">Life & Calendar</h3>
-                    <p class="clr-dim" data-i18n="f3_desc">Трекайте настроение, задачи и встречи в Google Calendar.
-                        Получайте проактивные утренние сводки через Telegram.</p>
+                    <h3 data-i18n="f_cal_title">Calendar & Утро</h3>
+                    <p class="clr-dim" data-i18n="f_cal_desc">Синхронизация с Google Calendar. Получайте проактивные
+                        утренние сводки и планируйте день прямо в чате.</p>
                 </div>
             </div>
 
@@ -192,7 +219,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
                     <h3 data-i18n="f4_title">Мульти-агентная аналитика</h3>
                     <p class="clr-dim" data-i18n="f4_desc">Запрашивайте сложные отчеты: "Покажи мои траты на авто за
-                        полгода по месяцам". Claude 3.5 Sonnet генерирует точные графики прямо в чат.</p>
+                        полгода по месяцам". Генерация точных графиков прямо в чат.</p>
                 </div>
                 <div class="bento-visual">
                     <div class="chart-demo-code">
@@ -206,67 +233,112 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     </div>
                 </div>
             </div>
+
+            <!-- Feature 5: Research -->
+            <div class="bento-card card-wide reveal hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
+                    <h3 data-i18n="f_res_title">Research & Поиск</h3>
+                    <p class="clr-dim" data-i18n="f_res_desc">Глубокий анализ информации через Google Search Grounding.
+                        Поиск по картам, парсинг ссылок, сводки видео с YouTube (Youtube Data API) и мониторинг
+                        новостей.</p>
+                </div>
+            </div>
+
+            <!-- Feature 6: Voice -->
+            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(168, 85, 247, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
+                    <h3 data-i18n="f2_title">Голосовой ввод</h3>
+                    <p class="clr-dim" data-i18n="f2_desc">Идеально распознает и структурирует любой язык в реальном
+                        времени. Просто надиктуйте ваши доходы и расходы.</p>
+                </div>
+            </div>
+
+            <!-- Feature 7: Booking -->
+            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(16, 185, 129, 0.15)">
+                <div class="glow-mouse"></div>
+                <div class="bento-content">
+                    <div class="icon-box"><i class="fa-solid fa-address-book"></i></div>
+                    <h3 data-i18n="f_book_title">Booking & CRM</h3>
+                    <p class="clr-dim" data-i18n="f_book_desc">Встроенная CRM для бизнеса: запись клиентов, отмены,
+                        автоматические напоминания и отправка уведомлений.</p>
+                </div>
+            </div>
         </div>
     </section>
 
-    <!-- Use Cases List -->
-    <section id="how-it-works" class="use-cases section-padding">
+    <!-- Agents Grid -->
+    <section id="agents" class="agents section-padding">
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
-                    <span class="badge-text" data-i18n="uc_badge">USE CASES</span>
+                    <span class="badge-text" data-i18n="agents_badge">ЭКОСИСТЕМА</span>
                 </div>
             </div>
-            <h2 class="section-title" data-i18n="uc_title">Создан под <span class="gradient-text">вашу</span> жизнь</h2>
+            <h2 class="section-title" data-i18n="agents_title">Ваша команда из <span class="gradient-text">11
+                    ИИ-агентов</span></h2>
+            <p class="section-subtitle" data-i18n="agents_subtitle">Каждый агент специализируется на своей задаче и
+                работает в единой многоуровневой памяти.</p>
         </div>
 
-        <div class="use-cases-grid reveal">
-            <!-- Case 1 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
+        <div class="agents-grid reveal">
+            <div class="agent-card hover-glow">
                 <div class="glow-mouse"></div>
-                <div class="uc-icon"><i class="fa-solid fa-briefcase"></i></div>
-                <div class="uc-content">
-                    <h3 data-i18n="uc1_title">Для малого бизнеса и фриланса</h3>
-                    <p class="clr-dim" data-i18n="uc1_desc">Бот запоминает категории ваших расходов (Материалы, Реклама,
-                        Подрядчики). Фотографируйте накладные, чтобы ничего не забыть для налоговой, и ведите
-                        CRM-контакты клиентов.</p>
-                </div>
-                <div class="uc-tags">
-                    <span class="tag" data-i18n="tag_invoice">Инвойсы</span>
-                    <span class="tag">CRM</span>
-                    <span class="tag" data-i18n="tag_taxes">Налоги</span>
-                </div>
+                <div class="agent-icon"><i class="fa-solid fa-money-bill-transfer"></i></div>
+                <div class="agent-name">Finance</div>
             </div>
-
-            <!-- Case 2 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
+            <div class="agent-card hover-glow">
                 <div class="glow-mouse"></div>
-                <div class="uc-icon"><i class="fa-solid fa-people-roof"></i></div>
-                <div class="uc-content">
-                    <h3 data-i18n="uc2_title">Совместный семейный бюджет</h3>
-                    <p class="clr-dim" data-i18n="uc2_desc">Подключите супругов к одному семейному аккаунту в Telegram.
-                        Каждый вносит свои траты, а владелец видит полную картину с разделением доступов.</p>
-                </div>
-                <div class="uc-tags">
-                    <span class="tag" data-i18n="tag_sync">Синхронизация</span>
-                    <span class="tag" data-i18n="tag_list">Списки покупок</span>
-                </div>
+                <div class="agent-icon"><i class="fa-solid fa-chart-line"></i></div>
+                <div class="agent-name">Analytics</div>
             </div>
-
-            <!-- Case 3 -->
-            <div class="use-case-row hover-glow" data-glow-color="rgba(0, 0, 0, 0.05)">
+            <div class="agent-card hover-glow">
                 <div class="glow-mouse"></div>
-                <div class="uc-icon"><i class="fa-solid fa-truck"></i></div>
-                <div class="uc-content">
-                    <h3 data-i18n="uc3_title">Для таксистов и дальнобойщиков</h3>
-                    <p class="clr-dim" data-i18n="uc3_desc">Записывайте топливо, ремонт и сборы на ходу с помощью
-                        голосовых команд. Получайте сводки для IFTA-отчетов без отрыва от руля.</p>
-                </div>
-                <div class="uc-tags">
-                    <span class="tag" data-i18n="tag_voice">Голос</span>
-                    <span class="tag">Tolls</span>
-                    <span class="tag">IFTA</span>
-                </div>
+                <div class="agent-icon"><i class="fa-solid fa-heart-pulse"></i></div>
+                <div class="agent-name">Life Tracker</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-regular fa-calendar-days"></i></div>
+                <div class="agent-name">Calendar</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-list-check"></i></div>
+                <div class="agent-name">Tasks</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-flask"></i></div>
+                <div class="agent-name">Research</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-pen-nib"></i></div>
+                <div class="agent-name">Writing</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
+                <div class="agent-name">Email</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-calendar-plus"></i></div>
+                <div class="agent-name">Booking</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-microphone-lines"></i></div>
+                <div class="agent-name">Voice</div>
+            </div>
+            <div class="agent-card hover-glow">
+                <div class="glow-mouse"></div>
+                <div class="agent-icon"><i class="fa-solid fa-user-astronaut"></i></div>
+                <div class="agent-name">Onboarding</div>
             </div>
         </div>
     </section>
@@ -277,7 +349,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
         <div class="cta-box">
             <h2 class="section-title" data-i18n="pricing_title">Готовы делегировать хаос <span
                     class="gradient-text">ИИ</span>?</h2>
-            <p class="clr-dim" data-i18n="pricing_subtitle">Стройте свои финансы как код. Без скачивания лишних
+            <p class="clr-dim" data-i18n="pricing_subtitle">Стройте свои финансы и дела как код. Без скачивания лишних
                 приложений.</p>
 
             <div class="pricing-card">
@@ -286,8 +358,9 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     <span class="amount">49</span>
                     <span class="period" data-i18n="pricing_period">/месяц</span>
                 </div>
-                <p class="pricing-sub" data-i18n="pricing_desc">Полный доступ ко всем модулям AI, распознаванию чеков,
-                    интеграции с календарем и приоритетная поддержка.</p>
+                <p class="pricing-sub" data-i18n="pricing_desc">Полный доступ ко всем модулям AI, 11 агентам,
+                    распознаванию чеков,
+                    интеграции с календарем и почтой. Поддержка мультиарендности для бизнеса и семьи.</p>
                 <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full"><span
                         data-i18n="pricing_btn">Перейти в Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
             </div>
@@ -314,9 +387,9 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             <div class="footer-links">
                 <div class="link-group">
                     <h4 data-i18n="footer_prod">Продукт</h4>
-                    <a href="#" data-i18n="nav_features">Возможности</a>
-                    <a href="#" data-i18n="footer_int">Интеграции</a>
-                    <a href="#" data-i18n="nav_pricing">Тарифы</a>
+                    <a href="#features" data-i18n="nav_features">Возможности</a>
+                    <a href="#agents" data-i18n="nav_agents">Агенты</a>
+                    <a href="#pricing" data-i18n="nav_pricing">Тарифы</a>
                     <a href="#">Changelog</a>
                 </div>
                 <div class="link-group">

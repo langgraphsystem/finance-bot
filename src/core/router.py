@@ -907,46 +907,95 @@ async def _handle_callback(
         await delete_pending_action(pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
-    elif action == "booking_select":
+    # ── Hotel booking flow callbacks ──
+
+    elif action == "hotel_platform":
         from src.tools import browser_booking
 
-        option_idx = int(parts[2]) if len(parts) > 2 else 0
-        result = await browser_booking.handle_selection(context.user_id, option_idx)
-        if result["action"] == "confirm":
-            return OutgoingMessage(
-                text=result["text"],
-                chat_id=message.chat_id,
-                buttons=result.get("buttons"),
-            )
-        return OutgoingMessage(text=result.get("text", "Error."), chat_id=message.chat_id)
-
-    elif action == "booking_confirm":
-        from src.tools import browser_booking
-
-        result = await browser_booking.execute_booking(context.user_id)
-        if result["action"] == "need_login":
-            site = result.get("site", "")
-            return OutgoingMessage(
-                text=(
-                    f"I don't have a session for <b>{site}</b>.\n\n"
-                    "To save your login:\n"
-                    "1. Log into the site in your browser\n"
-                    "2. Click the Finance Bot extension → Save Session\n\n"
-                    "Don't have the extension? Send /extension to get started."
-                ),
-                chat_id=message.chat_id,
-            )
+        platform = parts[2] if len(parts) > 2 else ""
+        result = await browser_booking.handle_platform_choice(context.user_id, platform)
         return OutgoingMessage(
             text=result.get("text", ""),
             chat_id=message.chat_id,
-            photo_bytes=result.get("screenshot_bytes"),
+            buttons=result.get("buttons"),
         )
 
-    elif action == "booking_cancel":
+    elif action == "hotel_login_ready":
         from src.tools import browser_booking
 
-        await browser_booking.cancel_booking(context.user_id)
-        return OutgoingMessage(text="Booking cancelled.", chat_id=message.chat_id)
+        result = await browser_booking.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_select":
+        from src.tools import browser_booking
+
+        index = int(parts[2]) if len(parts) > 2 else 0
+        result = await browser_booking.handle_hotel_selection(context.user_id, index)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_sort":
+        from src.tools import browser_booking
+
+        sort_type = parts[2] if len(parts) > 2 else "price"
+        result = await browser_booking.handle_sort_change(context.user_id, sort_type)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_more":
+        from src.tools import browser_booking
+
+        result = await browser_booking.handle_more_results(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_confirm":
+        from src.tools import browser_booking
+
+        result = await browser_booking.execute_booking(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_confirm_final":
+        from src.tools import browser_booking
+
+        result = await browser_booking.confirm_booking(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+        )
+
+    elif action == "hotel_back":
+        from src.tools import browser_booking
+
+        result = await browser_booking.handle_back_to_results(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "hotel_cancel":
+        from src.tools import browser_booking
+
+        await browser_booking.cancel_flow(context.user_id)
+        return OutgoingMessage(text="Hotel search cancelled.", chat_id=message.chat_id)
 
     elif action == "show_code":
         from src.core.db import redis
@@ -1439,18 +1488,20 @@ async def _check_browser_login_flow(
     screenshot = result.get("screenshot_bytes")
 
     if action == "login_success":
-        # Login succeeded — check for pending booking flow first
+        # Login succeeded — check for pending hotel booking flow first
         from src.tools import browser_booking
 
         booking_state = await browser_booking.get_booking_state(context.user_id)
         if booking_state and booking_state.get("step") == "awaiting_login":
-            # Resume booking flow — execute the booking with fresh cookies
-            booking_result = await browser_booking.execute_booking(context.user_id)
+            # Resume hotel booking flow — search with fresh cookies
+            booking_result = await browser_booking.check_auth_and_search(
+                context.user_id
+            )
             booking_text = booking_result.get("text", "")
             return OutgoingMessage(
                 text=f"{text}\n\n{booking_text}",
                 chat_id=message.chat_id,
-                photo_bytes=booking_result.get("screenshot_bytes"),
+                buttons=booking_result.get("buttons"),
             )
 
         # No booking flow — execute the original task directly
@@ -1486,18 +1537,25 @@ async def _check_browser_booking_flow(
     message: IncomingMessage,
     context: SessionContext,
 ) -> OutgoingMessage | None:
-    """Check if user has an active booking selection flow.
+    """Check if user has an active hotel booking flow.
 
-    Handles text input like "2" or "Hotel Arts" to select a hotel
-    without clicking a button.
+    Handles text input during various states:
+    - awaiting_selection: hotel number/name, sort commands, filter requests
+    - awaiting_login: "готово"/"ready" to check session
+    - confirming: "да"/"yes" to confirm, "нет"/"no" to go back
     """
     from src.tools import browser_booking
 
     state = await browser_booking.get_booking_state(context.user_id)
-    if not state or state.get("step") != "awaiting_selection":
+    if not state:
         return None
 
-    result = await browser_booking.handle_text_selection(
+    step = state.get("step")
+    # Only intercept text-based states
+    if step not in ("awaiting_selection", "awaiting_login", "confirming"):
+        return None
+
+    result = await browser_booking.handle_text_input(
         context.user_id, message.text or ""
     )
     if not result:

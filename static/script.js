@@ -382,4 +382,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    /* --- Animated Counters --- */
+    const counters = document.querySelectorAll('.counter');
+    const counterOptions = {
+        threshold: 0.5,
+        rootMargin: "0px"
+    };
+
+    const counterObserver = new IntersectionObserver(function (entries, observer) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const target = entry.target;
+                const updateCount = () => {
+                    const targetValue = +target.getAttribute('data-target');
+                    const current = +target.innerText;
+                    const inc = targetValue / 50;
+
+                    if (current < targetValue) {
+                        target.innerText = Math.ceil(current + inc);
+                        setTimeout(updateCount, 20);
+                    } else {
+                        target.innerText = targetValue;
+                    }
+                };
+                updateCount();
+                observer.unobserve(target);
+            }
+        });
+    }, counterOptions);
+
+    counters.forEach(counter => {
+        counterObserver.observe(counter);
+    });
+
 });

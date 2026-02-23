@@ -24,6 +24,35 @@ logger = logging.getLogger(__name__)
 # Sessions expire after 30 days by default
 DEFAULT_SESSION_TTL_DAYS = 30
 
+# Mapping of popular domains to their specific login page URLs
+_LOGIN_URLS: dict[str, str] = {
+    "booking.com": "https://account.booking.com/sign-in",
+    "airbnb.com": "https://www.airbnb.com/login",
+    "hotels.com": "https://www.hotels.com/account/signin",
+    "expedia.com": "https://www.expedia.com/user/signin",
+    "agoda.com": "https://www.agoda.com/account/login",
+    "trivago.com": "https://www.trivago.com/account/login",
+    "kayak.com": "https://www.kayak.com/signin",
+    "amazon.com": "https://www.amazon.com/ap/signin",
+    "ebay.com": "https://signin.ebay.com/ws/eBayISAPI.dll?SignIn",
+    "walmart.com": "https://www.walmart.com/account/login",
+    "aliexpress.com": "https://login.aliexpress.com/",
+    "skyscanner.com": "https://www.skyscanner.com/sso/login",
+    "aviasales.ru": "https://www.aviasales.ru/auth",
+    "ostrovok.ru": "https://ostrovok.ru/auth/signin/",
+    "ozon.ru": "https://www.ozon.ru/login/",
+    "wildberries.ru": "https://www.wildberries.ru/security/login",
+}
+
+
+def get_login_url(domain: str) -> str:
+    """Get the specific login page URL for a domain.
+
+    Returns the mapped login URL if known, otherwise a generic https://domain URL.
+    """
+    domain = extract_domain(domain)
+    return _LOGIN_URLS.get(domain, f"https://{domain}")
+
 
 def extract_domain(url_or_site: str) -> str:
     """Normalize URL or site name to a bare domain.
@@ -138,6 +167,36 @@ async def delete_session(user_id: str, site: str) -> bool:
     except Exception as e:
         logger.error("Failed to delete browser session for %s on %s: %s", user_id, domain, e)
         return False
+
+
+async def list_user_sessions(user_id: str) -> list[dict[str, str]]:
+    """List all saved browser sessions for a user.
+
+    Returns list of dicts with: site, updated_at, expired.
+    """
+    try:
+        async with async_session() as session:
+            result = await session.execute(
+                select(
+                    UserBrowserSession.site,
+                    UserBrowserSession.updated_at,
+                    UserBrowserSession.expires_at,
+                ).where(UserBrowserSession.user_id == uuid.UUID(user_id))
+            )
+            rows = result.all()
+
+        now = datetime.now(UTC)
+        return [
+            {
+                "site": row.site,
+                "updated_at": row.updated_at.strftime("%Y-%m-%d") if row.updated_at else "",
+                "expired": bool(row.expires_at and row.expires_at < now),
+            }
+            for row in rows
+        ]
+    except Exception as e:
+        logger.error("Failed to list sessions for %s: %s", user_id, e)
+        return []
 
 
 async def log_action(

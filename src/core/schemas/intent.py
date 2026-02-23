@@ -120,6 +120,14 @@ class IntentData(BaseModel):
     browser_target_site: str | None = None  # "booking.com", "amazon.com"
     browser_task: str | None = None  # "book hotel in Barcelona for March 15-18"
 
+    # Hotel booking fields (extracted by intent detection for browser_action)
+    hotel_city: str | None = None
+    hotel_check_in: str | None = None  # YYYY-MM-DD
+    hotel_check_out: str | None = None  # YYYY-MM-DD
+    hotel_guests: int | None = None
+    hotel_budget: float | None = None
+    hotel_platform: str | None = None  # "booking.com", "airbnb.com"
+
 
 class IntentDetectionResult(BaseModel):
     intent: str
