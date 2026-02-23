@@ -166,7 +166,7 @@ def _extract_target_from_text(text: str) -> str:
     """Try to extract target format from user message text."""
     text_lower = text.lower()
     m = re.search(
-        r"(?:to|в|into|как|в формат|save as|сохрани как)\s+\.?(\w{2,5})\b",
+        r"(?:to|в|на|into|как|в формат|save as|сохрани как)\s+\.?(\w{2,5})\b",
         text_lower,
     )
     if m:

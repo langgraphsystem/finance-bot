@@ -107,8 +107,16 @@ async def _persist_message(
 
 
 _CONVERSION_RE = re.compile(
-    r"(?:convert|конвертир|в формат|save as|сохрани как|to\s+\.?|в\s+\.?)"
-    r"\s*(?:pdf|docx?|xlsx?|csv|txt|rtf|odt|ods|html|md|pptx|epub|fb2|mobi|djvu|jpe?g|png|tiff)\b",
+    r"(?:"
+    # "convert/конвертировать [this/это/файл] [to/в/на] FORMAT"
+    r"(?:convert|конвертир\w*|сконвертир\w*)(?:\s+\w+)*?\s+(?:to|в|на|into)\s*\.?"
+    r"|в\s+формат\s*\.?"
+    r"|save\s+as\s*\.?"
+    r"|сохрани\s+как\s*\.?"
+    # Short: "to/в/на FORMAT"
+    r"|(?:to|в|на)\s+\.?"
+    r")"
+    r"(?:pdf|docx?|xlsx?|csv|txt|rtf|odt|ods|html|md|pptx|epub|fb2|mobi|djvu|jpe?g|png|tiff)\b",
     re.IGNORECASE,
 )
 
@@ -116,6 +124,60 @@ _CONVERSION_RE = re.compile(
 def _is_conversion_request(text: str) -> bool:
     """Check if caption text looks like a document conversion command."""
     return bool(_CONVERSION_RE.search(text))
+
+
+_LAST_FILE_TTL = 300  # 5 minutes
+
+
+async def _cache_last_file(user_id: str, message: IncomingMessage) -> None:
+    """Cache file data from a document/photo message in Redis for follow-up conversion."""
+    import json
+
+    try:
+        from src.core.db import redis
+
+        file_bytes = message.document_bytes or message.photo_bytes
+        if not file_bytes or len(file_bytes) > 20 * 1024 * 1024:
+            return
+
+        key_data = f"last_file:{user_id}:data"
+        key_meta = f"last_file:{user_id}:meta"
+        meta = {
+            "mime": message.document_mime_type or ("image/jpeg" if message.photo_bytes else None),
+            "name": message.document_file_name or ("photo.jpg" if message.photo_bytes else None),
+            "is_photo": bool(message.photo_bytes and not message.document_bytes),
+        }
+        pipe = redis.pipeline()
+        pipe.set(key_data, file_bytes, ex=_LAST_FILE_TTL)
+        pipe.set(key_meta, json.dumps(meta), ex=_LAST_FILE_TTL)
+        await pipe.execute()
+    except Exception as e:
+        logger.warning("Failed to cache last file: %s", e)
+
+
+async def _pop_cached_file(user_id: str) -> dict | None:
+    """Retrieve and delete cached file data from Redis."""
+    import json
+
+    try:
+        from src.core.db import redis
+
+        key_data = f"last_file:{user_id}:data"
+        key_meta = f"last_file:{user_id}:meta"
+        pipe = redis.pipeline()
+        pipe.get(key_data)
+        pipe.get(key_meta)
+        data, meta_raw = await pipe.execute()
+        if not data or not meta_raw:
+            return None
+        # Delete after retrieval (one-time use)
+        await redis.delete(key_data, key_meta)
+        meta = json.loads(meta_raw)
+        return {"bytes": data, "mime": meta.get("mime"), "name": meta.get("name"),
+                "is_photo": meta.get("is_photo", False)}
+    except Exception as e:
+        logger.warning("Failed to pop cached file: %s", e)
+        return None
 
 
 async def handle_message(
@@ -211,6 +273,25 @@ async def _dispatch_message(
         if booking_result:
             return booking_result
 
+    # Text-only conversion request with a recently cached file (document sent separately)
+    if message.type == MessageType.text and message.text and _is_conversion_request(message.text):
+        cached = await _pop_cached_file(context.user_id)
+        if cached:
+            is_photo = cached["is_photo"]
+            message = IncomingMessage(
+                id=message.id,
+                user_id=message.user_id,
+                chat_id=message.chat_id,
+                type=MessageType.photo if is_photo else MessageType.document,
+                text=message.text,
+                document_bytes=None if is_photo else cached["bytes"],
+                photo_bytes=cached["bytes"] if is_photo else None,
+                document_mime_type=cached["mime"],
+                document_file_name=cached["name"],
+                raw=message.raw,
+                channel=message.channel,
+            )
+
     # Handle photos and documents — check caption for conversion intent first
     if message.type in (MessageType.photo, MessageType.document):
         if message.text and _is_conversion_request(message.text):
@@ -227,6 +308,8 @@ async def _dispatch_message(
             # No conversion caption → OCR/scan as before
             intent_name = "scan_document"
             intent_data: dict[str, Any] = {}
+            # Cache file for potential follow-up "convert to X" text message
+            await _cache_last_file(context.user_id, message)
     else:
         # --- Guardrails check BEFORE intent detection ---
         if message.text:
