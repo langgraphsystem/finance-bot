@@ -98,32 +98,94 @@ GUESTS: {guests} adults
 {filter_section}
 
 Steps:
-1. Navigate to {site_url}
-2. Enter the destination "{city}" in the search box
-3. Set check-in date to {check_in} and check-out date to {check_out}
+1. Close any popups, overlays, or cookie banners
+2. Enter the destination "{city}" in the search box and select it from the dropdown
+3. Set check-in date to {check_in} and check-out date to {check_out} using the date picker
 4. Set {guests} adults, 0 children
 5. Click Search
-6. Wait for results to load fully
+6. Wait for results to fully load (wait for hotel cards to appear)
 {filter_steps}
-7. Extract the top {max_results} hotel results visible on the page
+7. Extract hotel data using JavaScript. Run this in the browser console:
 
-For EACH hotel, extract ALL of the following and return as a JSON array:
-[{{"name": "Hotel Name",
-   "price_per_night": "$135",
-   "total_price": "$405",
-   "rating": "8.9",
-   "review_count": "2341",
-   "distance": "1.2 km from center",
-   "amenities": ["pool", "wifi", "parking"],
-   "cancellation": "Free cancellation until March 13",
-   "description": "Brief location/feature description"}}]
+{js_extraction}
+
+8. Return the JavaScript output as your final answer (the JSON array).
 
 IMPORTANT:
 - Stay on the search results page. Do NOT click on individual hotels.
-- Extract real prices shown on the page (not estimated).
+- Use the JavaScript extraction above — do NOT try to read hotel data from the page visually.
+- If the JavaScript returns an empty array, try scrolling down and running it again.
 - If a CAPTCHA appears, STOP and return exactly: CAPTCHA_DETECTED
 - If the site asks to log in or sign in, STOP and return exactly: LOGIN_REQUIRED
-- If no results are found, return exactly: NO_RESULTS"""
+- If no results are found after search, return exactly: NO_RESULTS"""
+
+# ── Site-Specific JS Extraction Scripts ─────────────────────────────────────
+# These use data-testid / known CSS selectors for each platform.
+# Validated against real sites in browser-use testing (Feb 2026).
+
+_JS_EXTRACT_BOOKING = (
+    "JSON.stringify(Array.from("
+    "document.querySelectorAll('[data-testid=\"property-card\"]')"
+    ").slice(0,{max_results}).map(c=>({{"
+    "name:c.querySelector('[data-testid=\"title\"]')"
+    "?.textContent?.trim()||"
+    "c.querySelector('.sr-hotel__name')?.textContent?.trim()||'',"
+    "price_per_night:c.querySelector("
+    "'[data-testid=\"price-and-discounted-price\"]')"
+    "?.textContent?.trim()||"
+    "c.querySelector('.bui-price-display__value')"
+    "?.textContent?.trim()||'',"
+    "total_price:'',"
+    "rating:(c.querySelector('[data-testid=\"review-score\"]')"
+    "?.textContent?.match(/\\d+\\.\\d/)||[''])[0],"
+    "review_count:(c.querySelector("
+    "'[data-testid=\"review-score\"]')"
+    "?.textContent?.match(/(\\d[\\d,]+)\\s*review/)"
+    "||['',''])[1],"
+    "distance:c.querySelector('[data-testid=\"distance\"]')"
+    "?.textContent?.trim()||"
+    "c.querySelector('.distance-from-search')"
+    "?.textContent?.trim()||'',"
+    "amenities:[],"
+    "cancellation:c.querySelector("
+    "'[data-testid=\"cancellation-policy\"]')"
+    "?.textContent?.trim()||'',"
+    "description:c.querySelector("
+    "'[data-testid=\"recommended-units\"]')"
+    "?.textContent?.trim()||''"
+    "}}))))"
+)
+
+_JS_EXTRACT_GENERIC = (
+    "JSON.stringify(Array.from(document.querySelectorAll("
+    "'[data-testid=\"property-card\"], .hotel-card, "
+    ".listing-card, .sr_property_block, "
+    "[data-hotelid], .property-card'"
+    ")).slice(0,{max_results}).map((c,i)=>{{"
+    "const g=(s)=>{{"
+    "const e=c.querySelector(s);"
+    "return e?e.textContent.trim():''}};"
+    "const p=g('[data-testid=\"price-and-discounted-price\"]')"
+    "||g('.price')||g('[class*=\"price\"]')||'';"
+    "const n=g('[data-testid=\"title\"]')||g('h3')"
+    "||g('h2')||g('[class*=\"name\"]')||'Hotel '+(i+1);"
+    "const r=g('[data-testid=\"review-score\"]')"
+    "||g('[class*=\"rating\"]')"
+    "||g('[class*=\"score\"]')||'';"
+    "const d=g('[data-testid=\"distance\"]')"
+    "||g('[class*=\"distance\"]')||'';"
+    "return{{name:n,price_per_night:p,total_price:'',"
+    "rating:r,review_count:'',distance:d,"
+    "amenities:[],cancellation:'',description:''}}"
+    "}}))"
+)
+
+_JS_EXTRACT_MAP: dict[str, str] = {
+    "booking.com": _JS_EXTRACT_BOOKING,
+    # Add more site-specific extractors as they are validated:
+    # "airbnb.com": _JS_EXTRACT_AIRBNB,
+    # "hotels.com": _JS_EXTRACT_HOTELS,
+}
 
 _FILTER_TASK_PROMPT = """\
 You are on {site_url} looking at hotel search results for "{city}".
@@ -1078,7 +1140,7 @@ async def cancel_flow(user_id: str) -> None:
 
 
 def _build_search_prompt(site: str, parsed: dict) -> str:
-    """Build the Browser-Use search task prompt."""
+    """Build the Browser-Use search task prompt with JS DOM extraction."""
     site_url = _SUPPORTED_PLATFORMS.get(site, f"https://{site}")
     filter_section = ""
     filter_steps = ""
@@ -1114,6 +1176,10 @@ def _build_search_prompt(site: str, parsed: dict) -> str:
     if sort_by in sort_map:
         filter_steps += sort_map[sort_by]
 
+    # Pick the right JS extraction script for this site
+    js_template = _JS_EXTRACT_MAP.get(site, _JS_EXTRACT_GENERIC)
+    js_extraction = js_template.format(max_results=MAX_RESULTS)
+
     return _SEARCH_TASK_PROMPT.format(
         site_url=site_url,
         city=parsed.get("city", ""),
@@ -1122,7 +1188,7 @@ def _build_search_prompt(site: str, parsed: dict) -> str:
         guests=parsed.get("guests", 2),
         filter_section=filter_section or "No specific filters.\n",
         filter_steps=filter_steps or "",
-        max_results=MAX_RESULTS,
+        js_extraction=js_extraction,
     )
 
 
@@ -1207,7 +1273,7 @@ def _validate_results(results: list) -> list[dict[str, Any]]:
         # Normalize fields
         hotel = {
             "name": str(r.get("name", "")),
-            "price_per_night": str(r.get("price_per_night", "")),
+            "price_per_night": str(r.get("price_per_night", r.get("price", ""))),
             "total_price": str(r.get("total_price", "")),
             "rating": str(r.get("rating", "")),
             "review_count": str(r.get("review_count", "")),
@@ -1218,6 +1284,21 @@ def _validate_results(results: list) -> list[dict[str, Any]]:
         }
         if not isinstance(hotel["amenities"], list):
             hotel["amenities"] = []
+
+        # Parse composite rating strings like "Scored 7.9 7.9Good 1,459 reviews"
+        # or "7.9" from JS extraction
+        if hotel["rating"] and not hotel["rating"].replace(".", "").isdigit():
+            rating_match = re.search(r"(\d+\.?\d*)", hotel["rating"])
+            if rating_match:
+                # Extract review count if embedded in rating string
+                if not hotel["review_count"]:
+                    count_match = re.search(
+                        r"([\d,]+)\s*review", hotel["rating"]
+                    )
+                    if count_match:
+                        hotel["review_count"] = count_match.group(1)
+                hotel["rating"] = rating_match.group(1)
+
         valid.append(hotel)
     return valid
 

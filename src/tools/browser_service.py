@@ -281,6 +281,7 @@ async def execute_with_session(
         }
         if storage_state:
             profile_kwargs["storage_state"] = storage_state
+            profile_kwargs["user_data_dir"] = None  # avoid conflict with storage_state
 
         browser_profile = BrowserProfile(**profile_kwargs)
         agent = BrowserAgent(task=task, llm=llm, browser_profile=browser_profile)
