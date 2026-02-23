@@ -56,8 +56,8 @@ async def test_browser_action_vague_booking_asks_details(sample_context):
     assert "booking.com" in result.response_text
 
 
-async def test_browser_action_detailed_booking_proceeds(sample_context):
-    """Booking with city + dates should proceed to approval."""
+async def test_browser_action_detailed_booking_starts_search(sample_context):
+    """Booking with city + dates on booking site should start search flow."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
@@ -73,13 +73,24 @@ async def test_browser_action_detailed_booking_proceeds(sample_context):
             new_callable=AsyncMock,
             return_value=None,
         ),
-        patch("src.skills.browser_action.handler.approval_manager") as mock_approval,
+        patch(
+            "src.skills.browser_action.handler.browser_booking.get_booking_state",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.skills.browser_action.handler.browser_booking.start_search",
+            new_callable=AsyncMock,
+            return_value={
+                "text": "<b>Hotels on booking.com:</b>\n1. Hotel Arts",
+                "buttons": [{"text": "1. Hotel Arts", "callback": "booking_select:abc:0"}],
+            },
+        ) as mock_search,
     ):
-        mock_approval.request_approval = AsyncMock(
-            return_value=AsyncMock(response_text="Confirm?", buttons=[])
-        )
-        await skill.execute(msg, sample_context, intent_data)
-        mock_approval.request_approval.assert_called_once()
+        result = await skill.execute(msg, sample_context, intent_data)
+        mock_search.assert_called_once()
+    assert "Hotel Arts" in result.response_text
+    assert result.buttons is not None
 
 
 async def test_browser_action_payment_needs_approval(sample_context):
@@ -244,3 +255,67 @@ async def test_browser_action_vague_shopping_asks_product(sample_context):
         result = await skill.execute(msg, sample_context, intent_data)
     assert "amazon.com" in result.response_text
     assert "what" in result.response_text.lower() or "find" in result.response_text.lower()
+
+
+async def test_browser_action_non_booking_site_goes_to_approval(sample_context):
+    """Payment task on non-booking site should go to approval, not search."""
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1", user_id="u1", chat_id="c1", type=MessageType.text,
+        text="buy Sony WH-1000XM5 headphones on amazon.com",
+    )
+    intent_data = {
+        "browser_task": "buy Sony WH-1000XM5 headphones",
+        "browser_target_site": "amazon.com",
+    }
+    with (
+        patch(
+            "src.skills.browser_action.handler.browser_login.get_login_state",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch("src.skills.browser_action.handler.approval_manager") as mock_approval,
+    ):
+        mock_approval.request_approval = AsyncMock(
+            return_value=AsyncMock(response_text="Confirm?", buttons=[])
+        )
+        await skill.execute(msg, sample_context, intent_data)
+        mock_approval.request_approval.assert_called_once()
+
+
+async def test_browser_action_read_only_on_booking_site_skips_search(sample_context):
+    """Read-only task on booking site should NOT start search flow."""
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1", user_id="u1", chat_id="c1", type=MessageType.text,
+        text="check my booking status on booking.com",
+    )
+    intent_data = {
+        "browser_task": "check my booking status",
+        "browser_target_site": "booking.com",
+    }
+    with (
+        patch(
+            "src.skills.browser_action.handler.browser_login.get_login_state",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.skills.browser_action.handler.browser_service.get_storage_state",
+            new_callable=AsyncMock,
+            return_value={"cookies": [{"name": "session", "value": "abc"}]},
+        ),
+        patch(
+            "src.skills.browser_action.handler.browser_service.execute_with_session",
+            new_callable=AsyncMock,
+            return_value={"success": True, "result": "Your booking is confirmed."},
+        ),
+        patch(
+            "src.skills.browser_action.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="Your booking is confirmed.",
+        ),
+    ):
+        result = await skill.execute(msg, sample_context, intent_data)
+    # Should NOT have started search flow — just executed directly
+    assert "confirmed" in result.response_text.lower()

@@ -6,10 +6,11 @@ avoid re-login on every request.
 
 Flow:
 1. Check for active login flow → handle_step
-2. Check saved cookies → execute_with_session
-3. No cookies → start_login
-4. Payment task → approval buttons
-5. Session expired → delete + re-login
+2. Extract domain, validate details
+3. Booking site + booking action → multi-step search flow (Gemini Grounding)
+4. Non-booking payment task → approval buttons
+5. Check saved session → execute_with_session
+6. No session → start login flow
 """
 
 import logging
@@ -21,7 +22,7 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
-from src.tools import browser_login, browser_service
+from src.tools import browser_booking, browser_login, browser_service
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,34 @@ class BrowserActionSkill:
         if missing:
             return SkillResult(response_text=missing)
 
-        # 4. Check if this is a payment task requiring approval
+        # 4. Booking site + booking action → multi-step search flow
+        if self._is_booking_site(domain) and self._is_booking_action(task):
+            # Check for active booking flow (user might be selecting)
+            booking_state = await browser_booking.get_booking_state(context.user_id)
+            if booking_state and booking_state.get("step") == "awaiting_selection":
+                result = await browser_booking.handle_text_selection(
+                    context.user_id, message.text or ""
+                )
+                if result:
+                    return SkillResult(
+                        response_text=result["text"],
+                        buttons=result.get("buttons"),
+                    )
+
+            # Start new search flow
+            search_result = await browser_booking.start_search(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                site=domain,
+                task=task,
+                language=context.language or "en",
+            )
+            return SkillResult(
+                response_text=search_result["text"],
+                buttons=search_result.get("buttons"),
+            )
+
+        # 5. Check if this is a payment task requiring approval (non-booking sites)
         if self._is_payment_task(task):
             return await approval_manager.request_approval(
                 user_id=context.user_id,
@@ -107,7 +135,7 @@ class BrowserActionSkill:
                 ),
             )
 
-        # 5. Check for saved session
+        # 6. Check for saved session
         storage_state = await browser_service.get_storage_state(
             context.user_id, domain
         )
@@ -136,7 +164,7 @@ class BrowserActionSkill:
                 response_text=f"Browser task failed: {result['result']}"
             )
 
-        # 6. No saved session — start login flow
+        # 7. No saved session — start login flow
         return await self._start_login_flow(
             context.user_id, context.family_id, domain, task
         )
@@ -206,25 +234,14 @@ class BrowserActionSkill:
         task_lower = task.lower()
 
         # Only check for booking/hotel/flight/purchase sites
-        booking_domains = (
-            "booking.com", "airbnb.com", "hotels.com", "expedia.com",
-            "agoda.com", "trivago.com", "kayak.com", "aviasales.ru",
-            "skyscanner.com", "ostrovok.ru",
-        )
         shopping_domains = (
             "amazon.com", "ebay.com", "aliexpress.com", "ozon.ru",
             "wildberries.ru", "walmart.com",
         )
 
-        is_booking_site = any(d in domain for d in booking_domains)
+        is_booking_site = self._is_booking_site(domain)
         is_shopping_site = any(d in domain for d in shopping_domains)
-
-        # Only validate details for BOOKING actions, not read-only checks
-        booking_verbs = (
-            "забронир", "бронир", "book ", "reserve", "заказа", "order ",
-            "купи", "buy ",
-        )
-        is_booking_action = any(v in task_lower for v in booking_verbs)
+        is_booking_action = self._is_booking_action(task)
 
         # For booking sites: need city/location + dates at minimum
         if is_booking_site and is_booking_action:
@@ -276,6 +293,25 @@ class BrowserActionSkill:
                 )
 
         return None
+
+    _BOOKING_DOMAINS = (
+        "booking.com", "airbnb.com", "hotels.com", "expedia.com",
+        "agoda.com", "trivago.com", "kayak.com", "aviasales.ru",
+        "skyscanner.com", "ostrovok.ru",
+    )
+    _BOOKING_VERBS = (
+        "забронир", "бронир", "book ", "reserve", "заказа", "order ",
+        "купи", "buy ",
+    )
+
+    def _is_booking_site(self, domain: str) -> bool:
+        """Check if domain is a booking/hotel/travel site."""
+        return any(d in domain for d in self._BOOKING_DOMAINS)
+
+    def _is_booking_action(self, task: str) -> bool:
+        """Check if task text contains booking action verbs."""
+        task_lower = task.lower()
+        return any(v in task_lower for v in self._BOOKING_VERBS)
 
     def _is_payment_task(self, task: str) -> bool:
         """Check if the task involves payment/purchase.
