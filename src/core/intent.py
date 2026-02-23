@@ -3,6 +3,7 @@ import logging
 import re
 from datetime import date
 
+from src.core.few_shot import format_few_shot_block, retrieve_few_shot_examples
 from src.core.llm.clients import get_instructor_anthropic, google_client
 from src.core.observability import observe
 from src.core.schemas.intent import IntentData, IntentDetectionResult
@@ -535,18 +536,42 @@ def _extract_period_hint(text: str) -> str | None:
 
 
 _MONTH_MAP: dict[str, int] = {
-    "январ": 1, "january": 1, "jan": 1,
-    "феврал": 2, "february": 2, "feb": 2,
-    "март": 3, "марта": 3, "march": 3, "mar": 3,
-    "апрел": 4, "april": 4, "apr": 4,
-    "ма": 5, "may": 5,
-    "июн": 6, "june": 6, "jun": 6,
-    "июл": 7, "july": 7, "jul": 7,
-    "август": 8, "august": 8, "aug": 8,
-    "сентябр": 9, "september": 9, "sep": 9,
-    "октябр": 10, "october": 10, "oct": 10,
-    "ноябр": 11, "november": 11, "nov": 11,
-    "декабр": 12, "december": 12, "dec": 12,
+    "январ": 1,
+    "january": 1,
+    "jan": 1,
+    "феврал": 2,
+    "february": 2,
+    "feb": 2,
+    "март": 3,
+    "марта": 3,
+    "march": 3,
+    "mar": 3,
+    "апрел": 4,
+    "april": 4,
+    "apr": 4,
+    "ма": 5,
+    "may": 5,
+    "июн": 6,
+    "june": 6,
+    "jun": 6,
+    "июл": 7,
+    "july": 7,
+    "jul": 7,
+    "август": 8,
+    "august": 8,
+    "aug": 8,
+    "сентябр": 9,
+    "september": 9,
+    "sep": 9,
+    "октябр": 10,
+    "october": 10,
+    "oct": 10,
+    "ноябр": 11,
+    "november": 11,
+    "nov": 11,
+    "декабр": 12,
+    "december": 12,
+    "dec": 12,
 }
 
 
@@ -636,14 +661,41 @@ def _rule_based_delete_intent(text: str) -> IntentDetectionResult | None:
 _PROGRAM_VERBS_RU = ("напиши", "создай", "сделай", "сгенерируй", "генерируй", "разработай")
 _PROGRAM_VERBS_EN = ("write", "create", "make", "generate", "build", "develop", "code")
 _PROGRAM_NOUNS_RU = (
-    "программ", "скрипт", "код", "парсер", "бот", "калькулятор",
-    "конвертер", "утилит", "автоматизаци", "генератор", "приложени",
-    "игр", "сервис", "api", "сайт", "страниц",
+    "программ",
+    "скрипт",
+    "код",
+    "парсер",
+    "бот",
+    "калькулятор",
+    "конвертер",
+    "утилит",
+    "автоматизаци",
+    "генератор",
+    "приложени",
+    "игр",
+    "сервис",
+    "api",
+    "сайт",
+    "страниц",
 )
 _PROGRAM_NOUNS_EN = (
-    "program", "script", "code", "parser", "bot", "calculator",
-    "converter", "utility", "automation", "generator", "app",
-    "game", "service", "api", "website", "page", "tool",
+    "program",
+    "script",
+    "code",
+    "parser",
+    "bot",
+    "calculator",
+    "converter",
+    "utility",
+    "automation",
+    "generator",
+    "app",
+    "game",
+    "service",
+    "api",
+    "website",
+    "page",
+    "tool",
 )
 
 
@@ -701,7 +753,7 @@ def _rule_based_generate_program(text: str) -> IntentDetectionResult | None:
     # Strip leading noun if present (e.g., "программу калькулятор" → "калькулятор")
     for n in _PROGRAM_NOUNS_RU + _PROGRAM_NOUNS_EN:
         if description.startswith(n):
-            after = description[len(n):].strip()
+            after = description[len(n) :].strip()
             if after:
                 description = after
             break
@@ -721,6 +773,7 @@ async def detect_intent(
     categories: list[dict] | None = None,
     language: str = "ru",
     recent_context: str | None = None,
+    family_id: str | None = None,
 ) -> IntentDetectionResult:
     """Detect user intent using Gemini Flash (primary) with Claude Haiku fallback."""
     delete_fast_path = _rule_based_delete_intent(text)
@@ -751,6 +804,16 @@ async def detect_intent(
         user_prompt = f"Недавний контекст диалога:\n{recent_context}\n\n{user_prompt}"
 
     system_prompt = INTENT_DETECTION_PROMPT.format(today=date.today().isoformat())
+
+    # Dynamic few-shot: inject user-specific examples into the system prompt
+    if family_id:
+        try:
+            examples = await retrieve_few_shot_examples(text, family_id)
+            few_shot_block = format_few_shot_block(examples)
+            if few_shot_block:
+                system_prompt += few_shot_block
+        except Exception as e:
+            logger.debug("Few-shot retrieval skipped: %s", e)
 
     # Primary: Gemini Flash
     try:

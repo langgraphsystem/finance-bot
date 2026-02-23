@@ -150,14 +150,12 @@ async def _dispatch_message(
             if result:
                 return result
             return OutgoingMessage(
-                text=f"Got it — your location is set to <b>{city}</b>. "
-                "Now try your search again!",
+                text=f"Got it — your location is set to <b>{city}</b>. Now try your search again!",
                 chat_id=message.chat_id,
                 remove_reply_keyboard=True,
             )
         return OutgoingMessage(
-            text="Could not determine your city from the pin. "
-            "Please type your city name instead.",
+            text="Could not determine your city from the pin. Please type your city name instead.",
             chat_id=message.chat_id,
             remove_reply_keyboard=True,
         )
@@ -239,6 +237,7 @@ async def _dispatch_message(
             categories=context.categories,
             language=context.language,
             recent_context=recent_context,
+            family_id=context.family_id,
         )
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}
@@ -1311,9 +1310,7 @@ async def _save_user_city(user_id: str, city: str) -> None:
             )
             if result.rowcount == 0:
                 # Profile missing — create one
-                user = await session.scalar(
-                    select(User).where(User.id == uuid.UUID(user_id))
-                )
+                user = await session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
                 if user:
                     profile = UserProfile(
                         user_id=user.id,
@@ -1398,8 +1395,7 @@ async def _execute_pending_maps_search(
     except Exception as e:
         logger.error("Pending maps search failed: %s", e)
         return OutgoingMessage(
-            text=f"Got it — your location is set to <b>{city}</b>. "
-            "Now try your search again!",
+            text=f"Got it — your location is set to <b>{city}</b>. Now try your search again!",
             chat_id=message.chat_id,
             remove_reply_keyboard=True,
         )
@@ -1463,8 +1459,10 @@ async def _check_browser_login_flow(
                 site=site,
                 task=task,
             )
-            task_text = browser_result["result"] if browser_result["success"] else (
-                f"Login successful but task failed: {browser_result['result']}"
+            task_text = (
+                browser_result["result"]
+                if browser_result["success"]
+                else (f"Login successful but task failed: {browser_result['result']}")
             )
             return OutgoingMessage(
                 text=f"{text}\n\n{task_text}",
@@ -1497,9 +1495,7 @@ async def _check_browser_booking_flow(
     if not state or state.get("step") != "awaiting_selection":
         return None
 
-    result = await browser_booking.handle_text_selection(
-        context.user_id, message.text or ""
-    )
+    result = await browser_booking.handle_text_selection(context.user_id, message.text or "")
     if not result:
         return None
 
