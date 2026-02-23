@@ -17,11 +17,13 @@ States: platform_selection → awaiting_login → browser_searching →
 Redis key: hotel_booking:{user_id} (TTL 900s)
 """
 
+import asyncio
 import json
 import logging
 import re
 import uuid
 from typing import Any
+from urllib.parse import quote
 
 from src.core.db import redis
 
@@ -550,11 +552,264 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
     return await execute_browser_search(user_id)
 
 
-# ── Browser-Use Search ───────────────────────────────────────────────────────
+# ── Playwright-based Search ──────────────────────────────────────────────────
+
+_PLAYWRIGHT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/133.0.0.0 Safari/537.36"
+)
+
+_BOOKING_EXTRACT_JS = """
+() => {
+    const cards = document.querySelectorAll('[data-testid="property-card"]');
+    return Array.from(cards).slice(0, %d).map(c => {
+        const getText = (sel) => {
+            const el = c.querySelector(sel);
+            return el ? el.textContent.trim() : '';
+        };
+        const getLink = () => {
+            const a = c.querySelector(
+                'a[data-testid="title-link"], a[href*="/hotel/"]'
+            );
+            return a ? a.href : '';
+        };
+        const text = c.innerText || '';
+        return {
+            name: getText('[data-testid="title"]') || getText('h3') || '',
+            price_per_night: getText(
+                '[data-testid="price-and-discounted-price"]'
+            ) || '',
+            rating_raw: getText('[data-testid="review-score"]') || '',
+            distance: getText('[data-testid="distance"]') || '',
+            room_type: getText('[data-testid="recommended-units"]') || '',
+            cancellation: (
+                text.match(/free cancellation|no prepayment/i) || ['']
+            )[0],
+            url: getLink(),
+        };
+    });
+}
+"""
+
+_HOTEL_DETAILS_JS = """
+() => {
+    const getText = (sel) => {
+        const el = document.querySelector(sel);
+        return el ? el.textContent.trim() : '';
+    };
+    const getAll = (sel) =>
+        Array.from(document.querySelectorAll(sel))
+            .map(e => e.textContent.trim())
+            .filter(t => t.length > 0);
+    const rooms = Array.from(
+        document.querySelectorAll(
+            'tr.js-rt-block-row, [data-testid="room-type"]'
+        )
+    ).slice(0, 5).map(r => ({
+        type: (r.querySelector(
+            '.hprt-roomtype-icon-link, [data-testid="room-name"]'
+        ) || {}).textContent?.trim() || '',
+        price: (r.querySelector(
+            '.bui-price-display__value, [data-testid="room-price"]'
+        ) || {}).textContent?.trim() || '',
+    })).filter(r => r.type);
+    const facilities = getAll(
+        '[data-testid="facility-group-icon"] + span, '
+        + '.hp_desc_important_facilities span, '
+        + '[data-testid="property-most-popular-facilities-wrapper"] span'
+    ).slice(0, 15);
+    const desc = getText(
+        '[data-testid="property-description"], '
+        + '#property_description_content p'
+    );
+    const address = getText(
+        '[data-testid="PropertyHeaderAddressDesktop-text"], '
+        + '#showMap2 .hp_address_subtitle'
+    );
+    return { rooms, facilities, description: desc?.substring(0, 500) || '',
+             address, page_url: window.location.href };
+}
+"""
+
+
+def _build_booking_search_url(parsed: dict) -> str:
+    """Build booking.com search URL with all parameters."""
+    city = parsed.get("city", "")
+    params = [
+        f"ss={quote(city)}",
+        f"checkin={parsed.get('check_in', '')}",
+        f"checkout={parsed.get('check_out', '')}",
+        f"group_adults={parsed.get('guests', 2)}",
+        f"no_rooms={parsed.get('rooms', 1)}",
+        f"group_children={parsed.get('children', 0)}",
+    ]
+    for age in parsed.get("child_ages", []):
+        params.append(f"age={age}")
+
+    sort_map = {
+        "price": "price",
+        "rating": "bayesian_review_score",
+        "distance": "distance",
+    }
+    sort_by = parsed.get("sort_by")
+    if sort_by and sort_by in sort_map:
+        params.append(f"order={sort_map[sort_by]}")
+
+    nflt_parts = []
+    if parsed.get("free_cancel"):
+        nflt_parts.append("fc=2")
+    if parsed.get("budget_per_night"):
+        budget = parsed["budget_per_night"]
+        currency = parsed.get("currency", "USD")
+        nflt_parts.append(f"price={currency}-min-{budget}-1")
+    if nflt_parts:
+        params.append(f"nflt={'%3B'.join(nflt_parts)}")
+
+    return f"https://www.booking.com/searchresults.html?{'&'.join(params)}"
+
+
+async def _execute_playwright_search(
+    storage_state: dict,
+    parsed: dict,
+    site: str,
+    fetch_details: bool = False,
+) -> list[dict[str, Any]]:
+    """Search hotels via Playwright using URL-based navigation + JS extraction.
+
+    Returns list of hotel dicts (empty on failure).
+    """
+    from playwright.async_api import async_playwright
+
+    if site != "booking.com":
+        return []  # Only booking.com supported via Playwright for now
+
+    search_url = _build_booking_search_url(parsed)
+    hotels: list[dict[str, Any]] = []
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                ],
+            )
+            context = await browser.new_context(
+                storage_state=storage_state,
+                viewport={"width": 1280, "height": 900},
+                user_agent=_PLAYWRIGHT_UA,
+            )
+            page = await context.new_page()
+
+            # Navigate directly to search results
+            await page.goto(search_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+
+            # Close popups
+            for sel in [
+                '[aria-label="Dismiss sign-in info."]',
+                '[id="onetrust-accept-btn-handler"]',
+            ]:
+                try:
+                    btn = page.locator(sel).first
+                    if await btn.is_visible(timeout=1000):
+                        await btn.click()
+                        await page.wait_for_timeout(500)
+                except Exception:
+                    pass
+
+            # Wait for property cards
+            try:
+                await page.wait_for_selector(
+                    '[data-testid="property-card"]', timeout=15000,
+                )
+            except Exception:
+                await page.wait_for_timeout(5000)
+
+            # Extract hotel data
+            raw_hotels = await page.evaluate(
+                _BOOKING_EXTRACT_JS % MAX_RESULTS
+            )
+
+            if raw_hotels:
+                for h in raw_hotels:
+                    if not h.get("name"):
+                        continue
+                    rating = ""
+                    review_count = ""
+                    rating_raw = h.get("rating_raw", "")
+                    if rating_raw:
+                        m = re.search(r"(\d+\.?\d*)", rating_raw)
+                        if m:
+                            rating = m.group(1)
+                        m2 = re.search(r"([\d,]+)\s*review", rating_raw)
+                        if m2:
+                            review_count = m2.group(1)
+
+                    hotels.append({
+                        "name": h["name"],
+                        "price_per_night": h.get("price_per_night", ""),
+                        "total_price": "",
+                        "rating": rating,
+                        "review_count": review_count,
+                        "distance": h.get("distance", ""),
+                        "amenities": [],
+                        "cancellation": h.get("cancellation", ""),
+                        "description": h.get("room_type", ""),
+                        "url": h.get("url", ""),
+                    })
+
+            # Fetch detailed info for each hotel
+            if fetch_details and hotels:
+                for i, hotel in enumerate(hotels):
+                    url = hotel.get("url")
+                    if not url:
+                        continue
+                    try:
+                        details = await _get_hotel_details_pw(context, url)
+                        hotels[i].update(details)
+                    except Exception as e:
+                        logger.warning("Failed to get details for %s: %s",
+                                       hotel.get("name"), e)
+
+            await browser.close()
+
+    except Exception as e:
+        logger.exception("Playwright search failed: %s", e)
+
+    return hotels
+
+
+async def _get_hotel_details_pw(context: Any, url: str) -> dict:
+    """Open a hotel page in a new tab, extract rooms/facilities/address."""
+    details: dict[str, Any] = {}
+    page = await context.new_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded")
+        await page.wait_for_timeout(3000)
+        result = await page.evaluate(_HOTEL_DETAILS_JS)
+        if result:
+            details = {
+                "rooms": result.get("rooms", []),
+                "facilities": result.get("facilities", []),
+                "hotel_description": result.get("description", ""),
+                "address": result.get("address", ""),
+            }
+    except Exception as e:
+        details["error"] = str(e)[:200]
+    finally:
+        await page.close()
+    return details
+
+
+# ── Browser Search (Playwright-first, browser-use fallback) ─────────────────
 
 
 async def execute_browser_search(user_id: str) -> dict[str, Any]:
-    """Execute hotel search on real booking site via Browser-Use.
+    """Execute hotel search — Playwright first, browser-use as fallback.
 
     Returns dict with: action, text, buttons.
     Actions: "results", "login_required", "captcha", "no_results", "error"
@@ -570,10 +825,45 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
     flow_id = state["flow_id"]
     language = state.get("language", "en")
 
-    # Build search prompt
+    # ── Try Playwright first (fast, stable) ──
+    if site == "booking.com":
+        storage_state = await browser_service.get_storage_state(
+            user_id, site
+        )
+        if storage_state:
+            logger.info("Running Playwright search for user %s on %s",
+                        user_id, site)
+            try:
+                results = await asyncio.wait_for(
+                    _execute_playwright_search(
+                        storage_state, parsed, site, fetch_details=True,
+                    ),
+                    timeout=SEARCH_TIMEOUT,
+                )
+            except TimeoutError:
+                logger.warning("Playwright search timed out for user %s",
+                               user_id)
+                results = []
+
+            if results:
+                state["step"] = "awaiting_selection"
+                state["results"] = results[:MAX_RESULTS]
+                await _set_state(user_id, state)
+                text = _format_results_telegram(
+                    results[:MAX_RESULTS], site, parsed
+                )
+                buttons = _build_result_buttons(
+                    results[:MAX_RESULTS], flow_id
+                )
+                return {
+                    "action": "results", "text": text, "buttons": buttons
+                }
+            logger.info("Playwright returned no results, falling back to "
+                        "browser-use")
+
+    # ── Fallback: browser-use ──
     prompt = _build_search_prompt(site, parsed)
 
-    # Execute browser-use
     result = await browser_service.execute_with_session(
         user_id=user_id,
         family_id=state["family_id"],
@@ -623,7 +913,6 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
     # Parse results
     results = _parse_browser_results(raw)
     if not results:
-        # Fallback: try Gemini Flash to structure the raw output
         results = await _gemini_parse_fallback(raw, language)
 
     if not results:
@@ -646,7 +935,6 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
     state["results"] = results[:MAX_RESULTS]
     await _set_state(user_id, state)
 
-    # Format and return
     text = _format_results_telegram(results[:MAX_RESULTS], site, parsed)
     buttons = _build_result_buttons(results[:MAX_RESULTS], flow_id)
 
@@ -1368,6 +1656,18 @@ def _format_results_telegram(
             line += f"   {', '.join(amenities[:4])}\n"
         if cancellation:
             line += f"   <i>{cancellation}</i>\n"
+        # Show room types from details if available
+        if r.get("rooms"):
+            for room in r["rooms"][:2]:
+                rtype = room.get("type", "")
+                rprice = room.get("price", "")
+                if rtype:
+                    line += f"   Room: {rtype}"
+                    if rprice:
+                        line += f" — {rprice}"
+                    line += "\n"
+        if r.get("address"):
+            line += f"   {r['address']}\n"
 
         lines.append(line)
 
