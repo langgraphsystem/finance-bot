@@ -28,63 +28,112 @@ Use RICE to decide which modules to build and in what order. RICE is for strateg
 
 ## Module Prioritization Table
 
-| # | Module | Reach | Impact | Confidence | Effort (wks) | RICE Score | Phase |
+### Phases 1-3 (Completed — v4.0)
+
+| # | Module | Reach | Impact | Confidence | Effort (wks) | RICE Score | Phase | Status |
+|---|--------|-------|--------|------------|--------------|------------|-------|--------|
+| 1 | Onboarding | 100% | 3.0 | 90% | 3 | 90.0 | **Phase 1** | ✅ Done |
+| 2 | Tasks & Reminders | 95% | 3.0 | 90% | 4 | 64.1 | **Phase 1** | ✅ Done |
+| 3 | Research & Answers | 80% | 2.0 | 80% | 3 | 42.7 | **Phase 1** | ✅ Done |
+| 4 | Writing Assistance | 70% | 2.0 | 80% | 3 | 37.3 | **Phase 1** | ✅ Done |
+| 5 | Calendar Management | 90% | 2.0 | 85% | 5 | 30.6 | **Phase 1** | ✅ Done |
+| 6 | Email Management | 65% | 2.0 | 70% | 6 | 15.2 | **Phase 2** | ✅ Done |
+| 7 | Finance & Expenses | 55% | 2.0 | 60% | 5 | 13.2 | **Phase 2** | ✅ Done |
+| 8 | Contacts & CRM | 50% | 1.0 | 50% | 4 | 6.3 | **Phase 2** | ✅ Done |
+| 9 | Shopping & Orders | 45% | 1.0 | 40% | 6 | 3.0 | **Phase 3** | ✅ Done |
+| 10 | Monitoring & Alerts | 40% | 1.0 | 50% | 5 | 4.0 | **Phase 3** | ✅ Done |
+| 11 | Browser Automation | 35% | 1.0 | 60% | 4 | 5.3 | **Phase 3** | ✅ Done |
+| 12 | Booking & CRM | 50% | 1.0 | 50% | 4 | 6.3 | **Phase 3** | ✅ Done |
+
+### Phases 7-9 (Planned — v5.0+)
+
+| # | Module | Reach | Impact | Confidence | Effort (wks) | RICE Score | Phase | PRD |
+|---|--------|-------|--------|------------|--------------|------------|-------|-----|
+| 14 | YAML Prompt Migration | 100% | 1.0 | 90% | 2 | 45.0 | **Phase 7** | `intelligence-export.md` |
+| 15 | Hybrid Semantic Search | 80% | 2.0 | 80% | 3 | 42.7 | **Phase 7** | `intelligence-export.md` |
+| 16 | Weekly Digest | 90% | 2.0 | 85% | 2 | 76.5 | **Phase 7** | `intelligence-export.md` |
+| 17 | Excel Export | 70% | 2.0 | 80% | 2 | 56.0 | **Phase 7** | `intelligence-export.md` |
+| 18 | Dynamic Few-shot Examples | 80% | 2.0 | 70% | 3 | 37.3 | **Phase 7** | `intelligence-export.md` |
+| 19 | Google Sheets Sync | 40% | 2.0 | 60% | 3 | 16.0 | **Phase 7** | `intelligence-export.md` |
+| 20 | Schedule C + Auto-Deductions | 55% | 3.0 | 70% | 4 | 28.9 | **Phase 8** | `financial-pro.md` |
+| 21 | Invoice Tracking | 50% | 3.0 | 80% | 5 | 24.0 | **Phase 8** | `financial-pro.md` |
+| 22 | Accountant Read-Only Access | 40% | 2.0 | 70% | 3 | 18.7 | **Phase 8** | `financial-pro.md` |
+| 23 | IFTA Export | 15% | 2.0 | 60% | 3 | 6.0 | **Phase 8** | `financial-pro.md` |
+| 24 | Per Diem Tracking | 25% | 1.0 | 50% | 2 | 6.3 | **Phase 8** | `financial-pro.md` |
+| 25 | Voice Message Processing | 70% | 2.0 | 80% | 3 | 37.3 | **Phase 9** | `platform-evolution.md` |
+| 26 | Mini App Frontend SPA | 80% | 2.0 | 70% | 6 | 18.7 | **Phase 9** | `platform-evolution.md` |
+| 27 | Graph Memory (Mem0g) | 60% | 2.0 | 50% | 5 | 12.0 | **Phase 9** | `platform-evolution.md` |
+| 28 | AI-Generated YAML Profiles | 100% | 1.0 | 50% | 3 | 16.7 | **Phase 9** | `platform-evolution.md` |
+| 29 | Telegram Stars Monetization | 30% | 1.0 | 40% | 3 | 4.0 | **Phase 9** | `platform-evolution.md` |
+
+### Deferred (Confidence < 50% — validate first)
+
+| # | Module | Reach | Impact | Confidence | Effort (wks) | RICE Score | Notes |
 |---|--------|-------|--------|------------|--------------|------------|-------|
-| 1 | Tasks & Reminders | 95% | 3.0 | 90% | 4 | 64.1 | **Phase 1** |
-| 2 | Calendar Management | 90% | 2.0 | 85% | 5 | 30.6 | **Phase 1** |
-| 3 | Research & Answers | 80% | 2.0 | 80% | 3 | 42.7 | **Phase 1** |
-| 4 | Writing Assistance | 70% | 2.0 | 80% | 3 | 37.3 | **Phase 1** |
-| 5 | Onboarding | 100% | 3.0 | 90% | 3 | 90.0 | **Phase 1** |
-| 6 | Email Management | 65% | 2.0 | 70% | 6 | 15.2 | **Phase 2** |
-| 7 | Finance & Expenses | 55% | 2.0 | 60% | 5 | 13.2 | **Phase 2** |
-| 8 | Contacts & CRM | 50% | 1.0 | 50% | 4 | 6.3 | **Phase 2** |
-| 9 | Social & Reviews | 30% | 1.0 | 40% | 4 | 3.0 | **Phase 3** |
-| 10 | Monitoring & Alerts | 40% | 1.0 | 50% | 5 | 4.0 | **Phase 3** |
-| 11 | Voice Calls | 20% | 0.5 | 30% | 8 | 0.4 | **Phase 3** |
-| 12 | Shopping & Orders | 45% | 1.0 | 40% | 6 | 3.0 | **Phase 3** |
-| 13 | Health & Wellness | 35% | 1.0 | 30% | 5 | 2.1 | **Phase 3** |
+| 30 | Voice Calls (phone-based) | 20% | 0.5 | 30% | 8 | 0.4 | Extremely hard. Wait for API maturity. |
+| 31 | Social & Reviews | 30% | 1.0 | 40% | 4 | 3.0 | Niche. Validate with business users first. |
+| 32 | Health & Wellness | 35% | 1.0 | 30% | 5 | 2.1 | Sensitive domain. Run user survey first. |
+| 33 | Bank Sync (Plaid) | 60% | 2.0 | 40% | 6 | 8.0 | High regulatory risk. Validate compliance path. |
+| 34 | Accounting Software Sync | 30% | 2.0 | 30% | 5 | 3.6 | QuickBooks/Xero APIs complex. Wait for demand signal. |
 
 ---
 
 ## Phase Breakdown
 
-### Phase 1 — MVP (Months 1-3)
+### Phases 1-6 — Completed (v4.0) ✅
 
-**Goal:** Users can text the bot and get real value from day one. Core loop: ask → get answer → set reminder → manage calendar.
+All MVP and expansion phases are shipped. 67 skills, 11 agents, 4 channels, 2 LangGraph orchestrators. Star rating: 6★.
 
-| Module | Why Phase 1 |
+See `IMPLEMENTATION_PLAN.md` for full details on Phases 0-6.
+
+### Phase 7 — Intelligence & Export
+
+**Goal:** Smarter intent detection, better context retrieval, data portability. Move from 6★ to 7★.
+
+| Module | Why Phase 7 |
 |--------|-------------|
-| Onboarding | RICE 90.0 — Every user hits this. Zero-setup first impression determines retention. |
-| Tasks & Reminders | RICE 64.1 — Universal need, high impact, high confidence. The "pick up Emma at 3:15" moment. |
-| Research & Answers | RICE 42.7 — Instant value with lower effort. Users ask questions — the bot should answer. |
-| Writing Assistance | RICE 37.3 — Immediate utility for both Maria (emails to school) and David (quotes to clients). |
-| Calendar Management | RICE 30.6 — Core daily utility. Requires API integrations (Google Calendar, Apple Calendar) which adds effort. |
+| Weekly Digest | RICE 76.5 — Highest value quick win. 90% reach, proactive, cross-domain. Sunday summary drives re-engagement. |
+| Excel Export | RICE 56.0 — Unlocks professional use. David's accountant needs spreadsheets, not chat screenshots. |
+| YAML Prompt Migration | RICE 45.0 — Developer velocity. 51 skills with hardcoded prompts slow iteration. Unblocks A/B testing. |
+| Hybrid Semantic Search | RICE 42.7 — Foundation for 7★. Better context retrieval = better responses across all skills. |
+| Dynamic Few-shot Examples | RICE 37.3 — Intent accuracy improves from ~85% to 92%+. Every user benefits from fewer misclassifications. |
+| Google Sheets Sync | RICE 16.0 — Business users share data with accountants/spouses. Lower reach but high retention impact. |
 
-**Phase 1 success metric:** 60% of new users complete a task within 24 hours of first contact.
+**Phase 7 success metric:** Intent accuracy > 92%. Weekly digest open rate > 50%. 100+ Excel exports in first month.
 
-### Phase 2 — Expansion (Months 4-6)
+**PRD:** `docs/prds/intelligence-export.md`
 
-**Goal:** The bot handles more of the user's life. Cross-domain intelligence begins. Users go from "useful" to "can't live without."
+### Phase 8 — Financial Pro
 
-| Module | Why Phase 2 |
+**Goal:** Tax-aware finance, invoicing, professional access. Move from 7★ to 8★ for business users.
+
+| Module | Why Phase 8 |
 |--------|-------------|
-| Email Management | RICE 15.2 — High effort (OAuth, complex parsing) but strong unlock. "Read my email and tell me what needs attention." |
-| Finance & Expenses | RICE 13.2 — David needs invoicing and expense tracking. Maria needs budget awareness. |
-| Contacts & CRM | RICE 6.3 — Foundation for cross-domain intelligence. The bot knowing who "Mike" and "Emma" are makes everything better. |
+| Schedule C + Auto-Deductions | RICE 28.9 — 41M self-employed Americans need this. High impact, validated need, moderate confidence. |
+| Invoice Tracking | RICE 24.0 — Service businesses (David) send 2-3 invoices daily. Automates a painful manual workflow. |
+| Accountant Read-Only Access | RICE 18.7 — Bridges the bot and professional accounting. Reduces churn for business users. |
+| IFTA Export | RICE 6.0 — Niche (truckers, plumbers with vehicles) but high impact for those users. Strong word-of-mouth. |
+| Per Diem Tracking | RICE 6.3 — Low effort quick win. IRS rates are public data. Calendar integration already exists. |
 
-**Phase 2 success metric:** Users interact with 3+ modules per week on average.
+**Phase 8 success metric:** 40%+ of self-employed users enable Schedule C tracking. 4+ invoices/month per business user.
 
-### Phase 3 — Differentiation (Months 7-12)
+**PRD:** `docs/prds/financial-pro.md`
 
-**Goal:** Features that make the product uniquely valuable. Hard to replicate, strong word-of-mouth drivers.
+### Phase 9 — Platform Evolution
 
-| Module | Why Phase 3 |
+**Goal:** Multi-modal input/output, relational memory, monetization. Move from 8★ to 9★.
+
+| Module | Why Phase 9 |
 |--------|-------------|
-| Monitoring & Alerts | RICE 4.0 — "Tell me if my flight changes" or "Alert me when lumber prices drop." Powerful but niche. |
-| Social & Reviews | RICE 3.0 — David wants Google review management. Lower reach but high impact for business users. |
-| Shopping & Orders | RICE 3.0 — "Order more paper towels" — convenient but requires commerce integrations. |
-| Health & Wellness | RICE 2.1 — Sensitive domain. Low confidence until we validate demand. |
-| Voice Calls | RICE 0.4 — "Call the dentist and reschedule Emma" — magical but extremely hard. Last priority. |
+| Voice Message Processing | RICE 37.3 — 70% of users send voice messages. Unlocks on-the-go usage for drivers, parents, field workers. |
+| Mini App Frontend SPA | RICE 18.7 — Visual output (charts, dashboards) that text can't deliver. Backend already built (40K lines). |
+| AI-Generated YAML Profiles | RICE 16.7 — 100% of new users benefit. Reduces time-to-personalization from 3 weeks to 3 days. |
+| Graph Memory (Mem0g) | RICE 12.0 — "Who is Emma's dentist?" requires relational understanding. Enables 8★+ cross-domain intelligence. |
+| Telegram Stars Monetization | RICE 4.0 — Supplementary revenue via in-app purchases. Premium reports, advanced analytics. |
+
+**Phase 9 success metric:** 25%+ users send voice messages. Mini App opens 2x/week. Graph memory accuracy > 90%.
+
+**PRD:** `docs/prds/platform-evolution.md`
 
 ---
 
@@ -118,12 +167,18 @@ Features we've explicitly decided not to build, and why.
 
 | Feature | Reason |
 |---------|--------|
-| Native mobile app | Conversation IS the interface. An app adds maintenance without value. If users want "an app," they already have iMessage/WhatsApp. |
-| Dashboard / web portal | Violates Principle 1 (conversation is the only interface). If users need to see data, the bot sends it in chat. |
-| Multi-language support (at launch) | Focus on English for US market first. Internationalization adds complexity to every feature. Revisit at 10K users. |
+| Native mobile app | Mini App (Phase 9) covers visual needs. Full native app adds maintenance without proportional value. |
+| Dashboard / web portal | Mini App is the visual layer. Separate web portal fragments the experience. |
+| Multi-language support (at launch) | Focus on English + Spanish for US market. Internationalization revisit at 10K users. |
 | Team collaboration (shared bots) | Individual assistant first. Team features are a different product with different economics. |
-| Smart home integration | Alexa/Google Home control is cool but niche, unreliable, and has strong incumbents. Not our fight. |
+| Smart home integration | Alexa/Google Home control is niche, unreliable, and has strong incumbents. Not our fight. |
 | Crypto / stock trading | Regulatory minefield. Financial tracking (yes), trading (no). |
+| iMessage integration | Apple provides no public API. BlueBubbles requires dedicated macOS machine. Not viable. |
+| Automated tax filing | Regulatory risk. We prepare data (Schedule C, IFTA). Humans file taxes. |
+| Payroll / W-2 / 1099 | Separate regulated domain with heavy compliance requirements. |
+| Bank sync (Plaid) at launch | High regulatory risk, complex compliance. Deferred until demand validated and compliance path confirmed. |
+| GPS mileage tracking | Requires mobile app or background location. Violates conversation-first principle. IRS simplified method available. |
+| Real-time voice transcription | Telegram sends completed voice messages. Streaming adds complexity without benefit. Batch processing is sufficient. |
 
 ---
 
@@ -197,4 +252,5 @@ On the first Monday of each month:
 
 | Date | Change | Reasoning |
 |------|--------|-----------|
-| [YYYY-MM-DD] | Initial prioritization | Based on founding team assumptions and competitor analysis |
+| 2025-01-01 | Initial prioritization | Based on founding team assumptions and competitor analysis |
+| 2026-02-23 | Phases 1-6 marked complete. Added 16 new modules for Phases 7-9. Updated Won't Build list. Added Deferred section. | All v4.0 phases shipped. New priorities based on gap analysis: intelligence (search, few-shot), export (Excel, Sheets), financial pro (tax, invoicing, accountant access), platform evolution (voice, Mini App, graph memory). Deferred low-confidence modules (voice calls, social, health, bank sync) pending validation. |

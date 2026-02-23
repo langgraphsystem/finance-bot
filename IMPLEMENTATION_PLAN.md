@@ -1,10 +1,16 @@
 # AI Life Assistant — Implementation Plan
 
-## Version: 4.0 | Date: 2026-02-19
+## Version: 5.0 | Date: 2026-02-23
 
 **Approach**: 100% Python — no TypeScript sidecar, no external orchestration frameworks for channel management
-**Base**: Existing Finance Bot codebase (383 Python files, 61 skills, 11 agents, deployed on Railway + Supabase)
-**New in v4.0**: All planned phases (0–6) implemented. Shopping lists, multi-channel gateways (Slack/WhatsApp/SMS), Stripe billing, LangGraph orchestrators (email/brief), browser automation, CRM/booking, proactivity engine, maps/youtube with Gemini Search Grounding. PRD: `docs/prds/platform-architecture.md`
+**Base**: Existing Finance Bot codebase (383 Python files, 67 skills, 11 agents, deployed on Railway + Supabase)
+**v4.0 (complete)**: All phases 0–6 implemented. 67 skills, 11 agents, 4 channels, 2 LangGraph orchestrators. 6★ MVP.
+**New in v5.0**: Roadmap for Phases 7–9 with full PRDs. Intelligence & Export (Phase 7), Financial Pro (Phase 8), Platform Evolution (Phase 9). Target: 81 skills, 12 agents, 3 orchestrators, 9★.
+
+**PRDs:**
+- Phase 7: `docs/prds/intelligence-export.md` (27.4/30)
+- Phase 8: `docs/prds/financial-pro.md` (28.1/30)
+- Phase 9: `docs/prds/platform-evolution.md` (26.6/30)
 
 ---
 
@@ -25,7 +31,7 @@
 13. [File-by-File Change Map](#13-file-by-file-change-map)
 14. [Risk Register](#14-risk-register)
 15. [Final Metrics](#15-final-metrics)
-16. [What's Next](#16-whats-next)
+16. [What's Next — Phases 7-9](#16-whats-next--phases-7-9)
 
 ---
 
@@ -2612,27 +2618,191 @@ Star rating:            6★ MVP          6★ MVP (achieved)
 
 ---
 
-## 16. WHAT'S NEXT
+## 16. WHAT'S NEXT — PHASES 7-9
 
-All planned phases (0–6) are implemented. Potential future work:
+All phases 0–6 are implemented. Three new phases bring the product from 6★ to 9★.
 
-### Near-term improvements
-- **Hybrid semantic search (Layer 6):** BM25 + pgvector RRF — column exists, logic not wired
-- **Dynamic few-shot examples:** pgvector bank of examples for intent detection
-- **YAML prompt migration:** Externalize remaining hardcoded prompts to `prompts.yaml`
-- **Weekly digest:** Automated email/Telegram summary of spending, tasks, life events
+Full PRDs in `docs/prds/`. Prioritization scores in `skills/pm/PRIORITIZATION.md`.
 
-### Medium-term features
-- **Schedule C + AI auto-deductions:** Tax deduction tracking for US self-employed
-- **IFTA export:** Fuel tax report for truckers
-- **Per diem tracking:** Daily allowance tracking for travel
-- **Excel export (openpyxl):** Download reports as .xlsx
-- **Google Sheets sync:** gspread + OAuth + Taskiq for live spreadsheet sync
-- **Accountant read-only access:** New role with restricted view of financial data
+---
 
-### Long-term vision
-- **Telegram Stars monetization:** Premium reports via Telegram's in-app purchases
-- **Mini App frontend SPA:** Interactive UI via Telegram Mini Apps (backend `api/miniapp.py` ready)
-- **Mem0 OpenMemory MCP:** Shared memory protocol for cross-agent context
-- **AI-generated YAML profiles:** Auto-create business profiles from user conversations
-- **Mem0g graph memory:** Entity relationship graph across contacts, businesses, events
+### Phase 7: Intelligence & Export (6★ → 7★)
+
+**Goal:** Smarter intent detection, better context retrieval, data portability.
+
+**PRD:** `docs/prds/intelligence-export.md` | **Score:** 27.4/30
+
+| Step | Module | New Skills | New Tables | Key Dependency |
+|------|--------|-----------|------------|----------------|
+| 7a | YAML Prompt Migration | — | — | PyYAML (existing) |
+| 7b | Hybrid Semantic Search | — | — | pgvector (existing), ts_vector index |
+| 7c | Dynamic Few-shot Examples | — | `few_shot_examples` | pgvector embeddings |
+| 7d | Weekly Digest | `weekly_digest` | — | BriefOrchestrator pattern |
+| 7e | Excel Export | `export_excel` | `export_jobs` | openpyxl (new dep) |
+| 7f | Google Sheets Sync | `sheets_sync` | `sheet_sync_configs` | Google Sheets API + OAuth |
+
+**New skills:** 3 | **New tables:** 3 | **New deps:** openpyxl
+**Estimated cost:** ~$0.10/user/month
+
+**File changes:**
+```
+[NEW]  src/skills/weekly_digest/handler.py          # Weekly digest skill
+[NEW]  src/skills/weekly_digest/__init__.py
+[NEW]  src/skills/export_excel/handler.py            # Excel export skill
+[NEW]  src/skills/export_excel/__init__.py
+[NEW]  src/skills/sheets_sync/handler.py             # Google Sheets sync skill
+[NEW]  src/skills/sheets_sync/__init__.py
+[NEW]  src/skills/*/prompts.yaml                     # YAML prompts for 51 remaining skills
+[NEW]  alembic/versions/013_few_shot_examples.py     # Few-shot + export + sheets tables
+[EDIT] src/skills/__init__.py                        # Register 3 new skills (67 → 70)
+[EDIT] src/core/intent.py                            # Add few-shot retrieval to intent pipeline
+[EDIT] src/core/memory/context.py                    # Wire BM25 + pgvector RRF, add QUERY_CONTEXT_MAP entries
+[EDIT] src/core/schemas/intent.py                    # Add export_*, sheets_* fields
+[EDIT] src/agents/config.py                          # Add skills to analytics + life agents
+[EDIT] src/core/tasks/broker.py                      # Add weekly_digest_task, sheets_sync_task crons
+[EDIT] pyproject.toml                                # Add openpyxl dependency
+[EDIT] tests/test_skills/test_registry.py            # Update count 67 → 70
+[NEW]  tests/test_skills/test_weekly_digest.py       # Weekly digest tests
+[NEW]  tests/test_skills/test_export_excel.py        # Excel export tests
+[NEW]  tests/test_skills/test_sheets_sync.py         # Sheets sync tests
+```
+
+---
+
+### Phase 8: Financial Pro (7★ → 8★)
+
+**Goal:** Tax-aware finance, invoicing, professional access. Autonomous financial workflows.
+
+**PRD:** `docs/prds/financial-pro.md` | **Score:** 28.1/30
+
+| Step | Module | New Skills | New Tables | Key Dependency |
+|------|--------|-----------|------------|----------------|
+| 8a | Schedule C Categories | `schedule_c_track` | `schedule_c_categories` | IRS Schedule C data (static YAML) |
+| 8b | Deduction Summary + Alerts | `deduction_summary` | — (uses transactions) | Proactivity engine (existing) |
+| 8c | Invoice Creation + Sending | `create_invoice` | `invoices`, `invoice_items` | EmailOrchestrator (existing) |
+| 8d | Invoice Orchestrator | `list_invoices` | — | LangGraph (existing) |
+| 8e | IFTA Fuel Tracking + Export | `ifta_export` | `ifta_records` | IFTA CSV format spec |
+| 8f | Per Diem Tracking | `per_diem_track` | — (uses transactions) | GSA.gov per diem rates (static YAML) |
+| 8g | Accountant Read-Only Access | `invite_accountant` | `accountant_access` | Secure token generation |
+
+**New skills:** 7 | **New tables:** 5 | **New orchestrator:** InvoiceOrchestrator
+**Estimated cost:** ~$0.22/user/month
+
+**File changes:**
+```
+[NEW]  src/skills/schedule_c_track/handler.py        # Schedule C classification
+[NEW]  src/skills/deduction_summary/handler.py       # Deduction summary + alerts
+[NEW]  src/skills/create_invoice/handler.py          # Invoice creation + sending
+[NEW]  src/skills/list_invoices/handler.py           # Invoice listing + status
+[NEW]  src/skills/ifta_export/handler.py             # IFTA fuel tracking + CSV export
+[NEW]  src/skills/per_diem_track/handler.py          # Per diem tracking
+[NEW]  src/skills/invite_accountant/handler.py       # Accountant access management
+[NEW]  src/orchestrators/invoice/graph.py            # InvoiceOrchestrator LangGraph
+[NEW]  src/orchestrators/invoice/nodes.py            # Create → format → send → track
+[NEW]  src/orchestrators/invoice/state.py            # Invoice workflow state
+[NEW]  src/core/models/invoice.py                    # Invoice + InvoiceItem models
+[NEW]  src/core/models/ifta_record.py                # IFTA fuel record model
+[NEW]  src/core/models/accountant_access.py          # Accountant access model
+[NEW]  config/tax/schedule_c_categories.yaml         # IRS Schedule C line items
+[NEW]  config/tax/per_diem_rates.yaml                # GSA per diem rates by city
+[NEW]  config/tax/ifta_states.yaml                   # IFTA state tax rates
+[NEW]  alembic/versions/014_financial_pro.py         # 5 new tables + transaction columns
+[EDIT] src/core/models/transaction.py                # Add schedule_c_line, is_deductible, per_diem_rate
+[EDIT] src/skills/__init__.py                        # Register 7 new skills (70 → 77)
+[EDIT] src/core/intent.py                            # Add financial pro intents
+[EDIT] src/core/schemas/intent.py                    # Add invoice_*, ifta_*, schedule_c_* fields
+[EDIT] src/core/domain_router.py                     # Register InvoiceOrchestrator
+[EDIT] src/agents/config.py                          # New "finance_pro" agent or extend chat/analytics
+[EDIT] src/core/memory/context.py                    # Add QUERY_CONTEXT_MAP entries
+[EDIT] src/core/tasks/broker.py                      # Add invoice_followup, deduction_alert, ifta_reminder crons
+[EDIT] api/main.py                                   # Add accountant access API routes
+[EDIT] tests/test_skills/test_registry.py            # Update count 70 → 77
+[NEW]  tests/test_skills/test_schedule_c.py          # Schedule C tests
+[NEW]  tests/test_skills/test_invoices.py            # Invoice tests
+[NEW]  tests/test_skills/test_ifta.py                # IFTA tests
+[NEW]  tests/test_skills/test_per_diem.py            # Per diem tests
+[NEW]  tests/test_skills/test_accountant_access.py   # Accountant access tests
+[NEW]  tests/test_orchestrators/test_invoice.py      # InvoiceOrchestrator tests
+```
+
+---
+
+### Phase 9: Platform Evolution (8★ → 9★)
+
+**Goal:** Multi-modal input/output, relational memory, monetization. Life operating system.
+
+**PRD:** `docs/prds/platform-evolution.md` | **Score:** 26.6/30
+
+| Step | Module | New Skills | New Tables | Key Dependency |
+|------|--------|-----------|------------|----------------|
+| 9a | Voice Message Processing | `voice_process` (enhance) | — | gpt-4o-transcribe, ffmpeg |
+| 9b | Mini App SPA (Dashboard + Spending + Tasks) | — (frontend) | — | React, Vite, Chart.js |
+| 9c | Graph Memory | `graph_query`, `manage_relationship` | `entity_graph`, `entity_relationships` | Claude Haiku entity extraction |
+| 9d | AI-Generated YAML Profiles | — (background) | `auto_profiles` | Gemini Flash, profile_tasks |
+| 9e | Mini App — Settings, Calendar, Reports | — (frontend) | — | api/miniapp.py (existing) |
+| 9f | Telegram Stars | `stars_purchase` | `stars_transactions` | Telegram Stars API |
+
+**New skills:** 4 | **New tables:** 4 | **New frontend:** React SPA
+**Estimated cost:** ~$0.31/user/month
+
+**File changes:**
+```
+[EDIT] src/core/voice.py                             # Full STT pipeline (replace stub)
+[NEW]  src/skills/graph_query/handler.py             # "Who is Emma's dentist?" queries
+[NEW]  src/skills/manage_relationship/handler.py     # "Alex is my apprentice" management
+[NEW]  src/skills/stars_purchase/handler.py          # Telegram Stars purchase flow
+[NEW]  src/core/models/entity_graph.py               # Entity + Relationship models
+[NEW]  src/core/models/auto_profile.py               # Auto-generated profile model
+[NEW]  src/core/models/stars_transaction.py          # Stars transaction model
+[NEW]  src/core/graph_memory.py                      # Graph query + entity extraction logic
+[NEW]  alembic/versions/015_platform_evolution.py    # 4 new tables
+[NEW]  static/miniapp/package.json                   # React + Vite + Chart.js
+[NEW]  static/miniapp/vite.config.ts                 # Vite configuration
+[NEW]  static/miniapp/src/App.tsx                    # Main app component
+[NEW]  static/miniapp/src/pages/Dashboard.tsx        # Overview dashboard
+[NEW]  static/miniapp/src/pages/Spending.tsx         # Spending charts
+[NEW]  static/miniapp/src/pages/Tasks.tsx            # Task list view
+[NEW]  static/miniapp/src/pages/Calendar.tsx         # Calendar week view
+[NEW]  static/miniapp/src/pages/Reports.tsx          # Export + report page
+[NEW]  static/miniapp/src/pages/Settings.tsx         # User settings
+[NEW]  static/miniapp/src/pages/Premium.tsx          # Stars purchase page
+[NEW]  static/miniapp/src/components/Chart.tsx       # Chart.js wrapper
+[NEW]  static/miniapp/src/api/client.ts              # API client for miniapp.py
+[EDIT] src/skills/__init__.py                        # Register 4 new skills (77 → 81)
+[EDIT] src/core/intent.py                            # Add voice, graph, stars intents
+[EDIT] src/core/schemas/intent.py                    # Add graph_*, stars_* fields
+[EDIT] src/agents/config.py                          # Add skills to relevant agents
+[EDIT] src/core/memory/context.py                    # Add QUERY_CONTEXT_MAP entries, graph memory layer
+[EDIT] src/core/tasks/profile_tasks.py               # Enhance with YAML profile generation
+[EDIT] src/core/tasks/broker.py                      # Add graph_update_task cron
+[EDIT] src/gateway/telegram.py                       # Handle voice messages, Stars payments
+[EDIT] api/miniapp.py                                # Serve SPA, add chart data endpoints
+[EDIT] Dockerfile                                    # Add ffmpeg, Node.js for mini app build
+[EDIT] pyproject.toml                                # Add ffmpeg-python dependency
+[EDIT] tests/test_skills/test_registry.py            # Update count 77 → 81
+[NEW]  tests/test_skills/test_graph_query.py         # Graph memory tests
+[NEW]  tests/test_skills/test_voice_process.py       # Voice processing tests
+[NEW]  tests/test_core/test_graph_memory.py          # Graph logic tests
+```
+
+---
+
+### Summary — Phases 7-9
+
+| Phase | Star Rating | New Skills | New Tables | New Deps | Cost/User/Month |
+|-------|------------|-----------|------------|----------|-----------------|
+| Phase 7 | 6★ → 7★ | 3 | 3 | openpyxl | $0.10 |
+| Phase 8 | 7★ → 8★ | 7 | 5 | — (static data) | $0.22 |
+| Phase 9 | 8★ → 9★ | 4 | 4 | ffmpeg, React/Vite | $0.31 |
+| **Total** | **6★ → 9★** | **14** | **12** | **3 new** | **$0.63** |
+
+Post Phase 9 totals:
+```
+Skills:         81 (from 67)
+Agents:         12 (add finance_pro agent)
+Orchestrators:  3 active LangGraph (+ InvoiceOrchestrator)
+DB Tables:      40 (from 28)
+Intents:        81+
+Star rating:    9★ (from 6★)
+Cost/user:      ~$4.63/month (within $3-8 budget)
+```
