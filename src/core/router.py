@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -105,6 +106,18 @@ async def _persist_message(
         logger.warning("Failed to persist conversation message: %s", e)
 
 
+_CONVERSION_RE = re.compile(
+    r"(?:convert|конвертир|в формат|save as|сохрани как|to\s+\.?|в\s+\.?)"
+    r"\s*(?:pdf|docx?|xlsx?|csv|txt|rtf|odt|ods|html|md|pptx|epub|fb2|mobi|djvu|jpe?g|png|tiff)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_conversion_request(text: str) -> bool:
+    """Check if caption text looks like a document conversion command."""
+    return bool(_CONVERSION_RE.search(text))
+
+
 async def handle_message(
     message: IncomingMessage,
     context: SessionContext,
@@ -198,10 +211,22 @@ async def _dispatch_message(
         if booking_result:
             return booking_result
 
-    # Handle photos and documents as scan_document
+    # Handle photos and documents — check caption for conversion intent first
     if message.type in (MessageType.photo, MessageType.document):
-        intent_name = "scan_document"
-        intent_data: dict[str, Any] = {}
+        if message.text and _is_conversion_request(message.text):
+            # Caption like "convert to pdf" → run intent detection on caption
+            result = await detect_intent(
+                text=message.text,
+                categories=context.categories,
+                language=context.language,
+            )
+            intent_name = result.intent
+            intent_data = result.data.model_dump() if result.data else {}
+            intent_data["confidence"] = result.confidence
+        else:
+            # No conversion caption → OCR/scan as before
+            intent_name = "scan_document"
+            intent_data: dict[str, Any] = {}
     else:
         # --- Guardrails check BEFORE intent detection ---
         if message.text:
