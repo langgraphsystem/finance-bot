@@ -314,6 +314,9 @@ async def _handle_password_step(
         # Analyze login result
         screenshot = await page.screenshot(type="png")
         login_result = await _analyze_login_result(screenshot)
+        logger.info(
+            "Login result for %s on %s: %s", user_id, state["site"], login_result
+        )
 
         if login_result == "success":
             # Save cookies
@@ -324,6 +327,10 @@ async def _handle_password_step(
             task = state["task"]
 
             await browser_service.save_storage_state(user_id, family_id, site, storage_state)
+            logger.info(
+                "Cookies saved for %s on %s (%d cookies)",
+                user_id, site, len(storage_state.get("cookies", [])),
+            )
             await browser_service.log_action(
                 user_id=user_id,
                 action_type="login_success",
