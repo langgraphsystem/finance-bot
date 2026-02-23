@@ -105,6 +105,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "evening_recap": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
     # Phase 7: Intelligence & Export
     "weekly_digest": {"mem": "life", "hist": 0, "sql": True, "sum": False},
+    "export_excel": {"mem": False, "hist": 0, "sql": True, "sum": False},
     # Shopping list intents
     "shopping_list_add": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "shopping_list_view": {"mem": False, "hist": 0, "sql": False, "sum": False},

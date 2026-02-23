@@ -87,6 +87,9 @@ class IntentData(BaseModel):
     # life_events, tasks, shopping, messages, all
     delete_scope: str | None = None
 
+    # Export fields (Phase 7)
+    export_type: str | None = None  # expenses, tasks, contacts
+
     # Shopping list fields
     shopping_items: list[str] | None = None
     shopping_list_name: str | None = None

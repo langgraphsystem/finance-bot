@@ -18,6 +18,7 @@ from src.skills.delete_data.handler import skill as delete_data_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
+from src.skills.export_excel.handler import skill as export_excel_skill
 from src.skills.find_contact.handler import skill as find_contact_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
@@ -128,6 +129,7 @@ def create_registry() -> SkillRegistry:
     registry.register(evening_recap_skill)
     # Phase 7: Intelligence & Export skills
     registry.register(weekly_digest_skill)
+    registry.register(export_excel_skill)
     # Data management
     registry.register(delete_data_skill)
     # Phase 5: Browser + monitor skills
