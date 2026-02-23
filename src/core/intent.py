@@ -240,6 +240,11 @@ program_language: язык если указан (python, js, bash...)
 "modify the program", "fix the code", "update the script"). \
 Извлеки program_changes: описание изменений, \
 program_id: ID программы если указан
+- convert_document: конвертировать файл в другой формат ("конвертируй в PDF", \
+"convert to docx", "в PDF", "save as PDF", "сделай PDF", "сохрани как docx", \
+"переведи в формат xlsx", "конвертируй в epub"). \
+Извлеки target_format: целевой формат (pdf, docx, xlsx, txt, csv, html, md, \
+epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -517,7 +522,8 @@ intent_type: "action", confidence: 0.92
     "contact_phone": "телефон" или null,
     "contact_email": "email" или null,
     "detected_city": "city name IN ENGLISH if user mentions a specific city" или null,
-    "location_specified": true/false для maps_search (указано ли место/адрес/город), null иначе
+    "location_specified": true/false для maps_search (указано ли место/адрес/город), null иначе,
+    "target_format": "целевой формат конвертации (pdf, docx, xlsx, ...)" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

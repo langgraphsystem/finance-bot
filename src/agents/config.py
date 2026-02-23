@@ -156,6 +156,7 @@ AGENTS: list[AgentConfig] = [
         skills=[
             "draft_message", "translate_text", "write_post", "proofread",
             "generate_image", "generate_card", "generate_program", "modify_program",
+            "convert_document",
         ],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},

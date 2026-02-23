@@ -8,6 +8,7 @@ from src.skills.cancel_booking.handler import skill as cancel_booking_skill
 from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
+from src.skills.convert_document.handler import skill as convert_document_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
 from src.skills.create_booking.handler import skill as create_booking_skill
 from src.skills.create_event.handler import skill as create_event_skill
@@ -35,8 +36,6 @@ from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.modify_program.handler import skill as modify_program_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
-
-# Phase 5: Monitor & browser skills
 from src.skills.news_monitor.handler import skill as news_monitor_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
 from src.skills.price_alert.handler import skill as price_alert_skill
@@ -149,4 +148,6 @@ def create_registry() -> SkillRegistry:
     registry.register(modify_program_skill)
     # Browser action (authenticated sessions)
     registry.register(browser_action_skill)
+    # Document conversion
+    registry.register(convert_document_skill)
     return registry

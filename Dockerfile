@@ -11,7 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnss3 libnspr4 libdbus-1-3 libxkbcommon0 libgbm1 \
     libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-    fonts-liberation && \
+    fonts-liberation \
+    # Document conversion tools
+    libreoffice-writer libreoffice-calc libreoffice-impress \
+    pandoc calibre && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

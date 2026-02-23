@@ -116,6 +116,9 @@ class IntentData(BaseModel):
     # maps_search: whether user specified an explicit location (address, place, city)
     location_specified: bool | None = None
 
+    # Document conversion fields
+    target_format: str | None = None  # "pdf", "docx", "xlsx", "epub", etc.
+
     # Browser action fields
     browser_target_site: str | None = None  # "booking.com", "amazon.com"
     browser_task: str | None = None  # "book hotel in Barcelona for March 15-18"

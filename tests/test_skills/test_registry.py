@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 67
+    assert len(skills) == 68
 
 
 def test_registry_routes_intents(skill_registry):
@@ -81,6 +81,8 @@ def test_registry_routes_intents(skill_registry):
         "modify_program",
         # Browser action (authenticated sessions)
         "browser_action",
+        # Document conversion
+        "convert_document",
     ]
     for intent in intents:
         skill = skill_registry.get(intent)
