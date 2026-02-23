@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import re
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -104,26 +103,6 @@ async def _persist_message(
             await session.commit()
     except Exception as e:
         logger.warning("Failed to persist conversation message: %s", e)
-
-
-_CONVERSION_RE = re.compile(
-    r"(?:"
-    # "convert/конвертировать [this/это/файл] [to/в/на] FORMAT"
-    r"(?:convert|конвертир\w*|сконвертир\w*)(?:\s+\w+)*?\s+(?:to|в|на|into)\s*\.?"
-    r"|в\s+формат\s*\.?"
-    r"|save\s+as\s*\.?"
-    r"|сохрани\s+как\s*\.?"
-    # Short: "to/в/на FORMAT"
-    r"|(?:to|в|на)\s+\.?"
-    r")"
-    r"(?:pdf|docx?|xlsx?|csv|txt|rtf|odt|ods|html|md|pptx|epub|fb2|mobi|djvu|jpe?g|png|tiff)\b",
-    re.IGNORECASE,
-)
-
-
-def _is_conversion_request(text: str) -> bool:
-    """Check if caption text looks like a document conversion command."""
-    return bool(_CONVERSION_RE.search(text))
 
 
 _LAST_FILE_TTL = 300  # 5 minutes
@@ -273,29 +252,13 @@ async def _dispatch_message(
         if booking_result:
             return booking_result
 
-    # Text-only conversion request with a recently cached file (document sent separately)
-    if message.type == MessageType.text and message.text and _is_conversion_request(message.text):
-        cached = await _pop_cached_file(context.user_id)
-        if cached:
-            is_photo = cached["is_photo"]
-            message = IncomingMessage(
-                id=message.id,
-                user_id=message.user_id,
-                chat_id=message.chat_id,
-                type=MessageType.photo if is_photo else MessageType.document,
-                text=message.text,
-                document_bytes=None if is_photo else cached["bytes"],
-                photo_bytes=cached["bytes"] if is_photo else None,
-                document_mime_type=cached["mime"],
-                document_file_name=cached["name"],
-                raw=message.raw,
-                channel=message.channel,
-            )
-
-    # Handle photos and documents — check caption for conversion intent first
+    # Handle photos and documents
     if message.type in (MessageType.photo, MessageType.document):
-        if message.text and _is_conversion_request(message.text):
-            # Caption like "convert to pdf" → run intent detection on caption
+        # Always cache file for potential follow-up conversion text message
+        await _cache_last_file(context.user_id, message)
+
+        if message.text:
+            # Caption present → let LLM decide the intent (convert_document, scan_document, etc.)
             result = await detect_intent(
                 text=message.text,
                 categories=context.categories,
@@ -305,11 +268,9 @@ async def _dispatch_message(
             intent_data = result.data.model_dump() if result.data else {}
             intent_data["confidence"] = result.confidence
         else:
-            # No conversion caption → OCR/scan as before
+            # No caption → OCR/scan as default
             intent_name = "scan_document"
             intent_data: dict[str, Any] = {}
-            # Cache file for potential follow-up "convert to X" text message
-            await _cache_last_file(context.user_id, message)
     else:
         # --- Guardrails check BEFORE intent detection ---
         if message.text:
@@ -387,6 +348,28 @@ async def _dispatch_message(
         if detected_city and context.user_id and context.family_id:
             if detected_city != context.user_profile.get("city"):
                 asyncio.create_task(_save_user_city(context.user_id, detected_city))
+
+    # If LLM detected convert_document from a text message, inject cached file
+    if intent_name == "convert_document" and message.type not in (
+        MessageType.photo,
+        MessageType.document,
+    ):
+        cached = await _pop_cached_file(context.user_id)
+        if cached:
+            is_photo = cached["is_photo"]
+            message = IncomingMessage(
+                id=message.id,
+                user_id=message.user_id,
+                chat_id=message.chat_id,
+                type=MessageType.photo if is_photo else MessageType.document,
+                text=message.text,
+                document_bytes=None if is_photo else cached["bytes"],
+                photo_bytes=cached["bytes"] if is_photo else None,
+                document_mime_type=cached["mime"],
+                document_file_name=cached["name"],
+                raw=message.raw,
+                channel=message.channel,
+            )
 
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
     domain_router = get_domain_router()
