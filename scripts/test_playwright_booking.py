@@ -478,7 +478,7 @@ async def _get_hotel_details(context, url: str) -> dict:
 
 
 async def _do_booking(context, hotel: dict, checkin, checkout, adults, children):
-    """Navigate to hotel page and start booking flow."""
+    """Navigate to hotel page → select room → proceed to booking form."""
     print(f"\n{'='*60}")
     print(f"  BOOKING: {hotel['name']}")
     print(f"  URL: {hotel['url'][:80]}")
@@ -489,71 +489,175 @@ async def _do_booking(context, hotel: dict, checkin, checkout, adults, children)
         await page.goto(hotel["url"], wait_until="domcontentloaded")
         await page.wait_for_timeout(3000)
 
-        # Find and click first "Reserve" or "See availability" button
-        reserve_btn = page.locator(
-            'button:has-text("Reserve"), '
-            'a:has-text("Reserve"), '
-            'button:has-text("See availability"), '
-            'a:has-text("See availability"), '
-            'button:has-text("I\'ll reserve"), '
-            'a:has-text("Book now")'
-        ).first
+        # Close popups
+        for sel in [
+            '[aria-label="Dismiss sign-in info."]',
+            '[id="onetrust-accept-btn-handler"]',
+        ]:
+            try:
+                btn = page.locator(sel).first
+                if await btn.is_visible(timeout=1000):
+                    await btn.click()
+                    await page.wait_for_timeout(500)
+            except Exception:
+                pass
 
-        if await reserve_btn.is_visible(timeout=5000):
-            print("  Clicking Reserve...")
-            await reserve_btn.click()
-            await page.wait_for_load_state("domcontentloaded")
-            await page.wait_for_timeout(3000)
-        else:
-            # Try selecting first room
-            select_btn = page.locator(
-                'select.hprt-nos-select, [data-testid="select-room"]'
+        # ── Step 1: Scroll to room table and select room quantity ──
+        print("  [1/4] Looking for room selection table...")
+
+        # Wait for the room table to load
+        room_selects = page.locator('select.hprt-nos-select')
+        select_count = await room_selects.count()
+        print(f"    Found {select_count} room select dropdowns")
+
+        if select_count == 0:
+            # Try alternate selectors
+            room_selects = page.locator(
+                'select[data-testid="select-room-trigger"], '
+                'select[id*="hprt_nos_select"]'
+            )
+            select_count = await room_selects.count()
+            print(f"    Fallback: found {select_count} dropdowns")
+
+        if select_count > 0:
+            # Find the recommended room (first one with "Recommended")
+            # or just use the first room
+            print("  [2/4] Selecting 1 room from first option...")
+            first_select = room_selects.first
+            await first_select.scroll_into_view_if_needed()
+            await page.wait_for_timeout(500)
+
+            # Get available options
+            options = await first_select.locator('option').all_text_contents()
+            print(f"    Options: {options}")
+
+            # Select "1" (first non-zero option)
+            await first_select.select_option("1")
+            await page.wait_for_timeout(1000)
+
+            # ── Step 3: Click "I'll reserve" ──
+            print("  [3/4] Clicking 'I'll reserve'...")
+            reserve_btn = page.locator(
+                'button.js-reservation-button, '
+                'button:has-text("I\'ll reserve"), '
+                'button:has-text("Reserve"), '
+                '[data-testid="reservation-cta"]'
             ).first
-            if await select_btn.is_visible(timeout=3000):
-                await select_btn.select_option("1")
-                await page.wait_for_timeout(500)
-                submit = page.locator(
-                    'button.js-reservation-button, '
-                    'button:has-text("reserve")'
-                ).first
-                if await submit.is_visible(timeout=2000):
-                    await submit.click()
-                    await page.wait_for_timeout(3000)
 
-        # Extract booking page info
+            if await reserve_btn.is_visible(timeout=5000):
+                # Click triggers navigation — wait for it properly
+                async with page.expect_navigation(
+                    wait_until="domcontentloaded", timeout=30000
+                ):
+                    await reserve_btn.click()
+                print("    Navigated to booking form!")
+                await page.wait_for_timeout(3000)
+            else:
+                print("    Reserve button not found after selecting room!")
+        else:
+            # No room selects — try direct reserve/book button
+            print("  [2/4] No room select dropdowns, trying direct button...")
+            reserve_btn = page.locator(
+                'button:has-text("Reserve"), '
+                'a:has-text("Reserve"), '
+                'button:has-text("See availability"), '
+                'button:has-text("Book now"), '
+                'a:has-text("Book now")'
+            ).first
+            if await reserve_btn.is_visible(timeout=5000):
+                await reserve_btn.click()
+                await page.wait_for_load_state("domcontentloaded")
+                await page.wait_for_timeout(5000)
+
+        # ── Step 4: Analyze booking/payment page ──
+        print("  [4/4] Analyzing booking page...")
         current_url = page.url
         title = await page.title()
 
-        # Check what's on the page
         js_check = """
         () => {
-            const text = document.body.innerText;
-            const hasPayment = /credit card|payment|card number/i.test(text);
-            const hasForm = document.querySelector('input[name="firstname"], input[name="booker.firstname"]');
-            const totalPrice = document.querySelector('[data-testid="total-price"], .bui-price-display__value');
+            const text = document.body.innerText || '';
+            const hasPayment = /credit card|payment details|card number/i.test(text);
+            const hasBookerForm = !!document.querySelector(
+                'input[name="firstname"], input[name="booker.firstname"], '
+                + 'input[name="booker_firstname"], #firstname'
+            );
+            const hasEmailField = !!document.querySelector(
+                'input[name="email"], input[name="booker.email"], '
+                + 'input[type="email"]'
+            );
+            const totalEl = document.querySelector(
+                '[data-testid="total-price"], '
+                + '.bui-price-display__value, '
+                + '.bp-price-details__total-amount, '
+                + '.priceIsland__total-price'
+            );
+            const hasLogin = /sign in|log in|create.*account/i.test(text)
+                && !hasBookerForm;
+
+            // Extract pre-filled data
+            const firstName = document.querySelector(
+                'input[name="firstname"], input[name="booker.firstname"]'
+            );
+            const lastName = document.querySelector(
+                'input[name="lastname"], input[name="booker.lastname"]'
+            );
+            const email = document.querySelector(
+                'input[name="email"], input[name="booker.email"]'
+            );
+
             return {
                 has_payment_form: hasPayment,
-                has_booking_form: !!hasForm,
-                total_price: totalPrice ? totalPrice.textContent.trim() : '',
+                has_booking_form: hasBookerForm,
+                has_email_field: hasEmailField,
+                has_login_prompt: hasLogin,
+                total_price: totalEl ? totalEl.textContent.trim() : '',
                 page_title: document.title,
+                page_url: window.location.href,
+                prefilled_first: firstName ? firstName.value : '',
+                prefilled_last: lastName ? lastName.value : '',
+                prefilled_email: email ? email.value : '',
+                is_booking_page: /book|reserv|checkout|payment/i.test(
+                    window.location.href
+                ),
             };
         }
         """
         check = await page.evaluate(js_check)
 
-        print(f"\n  Booking page: {current_url[:80]}")
+        print(f"\n  Current URL: {current_url[:100]}")
         print(f"  Title: {title[:60]}")
         print(f"  Has booking form: {check.get('has_booking_form')}")
+        print(f"  Has email field: {check.get('has_email_field')}")
         print(f"  Has payment form: {check.get('has_payment_form')}")
+        print(f"  Has login prompt: {check.get('has_login_prompt')}")
+        print(f"  Is booking page URL: {check.get('is_booking_page')}")
         if check.get("total_price"):
             print(f"  Total price: {check['total_price']}")
+        if check.get("prefilled_first"):
+            print(f"  Pre-filled name: {check['prefilled_first']} "
+                  f"{check.get('prefilled_last', '')}")
+        if check.get("prefilled_email"):
+            print(f"  Pre-filled email: {check['prefilled_email']}")
 
-        if check.get("has_payment_form"):
-            print(f"\n  PAYMENT_REQUIRED — complete manually: {current_url}")
+        # Determine status
+        if check.get("has_login_prompt") and not check.get("has_booking_form"):
+            print(f"\n  LOGIN_REQUIRED — need to log in first")
+            status = "LOGIN_REQUIRED"
+        elif check.get("has_booking_form") and check.get("has_payment_form"):
+            print(f"\n  PAYMENT_REQUIRED — booking form with payment")
+            print(f"  Complete manually: {check.get('page_url', current_url)}")
+            status = "PAYMENT_REQUIRED"
         elif check.get("has_booking_form"):
-            print(f"\n  READY_TO_BOOK — booking form is available")
+            print(f"\n  READY_TO_BOOK — booking form found (no payment yet)")
+            status = "READY_TO_BOOK"
+        elif check.get("is_booking_page"):
+            print(f"\n  BOOKING_PAGE — on booking URL but form not detected")
+            print(f"  Complete manually: {check.get('page_url', current_url)}")
+            status = "PAYMENT_REQUIRED"
         else:
-            print(f"\n  Page state unclear — check browser window")
+            print(f"\n  STILL_ON_HOTEL — didn't navigate to booking form")
+            status = "RETRY"
 
         # Save screenshot
         ss_path = Path(__file__).parent / "booking_screenshot.png"
@@ -565,7 +669,8 @@ async def _do_booking(context, hotel: dict, checkin, checkout, adults, children)
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump({
                 "hotel": hotel,
-                "booking_url": current_url,
+                "status": status,
+                "booking_url": check.get("page_url", current_url),
                 "check": check,
             }, f, indent=2, ensure_ascii=False)
         print(f"  Result: {result_path}")
