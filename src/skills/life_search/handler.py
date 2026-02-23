@@ -1,6 +1,7 @@
-"""Life search skill — semantic + SQL search across life events and memories."""
+"""Life search skill — hybrid semantic + SQL search across life events and memories."""
 
 import logging
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,8 @@ _DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю н�
 Объедини результаты из базы данных и семантической памяти.
 Покажи результаты как таймлайн."""
 
+_DEDUP_SIMILARITY_THRESHOLD = 0.75
+
 
 def _resolve_event_type(raw: str | None) -> LifeEventType | None:
     """Convert string to LifeEventType, return None if invalid."""
@@ -33,6 +36,25 @@ def _resolve_event_type(raw: str | None) -> LifeEventType | None:
         return LifeEventType(raw)
     except ValueError:
         return None
+
+
+def _normalize_text(text: str) -> str:
+    """Normalize text for deduplication comparison."""
+    return " ".join(text.lower().strip().split())
+
+
+def _is_duplicate(text1: str, text2: str) -> bool:
+    """Check if two texts are near-duplicates using similarity comparison."""
+    t1 = _normalize_text(text1)
+    t2 = _normalize_text(text2)
+    if not t1 or not t2:
+        return False
+    if t1 == t2:
+        return True
+    # Containment check for short-in-long matches
+    if t1 in t2 or t2 in t1:
+        return True
+    return SequenceMatcher(None, t1, t2).ratio() >= _DEDUP_SIMILARITY_THRESHOLD
 
 
 class LifeSearchSkill:
@@ -74,9 +96,10 @@ class LifeSearchSkill:
             limit=30,
         )
 
-        # 2. Mem0 semantic search (only for broad text queries, not filtered)
+        # 2. Mem0 semantic search — always run when we have a query
+        # Finds semantically related memories even when SQL uses date/type filters
         mem0_results: list[dict] = []
-        if use_text_search:
+        if query.strip():
             try:
                 mem0_results = await search_memories(
                     query=query.strip(),
@@ -87,13 +110,14 @@ class LifeSearchSkill:
                 logger.warning("Mem0 search failed: %s", e)
 
         # Merge results: SQL events as primary, Mem0 as supplementary
-        timeline_events = sql_events
-
-        # Append Mem0 results that aren't already in SQL results
-        sql_texts = {ev.text for ev in sql_events if ev.text}
+        # Use similarity-based dedup to avoid near-duplicate entries
+        timeline_events = list(sql_events)
+        sql_texts = [ev.text for ev in sql_events if ev.text]
         for mem in mem0_results:
             mem_text = mem.get("memory") or mem.get("text") or ""
-            if mem_text and mem_text not in sql_texts:
+            if not mem_text:
+                continue
+            if not any(_is_duplicate(mem_text, st) for st in sql_texts):
                 timeline_events.append(_mem0_to_pseudo_event(mem))
 
         if not timeline_events:
@@ -142,6 +166,7 @@ class _PseudoLifeEvent:
         self.tags = meta.get("tags") if isinstance(meta, dict) else None
         self.type = _resolve_mem0_type(mem)
         self.data = None
+        self.score = mem.get("score", 0.0)
         raw_date = mem.get("created_at") or mem.get("updated_at")
         if raw_date:
             try:
