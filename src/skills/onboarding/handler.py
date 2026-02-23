@@ -10,6 +10,7 @@ Family member flow:
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -26,12 +27,13 @@ from src.core.observability import observe
 from src.core.profiles import ProfileLoader
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
 profile_loader = ProfileLoader("config/profiles")
 
-ONBOARDING_SYSTEM_PROMPT = """Ты помогаешь новому пользователю настроить AI Assistant.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь новому пользователю настроить AI Assistant.
 Твоя задача — определить тип деятельности пользователя по его описанию.
 
 Типы: household (домохозяйство), trucker (дальнобойщик), taxi (такси),
@@ -262,7 +264,7 @@ class OnboardingSkill:
         try:
             raw = await generate_text(
                 self.model,
-                ONBOARDING_SYSTEM_PROMPT,
+                _DEFAULT_SYSTEM_PROMPT,
                 [{"role": "user", "content": text}],
                 max_tokens=50,
             )
@@ -452,7 +454,8 @@ class OnboardingSkill:
             return SkillResult(response_text=msg)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return ONBOARDING_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = OnboardingSkill()

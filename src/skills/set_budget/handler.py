@@ -3,6 +3,7 @@
 import logging
 import uuid
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -14,10 +15,11 @@ from src.core.models.enums import BudgetPeriod, Scope
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-BUDGET_SYSTEM_PROMPT = """Ты помогаешь пользователю управлять бюджетами.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю управлять бюджетами.
 Извлеки из сообщения: категорию, сумму, период (weekly/monthly).
 Если не указан период — по умолчанию monthly."""
 
@@ -100,7 +102,8 @@ class SetBudgetSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return BUDGET_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = SetBudgetSkill()

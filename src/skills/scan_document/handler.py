@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -15,12 +16,13 @@ from src.core.schemas.load import LoadData
 from src.core.schemas.receipt import ReceiptData
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
 PENDING_DOC_TTL = 3600  # 1 hour
 
-CLASSIFY_PROMPT = """Определи тип документа на фото. Ответь ТОЛЬКО одним словом:
+_DEFAULT_SYSTEM_PROMPT = """Определи тип документа на фото. Ответь ТОЛЬКО одним словом:
 - receipt (чек, кассовый чек, товарный чек)
 - invoice (счёт, инвойс, счёт-фактура, bill)
 - rate_confirmation (rate confirmation, подтверждение рейса, load confirmation)
@@ -196,7 +198,7 @@ class ScanDocumentSkill:
         """Classify document type using Gemini 3 Flash."""
         client = google_client()
         parts = [
-            CLASSIFY_PROMPT,
+            _DEFAULT_SYSTEM_PROMPT,
             {
                 "inline_data": {
                     "mime_type": mime_type,
@@ -420,7 +422,8 @@ class ScanDocumentSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return CLASSIFY_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = ScanDocumentSkill()

@@ -1,0 +1,12 @@
+name: send_to_client
+description: Send messages to clients
+model: claude-haiku-4-5
+intents:
+- send_to_client
+system_prompt: 'You help business owners communicate with their clients.
+
+  Extract: client name, message content, and channel preference (SMS/WhatsApp/call).
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '

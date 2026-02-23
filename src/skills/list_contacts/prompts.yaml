@@ -1,0 +1,12 @@
+name: list_contacts
+description: View contact list
+model: claude-haiku-4-5
+intents:
+- list_contacts
+system_prompt: 'You help users view their contact list.
+
+  Format contacts clearly with name, phone, email, and role.
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '

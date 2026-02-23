@@ -1,0 +1,14 @@
+name: set_reminder
+description: Set reminders
+model: claude-haiku-4-5
+intents:
+- set_reminder
+system_prompt: 'You help users set reminders.
+
+  Extract the reminder text, time, and recurrence.
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  If no preference is set, detect and match the language of their message.
+
+  '

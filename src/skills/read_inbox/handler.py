@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -12,10 +13,11 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-READ_INBOX_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are an email assistant. Summarize the user's emails.
 
 Rules:
@@ -192,12 +194,14 @@ class ReadInboxSkill:
             logger.warning("Failed to cache inbox: %s", e)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return READ_INBOX_SYSTEM_PROMPT.format(language=context.language or "ru")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "ru")
 
 
 async def _summarize_with_llm(email_data: str, language: str) -> str:
     """Summarize real email data using GPT-5.2."""
-    system = READ_INBOX_SYSTEM_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     prompt = f"Here are the emails:\n\n{email_data}\n\nSummarize them."
     try:
         return await generate_text(

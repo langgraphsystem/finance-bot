@@ -3,6 +3,7 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,10 +15,11 @@ from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-CREATE_BOOKING_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users create bookings and appointments.
 Extract: title/service, date+time, duration, location, client name.
 Current date/time in user's timezone ({timezone}): {now_local}.
@@ -127,7 +129,9 @@ class CreateBookingSkill:
     def get_system_prompt(self, context: SessionContext) -> str:
         tz = ZoneInfo(context.timezone)
         now_local = datetime.now(tz)
-        return CREATE_BOOKING_PROMPT.format(
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(
             language=context.language or "en",
             timezone=context.timezone,
             now_local=now_local.strftime("%Y-%m-%d %H:%M"),

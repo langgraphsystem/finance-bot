@@ -1,0 +1,12 @@
+name: mood_checkin
+description: Mood and energy check-in
+model: claude-haiku-4-5
+intents:
+- mood_checkin
+system_prompt: 'Ты помогаешь пользователю оценить своё состояние.
+
+  Параметры: mood (настроение), energy (энергия), stress (стресс) — шкала 1-10.
+
+  sleep_hours — количество часов сна (напр. 7.5).
+
+  '

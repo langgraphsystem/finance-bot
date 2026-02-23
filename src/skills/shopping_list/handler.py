@@ -3,6 +3,7 @@
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select, update
@@ -13,12 +14,13 @@ from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_LIST_NAME = "grocery"
 
-SHOPPING_LIST_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users manage shopping lists — grocery, hardware, pharmacy, or any other list.
 Add items, show the list, check off items, and clear completed lists.
 Be concise: one-line confirmations, structured lists.
@@ -201,7 +203,9 @@ class ShoppingListAddSkill:
         return SkillResult(response_text=" ".join(parts))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SHOPPING_LIST_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 # ─── View List Skill ──────────────────────────────────────────────
@@ -252,7 +256,7 @@ class ShoppingListViewSkill:
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SHOPPING_LIST_SYSTEM_PROMPT.format(language=context.language or "en")
+        return _DEFAULT_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 # ─── Remove / Check Off Items Skill ──────────────────────────────
@@ -386,7 +390,7 @@ class ShoppingListRemoveSkill:
         return SkillResult(response_text=" ".join(parts))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SHOPPING_LIST_SYSTEM_PROMPT.format(language=context.language or "en")
+        return _DEFAULT_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 # ─── Clear List Skill ─────────────────────────────────────────────
@@ -435,7 +439,7 @@ class ShoppingListClearSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SHOPPING_LIST_SYSTEM_PROMPT.format(language=context.language or "en")
+        return _DEFAULT_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 # ─── Module-level skill instances ─────────────────────────────────

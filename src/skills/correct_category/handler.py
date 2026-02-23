@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from src.core.models.transaction import Transaction
 from src.core.tasks.memory_tasks import async_update_merchant_mapping
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +106,9 @@ class CorrectCategorySkill:
 
     def get_system_prompt(self, context: SessionContext) -> str:
         categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
-        return f"Ты исправляешь категорию транзакции.\n\nКатегории:\n{categories}"
+        prompts = load_prompt(Path(__file__).parent)
+        _default = f"Ты исправляешь категорию транзакции.\n\nКатегории:\n{categories}"
+        return prompts.get("system_prompt", "") or _default
 
 
 skill = CorrectCategorySkill()

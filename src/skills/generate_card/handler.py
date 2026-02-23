@@ -1,12 +1,14 @@
 """Generate visual card skill — LLM-designed HTML rendered to PNG."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +58,11 @@ class GenerateCardSkill:
         return SkillResult(response_text="", photo_bytes=png_bytes)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return "Ты генерируешь визуальные карточки по запросу пользователя."
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get(
+            "system_prompt",
+            "Ты генерируешь визуальные карточки по запросу пользователя.",
+        )
 
 
 skill = GenerateCardSkill()

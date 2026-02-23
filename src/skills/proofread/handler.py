@@ -1,6 +1,7 @@
 """Proofread skill — checks grammar and spelling using Claude Haiku."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -8,10 +9,11 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-PROOFREAD_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a proofreading assistant. The user wants you to check their text for errors.
 
 Rules:
@@ -53,12 +55,14 @@ class ProofreadSkill:
         return SkillResult(response_text=result)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return PROOFREAD_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def check_text(text: str, language: str) -> str:
     """Proofread text using Claude Haiku."""
-    system = PROOFREAD_SYSTEM_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
             "gpt-5.2", system,

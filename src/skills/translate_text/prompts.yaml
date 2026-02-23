@@ -1,0 +1,14 @@
+name: translate_text
+description: Translate text between languages
+model: claude-sonnet-4-6
+intents:
+- translate_text
+system_prompt: 'You translate text for the user.
+
+  Preserve meaning, tone, and formatting.
+
+  Show the translation clearly.
+
+  Respond in: {language}.
+
+  '

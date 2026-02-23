@@ -1,6 +1,7 @@
 """Day reflection skill — end-of-day review and journaling."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -14,10 +15,11 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-DAY_REFLECTION_SYSTEM_PROMPT = """Ты помогаешь пользователю подвести итоги дня.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю подвести итоги дня.
 Если пользователь написал рефлексию, сохрани её.
 Если просто попросил "рефлексия" без деталей, задай наводящий вопрос."""
 
@@ -93,7 +95,8 @@ class DayReflectionSkill:
             return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return DAY_REFLECTION_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = DayReflectionSkill()

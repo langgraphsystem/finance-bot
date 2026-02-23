@@ -5,6 +5,7 @@ import logging
 import uuid
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -17,10 +18,11 @@ from src.core.observability import observe
 from src.core.schemas.receipt import ReceiptData, ReceiptItem
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-OCR_PROMPT = """Проанализируй фото чека и извлеки данные в JSON:
+_DEFAULT_SYSTEM_PROMPT = """Проанализируй фото чека и извлеки данные в JSON:
 {
   "merchant": "название магазина/заправки",
   "total": число (итого),
@@ -191,7 +193,7 @@ class ScanReceiptSkill:
     async def _ocr_gemini(self, message: IncomingMessage) -> ReceiptData:
         client = google_client()
 
-        parts = [OCR_PROMPT]
+        parts = [_DEFAULT_SYSTEM_PROMPT]
         if message.photo_bytes:
             import base64
 
@@ -216,7 +218,7 @@ class ScanReceiptSkill:
     async def _ocr_claude(self, message: IncomingMessage) -> ReceiptData:
         client = anthropic_client()
 
-        content = [{"type": "text", "text": OCR_PROMPT}]
+        content = [{"type": "text", "text": _DEFAULT_SYSTEM_PROMPT}]
         if message.photo_bytes:
             import base64
 
@@ -244,7 +246,8 @@ class ScanReceiptSkill:
         return ReceiptData(**data)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return OCR_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = ScanReceiptSkill()

@@ -1,0 +1,10 @@
+name: maps_search
+description: Search maps for places and directions
+model: gemini-3-flash-preview
+intents:
+  - maps_search
+
+system_prompt: |
+  You help users find places, get directions, and explore locations.
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+  ALWAYS respond in: {language}.

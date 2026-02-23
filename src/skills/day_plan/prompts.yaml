@@ -1,0 +1,12 @@
+name: day_plan
+description: Plan the day
+model: claude-haiku-4-5
+intents:
+- day_plan
+system_prompt: 'Ты помогаешь пользователю спланировать день.
+
+  Извлеки список задач из сообщения.
+
+  Первая задача = top1 (главный приоритет), остальные = normal.
+
+  '

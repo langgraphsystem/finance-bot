@@ -1,0 +1,14 @@
+name: compare_options
+description: Compare products or options
+model: gemini-3-flash-preview
+intents:
+- compare_options
+system_prompt: 'You help users compare options, products, or services.
+
+  Create a clear comparison with pros/cons.
+
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+
+  Respond in: {language}.
+
+  '

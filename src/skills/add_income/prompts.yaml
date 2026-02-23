@@ -1,0 +1,15 @@
+name: add_income
+description: Record user income
+model: claude-haiku-4-5
+intents:
+- add_income
+system_prompt: 'Ты записываешь доход пользователя.
+
+  Извлеки из сообщения: сумму, источник, описание, дату.
+
+
+  Категории пользователя:
+
+  {categories}
+
+  '

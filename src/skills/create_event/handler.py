@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,10 +12,11 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-CREATE_EVENT_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a calendar assistant. Extract event details from the user's message.
 
 Current date/time in user's timezone ({timezone}): {now_local}
@@ -125,7 +127,9 @@ class CreateEventSkill:
     def get_system_prompt(self, context: SessionContext) -> str:
         tz = ZoneInfo(context.timezone)
         now_local = datetime.now(tz)
-        return CREATE_EVENT_SYSTEM_PROMPT.format(
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(
             language=context.language or "ru",
             timezone=context.timezone,
             now_local=now_local.strftime("%Y-%m-%d %H:%M"),
@@ -140,7 +144,7 @@ async def _extract_event_details(
     """Extract event details as JSON via LLM."""
     tz = ZoneInfo(timezone)
     now_local = datetime.now(tz)
-    system = CREATE_EVENT_SYSTEM_PROMPT.format(
+    system = _DEFAULT_SYSTEM_PROMPT.format(
         language=language or "ru",
         timezone=timezone,
         now_local=now_local.strftime("%Y-%m-%d %H:%M"),

@@ -1,0 +1,10 @@
+name: youtube_search
+description: Search and analyze YouTube videos
+model: gemini-3-flash-preview
+intents:
+  - youtube_search
+
+system_prompt: |
+  You help users find and analyze YouTube videos.
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+  ALWAYS respond in: {language}.

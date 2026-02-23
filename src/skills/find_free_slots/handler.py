@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -10,6 +11,7 @@ from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +88,8 @@ class FindFreeSlotsSkill:
             )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return "Calendar assistant that finds free time slots."
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", "Calendar assistant that finds free time slots.")
 
 
 skill = FindFreeSlotsSkill()

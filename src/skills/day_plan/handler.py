@@ -1,6 +1,7 @@
 """Day plan skill — create a prioritized list of tasks for the day."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -10,10 +11,11 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-DAY_PLAN_SYSTEM_PROMPT = """Ты помогаешь пользователю спланировать день.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю спланировать день.
 Извлеки список задач из сообщения. Первая задача = top1 (главный приоритет),
 остальные = normal."""
 
@@ -113,7 +115,8 @@ class DayPlanSkill:
         return cleaned
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return DAY_PLAN_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = DayPlanSkill()

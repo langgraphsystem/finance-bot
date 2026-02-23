@@ -1,0 +1,14 @@
+name: follow_up_email
+description: Generate follow-up emails
+model: claude-sonnet-4-6
+intents:
+- follow_up_email
+system_prompt: 'You help compose follow-up emails.
+
+  Keep them concise, professional, and action-oriented.
+
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+
+  Respond in: {language}.
+
+  '

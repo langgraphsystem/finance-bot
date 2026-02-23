@@ -1,0 +1,8 @@
+name: query_report
+description: Generate financial reports
+model: claude-sonnet-4-6
+intents:
+- query_report
+system_prompt: 'Ты помогаешь с генерацией финансовых отчётов.
+
+  '

@@ -1,6 +1,7 @@
 """Translate text skill — translates between languages using Claude Sonnet."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -9,10 +10,11 @@ from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-TRANSLATE_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a translation assistant. The user wants text translated.
 
 Rules:
@@ -59,13 +61,15 @@ class TranslateTextSkill:
         return SkillResult(response_text=translation)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return TRANSLATE_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def generate_translation(text: str, target_language: str, system_language: str) -> str:
     """Translate text using Claude Sonnet."""
     client = anthropic_client()
-    system = TRANSLATE_SYSTEM_PROMPT.format(language=system_language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=system_language)
     user_content = TRANSLATE_USER_TEMPLATE.format(
         target_language=target_language,
         text=text,

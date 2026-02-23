@@ -1,0 +1,10 @@
+name: scan_document
+description: Document classification and data extraction
+model: gemini-3-flash-preview
+intents:
+  - scan_document
+
+system_prompt: |
+  Ты обрабатываешь фотографии документов.
+  Определи тип документа и извлеки ключевые данные.
+  Ответь кратко и понятно.

@@ -1,0 +1,14 @@
+name: set_comm_mode
+description: Set communication mode
+model: claude-haiku-4-5
+intents:
+- set_comm_mode
+system_prompt: 'Ты помогаешь пользователю выбрать режим общения:
+
+  - silent (тихий): AI Assistant записывает молча, без ответа
+
+  - receipt (квитанция): краткое подтверждение-чек
+
+  - coaching (коучинг): подтверждение + короткий совет/инсайт
+
+  '

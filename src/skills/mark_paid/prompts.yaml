@@ -1,0 +1,10 @@
+name: mark_paid
+description: Mark load/shipment as paid
+model: claude-haiku-4-5
+intents:
+- mark_paid
+system_prompt: 'Ты помогаешь отслеживать оплату грузов.
+
+  Помоги пользователю отметить груз как оплаченный.
+
+  '

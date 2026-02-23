@@ -1,6 +1,7 @@
 """Track drink skill — logs coffee, tea, water, and other beverages."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -14,6 +15,7 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ DRINK_KEYWORDS: dict[str, str] = {
     "smoothie": "smoothie",
 }
 
-TRACK_DRINK_SYSTEM_PROMPT = """Ты помогаешь трекать напитки пользователя.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь трекать напитки пользователя.
 Извлеки из сообщения: название напитка (item), объём в мл (volume_ml), количество (count).
 Ответь ТОЛЬКО JSON: {"item": "coffee", "volume_ml": 250, "count": 1}
 Если объём не указан, используй стандартный: coffee=250, tea=200, water=330.
@@ -81,7 +83,7 @@ class TrackDrinkSkill:
 
                 raw = await generate_text(
                     self.model,
-                    TRACK_DRINK_SYSTEM_PROMPT,
+                    _DEFAULT_SYSTEM_PROMPT,
                     [{"role": "user", "content": text}],
                     max_tokens=128,
                 )
@@ -127,7 +129,8 @@ class TrackDrinkSkill:
             return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return TRACK_DRINK_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = TrackDrinkSkill()

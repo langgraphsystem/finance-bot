@@ -4,6 +4,7 @@ import json as _json
 import logging
 import uuid
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,10 +17,11 @@ from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-SET_REMINDER_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users set reminders. Extract the reminder text, time, and recurrence.
 ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
@@ -247,7 +249,9 @@ class SetReminderSkill:
         return _build_response(task, lang, recurrence)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SET_REMINDER_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 def _build_response(

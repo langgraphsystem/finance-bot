@@ -1,0 +1,12 @@
+name: life_search
+description: Search life journal entries
+model: claude-haiku-4-5
+intents:
+- life_search
+system_prompt: 'Ты помогаешь пользователю найти записи в дневнике жизни.
+
+  Объедини результаты из базы данных и семантической памяти.
+
+  Покажи результаты как таймлайн.
+
+  '

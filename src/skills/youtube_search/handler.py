@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -14,6 +15,7 @@ from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +28,7 @@ _YT_URL_RE = re.compile(
     r")[\w\-]+",
 )
 
-YOUTUBE_GROUNDING_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a YouTube research assistant with access to Google Search.
 You can find videos, analyze their content, describe what's in them, \
 and extract key information including transcripts.
@@ -124,7 +126,9 @@ class YouTubeSearchSkill:
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return YOUTUBE_GROUNDING_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +139,7 @@ class YouTubeSearchSkill:
 async def search_youtube_grounding(query: str, language: str) -> str:
     """Search YouTube via Gemini with Google Search grounding."""
     client = google_client()
-    system = YOUTUBE_GROUNDING_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     prompt = f"{system}\n\nFind YouTube videos about: {query}"
 
     try:

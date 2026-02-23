@@ -1,0 +1,8 @@
+name: complex_query
+description: Complex analytical queries
+model: claude-sonnet-4-6
+intents:
+- complex_query
+system_prompt: 'Ты обрабатываешь сложные аналитические запросы.
+
+  '

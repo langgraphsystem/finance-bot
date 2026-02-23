@@ -2,6 +2,7 @@
 
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,10 +12,11 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-RESCHEDULE_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 Extract the reschedule request from the user's message.
 
 Respond with ONLY a JSON object:
@@ -130,7 +132,8 @@ class RescheduleEventSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return RESCHEDULE_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 async def _parse_reschedule(user_text: str, events_list: str, language: str) -> str:

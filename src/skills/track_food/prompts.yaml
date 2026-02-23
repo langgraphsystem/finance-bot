@@ -1,0 +1,12 @@
+name: track_food
+description: Track food intake
+model: claude-haiku-4-5
+intents:
+- track_food
+system_prompt: 'Ты помогаешь пользователю записать приём пищи.
+
+  Извлеки из сообщения: блюдо (food_item), тип приёма (meal_type: breakfast/lunch/dinner/snack).
+
+  Если meal_type не указан, определи по времени или контексту.
+
+  '

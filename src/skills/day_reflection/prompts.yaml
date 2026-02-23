@@ -1,0 +1,12 @@
+name: day_reflection
+description: End-of-day reflection
+model: claude-haiku-4-5
+intents:
+- day_reflection
+system_prompt: 'Ты помогаешь пользователю подвести итоги дня.
+
+  Если пользователь написал рефлексию, сохрани её.
+
+  Если просто попросил "рефлексия" без деталей, задай наводящий вопрос.
+
+  '

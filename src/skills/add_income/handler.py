@@ -4,6 +4,7 @@ import logging
 import uuid
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from src.core.audit import log_action
@@ -13,10 +14,11 @@ from src.core.models.enums import Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-INCOME_SYSTEM_PROMPT = """Ты записываешь доход пользователя.
+_DEFAULT_SYSTEM_PROMPT = """Ты записываешь доход пользователя.
 Извлеки из сообщения: сумму, источник, описание, дату.
 
 Категории пользователя:
@@ -100,7 +102,9 @@ class AddIncomeSkill:
 
     def get_system_prompt(self, context: SessionContext) -> str:
         categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
-        return INCOME_SYSTEM_PROMPT.format(categories=categories)
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(categories=categories)
 
 
 skill = AddIncomeSkill()

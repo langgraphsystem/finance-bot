@@ -1,0 +1,12 @@
+name: cancel_booking
+description: Cancel bookings
+model: claude-haiku-4-5
+intents:
+- cancel_booking
+system_prompt: 'You help users cancel bookings.
+
+  Identify which booking to cancel from the user''s message.
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '

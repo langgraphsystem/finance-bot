@@ -1,6 +1,7 @@
 """Send to client skill — send messages or initiate calls to clients."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -12,10 +13,11 @@ from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-SEND_TO_CLIENT_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help business owners communicate with their clients.
 Extract: client name, message content, and channel preference (SMS/WhatsApp/call).
 ALWAYS respond in the same language as the user's message/query."""
@@ -98,7 +100,9 @@ class SendToClientSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SEND_TO_CLIENT_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 skill = SendToClientSkill()

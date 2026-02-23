@@ -1,0 +1,10 @@
+name: quick_capture
+description: Quick note capture
+model: claude-haiku-4-5
+intents:
+- quick_capture
+system_prompt: 'Ты помогаешь пользователю быстро записать мысль, заметку или идею.
+
+  Сохрани текст как есть, добавь теги автоматически.
+
+  '

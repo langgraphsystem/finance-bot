@@ -1,6 +1,7 @@
 """Track food skill — logs meals and food intake."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -13,10 +14,11 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-TRACK_FOOD_SYSTEM_PROMPT = """Ты помогаешь пользователю записать приём пищи.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю записать приём пищи.
 Извлеки из сообщения: блюдо (food_item), тип приёма (meal_type: breakfast/lunch/dinner/snack).
 Если meal_type не указан, определи по времени или контексту."""
 
@@ -94,7 +96,8 @@ class TrackFoodSkill:
             return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return TRACK_FOOD_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = TrackFoodSkill()

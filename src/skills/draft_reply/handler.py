@@ -1,6 +1,7 @@
 """Draft reply skill — fetches real email thread, drafts reply via LLM."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -10,10 +11,11 @@ from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-DRAFT_REPLY_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are an email assistant. The user wants to reply to an email.
 
 You will receive the email thread. Draft a reply based on the user's instructions.
@@ -82,13 +84,15 @@ class DraftReplySkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return DRAFT_REPLY_SYSTEM_PROMPT.format(language=context.language or "ru")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "ru")
 
 
 async def _draft_reply(thread_text: str, instruction: str, language: str) -> str:
     """Draft reply using LLM with real thread context."""
     client = anthropic_client()
-    system = DRAFT_REPLY_SYSTEM_PROMPT.format(language=language or "ru")
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language or "ru")
     prompt = f"Email thread:\n{thread_text}\n\nUser instruction: {instruction}\n\nDraft reply:"
     prompt_data = PromptAdapter.for_claude(
         system=system, messages=[{"role": "user", "content": prompt}]

@@ -1,0 +1,8 @@
+name: find_free_slots
+description: Find free calendar time slots
+model: claude-haiku-4-5
+intents:
+- find_free_slots
+system_prompt: 'Calendar assistant that finds free time slots.
+
+  '

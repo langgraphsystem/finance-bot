@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -16,10 +17,11 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-MOOD_CHECKIN_SYSTEM_PROMPT = """Ты помогаешь пользователю оценить своё состояние.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю оценить своё состояние.
 Параметры: mood (настроение), energy (энергия), stress (стресс) — шкала 1-10.
 sleep_hours — количество часов сна (напр. 7.5)."""
 
@@ -115,7 +117,8 @@ class MoodCheckinSkill:
             return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return MOOD_CHECKIN_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 async def _get_mood_trend(family_id: str, user_id: str) -> str:

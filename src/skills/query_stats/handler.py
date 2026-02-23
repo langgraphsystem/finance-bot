@@ -4,6 +4,7 @@ import logging
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
@@ -20,10 +21,11 @@ from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-STATS_SYSTEM_PROMPT = """Ты формируешь ответ о финансовой статистике.
+_DEFAULT_SYSTEM_PROMPT = """Ты формируешь ответ о финансовой статистике.
 Тебе передаются ГОТОВЫЕ числа из SQL. НИКОГДА не считай сам.
 Оформи данные красиво и кратко (2-4 предложения).
 Добавь сравнения и проценты, если данные позволяют."""
@@ -346,7 +348,7 @@ class QueryStatsSkill:
             sys = assembled.system_prompt
             msgs = history
         else:
-            sys = STATS_SYSTEM_PROMPT
+            sys = _DEFAULT_SYSTEM_PROMPT
             msgs = [{"role": "user", "content": user_content}]
 
         response_text = await generate_text(self.model, sys, msgs, max_tokens=512)
@@ -371,7 +373,8 @@ class QueryStatsSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return STATS_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = QueryStatsSkill()

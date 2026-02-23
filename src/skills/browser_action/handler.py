@@ -14,6 +14,7 @@ Flow:
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.approval import approval_manager
@@ -22,6 +23,7 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 from src.tools import browser_booking, browser_login, browser_service
 
 logger = logging.getLogger(__name__)
@@ -42,13 +44,15 @@ class BrowserActionSkill:
     model = "claude-sonnet-4-6"
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return (
+        _default = (
             "You are a browser automation assistant that helps users perform "
             "authenticated actions on websites (booking, ordering, purchasing). "
             "You can log into websites on behalf of the user using saved sessions. "
             "For payment actions, always ask for user confirmation first. "
             f"Respond in the user's language ({context.language or 'en'})."
         )
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _default)
 
     @observe(name="browser_action")
     async def execute(

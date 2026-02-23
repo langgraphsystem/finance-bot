@@ -222,7 +222,12 @@ class ModifyProgramSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return CODE_GEN_SYSTEM_PROMPT
+        from pathlib import Path
+
+        from src.skills.prompt_loader import load_prompt
+
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", CODE_GEN_SYSTEM_PROMPT)
 
 
 skill = ModifyProgramSkill()

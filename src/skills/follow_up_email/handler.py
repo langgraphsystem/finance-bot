@@ -1,6 +1,7 @@
 """Follow-up email skill — finds unanswered emails via real Gmail API."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -9,10 +10,11 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-FOLLOW_UP_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are an email assistant analyzing unanswered emails.
 
 Given a list of emails from the user's inbox, identify which ones need a reply.
@@ -66,12 +68,14 @@ class FollowUpEmailSkill:
         return SkillResult(response_text=result)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return FOLLOW_UP_SYSTEM_PROMPT.format(language=context.language or "ru")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "ru")
 
 
 async def _analyze_follow_ups(email_data: str, language: str) -> str:
     """Analyze which emails need follow-up."""
-    system = FOLLOW_UP_SYSTEM_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
             "gpt-5.2", system,

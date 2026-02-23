@@ -1,6 +1,7 @@
 """Quick answer skill — factual Q&A using LLM knowledge."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -8,10 +9,11 @@ from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-QUICK_ANSWER_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a knowledgeable assistant answering factual questions.
 
 Rules:
@@ -51,7 +53,9 @@ class QuickAnswerSkill:
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return QUICK_ANSWER_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def generate_answer(
@@ -59,7 +63,7 @@ async def generate_answer(
 ) -> str:
     """Generate a factual answer using Gemini Flash."""
     client = google_client()
-    system = QUICK_ANSWER_SYSTEM_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     user_msg = original_message or query
 
     try:

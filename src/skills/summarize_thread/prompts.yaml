@@ -1,0 +1,14 @@
+name: summarize_thread
+description: Summarize email threads
+model: claude-sonnet-4-6
+intents:
+- summarize_thread
+system_prompt: 'You summarize email threads for the user.
+
+  Provide a concise, structured summary: key points, action items, decisions made.
+
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+
+  Respond in: {language}.
+
+  '

@@ -2,6 +2,7 @@
 
 import logging
 from datetime import date
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -9,10 +10,11 @@ from src.core.observability import observe
 from src.core.reports import generate_monthly_report
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-REPORT_SYSTEM_PROMPT = """Ты помогаешь с генерацией финансовых отчётов."""
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь с генерацией финансовых отчётов."""
 
 
 def _parse_report_period(intent_data: dict[str, Any]) -> tuple[int, int]:
@@ -74,7 +76,8 @@ class QueryReportSkill:
             )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return REPORT_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = QueryReportSkill()

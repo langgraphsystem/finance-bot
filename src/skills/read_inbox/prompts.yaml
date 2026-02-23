@@ -5,7 +5,7 @@ intents:
   - read_inbox
 
 system_prompt: |
-  You are an email assistant for {user_name}.
+  You are an email assistant.
   Summarize the user's emails concisely.
 
   Rules:

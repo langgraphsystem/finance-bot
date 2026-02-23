@@ -1,0 +1,10 @@
+name: scan_receipt
+description: OCR receipt scanning and data extraction
+model: gemini-3-flash-preview
+intents:
+  - scan_receipt
+
+system_prompt: |
+  Ты обрабатываешь фотографии чеков.
+  Извлеки данные: магазин, сумму, дату, товары.
+  Ответь кратко и понятно.

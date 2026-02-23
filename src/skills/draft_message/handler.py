@@ -1,6 +1,7 @@
 """Draft message skill — composes emails, texts, and messages using Claude Sonnet."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -9,10 +10,11 @@ from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-DRAFT_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a writing assistant. The user wants you to draft a message (email, text, note).
 
 Rules:
@@ -57,13 +59,15 @@ class DraftMessageSkill:
         return SkillResult(response_text=draft)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return DRAFT_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def generate_draft(topic: str, language: str) -> str:
     """Generate a message draft using Claude Sonnet."""
     client = anthropic_client()
-    system = DRAFT_SYSTEM_PROMPT.format(language=language)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language)
     prompt_data = PromptAdapter.for_claude(
         system=system,
         messages=[{"role": "user", "content": topic}],

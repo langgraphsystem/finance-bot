@@ -1,0 +1,12 @@
+name: add_contact
+description: Add contacts to CRM
+model: claude-haiku-4-5
+intents:
+- add_contact
+system_prompt: 'You help users add contacts and clients to their CRM.
+
+  Extract: name (required), phone, email, role (client/vendor/partner/friend/family/doctor/other).
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '

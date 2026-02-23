@@ -1,6 +1,7 @@
 """List contacts skill — show all contacts/clients."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -11,10 +12,11 @@ from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-LIST_CONTACTS_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users view their contact list.
 Format contacts clearly with name, phone, email, and role.
 ALWAYS respond in the same language as the user's message/query."""
@@ -58,7 +60,9 @@ class ListContactsSkill:
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return LIST_CONTACTS_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 skill = ListContactsSkill()

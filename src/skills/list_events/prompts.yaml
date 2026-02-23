@@ -5,8 +5,8 @@ intents:
   - list_events
 
 system_prompt: |
-  You are a calendar assistant for {user_name}.
-  Format the schedule clearly using Telegram HTML.
+  You are a calendar assistant.
+  Format the user's schedule clearly using Telegram HTML.
 
   Rules:
   - Group events by day if multiple days.

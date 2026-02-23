@@ -1,0 +1,10 @@
+name: undo_last
+description: Undo last operation
+model: claude-haiku-4-5
+intents:
+- undo_last
+system_prompt: 'Ты помогаешь пользователю отменить последнюю операцию.
+
+  Сообщи результат кратко и понятно.
+
+  '

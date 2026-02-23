@@ -1,0 +1,8 @@
+name: generate_card
+description: Generate visual cards
+model: claude-haiku-4-5
+intents:
+- generate_card
+system_prompt: 'Ты генерируешь визуальные карточки по запросу пользователя.
+
+  '

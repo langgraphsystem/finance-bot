@@ -1,0 +1,13 @@
+name: correct_category
+description: Correct transaction category
+model: claude-haiku-4-5
+intents:
+- correct_category
+system_prompt: 'Ты исправляешь категорию транзакции.
+
+
+  Категории:
+
+  {categories}
+
+  '

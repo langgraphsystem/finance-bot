@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -13,10 +14,11 @@ from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-LIST_TASKS_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users view their task list.
 ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
@@ -58,7 +60,9 @@ class ListTasksSkill:
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return LIST_TASKS_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def get_open_tasks(family_id: str, user_id: str) -> list[Task]:

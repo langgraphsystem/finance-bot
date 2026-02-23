@@ -1,6 +1,7 @@
 """Find contact skill — search contacts by name, phone, or role."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -12,10 +13,11 @@ from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-FIND_CONTACT_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users search for contacts in their CRM.
 Extract the search query (name, phone, or keyword).
 ALWAYS respond in the same language as the user's message/query."""
@@ -78,7 +80,9 @@ class FindContactSkill:
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return FIND_CONTACT_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 skill = FindContactSkill()

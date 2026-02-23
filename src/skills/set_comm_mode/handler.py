@@ -1,6 +1,7 @@
 """Set communication mode skill — switches between silent, receipt, coaching."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -8,10 +9,11 @@ from src.core.life_helpers import set_communication_mode
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-SET_COMM_MODE_SYSTEM_PROMPT = """Ты помогаешь пользователю выбрать режим общения:
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю выбрать режим общения:
 - silent (тихий): AI Assistant записывает молча, без ответа
 - receipt (квитанция): краткое подтверждение-чек
 - coaching (коучинг): подтверждение + короткий совет/инсайт"""
@@ -85,7 +87,8 @@ class SetCommModeSkill:
         return SkillResult(response_text=f"Готово! {description}")
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SET_COMM_MODE_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = SetCommModeSkill()

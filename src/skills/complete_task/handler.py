@@ -3,6 +3,7 @@
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import select
@@ -14,10 +15,11 @@ from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-COMPLETE_TASK_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You help users mark tasks as done.
 ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
@@ -56,7 +58,9 @@ class CompleteTaskSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return COMPLETE_TASK_SYSTEM_PROMPT.format(language=context.language or "en")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "en")
 
 
 async def find_and_complete_task(family_id: str, user_id: str, query: str) -> Task | None:

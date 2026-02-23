@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -15,10 +16,11 @@ from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-MAPS_GROUNDING_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are a maps assistant with access to Google Search.
 You can find real places, addresses, ratings, directions, and detailed info about locations.
 
@@ -204,7 +206,9 @@ class MapsSearchSkill:
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return MAPS_GROUNDING_PROMPT.format(
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(
             language=context.language or "en", location_hint=""
         )
 
@@ -219,7 +223,7 @@ async def search_places_grounding(
 ) -> str:
     """Search for places using Gemini with Google Search grounding."""
     client = google_client()
-    system = MAPS_GROUNDING_PROMPT.format(language=language, location_hint=location_hint)
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language, location_hint=location_hint)
     user_msg = original_message or query
     prompt = (
         f"{system}\n\nUser's original message: {user_msg}\nSearch query: {query}"

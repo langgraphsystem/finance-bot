@@ -11,6 +11,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete, func, or_, select
@@ -30,6 +31,7 @@ from src.core.pending_actions import store_pending_action
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -1158,7 +1160,9 @@ class DeleteDataSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return "Ты помогаешь пользователю удалить данные. Всегда спрашивай подтверждение."
+        prompts = load_prompt(Path(__file__).parent)
+        _default = "Ты помогаешь пользователю удалить данные. Всегда спрашивай подтверждение."
+        return prompts.get("system_prompt", _default)
 
 
 skill = DeleteDataSkill()

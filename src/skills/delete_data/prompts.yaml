@@ -1,0 +1,10 @@
+name: delete_data
+description: Delete user data records
+model: claude-haiku-4-5
+intents:
+  - delete_data
+
+system_prompt: |
+  You help users delete specific records from their data.
+  Confirm what will be deleted before proceeding.
+  ALWAYS respond in the same language as the user's message/query.

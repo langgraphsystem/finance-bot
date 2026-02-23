@@ -3,6 +3,7 @@
 import logging
 import random
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -11,6 +12,7 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,7 @@ def _time_greeting(tz_name: str) -> str:
         return random.choice(_GREETINGS_EVENING)
     return random.choice(_GREETINGS_NIGHT)
 
-CHAT_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 Ты — персональный AI-ассистент пользователя в Telegram.
 
 Ты помогаешь с ЛЮБЫМ запросом: советы, объяснения, расчёты, \
@@ -102,14 +104,14 @@ class GeneralChatSkill:
     def _get_dosing_prompt(self, suppress: bool) -> str:
         """Return system prompt with or without feature suggestions."""
         if suppress:
-            return CHAT_SYSTEM_PROMPT.replace(
+            return _DEFAULT_SYSTEM_PROMPT.replace(
                 "можешь мягко "
                 "подсказать: «Кстати, я могу сделать это "
                 "— просто напишите ...»",
                 "НЕ добавляй подсказки о возможностях "
                 "— пользователь уже знает что ты умеешь",
             )
-        return CHAT_SYSTEM_PROMPT
+        return _DEFAULT_SYSTEM_PROMPT
 
     @observe(name="general_chat")
     async def execute(
@@ -160,7 +162,8 @@ class GeneralChatSkill:
         return SkillResult(response_text=text)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return CHAT_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = GeneralChatSkill()

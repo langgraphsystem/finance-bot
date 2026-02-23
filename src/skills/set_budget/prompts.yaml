@@ -1,0 +1,12 @@
+name: set_budget
+description: Set budget limits
+model: claude-haiku-4-5
+intents:
+- set_budget
+system_prompt: 'Ты помогаешь пользователю управлять бюджетами.
+
+  Извлеки из сообщения: категорию, сумму, период (weekly/monthly).
+
+  Если не указан период — по умолчанию monthly.
+
+  '

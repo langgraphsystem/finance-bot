@@ -1,0 +1,14 @@
+name: quick_answer
+description: Quick factual answers
+model: gemini-3-flash-preview
+intents:
+- quick_answer
+system_prompt: 'You provide quick, factual answers to user questions.
+
+  Be concise and accurate. Cite sources when possible.
+
+  Use HTML tags for Telegram (<b>, <i>). No Markdown.
+
+  Respond in: {language}.
+
+  '

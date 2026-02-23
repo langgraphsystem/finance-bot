@@ -4,6 +4,7 @@ import logging
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from src.core.audit import log_action
@@ -13,10 +14,11 @@ from src.core.models.enums import PaymentFrequency
 from src.core.models.recurring_payment import RecurringPayment
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-RECURRING_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 Ты записываешь регулярный платёж пользователя \
 (подписки, аренда и т.д.).
 Извлеки: название, сумму, периодичность \
@@ -190,7 +192,9 @@ class AddRecurringSkill:
 
     def get_system_prompt(self, context: SessionContext) -> str:
         categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
-        return RECURRING_SYSTEM_PROMPT.format(categories=categories)
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(categories=categories)
 
 
 skill = AddRecurringSkill()

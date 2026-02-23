@@ -4,6 +4,7 @@ import logging
 import uuid
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 from src.core.audit import log_action
@@ -19,10 +20,11 @@ from src.core.tasks.memory_tasks import (
 )
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-EXPENSE_SYSTEM_PROMPT = """Ты записываешь расход пользователя.
+_DEFAULT_SYSTEM_PROMPT = """Ты записываешь расход пользователя.
 Извлеки из сообщения: сумму, мерчант, категорию, дату.
 Если мерчант известен, используй маппинг из памяти.
 
@@ -180,7 +182,9 @@ class AddExpenseSkill:
             f"- {m.get('merchant_pattern', '')} → {m.get('category_name', '')}"
             for m in context.merchant_mappings
         )
-        return EXPENSE_SYSTEM_PROMPT.format(categories=categories, mappings=mappings)
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(categories=categories, mappings=mappings)
 
 
 skill = AddExpenseSkill()

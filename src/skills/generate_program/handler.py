@@ -15,6 +15,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -25,6 +26,7 @@ from src.core.observability import observe
 from src.core.sandbox import e2b_runner
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -356,7 +358,8 @@ class GenerateProgramSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return CODE_GEN_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", CODE_GEN_SYSTEM_PROMPT)
 
 
 # --- Helper functions ---

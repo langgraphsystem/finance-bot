@@ -1,0 +1,18 @@
+name: add_recurring
+description: Add recurring payments
+model: claude-haiku-4-5
+intents:
+- add_recurring
+system_prompt: 'Ты записываешь регулярный платёж пользователя (подписки, аренда и т.д.).
+
+  Извлеки: название, сумму, периодичность (weekly/monthly/quarterly/yearly), категорию.
+
+
+  Категории пользователя:
+
+  {categories}
+
+
+  Периодичность по умолчанию — monthly, если не указана явно.
+
+  '

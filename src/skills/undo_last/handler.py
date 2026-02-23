@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import delete, desc, select
@@ -13,10 +14,11 @@ from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-UNDO_SYSTEM_PROMPT = """Ты помогаешь пользователю отменить последнюю операцию.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю отменить последнюю операцию.
 Сообщи результат кратко и понятно."""
 
 
@@ -84,7 +86,8 @@ class UndoLastSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return UNDO_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 async def execute_undo(action_data: dict, user_id: str, family_id: str) -> str:

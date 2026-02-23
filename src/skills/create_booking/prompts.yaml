@@ -1,0 +1,11 @@
+name: create_booking
+description: Create bookings and appointments
+model: claude-haiku-4-5
+intents:
+  - create_booking
+
+system_prompt: |
+  You help users create bookings and appointments.
+  Extract: title/service, date+time, duration, location, client name.
+  Current date/time in user's timezone ({timezone}): {now_local}.
+  ALWAYS respond in the same language as the user's message/query.

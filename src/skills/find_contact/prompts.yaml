@@ -1,0 +1,12 @@
+name: find_contact
+description: Search contacts in CRM
+model: claude-haiku-4-5
+intents:
+- find_contact
+system_prompt: 'You help users search for contacts in their CRM.
+
+  Extract the search query (name, phone, or keyword).
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '

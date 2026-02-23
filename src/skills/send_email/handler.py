@@ -1,6 +1,7 @@
 """Send email skill — composes email via LLM, sends via Composio Gmail."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -10,10 +11,11 @@ from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-SEND_EMAIL_SYSTEM_PROMPT = """\
+_DEFAULT_SYSTEM_PROMPT = """\
 You are an email assistant. The user wants to compose and send an email.
 
 Rules:
@@ -90,13 +92,15 @@ class SendEmailSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SEND_EMAIL_SYSTEM_PROMPT.format(language=context.language or "ru")
+        prompts = load_prompt(Path(__file__).parent)
+        template = prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+        return template.format(language=context.language or "ru")
 
 
 async def _draft_body(to: str, subject: str, hint: str, user_text: str, language: str) -> str:
     """Draft email body using LLM."""
     client = anthropic_client()
-    system = SEND_EMAIL_SYSTEM_PROMPT.format(language=language or "ru")
+    system = _DEFAULT_SYSTEM_PROMPT.format(language=language or "ru")
     prompt = (
         f"Compose email body.\nTo: {to}\nSubject: {subject}\nHint: {hint}\nUser said: {user_text}"
     )

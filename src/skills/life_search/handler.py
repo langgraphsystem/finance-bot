@@ -1,6 +1,7 @@
 """Life search skill — semantic + SQL search across life events and memories."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.core.context import SessionContext
@@ -15,10 +16,11 @@ from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-LIFE_SEARCH_SYSTEM_PROMPT = """Ты помогаешь пользователю найти записи в дневнике жизни.
+_DEFAULT_SYSTEM_PROMPT = """Ты помогаешь пользователю найти записи в дневнике жизни.
 Объедини результаты из базы данных и семантической памяти.
 Покажи результаты как таймлайн."""
 
@@ -124,7 +126,8 @@ class LifeSearchSkill:
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return LIFE_SEARCH_SYSTEM_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 class _PseudoLifeEvent:

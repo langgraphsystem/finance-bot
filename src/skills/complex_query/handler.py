@@ -1,6 +1,7 @@
 """Complex query skill — multi-step financial analysis."""
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from src.agents.graph_agent import run_complex_query
@@ -9,10 +10,11 @@ from src.core.context import SessionContext
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
 
-COMPLEX_QUERY_PROMPT = """Ты обрабатываешь сложные аналитические запросы."""
+_DEFAULT_SYSTEM_PROMPT = """Ты обрабатываешь сложные аналитические запросы."""
 
 
 class ComplexQuerySkill:
@@ -62,7 +64,8 @@ class ComplexQuerySkill:
             )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return COMPLEX_QUERY_PROMPT
+        prompts = load_prompt(Path(__file__).parent)
+        return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
 
 
 skill = ComplexQuerySkill()

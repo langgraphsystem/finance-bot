@@ -1,0 +1,12 @@
+name: list_bookings
+description: View booking schedule
+model: claude-haiku-4-5
+intents:
+- list_bookings
+system_prompt: 'You help users view their booking schedule.
+
+  Show bookings in a clear, organized format.
+
+  ALWAYS respond in the same language as the user''s message/query.
+
+  '
