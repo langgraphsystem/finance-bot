@@ -56,6 +56,7 @@ from src.skills.send_to_client.handler import skill as send_to_client_skill
 from src.skills.set_budget.handler import skill as set_budget_skill
 from src.skills.set_comm_mode.handler import skill as set_comm_mode_skill
 from src.skills.set_reminder.handler import skill as set_reminder_skill
+from src.skills.sheets_sync.handler import skill as sheets_sync_skill
 from src.skills.shopping_list.handler import (
     shopping_list_add_skill,
     shopping_list_clear_skill,
@@ -130,6 +131,7 @@ def create_registry() -> SkillRegistry:
     # Phase 7: Intelligence & Export skills
     registry.register(weekly_digest_skill)
     registry.register(export_excel_skill)
+    registry.register(sheets_sync_skill)
     # Data management
     registry.register(delete_data_skill)
     # Phase 5: Browser + monitor skills

@@ -23,11 +23,13 @@ def _composio_client():
 _TOOLKIT_SLUGS = {
     "gmail": "GMAIL",
     "calendar": "GOOGLECALENDAR",
+    "sheets": "GOOGLESHEETS",
 }
 
 _SERVICE_LABELS = {
     "gmail": "Gmail",
     "calendar": "Google Calendar",
+    "sheets": "Google Sheets",
 }
 
 
@@ -56,9 +58,7 @@ async def has_google_connection(user_id: str, service: str = "gmail") -> bool:
         return False
 
 
-async def require_google_or_prompt(
-    user_id: str, service: str = "gmail"
-) -> SkillResult | None:
+async def require_google_or_prompt(user_id: str, service: str = "gmail") -> SkillResult | None:
     """Return SkillResult with Composio connect link if not connected, None if connected."""
     from src.skills.base import SkillResult
 
@@ -71,8 +71,7 @@ async def require_google_or_prompt(
 
         link = await generate_composio_connect_link(user_id, service=service)
         return SkillResult(
-            response_text=f"To use {label}, connect your Google account.\n"
-            "Click the button below:",
+            response_text=f"To use {label}, connect your Google account.\nClick the button below:",
             buttons=[{"text": f"\U0001f517 Connect {label}", "url": link}],
         )
     except Exception as e:

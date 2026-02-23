@@ -91,6 +91,9 @@ rate confirmation, или другого изображения
 "покажи итоги", "PDF", "сгенерируй отчёт", "месячный отчёт")
 - export_excel: экспорт данных в Excel/XLSX ("экспорт в excel", "выгрузи в excel", \
 "скачать таблицу", "export to excel", "download spreadsheet", "save as xlsx")
+- sheets_sync: синхронизация данных с Google Sheets ("синхронизируй с google sheets", \
+"создай таблицу в sheets", "sync to sheets", "live spreadsheet", "google таблица", \
+"отключи синхронизацию sheets", "sheets sync status")
 - correct_category: исправление категории ("это не продукты, а бензин")
 - undo_last: отмена последней операции ("отмени последнюю", "undo", "верни обратно")
 - mark_paid: ТОЛЬКО изменить статус груза на "оплачен", БЕЗ суммы \

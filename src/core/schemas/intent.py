@@ -90,6 +90,10 @@ class IntentData(BaseModel):
     # Export fields (Phase 7)
     export_type: str | None = None  # expenses, tasks, contacts
 
+    # Google Sheets sync fields (Phase 7)
+    sync_scope: str | None = None  # expenses, tasks, contacts
+    shared_emails: list[str] | None = None
+
     # Shopping list fields
     shopping_items: list[str] | None = None
     shopping_list_name: str | None = None
