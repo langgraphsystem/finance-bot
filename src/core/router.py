@@ -126,10 +126,8 @@ async def _cache_last_file(user_id: str, message: IncomingMessage) -> None:
             "name": message.document_file_name or ("photo.jpg" if message.photo_bytes else None),
             "is_photo": bool(message.photo_bytes and not message.document_bytes),
         }
-        pipe = redis.pipeline()
-        pipe.set(key_data, file_bytes, ex=_LAST_FILE_TTL)
-        pipe.set(key_meta, json.dumps(meta), ex=_LAST_FILE_TTL)
-        await pipe.execute()
+        await redis.set(key_data, file_bytes, ex=_LAST_FILE_TTL)
+        await redis.set(key_meta, json.dumps(meta), ex=_LAST_FILE_TTL)
     except Exception as e:
         logger.warning("Failed to cache last file: %s", e)
 
@@ -143,13 +141,12 @@ async def _pop_cached_file(user_id: str) -> dict | None:
 
         key_data = f"last_file:{user_id}:data"
         key_meta = f"last_file:{user_id}:meta"
-        pipe = redis.pipeline()
-        pipe.get(key_data)
-        pipe.get(key_meta)
-        data, meta_raw = await pipe.execute()
-        if not data or not meta_raw:
+        meta_raw = await redis.get(key_meta)
+        if not meta_raw:
             return None
-        # Delete after retrieval (one-time use)
+        data = await redis.get(key_data)
+        if not data:
+            return None
         await redis.delete(key_data, key_meta)
         meta = json.loads(meta_raw)
         return {"bytes": data, "mime": meta.get("mime"), "name": meta.get("name"),
