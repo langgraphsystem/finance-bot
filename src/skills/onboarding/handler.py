@@ -14,7 +14,12 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.db import async_session
-from src.core.family import create_family, join_family
+from src.core.family import (
+    create_family,
+    create_family_for_channel,
+    join_family,
+    join_family_for_channel,
+)
 from src.core.llm.clients import generate_text
 from src.core.models.enums import ConversationState
 from src.core.observability import observe
@@ -40,11 +45,23 @@ delivery (доставка), flowers (цветы), manicure (маникюр), co
 
 
 def _extract_owner_name(message: IncomingMessage) -> str:
-    """Try to get the user's first name from the Telegram message object."""
+    """Try to get the user's first name from the message object.
+
+    Works for Telegram (from_user.first_name), Slack (raw event profile),
+    and falls back to 'User' for other channels.
+    """
+    # Telegram: aiogram Message
     if message.raw and hasattr(message.raw, "from_user"):
         from_user = message.raw.from_user
         if from_user and hasattr(from_user, "first_name") and from_user.first_name:
             return from_user.first_name
+    # Slack: event payload with user profile
+    if isinstance(message.raw, dict):
+        profile = message.raw.get("user_profile", {})
+        if profile.get("display_name"):
+            return profile["display_name"]
+        if profile.get("real_name"):
+            return profile["real_name"]
     return "User"
 
 
@@ -66,6 +83,28 @@ def _welcome_result() -> SkillResult:
         buttons=[
             {"text": "Новый аккаунт", "callback": "onboard:new"},
             {"text": "Присоединиться к семье", "callback": "onboard:join"},
+        ],
+    )
+
+
+def _welcome_result_en() -> SkillResult:
+    """Step 1 response for non-Telegram channels: English welcome message."""
+    return SkillResult(
+        response_text=(
+            "Hi! I'm your personal AI Assistant.\n\n"
+            "Here's what I can do:\n"
+            "- <b>Finance</b> — expenses, income, receipts, budgets, reports\n"
+            "- <b>Email & Calendar</b> — inbox, sending emails, schedule, events\n"
+            "- <b>Tasks</b> — to-dos, reminders, shopping lists\n"
+            "- <b>Life</b> — food, drinks, mood, notes, day planning\n"
+            "- <b>Search</b> — questions, web, maps, YouTube\n"
+            "- <b>Writing</b> — messages, posts, translation, proofreading\n"
+            "- <b>Clients</b> — bookings, contacts, CRM\n\n"
+            "Choose an option:"
+        ),
+        buttons=[
+            {"text": "New account", "callback": "onboard:new"},
+            {"text": "Join a family", "callback": "onboard:join"},
         ],
     )
 
@@ -140,6 +179,8 @@ class OnboardingSkill:
     ) -> SkillResult:
         """Multi-step onboarding wizard driven by conversation state."""
         text = (message.text or "").strip()
+        channel = intent_data.get("channel", message.channel or "telegram")
+        channel_user_id = intent_data.get("channel_user_id")
 
         # If user is already registered, don't re-onboard
         if context.family_id and text != "/start":
@@ -157,19 +198,26 @@ class OnboardingSkill:
 
         # ---- Step 1: /start or first contact ----
         if text == "/start" or (not context.family_id and not onboarding_state):
+            if channel != "telegram":
+                return _welcome_result_en()
             return _welcome_result()
 
         # ---- Step 2a: user chose "New account", now waiting for activity ----
         if onboarding_state == ConversationState.onboarding_awaiting_activity.value:
-            return await self._handle_activity_description(message, context, text)
+            return await self._handle_activity_description(
+                message, context, text, channel=channel, channel_user_id=channel_user_id
+            )
 
         # ---- Step 2b: user chose "Join family", now waiting for invite code ----
         if onboarding_state == ConversationState.onboarding_awaiting_invite_code.value:
-            return await self._handle_invite_code(message, context, text)
+            return await self._handle_invite_code(
+                message, context, text, channel=channel, channel_user_id=channel_user_id
+            )
 
         # ---- Fallback: user is in generic "onboarding" state ----
-        # If they sent /start again or something unexpected, show welcome
         if onboarding_state == ConversationState.onboarding_awaiting_choice.value:
+            if channel != "telegram":
+                return _welcome_result_en()
             return _welcome_result()
 
         # Default: try to match profile from text (legacy / direct text flow)
@@ -180,9 +228,13 @@ class OnboardingSkill:
                 message,
                 context,
                 profile_key,
+                channel=channel,
+                channel_user_id=channel_user_id,
             )
 
         # Nothing matched — show welcome again
+        if channel != "telegram":
+            return _welcome_result_en()
         return _welcome_result()
 
     async def _handle_activity_description(
@@ -190,13 +242,21 @@ class OnboardingSkill:
         message: IncomingMessage,
         context: SessionContext,
         text: str,
+        channel: str = "telegram",
+        channel_user_id: str | None = None,
     ) -> SkillResult:
         """User described their activity. Use LLM to determine business_type."""
         # First try simple alias matching (no LLM needed)
         profile = self._profile_loader.match(text)
         if profile:
             profile_key = self._find_profile_key(profile) or "household"
-            return await self._create_owner_account(message, context, profile_key)
+            return await self._create_owner_account(
+                message,
+                context,
+                profile_key,
+                channel=channel,
+                channel_user_id=channel_user_id,
+            )
 
         # Use LLM to determine business type
         try:
@@ -215,16 +275,23 @@ class OnboardingSkill:
         if not self._profile_loader.get(business_type):
             business_type = "household"
 
-        return await self._create_owner_account(message, context, business_type)
+        return await self._create_owner_account(
+            message,
+            context,
+            business_type,
+            channel=channel,
+            channel_user_id=channel_user_id,
+        )
 
     async def _create_owner_account(
         self,
         message: IncomingMessage,
         context: SessionContext,
         business_type: str,
+        channel: str = "telegram",
+        channel_user_id: str | None = None,
     ) -> SkillResult:
         """Create family, user, and categories for the owner."""
-        telegram_id = int(message.user_id)
         owner_name = _extract_owner_name(message)
 
         profile = self._profile_loader.get(business_type) or self._profile_loader.get("household")
@@ -233,75 +300,49 @@ class OnboardingSkill:
 
         try:
             async with async_session() as session:
-                family, user = await create_family(
-                    session=session,
-                    owner_telegram_id=telegram_id,
-                    owner_name=owner_name,
-                    business_type=business_type if business_type != "household" else None,
-                    language=context.language,
-                    currency=context.currency,
-                )
+                if channel != "telegram":
+                    family, user = await create_family_for_channel(
+                        session=session,
+                        channel=channel,
+                        channel_user_id=channel_user_id or message.user_id,
+                        owner_name=owner_name,
+                        business_type=business_type if business_type != "household" else None,
+                        language=context.language,
+                        currency=context.currency,
+                    )
+                else:
+                    family, user = await create_family(
+                        session=session,
+                        owner_telegram_id=int(message.user_id),
+                        owner_name=owner_name,
+                        business_type=business_type if business_type != "household" else None,
+                        language=context.language,
+                        currency=context.currency,
+                    )
             invite_code = family.invite_code
 
             categories_text = _format_categories_text(profile)
-            cat_line = f"\nКатегории: {categories_text}\n" if categories_text else "\n"
 
-            return SkillResult(
-                response_text=(
-                    f"Отлично! Я настроил категории для профиля «{profile.name}».\n"
-                    f"{cat_line}\n"
-                    f"Код приглашения для семьи: <b>{invite_code}</b>\n"
-                    f"(отправьте его близким для общего учёта)\n\n"
-                    f"Теперь можете записывать расходы — просто напишите, "
-                    f"например: «кофе 150» или отправьте фото чека.\n\n"
-                    f"Нажмите кнопку ниже, чтобы я определил ваш город "
-                    f"для поиска мест рядом."
-                ),
-                reply_keyboard=[
-                    {"text": "\U0001f4cd Поделиться геолокацией", "request_location": True},
-                ],
-            )
-        except Exception as e:
-            logger.exception(
-                "Onboarding create_family failed for telegram_id=%s: %s",
-                message.user_id,
-                e,
-            )
-            return SkillResult(
-                response_text="Произошла ошибка при настройке профиля. Попробуйте ещё раз /start.",
-            )
-
-    async def _handle_invite_code(
-        self,
-        message: IncomingMessage,
-        context: SessionContext,
-        text: str,
-    ) -> SkillResult:
-        """User entered an invite code. Try to join the family."""
-        invite_code = text.strip().upper()
-
-        if not invite_code or len(invite_code) < 4:
-            return SkillResult(
-                response_text="Код приглашения слишком короткий. Попробуйте ещё раз:",
-            )
-
-        telegram_id = int(message.user_id)
-        member_name = _extract_owner_name(message)
-
-        try:
-            async with async_session() as session:
-                result = await join_family(
-                    session=session,
-                    invite_code=invite_code,
-                    telegram_id=telegram_id,
-                    name=member_name,
-                    language=context.language,
-                )
-            if result:
-                family, user = result
+            if channel != "telegram":
+                cat_line = f"\nCategories: {categories_text}\n" if categories_text else "\n"
                 return SkillResult(
                     response_text=(
-                        f"Вы присоединились к семье «{family.name}»!\n\n"
+                        f"All set! I configured categories for the '{profile.name}' profile.\n"
+                        f"{cat_line}\n"
+                        f"Family invite code: <b>{invite_code}</b>\n"
+                        f"(share it with family members for shared tracking)\n\n"
+                        f"Now you can start tracking expenses — just type, "
+                        f"for example: 'coffee 5' or send a receipt photo."
+                    ),
+                )
+            else:
+                cat_line = f"\nКатегории: {categories_text}\n" if categories_text else "\n"
+                return SkillResult(
+                    response_text=(
+                        f"Отлично! Я настроил категории для профиля «{profile.name}».\n"
+                        f"{cat_line}\n"
+                        f"Код приглашения для семьи: <b>{invite_code}</b>\n"
+                        f"(отправьте его близким для общего учёта)\n\n"
                         f"Теперь можете записывать расходы — просто напишите, "
                         f"например: «кофе 150» или отправьте фото чека.\n\n"
                         f"Нажмите кнопку ниже, чтобы я определил ваш город "
@@ -311,18 +352,104 @@ class OnboardingSkill:
                         {"text": "\U0001f4cd Поделиться геолокацией", "request_location": True},
                     ],
                 )
+        except Exception as e:
+            logger.exception(
+                "Onboarding create_family failed for user_id=%s: %s",
+                message.user_id,
+                e,
+            )
+            msg = (
+                "An error occurred during setup. Please try again."
+                if channel != "telegram"
+                else "Произошла ошибка при настройке профиля. Попробуйте ещё раз /start."
+            )
+            return SkillResult(response_text=msg)
+
+    async def _handle_invite_code(
+        self,
+        message: IncomingMessage,
+        context: SessionContext,
+        text: str,
+        channel: str = "telegram",
+        channel_user_id: str | None = None,
+    ) -> SkillResult:
+        """User entered an invite code. Try to join the family."""
+        invite_code = text.strip().upper()
+
+        if not invite_code or len(invite_code) < 4:
+            msg = (
+                "Invite code is too short. Try again:"
+                if channel != "telegram"
+                else "Код приглашения слишком короткий. Попробуйте ещё раз:"
+            )
+            return SkillResult(response_text=msg)
+
+        member_name = _extract_owner_name(message)
+
+        try:
+            async with async_session() as session:
+                if channel != "telegram":
+                    result = await join_family_for_channel(
+                        session=session,
+                        invite_code=invite_code,
+                        channel=channel,
+                        channel_user_id=channel_user_id or message.user_id,
+                        name=member_name,
+                        language=context.language,
+                    )
+                else:
+                    result = await join_family(
+                        session=session,
+                        invite_code=invite_code,
+                        telegram_id=int(message.user_id),
+                        name=member_name,
+                        language=context.language,
+                    )
+            if result:
+                family, user = result
+                if channel != "telegram":
+                    return SkillResult(
+                        response_text=(
+                            f"You joined the family '{family.name}'!\n\n"
+                            f"Now you can start tracking expenses — just type, "
+                            f"for example: 'coffee 5' or send a receipt photo."
+                        ),
+                    )
+                else:
+                    return SkillResult(
+                        response_text=(
+                            f"Вы присоединились к семье «{family.name}»!\n\n"
+                            f"Теперь можете записывать расходы — просто напишите, "
+                            f"например: «кофе 150» или отправьте фото чека.\n\n"
+                            f"Нажмите кнопку ниже, чтобы я определил ваш город "
+                            f"для поиска мест рядом."
+                        ),
+                        reply_keyboard=[
+                            {
+                                "text": "\U0001f4cd Поделиться геолокацией",
+                                "request_location": True,
+                            },
+                        ],
+                    )
             else:
-                return SkillResult(
-                    response_text=(
+                msg = (
+                    "Invalid invite code or you are already registered.\n"
+                    "Check the code and try again:"
+                    if channel != "telegram"
+                    else (
                         "Неверный код приглашения или вы уже зарегистрированы.\n"
                         "Проверьте код и попробуйте ещё раз:"
-                    ),
+                    )
                 )
+                return SkillResult(response_text=msg)
         except Exception as e:
-            logger.exception("join_family failed for telegram_id=%s: %s", message.user_id, e)
-            return SkillResult(
-                response_text="Произошла ошибка при присоединении. Попробуйте ещё раз /start.",
+            logger.exception("join_family failed for user_id=%s: %s", message.user_id, e)
+            msg = (
+                "An error occurred while joining. Please try again."
+                if channel != "telegram"
+                else "Произошла ошибка при присоединении. Попробуйте ещё раз /start."
             )
+            return SkillResult(response_text=msg)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return ONBOARDING_SYSTEM_PROMPT

@@ -25,7 +25,7 @@ from src.core.models.user_profile import UserProfile
 from src.core.profiles import ProfileLoader
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
-from src.gateway.types import MessageType, OutgoingMessage
+from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 
 logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
@@ -315,22 +315,25 @@ async def on_message(incoming):
     await gateway.send(response)
 
 
+async def _process_channel_message(incoming, gw) -> None:
+    """Process a channel message in the background (like Telegram _process_update)."""
+    try:
+        await _handle_channel_message(incoming, gw)
+    except Exception:
+        logger.exception(
+            "Error processing %s message from %s",
+            incoming.channel,
+            incoming.channel_user_id,
+        )
+
+
 async def _handle_channel_message(incoming, gw):
     """Handle a message from a non-Telegram channel (Slack, WhatsApp, SMS)."""
     context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
 
     if not context:
-        await gw.send(
-            OutgoingMessage(
-                text=(
-                    "I don't recognize your account yet. "
-                    "Please set up your account on Telegram first, "
-                    "then link this channel by saying 'connect' there."
-                ),
-                chat_id=incoming.chat_id,
-                channel=incoming.channel,
-            )
-        )
+        # Unregistered channel user — run onboarding (same as Telegram)
+        await _handle_channel_onboarding(incoming, gw)
         return
 
     await gw.send_typing(incoming.chat_id)
@@ -338,6 +341,91 @@ async def _handle_channel_message(incoming, gw):
     response.chat_id = incoming.chat_id
     response.channel = incoming.channel
     await gw.send(response)
+
+
+async def _handle_channel_onboarding(incoming, gw):
+    """Run onboarding for an unregistered non-Telegram channel user."""
+    from src.core.models.enums import ConversationState
+    from src.core.router import (
+        _clear_onboarding_state,
+        _get_onboarding_state,
+        _set_onboarding_state,
+        get_registry,
+    )
+
+    # Use channel_user_id as the state key (e.g. Slack "U123ABC")
+    state_key = incoming.channel_user_id or incoming.user_id
+
+    # Handle callback buttons (onboard:new / onboard:join)
+    if incoming.type == MessageType.callback and incoming.callback_data:
+        parts = incoming.callback_data.split(":")
+        if len(parts) >= 2 and parts[0] == "onboard":
+            if parts[1] == "new":
+                await _set_onboarding_state(
+                    state_key, ConversationState.onboarding_awaiting_activity
+                )
+                await gw.send(
+                    OutgoingMessage(
+                        text=(
+                            "Tell me about your activity — what do you do?\n\n"
+                            "For example: 'I'm a taxi driver', 'I have a truck', "
+                            "'just want to track expenses'"
+                        ),
+                        chat_id=incoming.chat_id,
+                        channel=incoming.channel,
+                    )
+                )
+                return
+            elif parts[1] == "join":
+                await _set_onboarding_state(
+                    state_key, ConversationState.onboarding_awaiting_invite_code
+                )
+                await gw.send(
+                    OutgoingMessage(
+                        text="Enter the invite code that the account owner shared with you:",
+                        chat_id=incoming.chat_id,
+                        channel=incoming.channel,
+                    )
+                )
+                return
+
+    registry = get_registry()
+    onboarding = registry.get("onboarding")
+
+    onboarding_state = await _get_onboarding_state(state_key)
+    intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
+    # Pass channel info so onboarding skill uses channel-agnostic registration
+    intent_data["channel"] = incoming.channel
+    intent_data["channel_user_id"] = incoming.channel_user_id or incoming.user_id
+
+    msg_language = incoming.language or "en"
+    result = await onboarding.execute(
+        incoming,
+        SessionContext(
+            user_id=incoming.user_id,
+            family_id="",
+            role="owner",
+            language=msg_language,
+            currency="USD",
+            business_type=None,
+            categories=[],
+            merchant_mappings=[],
+        ),
+        intent_data,
+    )
+
+    # If onboarding completed (no buttons = done), clear state
+    if not result.buttons:
+        await _clear_onboarding_state(state_key)
+
+    await gw.send(
+        OutgoingMessage(
+            text=result.response_text,
+            chat_id=incoming.chat_id,
+            buttons=result.buttons,
+            channel=incoming.channel,
+        )
+    )
 
 
 @asynccontextmanager
@@ -403,6 +491,7 @@ app.include_router(oauth_router)
 async def landing_index():
     """Serve the fully featured landing page."""
     return FileResponse("static/index.html")
+
 
 @app.get("/miniapp", include_in_schema=False)
 async def miniapp_index():
@@ -481,19 +570,65 @@ async def _process_update(data: dict) -> None:
 @app.post("/webhook/slack/events")
 async def slack_events(request: Request):
     """Handle Slack Events API and URL verification."""
-    payload = await request.json()
+    body = await request.body()
 
-    # URL verification challenge
+    # URL verification challenge (parse before signature check)
+    import json as _json
+
+    payload = _json.loads(body)
     if payload.get("type") == "url_verification":
         return {"challenge": payload.get("challenge", "")}
 
     if not _slack_gw:
         return Response(status_code=200)
 
+    # Verify Slack signature
+    timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+    signature = request.headers.get("X-Slack-Signature", "")
+    if timestamp and signature:
+        if not _slack_gw.verify_signature(body, timestamp, signature):
+            logger.warning("Slack signature verification failed")
+            return Response(status_code=401)
+
     incoming = _slack_gw.parse_event(payload)
     if incoming:
-        await _handle_channel_message(incoming, _slack_gw)
+        asyncio.create_task(_process_channel_message(incoming, _slack_gw))
 
+    return Response(status_code=200)
+
+
+@app.post("/webhook/slack/actions")
+async def slack_actions(request: Request):
+    """Handle Slack block_actions (button clicks)."""
+    if not _slack_gw:
+        return Response(status_code=200)
+
+    form = await request.form()
+    payload_str = form.get("payload", "")
+    if not payload_str:
+        return Response(status_code=200)
+
+    import json as _json
+
+    payload = _json.loads(payload_str)
+    actions = payload.get("actions", [])
+    if not actions:
+        return Response(status_code=200)
+
+    action = actions[0]
+    user = payload.get("user", {})
+    channel = payload.get("channel", {})
+
+    incoming = IncomingMessage(
+        id=action.get("action_id", ""),
+        user_id=user.get("id", ""),
+        chat_id=channel.get("id", ""),
+        type=MessageType.callback,
+        callback_data=action.get("value", ""),
+        channel="slack",
+        channel_user_id=user.get("id", ""),
+    )
+    asyncio.create_task(_process_channel_message(incoming, _slack_gw))
     return Response(status_code=200)
 
 
@@ -506,10 +641,20 @@ async def whatsapp_webhook(request: Request):
     if not _whatsapp_gw:
         return Response(status_code=200)
 
-    payload = await request.json()
-    incoming = _whatsapp_gw.parse_webhook(payload)
+    body = await request.body()
+
+    # Verify X-Hub-Signature-256
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if signature and not _whatsapp_gw.verify_signature(body, signature):
+        logger.warning("WhatsApp signature verification failed")
+        return Response(status_code=401)
+
+    import json as _json
+
+    payload = _json.loads(body)
+    incoming = await _whatsapp_gw.parse_webhook(payload)
     if incoming:
-        await _handle_channel_message(incoming, _whatsapp_gw)
+        asyncio.create_task(_process_channel_message(incoming, _whatsapp_gw))
 
     return {"status": "ok"}
 
@@ -540,8 +685,18 @@ async def sms_webhook(request: Request):
         return Response(content="<Response></Response>", media_type="text/xml", status_code=200)
 
     form_data = await request.form()
-    incoming = _sms_gw.parse_webhook(dict(form_data))
-    await _handle_channel_message(incoming, _sms_gw)
+    form_dict = dict(form_data)
+
+    # Verify Twilio signature
+    twilio_sig = request.headers.get("X-Twilio-Signature", "")
+    if twilio_sig:
+        url = str(request.url)
+        if not _sms_gw.verify_signature(url, form_dict, twilio_sig):
+            logger.warning("Twilio signature verification failed")
+            return Response(content="<Response></Response>", media_type="text/xml", status_code=401)
+
+    incoming = _sms_gw.parse_webhook(form_dict)
+    asyncio.create_task(_process_channel_message(incoming, _sms_gw))
 
     # Twilio expects TwiML response
     return Response(content="<Response></Response>", media_type="text/xml")

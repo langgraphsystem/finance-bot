@@ -86,6 +86,7 @@ class Settings(BaseSettings):
     whatsapp_api_token: str = ""
     whatsapp_phone_number_id: str = ""
     whatsapp_verify_token: str = ""
+    whatsapp_app_secret: str = ""
 
     # Twilio SMS (Phase 4)
     twilio_account_sid: str = ""

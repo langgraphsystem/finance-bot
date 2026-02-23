@@ -94,6 +94,191 @@ async def create_family(
     return family, user
 
 
+async def create_family_for_channel(
+    session: AsyncSession,
+    channel: str,
+    channel_user_id: str,
+    owner_name: str,
+    business_type: str | None,
+    language: str = "en",
+    currency: str = "USD",
+) -> tuple[Family, User]:
+    """Create a new family for a user from any channel (Slack, WhatsApp, SMS, Telegram).
+
+    For Telegram, delegates to create_family(). For other channels, creates a User
+    with telegram_id=None and auto-creates a ChannelLink entry.
+    """
+    if channel == "telegram":
+        return await create_family(
+            session,
+            owner_telegram_id=int(channel_user_id),
+            owner_name=owner_name,
+            business_type=business_type,
+            language=language,
+            currency=currency,
+        )
+
+    # Check if this channel user is already linked
+    from src.core.models.channel_link import ChannelLink
+    from src.core.models.enums import ChannelType
+
+    ch_type = ChannelType(channel)
+    existing_link = await session.execute(
+        select(ChannelLink).where(
+            ChannelLink.channel == ch_type,
+            ChannelLink.channel_user_id == channel_user_id,
+        )
+    )
+    link = existing_link.scalar_one_or_none()
+    if link:
+        user_result = await session.execute(select(User).where(User.id == link.user_id))
+        user = user_result.scalar_one_or_none()
+        if user:
+            family_result = await session.execute(
+                select(Family).where(Family.id == user.family_id)
+            )
+            family = family_result.scalar_one_or_none()
+            if family:
+                return family, user
+
+    family = Family(
+        name=f"Family {owner_name}",
+        invite_code=generate_invite_code(),
+        currency=currency,
+    )
+    session.add(family)
+    await session.flush()
+
+    user = User(
+        family_id=family.id,
+        telegram_id=None,
+        name=owner_name,
+        role=UserRole.owner,
+        business_type=business_type,
+        language=language,
+        onboarded=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    ctx = UserContext(
+        user_id=user.id,
+        family_id=family.id,
+        session_id=uuid.uuid4(),
+        conversation_state=ConversationState.normal,
+        message_count=0,
+    )
+    session.add(ctx)
+
+    profile = UserProfile(
+        user_id=user.id,
+        family_id=family.id,
+        display_name=owner_name,
+        timezone="America/New_York",
+        preferred_language=language,
+    )
+    session.add(profile)
+
+    # Create channel link
+    channel_link = ChannelLink(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        family_id=family.id,
+        channel=ch_type,
+        channel_user_id=channel_user_id,
+        is_primary=True,
+    )
+    session.add(channel_link)
+
+    await _create_family_categories(session, family.id)
+    if business_type:
+        await _create_business_categories(session, family.id, business_type)
+
+    await session.commit()
+    return family, user
+
+
+async def join_family_for_channel(
+    session: AsyncSession,
+    invite_code: str,
+    channel: str,
+    channel_user_id: str,
+    name: str,
+    language: str = "en",
+) -> tuple[Family, User] | None:
+    """Join existing family by invite code from any channel."""
+    if channel == "telegram":
+        return await join_family(
+            session,
+            invite_code=invite_code,
+            telegram_id=int(channel_user_id),
+            name=name,
+            language=language,
+        )
+
+    result = await session.execute(select(Family).where(Family.invite_code == invite_code))
+    family = result.scalar_one_or_none()
+    if not family:
+        return None
+
+    from src.core.models.channel_link import ChannelLink
+    from src.core.models.enums import ChannelType
+
+    ch_type = ChannelType(channel)
+
+    # Check if already linked
+    existing_link = await session.execute(
+        select(ChannelLink).where(
+            ChannelLink.channel == ch_type,
+            ChannelLink.channel_user_id == channel_user_id,
+        )
+    )
+    if existing_link.scalar_one_or_none():
+        return None
+
+    user = User(
+        family_id=family.id,
+        telegram_id=None,
+        name=name,
+        role=UserRole.member,
+        language=language,
+        onboarded=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    ctx = UserContext(
+        user_id=user.id,
+        family_id=family.id,
+        session_id=uuid.uuid4(),
+        conversation_state=ConversationState.normal,
+        message_count=0,
+    )
+    session.add(ctx)
+
+    profile = UserProfile(
+        user_id=user.id,
+        family_id=family.id,
+        display_name=name,
+        timezone="America/New_York",
+        preferred_language=language,
+    )
+    session.add(profile)
+
+    channel_link = ChannelLink(
+        id=uuid.uuid4(),
+        user_id=user.id,
+        family_id=family.id,
+        channel=ch_type,
+        channel_user_id=channel_user_id,
+        is_primary=True,
+    )
+    session.add(channel_link)
+
+    await session.commit()
+    return family, user
+
+
 async def join_family(
     session: AsyncSession,
     invite_code: str,
