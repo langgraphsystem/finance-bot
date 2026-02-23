@@ -155,7 +155,8 @@ async def test_browser_action_with_session_executes(sample_context):
     assert "march 15" in result.response_text.lower()
 
 
-async def test_browser_action_no_session_starts_login(sample_context):
+async def test_browser_action_no_session_suggests_extension(sample_context):
+    """No saved session should suggest browser extension, not start chat login."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
@@ -176,22 +177,14 @@ async def test_browser_action_no_session_starts_login(sample_context):
             new_callable=AsyncMock,
             return_value=None,
         ),
-        patch(
-            "src.skills.browser_action.handler.browser_login.start_login",
-            new_callable=AsyncMock,
-            return_value={
-                "action": "ask_email",
-                "text": "Please enter your email:",
-                "screenshot_bytes": b"fake_screenshot",
-            },
-        ),
     ):
         result = await skill.execute(msg, sample_context, intent_data)
-    assert "email" in result.response_text.lower()
-    assert result.photo_bytes == b"fake_screenshot"
+    assert "extension" in result.response_text.lower()
+    assert "/extension" in result.response_text
 
 
-async def test_browser_action_expired_session_relogins(sample_context):
+async def test_browser_action_expired_session_suggests_extension(sample_context):
+    """Expired session should clear cookies and suggest extension re-login."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
@@ -221,19 +214,11 @@ async def test_browser_action_expired_session_relogins(sample_context):
             "src.skills.browser_action.handler.browser_service.delete_session",
             new_callable=AsyncMock,
         ) as mock_delete,
-        patch(
-            "src.skills.browser_action.handler.browser_login.start_login",
-            new_callable=AsyncMock,
-            return_value={
-                "action": "ask_email",
-                "text": "Please enter your email:",
-                "screenshot_bytes": b"login_screenshot",
-            },
-        ),
     ):
         result = await skill.execute(msg, sample_context, intent_data)
     mock_delete.assert_called_once()
-    assert "email" in result.response_text.lower()
+    assert "expired" in result.response_text.lower()
+    assert "/extension" in result.response_text
 
 
 async def test_browser_action_vague_shopping_asks_product(sample_context):

@@ -152,21 +152,32 @@ class BrowserActionSkill:
             if result["success"]:
                 return await self._format_result(task, result["result"])
 
-            # Session might be expired — try re-login
+            # Session might be expired — clear it and suggest re-login via extension
             error_text = result.get("result", "").lower()
             if "login" in error_text or "sign in" in error_text or "auth" in error_text:
                 await browser_service.delete_session(context.user_id, domain)
-                return await self._start_login_flow(
-                    context.user_id, context.family_id, domain, task
+                return SkillResult(
+                    response_text=(
+                        f"Session expired for <b>{domain}</b>.\n\n"
+                        "Please log in again in your browser and use the "
+                        "Finance Bot extension to save the new session.\n\n"
+                        "Send /extension if you need to set it up."
+                    ),
                 )
 
             return SkillResult(
                 response_text=f"Browser task failed: {result['result']}"
             )
 
-        # 7. No saved session — start login flow
-        return await self._start_login_flow(
-            context.user_id, context.family_id, domain, task
+        # 7. No saved session — suggest browser extension
+        return SkillResult(
+            response_text=(
+                f"I don't have a session for <b>{domain}</b>.\n\n"
+                "To save your login:\n"
+                "1. Log into the site in your browser\n"
+                "2. Click the Finance Bot extension → Save Session\n\n"
+                "Don't have the extension? Send /extension to get started."
+            ),
         )
 
     async def _start_login_flow(

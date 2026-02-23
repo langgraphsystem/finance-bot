@@ -424,6 +424,30 @@ async def _handle_slash_command(
                 chat_id=message.chat_id,
             )
 
+    elif text == "/extension":
+        import secrets
+
+        from src.core.db import redis
+
+        if not context.family_id:
+            return OutgoingMessage(
+                text="First register via /start",
+                chat_id=message.chat_id,
+            )
+        token = secrets.token_urlsafe(24)
+        await redis.set(f"ext_token:{token}", context.user_id, ex=86400 * 30)
+        return OutgoingMessage(
+            text=(
+                "<b>Browser Extension Setup</b>\n\n"
+                f"Your token: <code>{token}</code>\n\n"
+                "1. Install the extension\n"
+                "2. Paste this token in extension settings\n"
+                "3. Log into any site (booking.com, etc.)\n"
+                "4. Click extension → Save Session"
+            ),
+            chat_id=message.chat_id,
+        )
+
     elif text.startswith("/invite"):
         parts = text.split(maxsplit=1)
         if len(parts) < 2:
@@ -897,20 +921,20 @@ async def _handle_callback(
         return OutgoingMessage(text=result.get("text", "Error."), chat_id=message.chat_id)
 
     elif action == "booking_confirm":
-        from src.tools import browser_booking, browser_login
+        from src.tools import browser_booking
 
         result = await browser_booking.execute_booking(context.user_id)
         if result["action"] == "need_login":
-            login_result = await browser_login.start_login(
-                user_id=context.user_id,
-                family_id=result["family_id"],
-                site=result["site"],
-                task=result["task"],
-            )
+            site = result.get("site", "")
             return OutgoingMessage(
-                text=login_result.get("text", ""),
+                text=(
+                    f"I don't have a session for <b>{site}</b>.\n\n"
+                    "To save your login:\n"
+                    "1. Log into the site in your browser\n"
+                    "2. Click the Finance Bot extension → Save Session\n\n"
+                    "Don't have the extension? Send /extension to get started."
+                ),
                 chat_id=message.chat_id,
-                photo_bytes=login_result.get("screenshot_bytes"),
             )
         return OutgoingMessage(
             text=result.get("text", ""),

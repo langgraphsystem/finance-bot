@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 
+from api.browser_extension import router as extension_router
 from api.miniapp import router as miniapp_router
 from api.oauth import router as oauth_router
 from src.core.config import settings
@@ -485,6 +486,7 @@ app.add_middleware(
 
 app.include_router(miniapp_router)
 app.include_router(oauth_router)
+app.include_router(extension_router)
 
 
 @app.get("/", include_in_schema=False)

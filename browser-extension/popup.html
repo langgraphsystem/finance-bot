@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      color: #333;
+      padding: 16px;
+    }
+    h2 { font-size: 16px; margin-bottom: 12px; color: #1a1a1a; }
+    .section { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    input[type="text"]:focus { outline: none; border-color: #4a90d9; }
+    button {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    #saveBtn {
+      background: #4a90d9;
+      color: white;
+    }
+    #saveBtn:hover { background: #3a7bc8; }
+    #saveBtn:disabled { background: #ccc; cursor: not-allowed; }
+    #saveApiBtn {
+      background: #e8e8e8;
+      color: #333;
+      font-size: 12px;
+      padding: 6px;
+    }
+    .status {
+      margin-top: 8px;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+    }
+    .status.success { display: block; background: #e8f5e9; color: #2e7d32; }
+    .status.error { display: block; background: #ffebee; color: #c62828; }
+    .info {
+      font-size: 12px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .domain {
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    .saved-list {
+      margin-top: 8px;
+      font-size: 12px;
+    }
+    .saved-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .saved-item .site { color: #333; }
+    .saved-item .count { color: #888; }
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #c62828;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 0;
+      width: auto;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <h2>Finance Bot</h2>
+
+  <div class="section">
+    <label>Current site</label>
+    <div class="domain" id="currentDomain">Loading...</div>
+    <div class="info" id="cookieCount"></div>
+  </div>
+
+  <button id="saveBtn" disabled>Save Session</button>
+  <div id="status" class="status"></div>
+
+  <div class="section" style="margin-top: 16px;">
+    <label>API URL</label>
+    <input type="text" id="apiUrl" placeholder="https://your-app.up.railway.app">
+    <label style="margin-top: 8px;">Token (from /extension command)</label>
+    <input type="text" id="token" placeholder="Paste your token here">
+    <button id="saveApiBtn">Save Settings</button>
+  </div>
+
+  <div class="section">
+    <label>Saved sessions</label>
+    <div id="savedList" class="saved-list">
+      <div class="info">Connect to load sessions</div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
