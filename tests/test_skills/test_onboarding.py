@@ -123,12 +123,12 @@ class TestHelpers:
 
     def test_ask_activity_result(self):
         result = _ask_activity_result()
-        assert "activity" in result.response_text
+        assert "What do you do" in result.response_text
         assert result.buttons is None
 
     def test_ask_activity_result_ru(self):
         result = _ask_activity_result("ru")
-        assert "деятельности" in result.response_text
+        assert "занимаетесь" in result.response_text
 
     def test_ask_invite_code_result(self):
         result = _ask_invite_code_result()

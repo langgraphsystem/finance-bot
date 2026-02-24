@@ -46,23 +46,43 @@ SUPPORTED_LANGUAGES = ("en", "es", "zh", "ru")
 ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
     "en": {
         "welcome": (
-            "Hi! I'm your personal AI Assistant.\n\n"
-            "Here's what I can do:\n"
-            "- <b>Finance</b> — expenses, income, receipts, budgets, reports\n"
-            "- <b>Email & Calendar</b> — inbox, sending emails, schedule, events\n"
-            "- <b>Tasks</b> — to-dos, reminders, shopping lists\n"
-            "- <b>Life</b> — food, drinks, mood, notes, day planning\n"
-            "- <b>Search</b> — questions, web, maps, YouTube\n"
-            "- <b>Writing</b> — messages, posts, translation, proofreading\n"
-            "- <b>Clients</b> — bookings, contacts, CRM\n\n"
+            "\U0001f44b Hi! I'm your <b>personal AI Assistant</b>.\n\n"
+            "Here's everything I can help with:\n\n"
+            "\U0001f4b0 <b>Finance</b>\n"
+            "Expenses, income, receipt scanning, budgets, "
+            "analytics, PDF reports, recurring payments\n\n"
+            "\U0001f4e7 <b>Email & Calendar</b>\n"
+            "Inbox, send & draft emails, events, free slots, "
+            "morning & evening briefs\n\n"
+            "\u2705 <b>Tasks & Shopping</b>\n"
+            "To-dos, reminders, shopping lists\n\n"
+            "\U0001f9e0 <b>Life Tracking</b>\n"
+            "Food, drinks, mood, quick notes, "
+            "day plans & reflections\n\n"
+            "\U0001f50d <b>Research</b>\n"
+            "Questions, web search, compare options, "
+            "maps, YouTube, price tracking\n\n"
+            "\u270d\ufe0f <b>Writing & Media</b>\n"
+            "Messages, posts, translation, proofreading, "
+            "images, documents\n\n"
+            "\U0001f465 <b>Clients & Bookings</b>\n"
+            "Contacts, appointments, CRM, "
+            "send to clients\n\n"
+            "\U0001f310 <b>Browser & Monitoring</b>\n"
+            "Web actions, price alerts, news monitoring\n\n"
             "Choose an option:"
         ),
-        "new_account": "New account",
-        "join_family": "Join a family",
+        "new_account": "\U0001f195 New account",
+        "join_family": "\U0001f46a Join a family",
         "ask_activity": (
-            "Tell me about your activity — what do you do?\n\n"
-            "For example: 'I'm a truck driver', 'I do deliveries', "
-            "'I just want to track my expenses'"
+            "\U0001f3af <b>What do you do?</b>\n\n"
+            "This helps me set up the right categories "
+            "for you.\n\n"
+            "For example:\n"
+            "\u2022 'I'm a freelancer'\n"
+            "\u2022 'I run a small business'\n"
+            "\u2022 'I'm a real estate agent'\n"
+            "\u2022 'Just personal finances'"
         ),
         "ask_invite": (
             "Enter the invite code that the account owner "
@@ -107,23 +127,43 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
     },
     "es": {
         "welcome": (
-            "\u00a1Hola! Soy tu asistente personal de IA.\n\n"
-            "Esto es lo que puedo hacer:\n"
-            "- <b>Finanzas</b> \u2014 gastos, ingresos, recibos, informes\n"
-            "- <b>Email y Calendario</b> \u2014 bandeja, emails, eventos\n"
-            "- <b>Tareas</b> \u2014 pendientes, recordatorios, compras\n"
-            "- <b>Vida</b> \u2014 comida, bebidas, \u00e1nimo, notas\n"
-            "- <b>B\u00fasqueda</b> \u2014 preguntas, web, mapas, YouTube\n"
-            "- <b>Escritura</b> \u2014 mensajes, traducci\u00f3n, revisi\u00f3n\n"
-            "- <b>Clientes</b> \u2014 reservas, contactos, CRM\n\n"
+            "\U0001f44b \u00a1Hola! Soy tu "
+            "<b>asistente personal de IA</b>.\n\n"
+            "Esto es todo lo que puedo hacer:\n\n"
+            "\U0001f4b0 <b>Finanzas</b>\n"
+            "Gastos, ingresos, escaneo de recibos, "
+            "presupuestos, reportes PDF, pagos recurrentes\n\n"
+            "\U0001f4e7 <b>Email y Calendario</b>\n"
+            "Bandeja, enviar emails, eventos, "
+            "resumen matutino y vespertino\n\n"
+            "\u2705 <b>Tareas y Compras</b>\n"
+            "Pendientes, recordatorios, listas de compras\n\n"
+            "\U0001f9e0 <b>Vida</b>\n"
+            "Comida, bebidas, \u00e1nimo, notas, "
+            "plan y reflexi\u00f3n del d\u00eda\n\n"
+            "\U0001f50d <b>B\u00fasqueda</b>\n"
+            "Preguntas, web, comparar opciones, "
+            "mapas, YouTube, seguimiento de precios\n\n"
+            "\u270d\ufe0f <b>Escritura y Medios</b>\n"
+            "Mensajes, publicaciones, traducci\u00f3n, "
+            "revisi\u00f3n, im\u00e1genes, documentos\n\n"
+            "\U0001f465 <b>Clientes y Reservas</b>\n"
+            "Contactos, citas, CRM, enviar a clientes\n\n"
+            "\U0001f310 <b>Navegador y Monitoreo</b>\n"
+            "Acciones web, alertas de precios, noticias\n\n"
             "Elige una opci\u00f3n:"
         ),
-        "new_account": "Nueva cuenta",
-        "join_family": "Unirse a una familia",
+        "new_account": "\U0001f195 Nueva cuenta",
+        "join_family": "\U0001f46a Unirse a una familia",
         "ask_activity": (
-            "\u00bfA qu\u00e9 te dedicas?\n\n"
-            "Por ejemplo: 'soy camionero', 'hago entregas', "
-            "'solo quiero controlar mis gastos'"
+            "\U0001f3af <b>\u00bfA qu\u00e9 te dedicas?</b>\n\n"
+            "Esto me ayuda a configurar las categor\u00edas "
+            "correctas para ti.\n\n"
+            "Por ejemplo:\n"
+            "\u2022 'Soy freelancer'\n"
+            "\u2022 'Tengo un peque\u00f1o negocio'\n"
+            "\u2022 'Soy agente de bienes ra\u00edces'\n"
+            "\u2022 'Solo finanzas personales'"
         ),
         "ask_invite": (
             "Ingresa el c\u00f3digo de invitaci\u00f3n que te "
@@ -173,23 +213,41 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
     },
     "zh": {
         "welcome": (
-            "你好！我是你的个人 AI 助手。\n\n"
-            "我可以帮你：\n"
-            "- <b>财务</b> — 支出、收入、收据、预算、报表\n"
-            "- <b>邮件和日历</b> — 收件箱、发送邮件、日程\n"
-            "- <b>任务</b> — 待办事项、提醒、购物清单\n"
-            "- <b>生活</b> — 饮食、心情、笔记、日计划\n"
-            "- <b>搜索</b> — 提问、网络、地图、YouTube\n"
-            "- <b>写作</b> — 消息、帖子、翻译、校对\n"
-            "- <b>客户</b> — 预约、联系人、CRM\n\n"
+            "\U0001f44b 你好！我是你的<b>个人 AI 助手</b>。\n\n"
+            "我可以帮你：\n\n"
+            "\U0001f4b0 <b>财务</b>\n"
+            "支出、收入、扫描收据、预算、"
+            "报表、定期付款\n\n"
+            "\U0001f4e7 <b>邮件和日历</b>\n"
+            "收件箱、发送邮件、日程、"
+            "早晚简报\n\n"
+            "\u2705 <b>任务和购物</b>\n"
+            "待办事项、提醒、购物清单\n\n"
+            "\U0001f9e0 <b>生活记录</b>\n"
+            "饮食、心情、快速笔记、"
+            "日计划和反思\n\n"
+            "\U0001f50d <b>搜索</b>\n"
+            "提问、网络搜索、比较选项、"
+            "地图、YouTube、价格跟踪\n\n"
+            "\u270d\ufe0f <b>写作和媒体</b>\n"
+            "消息、帖子、翻译、校对、"
+            "图片、文档\n\n"
+            "\U0001f465 <b>客户和预约</b>\n"
+            "联系人、预约管理、CRM\n\n"
+            "\U0001f310 <b>浏览器和监控</b>\n"
+            "网页操作、价格提醒、新闻监控\n\n"
             "请选择："
         ),
-        "new_account": "新建账户",
-        "join_family": "加入家庭",
+        "new_account": "\U0001f195 新建账户",
+        "join_family": "\U0001f46a 加入家庭",
         "ask_activity": (
-            "请告诉我你的职业 — 你做什么工作？\n\n"
-            "例如：'我是卡车司机'、'我做快递'、"
-            "'我只想记录支出'"
+            "\U0001f3af <b>你做什么工作？</b>\n\n"
+            "这能帮我为你设置合适的分类。\n\n"
+            "例如：\n"
+            "\u2022 '我是自由职业者'\n"
+            "\u2022 '我经营小店'\n"
+            "\u2022 '我做房地产'\n"
+            "\u2022 '只是个人记账'"
         ),
         "ask_invite": "请输入账户所有者分享给你的邀请码：",
         "already_registered": (
@@ -219,23 +277,45 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
     },
     "ru": {
         "welcome": (
-            "Привет! Я ваш персональный AI Assistant.\n\n"
-            "Вот что я умею:\n"
-            "• <b>Финансы</b> — расходы, доходы, чеки, бюджеты, отчёты\n"
-            "• <b>Почта и Календарь</b> — входящие, email, расписание\n"
-            "• <b>Задачи</b> — дела, напоминания, списки покупок\n"
-            "• <b>Жизнь</b> — еда, напитки, настроение, заметки\n"
-            "• <b>Поиск</b> — вопросы, интернет, карты, YouTube\n"
-            "• <b>Тексты</b> — письма, посты, перевод, грамматика\n"
-            "• <b>Клиенты</b> — бронирования, контакты, CRM\n\n"
+            "\U0001f44b Привет! Я ваш "
+            "<b>персональный AI Assistant</b>.\n\n"
+            "Вот что я умею:\n\n"
+            "\U0001f4b0 <b>Финансы</b>\n"
+            "Расходы, доходы, сканирование чеков, "
+            "бюджеты, аналитика, PDF-отчёты, "
+            "регулярные платежи\n\n"
+            "\U0001f4e7 <b>Почта и Календарь</b>\n"
+            "Входящие, отправка email, события, "
+            "утренний и вечерний брифинг\n\n"
+            "\u2705 <b>Задачи и Покупки</b>\n"
+            "Дела, напоминания, списки покупок\n\n"
+            "\U0001f9e0 <b>Жизнь</b>\n"
+            "Еда, напитки, настроение, заметки, "
+            "план дня и рефлексия\n\n"
+            "\U0001f50d <b>Поиск</b>\n"
+            "Вопросы, веб-поиск, сравнение, "
+            "карты, YouTube, отслеживание цен\n\n"
+            "\u270d\ufe0f <b>Тексты и Медиа</b>\n"
+            "Письма, посты, перевод, грамматика, "
+            "картинки, документы\n\n"
+            "\U0001f465 <b>Клиенты и Записи</b>\n"
+            "Контакты, бронирования, CRM, "
+            "отправка клиентам\n\n"
+            "\U0001f310 <b>Браузер и Мониторинг</b>\n"
+            "Действия в браузере, алерты цен, новости\n\n"
             "Выберите вариант:"
         ),
-        "new_account": "Новый аккаунт",
-        "join_family": "Присоединиться к семье",
+        "new_account": "\U0001f195 Новый аккаунт",
+        "join_family": "\U0001f46a Присоединиться к семье",
         "ask_activity": (
-            "Расскажите о своей деятельности — чем занимаетесь?\n\n"
-            "Например: «я таксист», «у меня трак», "
-            "«просто хочу следить за расходами»"
+            "\U0001f3af <b>Чем вы занимаетесь?</b>\n\n"
+            "Это поможет настроить категории "
+            "под вас.\n\n"
+            "Например:\n"
+            "\u2022 «Я фрилансер»\n"
+            "\u2022 «У меня свой бизнес»\n"
+            "\u2022 «Я риэлтор»\n"
+            "\u2022 «Просто личные финансы»"
         ),
         "ask_invite": (
             "Введите код приглашения, который вам "
