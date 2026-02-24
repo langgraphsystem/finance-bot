@@ -21,7 +21,7 @@ async def test_dispatch_sends_due_reminders():
 
     mock_session = AsyncMock()
     mock_result = MagicMock()
-    mock_result.all.return_value = [(mock_task, telegram_id)]
+    mock_result.all.return_value = [(mock_task, telegram_id, "ru")]
     mock_session.execute = AsyncMock(return_value=mock_result)
     mock_session.commit = AsyncMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -78,7 +78,7 @@ async def test_dispatch_includes_description():
 
     mock_session = AsyncMock()
     mock_result = MagicMock()
-    mock_result.all.return_value = [(mock_task, 999)]
+    mock_result.all.return_value = [(mock_task, 999, "en")]
     mock_session.execute = AsyncMock(return_value=mock_result)
     mock_session.commit = AsyncMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)

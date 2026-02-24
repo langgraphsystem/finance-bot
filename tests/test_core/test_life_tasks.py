@@ -15,7 +15,7 @@ async def test_weekly_digest_skips_users_with_no_events():
     """Weekly digest skips users who have no events in the past week."""
     from src.core.tasks.life_tasks import weekly_life_digest
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
 
     with (
         patch(
@@ -43,7 +43,7 @@ async def test_weekly_digest_sends_to_users_with_events():
     """Weekly digest is sent to users who have events."""
     from src.core.tasks.life_tasks import weekly_life_digest
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
     mock_event = MagicMock()
     mock_event.type = LifeEventType.note
     mock_event.data = None
@@ -91,7 +91,7 @@ async def test_morning_reminder_skips_silent_users():
     """Morning reminder skips users in silent mode."""
     from src.core.tasks.life_tasks import morning_plan_reminder
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
 
     with (
         patch(
@@ -124,7 +124,7 @@ async def test_morning_reminder_skips_users_with_plan():
     """Morning reminder skips users who already have a plan."""
     from src.core.tasks.life_tasks import morning_plan_reminder
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
     mock_task = MagicMock()
     mock_task.type = LifeEventType.task
 
@@ -154,7 +154,7 @@ async def test_morning_reminder_sends_to_eligible_users():
     """Morning reminder is sent to non-silent users without a plan."""
     from src.core.tasks.life_tasks import morning_plan_reminder
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
 
     with (
         patch(
@@ -193,7 +193,7 @@ async def test_evening_reflection_skips_users_with_reflection():
     """Evening prompt skips users who already reflected today."""
     from src.core.tasks.life_tasks import evening_reflection_prompt
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
     mock_reflection = MagicMock()
     mock_reflection.type = LifeEventType.reflection
 
@@ -223,7 +223,7 @@ async def test_evening_reflection_skips_silent_users():
     """Evening prompt skips silent users even without reflection."""
     from src.core.tasks.life_tasks import evening_reflection_prompt
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
 
     # First call: no reflections; second call: day events
     call_count = 0
@@ -263,7 +263,7 @@ async def test_evening_reflection_sends_prompt():
     """Evening prompt is sent to eligible users."""
     from src.core.tasks.life_tasks import evening_reflection_prompt
 
-    mock_users = [("fam-1", "usr-1", 111)]
+    mock_users = [("fam-1", "usr-1", 111, "ru")]
 
     async def _mock_query(**kwargs):
         return []

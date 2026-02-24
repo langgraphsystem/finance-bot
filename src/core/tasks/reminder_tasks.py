@@ -80,7 +80,7 @@ async def dispatch_due_reminders() -> None:
     async with async_session() as session:
         # Find all pending tasks with reminder_at <= now
         result = await session.execute(
-            select(Task, User.telegram_id)
+            select(Task, User.telegram_id, User.language)
             .join(User, Task.user_id == User.id)
             .where(
                 Task.reminder_at <= now,
@@ -94,10 +94,20 @@ async def dispatch_due_reminders() -> None:
         if not due_tasks:
             return
 
+        _reminder_label = {
+            "en": "Reminder",
+            "es": "Recordatorio",
+            "zh": "提醒",
+            "ru": "Напоминание",
+        }
+
         sent_ids: list[tuple] = []  # (task, telegram_id)
-        for task, telegram_id in due_tasks:
+        for task, telegram_id, lang in due_tasks:
             try:
-                text = f"🔔 <b>Напоминание</b>\n\n{task.title}"
+                label = _reminder_label.get(
+                    lang or "en", "Reminder",
+                )
+                text = f"\U0001f514 <b>{label}</b>\n\n{task.title}"
                 if task.description:
                     text += f"\n\n{task.description}"
                 if (
