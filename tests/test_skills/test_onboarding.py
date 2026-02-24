@@ -124,12 +124,12 @@ class TestHelpers:
 
     def test_ask_activity_result(self):
         result = _ask_activity_result()
-        assert "What do you do" in result.response_text
+        assert "Tell me about yourself" in result.response_text
         assert result.buttons is None
 
     def test_ask_activity_result_ru(self):
         result = _ask_activity_result("ru")
-        assert "занимаетесь" in result.response_text
+        assert "Расскажите о себе" in result.response_text
 
     def test_ask_invite_code_result(self):
         result = _ask_invite_code_result()
@@ -366,7 +366,7 @@ class TestActivityDescription:
             ):
                 result = await onboarding_skill.execute(trucker_message, empty_context, intent_data)
 
-        assert "Отлично!" in result.response_text
+        assert "Готово!" in result.response_text
         assert result.buttons is None
 
     @pytest.mark.asyncio
@@ -408,7 +408,7 @@ class TestActivityDescription:
                     call_kwargs = mock_create.call_args
                     assert call_kwargs.kwargs.get("business_type") == "taxi"
 
-        assert "Отлично!" in result.response_text
+        assert "Готово!" in result.response_text
         assert result.buttons is None
 
     @pytest.mark.asyncio
@@ -444,7 +444,7 @@ class TestActivityDescription:
                     # household -> business_type=None
                     assert call_kwargs.kwargs.get("business_type") is None
 
-        assert "Отлично!" in result.response_text
+        assert "Готово!" in result.response_text
 
     @pytest.mark.asyncio
     async def test_create_family_failure_returns_error(
@@ -626,7 +626,7 @@ class TestDuplicateUser:
                 result = await onboarding_skill.execute(trucker_message, empty_context, intent_data)
 
         # Should succeed, NOT return error
-        assert "Отлично!" in result.response_text
+        assert "Готово!" in result.response_text
 
 
 # ---- Awaiting choice state --------------------------------------------------

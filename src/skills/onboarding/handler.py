@@ -47,10 +47,10 @@ SUPPORTED_LANGUAGES = ("en", "es", "zh", "ru")
 # Profile display names per language (YAML names are Russian-only)
 PROFILE_DISPLAY_NAMES: dict[str, dict[str, str]] = {
     "household": {
-        "en": "Household",
-        "es": "Hogar",
-        "zh": "家庭",
-        "ru": "Домохозяйство",
+        "en": "Personal",
+        "es": "Personal",
+        "zh": "个人",
+        "ru": "Личный",
     },
     "trucker": {
         "en": "Trucking",
@@ -133,34 +133,55 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
         "new_account": "\U0001f195 New account",
         "join_family": "\U0001f46a Join a family",
         "ask_activity": (
-            "\U0001f3af <b>What do you do?</b>\n\n"
-            "This helps me set up the right categories "
+            "\U0001f3af <b>Tell me about yourself</b>\n\n"
+            "I'll set up the right categories and features "
             "for you.\n\n"
-            "For example:\n"
-            "\u2022 'I'm a freelancer'\n"
-            "\u2022 'I run a small business'\n"
-            "\u2022 'I'm a real estate agent'\n"
-            "\u2022 'Just personal finances'"
+            "Just type what you do:\n"
+            "\u2022 <i>I'm a freelance designer</i>\n"
+            "\u2022 <i>I run a small restaurant</i>\n"
+            "\u2022 <i>I'm a real estate agent</i>\n"
+            "\u2022 <i>Just personal finances</i>"
         ),
         "ask_invite": (
             "Enter the invite code that the account owner "
             "shared with you:"
         ),
         "already_registered": (
-            "You're already registered! Just tell me how I can help.\n\n"
+            "You're already registered! Just tell me "
+            "how I can help.\n\n"
             "Examples: 'coffee 5', 'mood 7', receipt photo, "
-            "'check my email', 'my tasks', 'stats for this week'."
+            "'check my email', 'my tasks', 'stats this week'."
         ),
         "categories_label": "Categories",
         "invite_code_label": "Family invite code",
-        "invite_code_hint": "(share it with family members for shared tracking)",
+        "invite_code_hint": "(share with family for shared tracking)",
         "setup_done": (
-            "All set! I configured categories "
-            "for the '{profile}' profile."
+            "\u2705 <b>All set!</b> "
+            "Your '{profile}' profile is ready."
         ),
         "start_tracking": (
-            "Now you can start tracking expenses — just type, "
-            "for example: 'coffee 5' or send a receipt photo."
+            "Now you can start tracking expenses \u2014 "
+            "just type 'coffee 5' or send a receipt photo."
+        ),
+        "quick_start": (
+            "Here's how to get started:\n\n"
+            "\U0001f4b0 <b>Finance</b> \u2014 "
+            "'coffee 5', receipt photo, 'stats this week'\n"
+            "\U0001f4e7 <b>Email</b> \u2014 "
+            "'check inbox', 'send email to...'\n"
+            "\u2705 <b>Tasks</b> \u2014 "
+            "'remind me at 5pm', 'shopping list'\n"
+            "\U0001f9e0 <b>Life</b> \u2014 "
+            "'mood 8', 'log lunch', 'plan my day'\n"
+            "\U0001f50d <b>Search</b> \u2014 "
+            "'find pizza nearby', 'compare options'\n"
+            "\u270d\ufe0f <b>Write</b> \u2014 "
+            "'draft a message', 'translate to Spanish'\n"
+            "\U0001f4c5 <b>Calendar</b> \u2014 "
+            "'events today', 'schedule meeting'\n"
+            "\U0001f465 <b>Clients</b> \u2014 "
+            "'add contact', 'new booking'\n\n"
+            "Just type naturally \u2014 I'll understand!"
         ),
         "share_location_prompt": (
             "Tap the button below so I can detect your city "
@@ -214,37 +235,55 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
         "new_account": "\U0001f195 Nueva cuenta",
         "join_family": "\U0001f46a Unirse a una familia",
         "ask_activity": (
-            "\U0001f3af <b>\u00bfA qu\u00e9 te dedicas?</b>\n\n"
-            "Esto me ayuda a configurar las categor\u00edas "
-            "correctas para ti.\n\n"
-            "Por ejemplo:\n"
-            "\u2022 'Soy freelancer'\n"
-            "\u2022 'Tengo un peque\u00f1o negocio'\n"
-            "\u2022 'Soy agente de bienes ra\u00edces'\n"
-            "\u2022 'Solo finanzas personales'"
+            "\U0001f3af <b>Cu\u00e9ntame sobre ti</b>\n\n"
+            "Configurar\u00e9 las categor\u00edas y funciones "
+            "adecuadas para ti.\n\n"
+            "Escribe a qu\u00e9 te dedicas:\n"
+            "\u2022 <i>Soy dise\u00f1ador freelance</i>\n"
+            "\u2022 <i>Tengo un peque\u00f1o restaurante</i>\n"
+            "\u2022 <i>Soy agente inmobiliario</i>\n"
+            "\u2022 <i>Solo finanzas personales</i>"
         ),
         "ask_invite": (
             "Ingresa el c\u00f3digo de invitaci\u00f3n que te "
             "comparti\u00f3 el due\u00f1o de la cuenta:"
         ),
         "already_registered": (
-            "\u00a1Ya est\u00e1s registrado! Dime en qu\u00e9 puedo ayudarte.\n\n"
-            "Ejemplos: 'caf\u00e9 5', '\u00e1nimo 7', foto de recibo, "
-            "'revisar mi email', 'mis tareas'."
+            "\u00a1Ya est\u00e1s registrado! "
+            "Dime en qu\u00e9 puedo ayudarte.\n\n"
+            "Ejemplos: 'caf\u00e9 5', '\u00e1nimo 7', "
+            "foto de recibo, 'revisar mi email'."
         ),
         "categories_label": "Categor\u00edas",
-        "invite_code_label": "C\u00f3digo de invitaci\u00f3n familiar",
-        "invite_code_hint": (
-            "(comp\u00e1rtelo con familiares para "
-            "seguimiento compartido)"
-        ),
+        "invite_code_label": "C\u00f3digo de invitaci\u00f3n",
+        "invite_code_hint": "(compartir para seguimiento conjunto)",
         "setup_done": (
-            "\u00a1Listo! Configur\u00e9 las categor\u00edas "
-            "para el perfil '{profile}'."
+            "\u2705 <b>\u00a1Listo!</b> "
+            "Tu perfil '{profile}' est\u00e1 listo."
         ),
         "start_tracking": (
-            "Ahora puedes registrar gastos \u2014 escribe, "
-            "por ejemplo: 'caf\u00e9 5' o env\u00eda un recibo."
+            "Registra gastos \u2014 escribe "
+            "'caf\u00e9 5' o env\u00eda un recibo."
+        ),
+        "quick_start": (
+            "As\u00ed puedes empezar:\n\n"
+            "\U0001f4b0 <b>Finanzas</b> \u2014 "
+            "'caf\u00e9 5', foto de recibo, 'gastos esta semana'\n"
+            "\U0001f4e7 <b>Email</b> \u2014 "
+            "'revisar inbox', 'enviar email a...'\n"
+            "\u2705 <b>Tareas</b> \u2014 "
+            "'recu\u00e9rdame a las 5', 'lista de compras'\n"
+            "\U0001f9e0 <b>Vida</b> \u2014 "
+            "'\u00e1nimo 8', 'registrar almuerzo', 'plan del d\u00eda'\n"
+            "\U0001f50d <b>Buscar</b> \u2014 "
+            "'pizza cerca', 'comparar opciones'\n"
+            "\u270d\ufe0f <b>Escribir</b> \u2014 "
+            "'redactar mensaje', 'traducir al ingl\u00e9s'\n"
+            "\U0001f4c5 <b>Calendario</b> \u2014 "
+            "'eventos de hoy', 'agendar reuni\u00f3n'\n"
+            "\U0001f465 <b>Clientes</b> \u2014 "
+            "'agregar contacto', 'nueva reserva'\n\n"
+            "\u00a1Solo escribe naturalmente \u2014 te entender\u00e9!"
         ),
         "share_location_prompt": (
             "Toca el bot\u00f3n de abajo para detectar tu ciudad "
@@ -299,27 +338,46 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
         "new_account": "\U0001f195 新建账户",
         "join_family": "\U0001f46a 加入家庭",
         "ask_activity": (
-            "\U0001f3af <b>你做什么工作？</b>\n\n"
-            "这能帮我为你设置合适的分类。\n\n"
-            "例如：\n"
-            "\u2022 '我是自由职业者'\n"
-            "\u2022 '我经营小店'\n"
-            "\u2022 '我做房地产'\n"
-            "\u2022 '只是个人记账'"
+            "\U0001f3af <b>介绍一下你自己</b>\n\n"
+            "我会为你设置合适的分类和功能。\n\n"
+            "告诉我你做什么：\n"
+            "\u2022 <i>我是自由设计师</i>\n"
+            "\u2022 <i>我经营一家小餐厅</i>\n"
+            "\u2022 <i>我做房地产</i>\n"
+            "\u2022 <i>只是个人记账</i>"
         ),
         "ask_invite": "请输入账户所有者分享给你的邀请码：",
         "already_registered": (
             "你已经注册了！直接告诉我需要什么帮助。\n\n"
             "示例：'咖啡 5'、'心情 7'、收据照片、"
-            "'查看邮件'、'我的任务'、'本周统计'。"
+            "'查看邮件'、'我的任务'。"
         ),
         "categories_label": "分类",
         "invite_code_label": "家庭邀请码",
-        "invite_code_hint": "（分享给家人以便共同记账）",
-        "setup_done": "设置完成！已为'{profile}'配置分类。",
+        "invite_code_hint": "（分享给家人共同记账）",
+        "setup_done": "\u2705 <b>设置完成！</b>'{profile}'配置就绪。",
         "start_tracking": (
-            "现在你可以开始记录支出 — 直接输入，"
-            "例如：'咖啡 5' 或发送收据照片。"
+            "直接输入'咖啡 5'或发送收据照片。"
+        ),
+        "quick_start": (
+            "开始使用：\n\n"
+            "\U0001f4b0 <b>财务</b> \u2014 "
+            "'咖啡 5'、收据照片、'本周统计'\n"
+            "\U0001f4e7 <b>邮件</b> \u2014 "
+            "'查看收件箱'、'发邮件给...'\n"
+            "\u2705 <b>任务</b> \u2014 "
+            "'下午5点提醒我'、'购物清单'\n"
+            "\U0001f9e0 <b>生活</b> \u2014 "
+            "'心情 8'、'记录午餐'、'今日计划'\n"
+            "\U0001f50d <b>搜索</b> \u2014 "
+            "'附近的披萨'、'比较选项'\n"
+            "\u270d\ufe0f <b>写作</b> \u2014 "
+            "'起草消息'、'翻译成英文'\n"
+            "\U0001f4c5 <b>日历</b> \u2014 "
+            "'今天的日程'、'安排会议'\n"
+            "\U0001f465 <b>客户</b> \u2014 "
+            "'添加联系人'、'新建预约'\n\n"
+            "直接输入就行 \u2014 我能理解！"
         ),
         "share_location_prompt": (
             "点击下方按钮，"
@@ -366,14 +424,14 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
         "new_account": "\U0001f195 Новый аккаунт",
         "join_family": "\U0001f46a Присоединиться к семье",
         "ask_activity": (
-            "\U0001f3af <b>Чем вы занимаетесь?</b>\n\n"
-            "Это поможет настроить категории "
-            "под вас.\n\n"
-            "Например:\n"
-            "\u2022 «Я фрилансер»\n"
-            "\u2022 «У меня свой бизнес»\n"
-            "\u2022 «Я риэлтор»\n"
-            "\u2022 «Просто личные финансы»"
+            "\U0001f3af <b>Расскажите о себе</b>\n\n"
+            "Я настрою категории и функции "
+            "специально для вас.\n\n"
+            "Просто напишите, чем занимаетесь:\n"
+            "\u2022 <i>Я фрилансер-дизайнер</i>\n"
+            "\u2022 <i>У меня небольшой ресторан</i>\n"
+            "\u2022 <i>Я занимаюсь недвижимостью</i>\n"
+            "\u2022 <i>Просто личные финансы</i>"
         ),
         "ask_invite": (
             "Введите код приглашения, который вам "
@@ -389,12 +447,32 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
         "invite_code_label": "Код приглашения для семьи",
         "invite_code_hint": "(отправьте его близким для общего учёта)",
         "setup_done": (
-            "Отлично! Я настроил категории "
-            "для профиля «{profile}»."
+            "\u2705 <b>Готово!</b> "
+            "Профиль «{profile}» настроен."
         ),
         "start_tracking": (
             "Теперь можете записывать расходы — просто напишите, "
             "например: «кофе 150» или отправьте фото чека."
+        ),
+        "quick_start": (
+            "Вот что я умею:\n\n"
+            "\U0001f4b0 <b>Финансы</b> \u2014 "
+            "«кофе 150», фото чека, «статистика за неделю»\n"
+            "\U0001f4e7 <b>Почта</b> \u2014 "
+            "«проверь почту», «отправь email...»\n"
+            "\u2705 <b>Задачи</b> \u2014 "
+            "«напомни в 17:00», «список покупок»\n"
+            "\U0001f9e0 <b>Жизнь</b> \u2014 "
+            "«настроение 8», «записать обед», «план на день»\n"
+            "\U0001f50d <b>Поиск</b> \u2014 "
+            "«найди пиццу рядом», «сравни варианты»\n"
+            "\u270d\ufe0f <b>Тексты</b> \u2014 "
+            "«напиши сообщение», «переведи на английский»\n"
+            "\U0001f4c5 <b>Календарь</b> \u2014 "
+            "«события сегодня», «запланируй встречу»\n"
+            "\U0001f465 <b>Клиенты</b> \u2014 "
+            "«добавь контакт», «новая запись»\n\n"
+            "Просто пишите как обычно \u2014 я пойму!"
         ),
         "share_location_prompt": (
             "Нажмите кнопку ниже, чтобы я определил ваш город "
@@ -842,7 +920,7 @@ class OnboardingSkill:
                 response_text=(
                     f"{t['setup_done'].format(profile=display_name)}\n"
                     f"{cat_line}\n"
-                    f"{t['start_tracking']}\n\n"
+                    f"{t['quick_start']}\n\n"
                     f"{t['share_location_prompt']}"
                 ),
                 reply_keyboard=[
@@ -899,7 +977,7 @@ class OnboardingSkill:
                 return SkillResult(
                     response_text=(
                         f"{t['joined_family'].format(name=family.name)}\n\n"
-                        f"{t['start_tracking']}\n\n"
+                        f"{t['quick_start']}\n\n"
                         f"{t['share_location_prompt']}"
                     ),
                     reply_keyboard=[
