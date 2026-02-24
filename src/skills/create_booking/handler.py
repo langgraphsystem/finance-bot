@@ -13,6 +13,7 @@ from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import fmt_date, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,26 @@ def _parse_datetime(raw: str | None, tz: ZoneInfo) -> datetime | None:
         return None
 
 
+_STRINGS = {
+    "en": {
+        "ask_what": "What should I book? Tell me the service and time.",
+        "booked": "📅 <b>Booked: {title}</b>",
+        "when": "🕐 {time}",
+        "client": "👤 {name}",
+        "where": "📍 {location}",
+        "action": "\nNeed to reschedule? Just tell me.",
+    },
+    "ru": {
+        "ask_what": "Что записать? Укажи услугу и время.",
+        "booked": "📅 <b>Записано: {title}</b>",
+        "when": "🕐 {time}",
+        "client": "👤 {name}",
+        "where": "📍 {location}",
+        "action": "\nНужно перенести? Просто скажи.",
+    },
+}
+
+
 class CreateBookingSkill:
     name = "create_booking"
     intents = ["create_booking"]
@@ -48,6 +69,8 @@ class CreateBookingSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
+
         title = (
             intent_data.get("booking_title")
             or intent_data.get("event_title")
@@ -57,7 +80,7 @@ class CreateBookingSkill:
         ).strip()
 
         if not title:
-            return SkillResult(response_text="What should I book? Tell me the service and time.")
+            return SkillResult(response_text=t(_STRINGS, "ask_what", lang))
 
         tz = ZoneInfo(context.timezone)
         now = datetime.now(tz)
@@ -115,12 +138,16 @@ class CreateBookingSkill:
             session.add(booking)
             await session.commit()
 
-        time_str = start.strftime("%b %d, %I:%M %p")
-        parts = [f"Booked: <b>{title}</b>", f"When: {time_str}"]
+        time_str = fmt_date(start, lang)
+        parts = [
+            t(_STRINGS, "booked", lang, title=title),
+            t(_STRINGS, "when", lang, time=time_str),
+        ]
         if contact_name:
-            parts.append(f"Client: {contact_name}")
+            parts.append(t(_STRINGS, "client", lang, name=contact_name))
         if location:
-            parts.append(f"Where: {location}")
+            parts.append(t(_STRINGS, "where", lang, location=location))
+        parts.append(t(_STRINGS, "action", lang))
 
         return SkillResult(response_text="\n".join(parts))
 

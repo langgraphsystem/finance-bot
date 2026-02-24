@@ -7,7 +7,9 @@ its own model and context configuration for token savings.
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.memory.context import assemble_context
@@ -72,6 +74,23 @@ class AgentRouter:
         )
         return system_prompt + instruction
 
+    @staticmethod
+    def _add_date_instruction(system_prompt: str, context: SessionContext) -> str:
+        """Append current date/time so the LLM knows today's date."""
+        try:
+            tz = ZoneInfo(context.timezone)
+        except Exception:
+            tz = ZoneInfo("America/New_York")
+        now = datetime.now(tz)
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        block = (
+            f"\n\nCurrent date/time: {now.strftime('%Y-%m-%d %H:%M')} ({context.timezone}). "
+            f"Today: {now.strftime('%Y-%m-%d')}. "
+            f"Tomorrow: {(now + timedelta(days=1)).strftime('%Y-%m-%d')}. "
+            f"Day of week: {days[now.weekday()]}."
+        )
+        return system_prompt + block
+
     @observe(name="agent_route")
     async def route(
         self,
@@ -98,6 +117,7 @@ class AgentRouter:
             # Assemble context with agent-specific system prompt
             try:
                 prompt = self._add_language_instruction(agent.system_prompt, context)
+                prompt = self._add_date_instruction(prompt, context)
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,
@@ -151,6 +171,7 @@ class AgentRouter:
             try:
                 system_prompt = skill.get_system_prompt(context)
                 system_prompt = self._add_language_instruction(system_prompt, context)
+                system_prompt = self._add_date_instruction(system_prompt, context)
                 assembled = await assemble_context(
                     user_id=context.user_id,
                     family_id=context.family_id,

@@ -13,9 +13,27 @@ from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import fmt_time, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "today": "Today's",
+        "week": "This week's",
+        "empty": "📋 {label} schedule is clear. No bookings.",
+        "header": "📋 <b>{label} bookings ({count}):</b>\n",
+        "action": "\nBook another? Just tell me.",
+    },
+    "ru": {
+        "today": "Сегодня",
+        "week": "На этой неделе",
+        "empty": "📋 {label} — расписание свободно.",
+        "header": "📋 <b>{label} — записи ({count}):</b>\n",
+        "action": "\nЗабронировать ещё? Просто скажи.",
+    },
+}
 
 LIST_BOOKINGS_PROMPT = """\
 You help users view their booking schedule.
@@ -38,19 +56,20 @@ class ListBookingsSkill:
         tz = ZoneInfo(context.timezone)
         now = datetime.now(tz)
         period = intent_data.get("period") or "today"
+        lang = context.language or "en"
 
         if period == "today":
             start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
             end_range = start_range + timedelta(days=1)
-            label = "Today's"
+            label = t(_STRINGS, "today", lang)
         elif period == "week":
             start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
             end_range = start_range + timedelta(days=7)
-            label = "This week's"
+            label = t(_STRINGS, "week", lang)
         else:
             start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
             end_range = start_range + timedelta(days=1)
-            label = "Today's"
+            label = t(_STRINGS, "today", lang)
 
         async with async_session() as session:
             result = await session.execute(
@@ -72,18 +91,19 @@ class ListBookingsSkill:
             bookings = result.scalars().all()
 
         if not bookings:
-            return SkillResult(response_text=f"{label} schedule is clear. No bookings.")
+            return SkillResult(response_text=t(_STRINGS, "empty", lang, label=label))
 
-        lines = [f"<b>{label} bookings ({len(bookings)}):</b>\n"]
+        lines = [t(_STRINGS, "header", lang, label=label, count=str(len(bookings)))]
         for b in bookings:
             local_start = b.start_at.astimezone(tz)
-            time_str = local_start.strftime("%I:%M %p")
+            time_str = fmt_time(local_start, lang)
             status_icon = "\u2705" if b.status == BookingStatus.confirmed else "\U0001f4c5"
             line = f"{status_icon} <b>{time_str}</b> — {b.title}"
             if b.location:
                 line += f" @ {b.location}"
             lines.append(line)
 
+        lines.append(t(_STRINGS, "action", lang))
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:

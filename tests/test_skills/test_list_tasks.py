@@ -98,7 +98,7 @@ async def test_list_tasks_with_due_date(skill, message, ctx):
         result = await skill.execute(message, ctx, {})
 
     assert "Pick up Emma" in result.response_text
-    assert "due" in result.response_text.lower()
+    assert "—" in result.response_text
 
 
 @pytest.mark.asyncio
@@ -115,8 +115,9 @@ async def test_list_tasks_priority_icons(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {})
 
-    assert "[urgent]" in result.response_text
+    assert "\U0001f525" in result.response_text  # 🔥 urgent icon
     # Medium priority has no icon
     lines = result.response_text.split("\n")
     normal_line = [line for line in lines if "Normal thing" in line][0]
-    assert "[medium]" not in normal_line
+    assert "\U0001f525" not in normal_line
+    assert "\u26a1" not in normal_line

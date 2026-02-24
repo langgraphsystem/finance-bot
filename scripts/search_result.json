@@ -1,0 +1,59 @@
+{
+  "hotels": [
+    {
+      "name": "Hostel New York",
+      "price": "$94",
+      "rating": "7.1",
+      "review_count": "2,982",
+      "distance": "0.7 miles from downtown",
+      "room_type": "Recommended for your groupFamily Room with Shared Bathroom2 bunk bedsFree cancellation",
+      "cancellation": "Free cancellation",
+      "breakfast": "",
+      "url": "https://www.booking.com/hotel/es/hostel-new-york.html?aid=304142&label=gen173nr-10CAQoggJCEHNlYXJjaF9iYXJjZWxvbmFIM1gEaJMCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALHufPMBsACAdICJDA4YmJlNGE4LTNiMWYtNGY2ZS04NDdiLTE2Mzc1NzYyMjdkNNgCAeACAQ&ucfs=1&arphpl=1&checkin=2026-03-15&checkout=2026-03-18&group_adults=2&req_adults=2&no_rooms=1&group_children=1&req_children=1&age=5&req_age=5&hpos=1&hapos=1&sr_order=price&nflt=fc%3D2&srpvid=269ea2236e2a03e6&srepoch=1771888132&all_sr_blocks=35044304_382156017_0_0_0&highlighted_blocks=35044304_382156017_0_0_0&matching_block_id=35044304_382156017_0_0_0&sr_pri_blocks=35044304_382156017_0_0_0__24000&from=searchresults"
+    },
+    {
+      "name": "Best Western Plus Hotel Alfa Aeropuerto",
+      "price": "$156",
+      "rating": "8.3",
+      "review_count": "2,703",
+      "distance": "5 miles from downtown",
+      "room_type": "Recommended for your groupStandard Triple Room with One Double Bed and One Single Bed - Non-Smoking2 beds (1 twin, 1 full)Free cancellationNo prepayment needed – pay at the property",
+      "cancellation": "Free cancellation",
+      "breakfast": "",
+      "url": "https://www.booking.com/hotel/es/alfaaeropuerto.html?aid=304142&label=gen173nr-10CAQoggJCEHNlYXJjaF9iYXJjZWxvbmFIM1gEaJMCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALHufPMBsACAdICJDA4YmJlNGE4LTNiMWYtNGY2ZS04NDdiLTE2Mzc1NzYyMjdkNNgCAeACAQ&ucfs=1&arphpl=1&checkin=2026-03-15&checkout=2026-03-18&group_adults=2&req_adults=2&no_rooms=1&group_children=1&req_children=1&age=5&req_age=5&hpos=2&hapos=2&sr_order=price&nflt=fc%3D2&srpvid=269ea2236e2a03e6&srepoch=1771888132&all_sr_blocks=9111960_426975809_2_42_66520453480448&highlighted_blocks=9111960_426975809_2_42_66520453480448&matching_block_id=9111960_426975809_2_42_66520453480448&sr_pri_blocks=9111960_426975809_2_42_66520453480448__39621&from=searchresults"
+    },
+    {
+      "name": "Putxet by gaiarooms",
+      "price": "$121",
+      "rating": "5.9",
+      "review_count": "1,269",
+      "distance": "1.8 miles from downtown",
+      "room_type": "Recommended for your groupTriple Room2 beds (1 twin, 1 full)Free cancellationNo prepayment needed – pay at the property",
+      "cancellation": "Free cancellation",
+      "breakfast": "",
+      "url": "https://www.booking.com/hotel/es/hostal-putxet.html?aid=304142&label=gen173nr-10CAQoggJCEHNlYXJjaF9iYXJjZWxvbmFIM1gEaJMCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALHufPMBsACAdICJDA4YmJlNGE4LTNiMWYtNGY2ZS04NDdiLTE2Mzc1NzYyMjdkNNgCAeACAQ&ucfs=1&arphpl=1&checkin=2026-03-15&checkout=2026-03-18&group_adults=2&req_adults=2&no_rooms=1&group_children=1&req_children=1&age=5&req_age=5&hpos=3&hapos=3&sr_order=price&nflt=fc%3D2&srpvid=269ea2236e2a03e6&srepoch=1771888132&all_sr_blocks=9328605_406254467_3_0_0&highlighted_blocks=9328605_406254467_3_0_0&matching_block_id=9328605_406254467_3_0_0&sr_pri_blocks=9328605_406254467_3_0_0__30788&from=searchresults"
+    },
+    {
+      "name": "Hostal Lima",
+      "price": "$122",
+      "rating": "6.3",
+      "review_count": "862",
+      "distance": "0.1 miles from downtown",
+      "room_type": "Recommended for your groupTriple Room2 beds (1 twin, 1 full)Free cancellation",
+      "cancellation": "Free cancellation",
+      "breakfast": "",
+      "url": "https://www.booking.com/hotel/es/hostal-lima-barcelona.html?aid=304142&label=gen173nr-10CAQoggJCEHNlYXJjaF9iYXJjZWxvbmFIM1gEaJMCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALHufPMBsACAdICJDA4YmJlNGE4LTNiMWYtNGY2ZS04NDdiLTE2Mzc1NzYyMjdkNNgCAeACAQ&ucfs=1&arphpl=1&checkin=2026-03-15&checkout=2026-03-18&group_adults=2&req_adults=2&no_rooms=1&group_children=1&req_children=1&age=5&req_age=5&hpos=4&hapos=4&sr_order=price&nflt=fc%3D2&srpvid=269ea2236e2a03e6&srepoch=1771888132&all_sr_blocks=46500102_404465565_0_0_0&highlighted_blocks=46500102_404465565_0_0_0&matching_block_id=46500102_404465565_0_0_0&sr_pri_blocks=46500102_404465565_0_0_0__31091&from=searchresults"
+    },
+    {
+      "name": "Hotel Coronado",
+      "price": "$124",
+      "rating": "7.0",
+      "review_count": "2,395",
+      "distance": "1 miles from downtown",
+      "room_type": "Recommended for your groupTriple RoomMultiple bed typesFree cancellation",
+      "cancellation": "Free cancellation",
+      "breakfast": "",
+      "url": "https://www.booking.com/hotel/es/coronado.html?aid=304142&label=gen173nr-10CAQoggJCEHNlYXJjaF9iYXJjZWxvbmFIM1gEaJMCiAEBmAEzuAEXyAEM2AED6AEB-AEBiAIBqAIBuALHufPMBsACAdICJDA4YmJlNGE4LTNiMWYtNGY2ZS04NDdiLTE2Mzc1NzYyMjdkNNgCAeACAQ&ucfs=1&arphpl=1&checkin=2026-03-15&checkout=2026-03-18&group_adults=2&req_adults=2&no_rooms=1&group_children=1&req_children=1&age=5&req_age=5&hpos=5&hapos=5&sr_order=price&nflt=fc%3D2&srpvid=269ea2236e2a03e6&srepoch=1771888132&all_sr_blocks=9750106_422800863_0_0_0&highlighted_blocks=9750106_422800863_0_0_0&matching_block_id=9750106_422800863_0_0_0&sr_pri_blocks=9750106_422800863_0_0_0__31545&from=searchresults"
+    }
+  ]
+}

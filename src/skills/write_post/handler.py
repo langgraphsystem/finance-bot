@@ -8,9 +8,21 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "ask_topic": "What would you like me to write? Tell me the topic and platform.",
+        "error": "I couldn't generate the content. Try rephrasing?",
+    },
+    "ru": {
+        "ask_topic": "О чём написать? Укажи тему и платформу.",
+        "error": "Не удалось сгенерировать текст. Попробуй переформулировать?",
+    },
+}
 
 WRITE_POST_SYSTEM_PROMPT = """\
 You are a content writing assistant. The user wants to write a post, review response, \
@@ -40,6 +52,7 @@ class WritePostSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         topic = (
             intent_data.get("writing_topic")
             or intent_data.get("search_topic")
@@ -50,14 +63,14 @@ class WritePostSkill:
 
         if not topic:
             return SkillResult(
-                response_text=("What would you like me to write? Tell me the topic and platform.")
+                response_text=t(_STRINGS, "ask_topic", lang)
             )
 
         platform = intent_data.get("target_platform") or ""
         if platform:
             topic = f"[Platform: {platform}] {topic}"
 
-        post = await generate_post(topic, context.language or "en")
+        post = await generate_post(topic, lang)
         return SkillResult(response_text=post)
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -68,6 +81,7 @@ async def generate_post(topic: str, language: str) -> str:
     """Generate platform-ready content using Claude Sonnet."""
     client = anthropic_client()
     system = WRITE_POST_SYSTEM_PROMPT.format(language=language)
+    system = f"IMPORTANT: Write ONLY in {language}. Do NOT use any other language.\n\n" + system
     prompt_data = PromptAdapter.for_claude(
         system=system,
         messages=[{"role": "user", "content": topic}],
@@ -82,7 +96,7 @@ async def generate_post(topic: str, language: str) -> str:
         return response.content[0].text
     except Exception as e:
         logger.warning("Post generation failed: %s", e)
-        return "I couldn't generate the content. Try rephrasing?"
+        return t(_STRINGS, "error", language)
 
 
 skill = WritePostSkill()

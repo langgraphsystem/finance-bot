@@ -34,12 +34,11 @@
         </div>
         <div class="nav-menu" id="nav-menu">
             <div class="nav-links">
-                <a href="#features" data-i18n="nav_rube" class="nav-link">RUBE(MCP)</a>
-                <a href="#pricing" data-i18n="nav_pricing" class="nav-link">PRICING</a>
-                <a href="#blog" data-i18n="nav_blog" class="nav-link">BLOG</a>
-                <a href="#solutions" data-i18n="nav_solutions" class="nav-link">SOLUTIONS</a>
-                <a href="#docs" data-i18n="nav_docs" class="nav-link">DOCS</a>
-                <a href="#toolkits" data-i18n="nav_toolkits" class="nav-link">TOOLKITS</a>
+                <a href="#features" data-i18n="nav_features" class="nav-link">Возможности</a>
+                <a href="#agents" data-i18n="nav_agents" class="nav-link">Агенты</a>
+                <a href="#pricing" data-i18n="nav_pricing" class="nav-link">Тарифы</a>
+                <a href="#" data-i18n="nav_docs" class="nav-link">Документация</a>
+                <a href="#" data-i18n="nav_blog" class="nav-link">Блог</a>
             </div>
             <div class="nav-actions">
                 <div class="lang-selector">
@@ -49,7 +48,9 @@
                         <option value="es">🇪🇸 ES</option>
                     </select>
                 </div>
-                <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn" data-i18n="nav_login">SIGN IN</a>
+                <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn" data-i18n="nav_login">Войти</a>
+                <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><span data-i18n="nav_start">Начать
+                        бесплатно</span> <i class="fa-solid fa-arrow-right"></i></a>
             </div>
         </div>
         <div class="mobile-menu-btn" id="mobile-menu-btn">
@@ -58,17 +59,36 @@
     </nav>
 
     <!-- Hero Section -->
-    <section class="hero text-center">
-        <div class="hero-content reveal mx-auto" style="max-width: 800px;">
-            <h1 class="hero-title" data-i18n="hero_title">Skills that <span
-                    class="gradient-text type-effect">evolve</span> with <br>your Agents</h1>
-            <p class="hero-subtitle mx-auto" data-i18n="hero_subtitle" style="margin: 0 auto 40px; font-size: 1.25rem;">
-                More than just integrations, 10,000+ tools that can adapt — turning automation into intuition.</p>
-            <div class="hero-cta justify-center mt-4" style="justify-content: center;">
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large" data-i18n="hero_btn_start"
-                    style="text-transform: uppercase;">GET STARTED FOR FREE</a>
-                <a href="#docs" class="btn btn-outline btn-large" data-i18n="hero_btn_docs"
-                    style="text-transform: uppercase;"><i class="fa-solid fa-arrow-right"></i> EXPLORE DOCS</a>
+    <section class="hero" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+        <!-- Terminal Demo -->
+        <div class="hero-visual reveal delay-1"
+            style="width: 100%; max-width: 600px; display: flex; justify-content: center;">
+            <div class="terminal-container">
+                <div class="terminal-header">
+                    <div class="window-controls">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <div class="terminal-title">finance-ai — bash — 80x24</div>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="cmd-line"><span class="prompt">~ %</span> <span class="cmd-input">finance record
+                            expense</span></div>
+                    <div class="cmd-response hidden" id="cmd-resp-1">
+                        <span class="clr-blue">?</span> Enter amount Details: <span class="clr-green"
+                            id="term_input">"Заправил трак на 150 баксов"</span><br>
+                        <span class="clr-dim" id="term_processing">Processing with Finance AI...</span>
+                    </div>
+                    <div class="cmd-response hidden" id="cmd-resp-2">
+                        <br>
+                        <span class="clr-green">✔</span> <strong>Success!</strong> Recorded to your Tracker.<br>
+                        <span class="clr-purple">Category:</span> <span id="term_cat">Транспорт / Топливо</span><br>
+                        <span class="clr-purple">Amount:</span> $150.00<br>
+                        <span class="clr-dim" id="term_note">Note: Записано в расходы. Это 15% от бюджета на
+                            месяц.</span><br>
+                        <br>
+                        <span class="prompt">~ %</span> <span class="cursor-blink">_</span>
+                    </div>
+                </div>
             </div>
         </div>
     </section>

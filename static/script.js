@@ -1,18 +1,17 @@
 const translations = {
     ru: {
-        nav_features: "Возможности",
-        nav_how: "Как работает",
+        nav_rube: "RUBE(MCP)",
         nav_pricing: "Тарифы",
-        nav_docs: "Документация",
         nav_blog: "Блог",
-        nav_login: "Войти",
-        nav_start: "Начать бесплатно",
+        nav_solutions: "Решения",
+        nav_docs: "Документация",
+        nav_toolkits: "Инструменты",
+        nav_login: "ВОЙТИ",
 
-
-        hero_title: "Ваш персональный <br><span class='gradient-text type-effect'>финансовый AI-ассистент</span>",
-        hero_subtitle: "Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально для малого бизнеса, фрилансеров и семей.",
-        hero_btn_start: "Начать использовать",
-        hero_btn_docs: "Читать документацию",
+        hero_title: "Навыки, которые <span class='gradient-text type-effect'>развиваются</span> вместе с <br>вашими Агентами",
+        hero_subtitle: "Больше, чем просто интеграции. 10 000+ инструментов, которые могут адаптироваться — превращая автоматизацию в интуицию.",
+        hero_btn_start: "НАЧАТЬ БЕСПЛАТНО",
+        hero_btn_docs: "ЧИТАТЬ ДОКУМЕНТАЦИЮ",
 
         integrations_label: "ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ ИНСТРУМЕНТАМИ",
 
@@ -72,19 +71,18 @@ const translations = {
         code_query: "\"Авто за полгода\""
     },
     en: {
-        nav_features: "Features",
-        nav_how: "How it works",
-        nav_pricing: "Pricing",
-        nav_docs: "Documentation",
-        nav_blog: "Blog",
-        nav_login: "Login",
-        nav_start: "Start for free",
+        nav_rube: "RUBE(MCP)",
+        nav_pricing: "PRICING",
+        nav_blog: "BLOG",
+        nav_solutions: "SOLUTIONS",
+        nav_docs: "DOCS",
+        nav_toolkits: "TOOLKITS",
+        nav_login: "SIGN IN",
 
-
-        hero_title: "Your personal <br><span class='gradient-text type-effect'>financial AI assistant</span>",
-        hero_subtitle: "Manage money, tasks, and schedules right in your favorite messenger. Ideal for small businesses, freelancers, and families.",
-        hero_btn_start: "Start Using",
-        hero_btn_docs: "Read Docs",
+        hero_title: "Skills that <span class='gradient-text type-effect'>evolve</span> with <br>your Agents",
+        hero_subtitle: "More than just integrations, 10,000+ tools that can adapt — turning automation into intuition.",
+        hero_btn_start: "GET STARTED FOR FREE",
+        hero_btn_docs: "EXPLORE DOCS",
 
         integrations_label: "INTEGRATES WITH YOUR FAVORITE TOOLS",
 
@@ -144,19 +142,18 @@ const translations = {
         code_query: "\"Auto for half a year\""
     },
     es: {
-        nav_features: "Características",
-        nav_how: "Cómo funciona",
-        nav_pricing: "Precios",
-        nav_docs: "Documentación",
-        nav_blog: "Blog",
-        nav_login: "Iniciar sesión",
-        nav_start: "Empezar gratis",
+        nav_rube: "RUBE(MCP)",
+        nav_pricing: "PRECIOS",
+        nav_blog: "BLOG",
+        nav_solutions: "SOLUCIONES",
+        nav_docs: "DOCUMENTACIÓN",
+        nav_toolkits: "HERRAMIENTAS",
+        nav_login: "INICIAR SESIÓN",
 
-
-        hero_title: "Tu asistente <br><span class='gradient-text type-effect'>financiero IA</span> personal",
-        hero_subtitle: "Gestiona dinero, tareas y horarios directamente en tu mensajero favorito. Ideal para pequeñas empresas, autónomos y familias.",
-        hero_btn_start: "Empezar a Usar",
-        hero_btn_docs: "Leer Documentación",
+        hero_title: "Habilidades que <span class='gradient-text type-effect'>evolucionan</span> con <br>tus Agentes",
+        hero_subtitle: "Más que solo integraciones, más de 10,000 herramientas que pueden adaptarse — convirtiendo la automatización en intuición.",
+        hero_btn_start: "EMPEZA GRATIS",
+        hero_btn_docs: "EXPLORAR DOCS",
 
         integrations_label: "SE INTEGRA CON TUS HERRAMIENTAS FAVORITAS",
 

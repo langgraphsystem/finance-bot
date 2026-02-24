@@ -12,6 +12,7 @@ from src.core.db import async_session
 from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,56 @@ async def _get_all_items(list_id: uuid.UUID) -> list[ShoppingListItem]:
         return list(result.scalars().all())
 
 
+_STRINGS = {
+    "en": {
+        "add_ask": "What do you want to add to your list?",
+        "add_already": "Already on your list: {items}.",
+        "add_one": "Added <b>{item}</b> to your {list_name} list.",
+        "add_many": "Added {count} items to your {list_name} list.",
+        "add_already_short": "Already on list: {items}.",
+        "add_total": "{total} items total.",
+        "view_no_lists": "No lists yet. Text me items to start one.",
+        "view_empty": "Your {name} list is empty. Text me items to add.",
+        "view_header": "\U0001f6d2 <b>{name} list</b> ({count} items):",
+        "view_checked": "\n<i>Checked off: {count}</i>",
+        "remove_no_lists": "No lists found.",
+        "remove_empty": "Your {name} list is already empty.",
+        "remove_all_done": "All done \u2014 checked off {count} items from your {name} list.",
+        "remove_ask": "Which item did you get?",
+        "remove_done": "\u2705 Checked off: {items}.",
+        "remove_remaining": " {count} remaining.",
+        "remove_not_found": "Didn't find: {items}.",
+        "clear_no_lists": "No lists to clear.",
+        "clear_empty": "Your {name} list is already empty.",
+        "clear_done": "\U0001f5d1 Cleared your {name} list ({count} items removed).",
+    },
+    "ru": {
+        "add_ask": "Что добавить в список?",
+        "add_already": "Уже в списке: {items}.",
+        "add_one": "Добавлено: <b>{item}</b> в список \u00ab{list_name}\u00bb.",
+        "add_many": "Добавлено {count} позиций в список \u00ab{list_name}\u00bb.",
+        "add_already_short": "Уже в списке: {items}.",
+        "add_total": "Всего: {total}.",
+        "view_no_lists": "Списков пока нет. Напиши, что добавить.",
+        "view_empty": "Список \u00ab{name}\u00bb пуст. Напиши, что добавить.",
+        "view_header": "\U0001f6d2 <b>Список \u00ab{name}\u00bb</b> ({count}):",
+        "view_checked": "\n<i>Куплено: {count}</i>",
+        "remove_no_lists": "Списков нет.",
+        "remove_empty": "Список \u00ab{name}\u00bb уже пуст.",
+        "remove_all_done": (
+            "Всё куплено \u2014 отмечено {count} позиций в списке \u00ab{name}\u00bb."
+        ),
+        "remove_ask": "Что уже купил?",
+        "remove_done": "\u2705 Куплено: {items}.",
+        "remove_remaining": " Осталось: {count}.",
+        "remove_not_found": "Не нашёл: {items}.",
+        "clear_no_lists": "Нечего очищать.",
+        "clear_empty": "Список \u00ab{name}\u00bb уже пуст.",
+        "clear_done": "\U0001f5d1 Список \u00ab{name}\u00bb очищен ({count} удалено).",
+    },
+}
+
+
 # ─── Add Items Skill ──────────────────────────────────────────────
 
 
@@ -148,9 +199,10 @@ class ShoppingListAddSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         items = _parse_items(intent_data, message.text or "")
         if not items:
-            return SkillResult(response_text="What do you want to add to your list?")
+            return SkillResult(response_text=t(_STRINGS, "add_ask", lang))
 
         list_name = _parse_list_name(intent_data)
         family_id = uuid.UUID(context.family_id)
@@ -172,7 +224,9 @@ class ShoppingListAddSkill:
                 existing_names.add(item_name.lower())
 
         if not new_items and skipped:
-            return SkillResult(response_text=f"Already on your list: {', '.join(skipped)}.")
+            return SkillResult(
+                response_text=t(_STRINGS, "add_already", lang, items=", ".join(skipped))
+            )
 
         if new_items:
             async with async_session() as session:
@@ -191,12 +245,12 @@ class ShoppingListAddSkill:
         count = len(new_items)
         parts = []
         if count == 1:
-            parts.append(f"Added <b>{new_items[0]}</b> to your {list_name} list.")
+            parts.append(t(_STRINGS, "add_one", lang, item=new_items[0], list_name=list_name))
         elif count > 1:
-            parts.append(f"Added {count} items to your {list_name} list.")
+            parts.append(t(_STRINGS, "add_many", lang, count=str(count), list_name=list_name))
         if skipped:
-            parts.append(f"Already on list: {', '.join(skipped)}.")
-        parts.append(f"{total} items total.")
+            parts.append(t(_STRINGS, "add_already_short", lang, items=", ".join(skipped)))
+        parts.append(t(_STRINGS, "add_total", lang, total=str(total)))
 
         return SkillResult(response_text=" ".join(parts))
 
@@ -219,6 +273,7 @@ class ShoppingListViewSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         family_id = uuid.UUID(context.family_id)
         list_name = intent_data.get("shopping_list_name")
 
@@ -230,7 +285,7 @@ class ShoppingListViewSkill:
             shopping_list = await _get_most_recent_list(family_id)
 
         if not shopping_list:
-            return SkillResult(response_text="No lists yet. Text me items to start one.")
+            return SkillResult(response_text=t(_STRINGS, "view_no_lists", lang))
 
         all_items = await _get_all_items(shopping_list.id)
         unchecked = [i for i in all_items if not i.is_checked]
@@ -238,16 +293,24 @@ class ShoppingListViewSkill:
 
         if not all_items:
             return SkillResult(
-                response_text=f"Your {shopping_list.name} list is empty. Text me items to add."
+                response_text=t(_STRINGS, "view_empty", lang, name=shopping_list.name)
             )
 
-        lines = [f"<b>{shopping_list.name.title()} list</b> ({len(unchecked)} items):"]
+        lines = [
+            t(
+                _STRINGS,
+                "view_header",
+                lang,
+                name=shopping_list.name.title(),
+                count=str(len(unchecked)),
+            )
+        ]
         for i, item in enumerate(unchecked, 1):
             qty = f" ({item.quantity})" if item.quantity else ""
             lines.append(f"{i}. {item.name}{qty}")
 
         if checked:
-            lines.append(f"\n<i>Checked off: {len(checked)}</i>")
+            lines.append(t(_STRINGS, "view_checked", lang, count=str(len(checked))))
 
         return SkillResult(response_text="\n".join(lines))
 
@@ -270,6 +333,7 @@ class ShoppingListRemoveSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         family_id = uuid.UUID(context.family_id)
         text = (message.text or "").lower()
 
@@ -294,11 +358,13 @@ class ShoppingListRemoveSkill:
             shopping_list = await _get_most_recent_list(family_id)
 
         if not shopping_list:
-            return SkillResult(response_text="No lists found.")
+            return SkillResult(response_text=t(_STRINGS, "remove_no_lists", lang))
 
         unchecked = await _get_unchecked_items(shopping_list.id)
         if not unchecked:
-            return SkillResult(response_text=f"Your {shopping_list.name} list is already empty.")
+            return SkillResult(
+                response_text=t(_STRINGS, "remove_empty", lang, name=shopping_list.name)
+            )
 
         now = datetime.now(UTC)
 
@@ -314,9 +380,12 @@ class ShoppingListRemoveSkill:
                 )
                 await session.commit()
             return SkillResult(
-                response_text=(
-                    f"All done — checked off {len(unchecked)} items "
-                    f"from your {shopping_list.name} list."
+                response_text=t(
+                    _STRINGS,
+                    "remove_all_done",
+                    lang,
+                    count=str(len(unchecked)),
+                    name=shopping_list.name,
                 )
             )
 
@@ -350,10 +419,10 @@ class ShoppingListRemoveSkill:
             remove_items = [i.strip() for i in text.split(",") if i.strip()]
 
         if not remove_items:
-            return SkillResult(response_text="Which item did you get?")
+            return SkillResult(response_text=t(_STRINGS, "remove_ask", lang))
 
         # Match items by substring
-        checked_count = 0
+        checked_names = []
         not_found = []
         for remove_name in remove_items:
             matched = False
@@ -369,19 +438,19 @@ class ShoppingListRemoveSkill:
                             .values(is_checked=True, checked_at=now)
                         )
                         await session.commit()
-                    checked_count += 1
+                    checked_names.append(item.name)
                     matched = True
                     break
             if not matched:
                 not_found.append(remove_name)
 
-        remaining = len(unchecked) - checked_count
+        remaining = len(unchecked) - len(checked_names)
         parts = []
-        if checked_count:
-            parts.append(f"Checked off {checked_count} item{'s' if checked_count > 1 else ''}.")
-            parts.append(f"{remaining} remaining.")
+        if checked_names:
+            parts.append(t(_STRINGS, "remove_done", lang, items=", ".join(checked_names)))
+            parts.append(t(_STRINGS, "remove_remaining", lang, count=str(remaining)))
         if not_found:
-            parts.append(f"Didn't find: {', '.join(not_found)}.")
+            parts.append(t(_STRINGS, "remove_not_found", lang, items=", ".join(not_found)))
 
         return SkillResult(response_text=" ".join(parts))
 
@@ -404,6 +473,7 @@ class ShoppingListClearSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         family_id = uuid.UUID(context.family_id)
 
         list_name = intent_data.get("shopping_list_name")
@@ -415,11 +485,13 @@ class ShoppingListClearSkill:
             shopping_list = await _get_most_recent_list(family_id)
 
         if not shopping_list:
-            return SkillResult(response_text="No lists to clear.")
+            return SkillResult(response_text=t(_STRINGS, "clear_no_lists", lang))
 
         all_items = await _get_all_items(shopping_list.id)
         if not all_items:
-            return SkillResult(response_text=f"Your {shopping_list.name} list is already empty.")
+            return SkillResult(
+                response_text=t(_STRINGS, "clear_empty", lang, name=shopping_list.name)
+            )
 
         count = len(all_items)
         async with async_session() as session:
@@ -431,7 +503,7 @@ class ShoppingListClearSkill:
             await session.commit()
 
         return SkillResult(
-            response_text=f"Cleared your {shopping_list.name} list ({count} items removed)."
+            response_text=t(_STRINGS, "clear_done", lang, name=shopping_list.name, count=str(count))
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:

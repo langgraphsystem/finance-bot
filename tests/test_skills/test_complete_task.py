@@ -66,7 +66,7 @@ async def test_complete_task_found(skill, message, ctx):
     ):
         result = await skill.execute(message, ctx, {"task_title": "dentist call"})
 
-    assert "Marked done: call dentist" in result.response_text
+    assert "Done: <b>call dentist</b>" in result.response_text
     assert "3 tasks left" in result.response_text
 
 

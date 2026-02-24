@@ -12,6 +12,8 @@ from src.core.models.enums import TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import fmt_date
+from src.skills._i18n import t as tr
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,10 +24,23 @@ ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
 
 PRIORITY_ICONS = {
-    TaskPriority.urgent: "[urgent]",
-    TaskPriority.high: "[high]",
+    TaskPriority.urgent: "\U0001f525",
+    TaskPriority.high: "\u26a1",
     TaskPriority.medium: "",
-    TaskPriority.low: "[low]",
+    TaskPriority.low: "\U0001f4a4",
+}
+
+_STRINGS = {
+    "en": {
+        "empty": "No open tasks. Text me to add one.",
+        "header": '\u2705 <b>Your tasks</b> ({count} open):',
+        "action": "\nText me to mark one done.",
+    },
+    "ru": {
+        "empty": "Нет открытых задач. Напиши, чтобы добавить.",
+        "header": "✅ <b>Ваши задачи</b> ({count} открытых):",
+        "action": "\nНапиши, чтобы отметить выполненное.",
+    },
 }
 
 
@@ -41,20 +56,22 @@ class ListTasksSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         tasks = await get_open_tasks(context.family_id, context.user_id)
 
         if not tasks:
-            return SkillResult(response_text="No open tasks. Text me to add one.")
+            return SkillResult(response_text=tr(_STRINGS, "empty", lang))
 
-        lines = [f"Your tasks ({len(tasks)} open):"]
+        lines = [tr(_STRINGS, "header", lang, count=str(len(tasks)))]
         for i, t in enumerate(tasks, 1):
             icon = PRIORITY_ICONS.get(t.priority, "")
             prefix = f"{icon} " if icon else ""
             due = ""
             if t.due_at:
-                due = f" — due {t.due_at.strftime('%b %d, %I:%M %p')}"
+                due = f" — {fmt_date(t.due_at, lang)}"
             lines.append(f"{i}. {prefix}{t.title}{due}")
 
+        lines.append(tr(_STRINGS, "action", lang))
         return SkillResult(response_text="\n".join(lines))
 
     def get_system_prompt(self, context: SessionContext) -> str:

@@ -13,9 +13,23 @@ from src.core.models.enums import TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "ask_which": "Which task did you complete?",
+        "not_found": 'No open task matching "{query}". Check your list?',
+        "done": '✅ Done: <b>{title}</b>. {remaining} task{s} left.',
+    },
+    "ru": {
+        "ask_which": "Какую задачу выполнил?",
+        "not_found": 'Не нашёл открытую задачу «{query}». Проверить список?',
+        "done": '✅ Выполнено: <b>{title}</b>. Осталось: {remaining}.',
+    },
+}
 
 COMPLETE_TASK_SYSTEM_PROMPT = """\
 You help users mark tasks as done.
@@ -39,19 +53,25 @@ class CompleteTaskSkill:
             intent_data.get("task_title") or intent_data.get("description") or message.text or ""
         )
         query = query.strip()
+        lang = context.language or "en"
 
         if not query:
-            return SkillResult(response_text="Which task did you complete?")
+            return SkillResult(response_text=t(_STRINGS, "ask_which", lang))
 
         task = await find_and_complete_task(context.family_id, context.user_id, query)
 
         if task is None:
-            return SkillResult(response_text=f'No open task matching "{query}". Check your list?')
+            return SkillResult(response_text=t(_STRINGS, "not_found", lang, query=query))
 
         remaining = await count_open_tasks(context.family_id, context.user_id)
         return SkillResult(
-            response_text=(
-                f"Marked done: {task.title}. {remaining} task{'s' if remaining != 1 else ''} left."
+            response_text=t(
+                _STRINGS,
+                "done",
+                lang,
+                title=task.title,
+                remaining=str(remaining),
+                s="s" if remaining != 1 and lang == "en" else "",
             )
         )
 
@@ -79,21 +99,21 @@ async def find_and_complete_task(family_id: str, user_id: str, query: str) -> Ta
     # Find best match: exact substring match first, then partial
     best = None
     best_score = -1
-    for t in tasks:
-        title_lower = t.title.lower()
+    for task in tasks:
+        title_lower = task.title.lower()
         if query_lower == title_lower:
-            best = t
+            best = task
             break
         if query_lower in title_lower:
             score = len(query_lower) / len(title_lower)
             if score > best_score:
                 best_score = score
-                best = t
+                best = task
         elif title_lower in query_lower:
             score = len(title_lower) / len(query_lower) * 0.8
             if score > best_score:
                 best_score = score
-                best = t
+                best = task
 
     if best is None:
         return None

@@ -338,17 +338,18 @@ h3 {
     }
 }
 
-/* ─── HERO SECTION ─── */
 .hero {
     min-height: 100vh;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     align-items: center;
-    gap: 60px;
+    gap: 40px;
     padding: 160px 5% 80px;
     max-width: 1300px;
     margin: 0 auto;
     position: relative;
+    text-align: center;
 }
 
 .hero-subtitle {
