@@ -32,37 +32,35 @@
             </svg>
             <span>Finance AI</span>
         </div>
-        <div class="nav-links">
-            <a href="#features" data-i18n="nav_features">Возможности</a>
-            <a href="#agents" data-i18n="nav_agents">Агенты</a>
-            <a href="#pricing" data-i18n="nav_pricing">Тарифы</a>
-            <a href="#" data-i18n="nav_docs">Документация</a>
-            <a href="#" data-i18n="nav_blog">Блог</a>
-        </div>
-        <div class="nav-actions">
-            <div class="lang-selector">
-                <select id="language-select" class="btn-outline">
-                    <option value="ru">🇷🇺 RU</option>
-                    <option value="en" selected>🇺🇸 EN</option>
-                    <option value="es">🇪🇸 ES</option>
-                </select>
+        <div class="nav-menu" id="nav-menu">
+            <div class="nav-links">
+                <a href="#features" data-i18n="nav_features" class="nav-link">Возможности</a>
+                <a href="#agents" data-i18n="nav_agents" class="nav-link">Агенты</a>
+                <a href="#pricing" data-i18n="nav_pricing" class="nav-link">Тарифы</a>
+                <a href="#" data-i18n="nav_docs" class="nav-link">Документация</a>
+                <a href="#" data-i18n="nav_blog" class="nav-link">Блог</a>
             </div>
-            <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn" data-i18n="nav_login">Войти</a>
-            <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><span data-i18n="nav_start">Начать
-                    бесплатно</span> <i class="fa-solid fa-arrow-right"></i></a>
+            <div class="nav-actions">
+                <div class="lang-selector">
+                    <select id="language-select" class="btn-outline">
+                        <option value="ru">🇷🇺 RU</option>
+                        <option value="en" selected>🇺🇸 EN</option>
+                        <option value="es">🇪🇸 ES</option>
+                    </select>
+                </div>
+                <a href="https://t.me/YourBotName" class="btn btn-outline nav-btn" data-i18n="nav_login">Войти</a>
+                <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn"><span data-i18n="nav_start">Начать
+                        бесплатно</span> <i class="fa-solid fa-arrow-right"></i></a>
+            </div>
+        </div>
+        <div class="mobile-menu-btn" id="mobile-menu-btn">
+            <i class="fa-solid fa-bars"></i>
         </div>
     </nav>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-content reveal">
-            <div class="badge-wrap">
-                <div class="badge">
-                    <span class="badge-dot"></span>
-                    <span class="badge-text" data-i18n="hero_badge">Powered by Claude & ChatGPT & Gemini</span>
-                </div>
-            </div>
-
             <h1 class="hero-title" data-i18n="hero_title">Ваш персональный <br><span
                     class="gradient-text type-effect">AI-ассистент</span></h1>
             <p class="hero-subtitle" data-i18n="hero_subtitle">Управляйте деньгами, задачами, расписанием и клиентами
@@ -119,7 +117,7 @@
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
                 <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="68">0</span></div>
+                <div class="stat-value"><span class="counter" data-target="7">0</span></div>
                 <div class="stat-label" data-i18n="stat_skills">Навыков</div>
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(22, 163, 74, 0.15)">
@@ -129,8 +127,19 @@
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(219, 39, 119, 0.15)">
                 <div class="glow-mouse"></div>
-                <div class="stat-value">$<span class="counter" data-target="49">0</span></div>
-                <div class="stat-label" data-i18n="stat_price">в месяц</div>
+                <div class="stat-value"
+                    style="display: flex; justify-content: center; gap: 16px; align-items: center; min-height: 53px;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.022 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7378-7.0968zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829a.0804.0804 0 0 1 .0332-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6806 4.66l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324zm-.1896-7.8596a4.4755 4.4755 0 0 1 2.8764 1.0408l-.1419.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369l-2.02-1.1686a.071.071 0 0 1-.038-.052V4.4536a4.504 4.504 0 0 1 4.4945-4.4944zM8.5878 17.5878v-5.6791l-2.02-1.1686a.0757.0757 0 0 1 .071 0l4.8303 2.7865a4.4992 4.4992 0 0 1-5.2443 6.034zM12 14.4l-3.5685-2.064L12 10.272l3.5684 2.064L12 14.4z" />
+                    </svg>
+                    <!-- Anthropic logo SVG based on star -->
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.373 21h4.15l-8.62-18h-4.32l8.79 18zm-8.31 0H4.91L1.24 13.5l1.83-3.8 6 11.3z" />
+                    </svg>
+                    <i class="fa-brands fa-google" style="font-size: 26px;"></i>
+                </div>
+                <div class="stat-label" data-i18n="stat_models">Модели ИИ</div>
             </div>
         </div>
     </section>
@@ -158,11 +167,6 @@
     <!-- Bento Box Features -->
     <section id="features" class="features section-padding">
         <div class="section-header reveal">
-            <div class="badge-wrap">
-                <div class="badge">
-                    <span class="badge-text" data-i18n="features_badge">66 НАВЫКОВ В ОДНОМ ЧАТЕ</span>
-                </div>
-            </div>
             <h2 class="section-title" data-i18n="features_title">Всё, что вам нужно. <br>В <span
                     class="gradient-text">одном</span> месте.</h2>
             <p class="section-subtitle" data-i18n="features_subtitle">Мощная LangGraph-архитектура сама распределяет

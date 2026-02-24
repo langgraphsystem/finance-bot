@@ -8,7 +8,7 @@ const translations = {
         nav_login: "Войти",
         nav_start: "Начать бесплатно",
 
-        hero_badge: "Работает на Claude & ChatGPT & Gemini",
+
         hero_title: "Ваш персональный <br><span class='gradient-text type-effect'>финансовый AI-ассистент</span>",
         hero_subtitle: "Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально для малого бизнеса, фрилансеров и семей.",
         hero_btn_start: "Начать использовать",
@@ -16,7 +16,7 @@ const translations = {
 
         integrations_label: "ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ ИНСТРУМЕНТАМИ",
 
-        features_badge: "ПОЛНЫЙ КОНТРОЛЬ",
+        stat_models: "Модели ИИ",
         features_title: "Всё, что вам нужно. <br>В <span class='gradient-text'>одном</span> чате.",
         features_subtitle: "Забудьте о сложных таблицах и десятках приложений. Просто напишите команду или отправьте фото.",
 
@@ -80,7 +80,7 @@ const translations = {
         nav_login: "Login",
         nav_start: "Start for free",
 
-        hero_badge: "Powered by Claude & ChatGPT & Gemini",
+
         hero_title: "Your personal <br><span class='gradient-text type-effect'>financial AI assistant</span>",
         hero_subtitle: "Manage money, tasks, and schedules right in your favorite messenger. Ideal for small businesses, freelancers, and families.",
         hero_btn_start: "Start Using",
@@ -88,7 +88,7 @@ const translations = {
 
         integrations_label: "INTEGRATES WITH YOUR FAVORITE TOOLS",
 
-        features_badge: "FULL CONTROL",
+        stat_models: "AI Models",
         features_title: "Everything you need. <br>In <span class='gradient-text'>one</span> chat.",
         features_subtitle: "Forget complex spreadsheets and dozens of apps. Just send a command or a photo.",
 
@@ -152,7 +152,7 @@ const translations = {
         nav_login: "Iniciar sesión",
         nav_start: "Empezar gratis",
 
-        hero_badge: "Impulsado por Claude & ChatGPT & Gemini",
+
         hero_title: "Tu asistente <br><span class='gradient-text type-effect'>financiero IA</span> personal",
         hero_subtitle: "Gestiona dinero, tareas y horarios directamente en tu mensajero favorito. Ideal para pequeñas empresas, autónomos y familias.",
         hero_btn_start: "Empezar a Usar",
@@ -160,7 +160,7 @@ const translations = {
 
         integrations_label: "SE INTEGRA CON TUS HERRAMIENTAS FAVORITAS",
 
-        features_badge: "CONTROL TOTAL",
+        stat_models: "Modelos de IA",
         features_title: "Todo lo que necesitas. <br>En <span class='gradient-text'>un</span> solo chat.",
         features_subtitle: "Olvídate de hojas de cálculo complejas y decenas de aplicaciones. Solo envía un comando o una foto.",
 
@@ -257,8 +257,35 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    /* --- Navbar Scroll Effect --- */
+    /* --- Navbar Scroll Effect & Mobile Menu --- */
     const navbar = document.querySelector('.navbar');
+    const mobileBtn = document.getElementById('mobile-menu-btn');
+    const navMenu = document.getElementById('nav-menu');
+    const navLinks = document.querySelectorAll('.nav-link');
+
+    if (mobileBtn && navMenu) {
+        mobileBtn.addEventListener('click', () => {
+            navMenu.classList.toggle('active');
+            const icon = mobileBtn.querySelector('i');
+            if (navMenu.classList.contains('active')) {
+                icon.classList.remove('fa-bars');
+                icon.classList.add('fa-times');
+            } else {
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            }
+        });
+
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                navMenu.classList.remove('active');
+                const icon = mobileBtn.querySelector('i');
+                icon.classList.remove('fa-times');
+                icon.classList.add('fa-bars');
+            });
+        });
+    }
+
     window.addEventListener('scroll', () => {
         if (window.scrollY > 20) {
             navbar.classList.add('scrolled');
