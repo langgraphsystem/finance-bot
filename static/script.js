@@ -8,7 +8,7 @@ const translations = {
         nav_login: "Войти",
         nav_start: "Начать бесплатно",
 
-        hero_badge: "Работает на Claude 3.5 & Gemini Flash",
+        hero_badge: "Работает на Claude & ChatGPT & Gemini",
         hero_title: "Ваш персональный <br><span class='gradient-text type-effect'>финансовый AI-ассистент</span>",
         hero_subtitle: "Управляйте деньгами, задачами и расписанием прямо в любимом мессенджере. Идеально для малого бизнеса, фрилансеров и семей.",
         hero_btn_start: "Начать использовать",
@@ -30,7 +30,7 @@ const translations = {
         f3_desc: "Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные утренние сводки через Telegram.",
 
         f4_title: "Мульти-агентная аналитика",
-        f4_desc: "Запрашивайте сложные отчеты: \"Покажи мои траты на авто за полгода по месяцам\". Claude 3.5 Sonnet генерирует точные графики прямо в чат.",
+        f4_desc: "Запрашивайте сложные отчеты: \"Покажи мои траты на авто за полгода по месяцам\". Claude 4.6 Sonnet генерирует точные графики прямо в чат.",
 
         uc_badge: "USE CASES",
         uc_title: "Создан под <span class='gradient-text'>вашу</span> жизнь",
@@ -80,7 +80,7 @@ const translations = {
         nav_login: "Login",
         nav_start: "Start for free",
 
-        hero_badge: "Powered by Claude 3.5 & Gemini Flash",
+        hero_badge: "Powered by Claude & ChatGPT & Gemini",
         hero_title: "Your personal <br><span class='gradient-text type-effect'>financial AI assistant</span>",
         hero_subtitle: "Manage money, tasks, and schedules right in your favorite messenger. Ideal for small businesses, freelancers, and families.",
         hero_btn_start: "Start Using",
@@ -102,7 +102,7 @@ const translations = {
         f3_desc: "Track mood, tasks, and meetings in Google Calendar. Get proactive morning summaries via Telegram.",
 
         f4_title: "Multi-agent Analytics",
-        f4_desc: "Request complex reports: \"Show my car expenses for half a year by months.\" Claude 3.5 Sonnet generates accurate charts right in the chat.",
+        f4_desc: "Request complex reports: \"Show my car expenses for half a year by months.\" Claude 4.6 Sonnet generates accurate charts right in the chat.",
 
         uc_badge: "USE CASES",
         uc_title: "Built for <span class='gradient-text'>your</span> life",
@@ -152,7 +152,7 @@ const translations = {
         nav_login: "Iniciar sesión",
         nav_start: "Empezar gratis",
 
-        hero_badge: "Impulsado por Claude 3.5 y Gemini Flash",
+        hero_badge: "Impulsado por Claude & ChatGPT & Gemini",
         hero_title: "Tu asistente <br><span class='gradient-text type-effect'>financiero IA</span> personal",
         hero_subtitle: "Gestiona dinero, tareas y horarios directamente en tu mensajero favorito. Ideal para pequeñas empresas, autónomos y familias.",
         hero_btn_start: "Empezar a Usar",
@@ -174,7 +174,7 @@ const translations = {
         f3_desc: "Haz un seguimiento del estado de ánimo, las tareas y las reuniones en Google Calendar. Recibe resúmenes matutinos proactivos a través de Telegram.",
 
         f4_title: "Analítica Multi-agente",
-        f4_desc: "Solicita informes complejos: \"Muestra los gastos de mi coche durante medio año por meses\". Claude 3.5 Sonnet genera gráficos precisos en el chat.",
+        f4_desc: "Solicita informes complejos: \"Muestra los gastos de mi coche durante medio año por meses\". Claude 4.6 Sonnet genera gráficos precisos en el chat.",
 
         uc_badge: "CASOS DE USO",
         uc_title: "Creado para <span class='gradient-text'>tu</span> vida",
@@ -248,6 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (languageSelect) {
+        // Set language on load
+        languageSelect.value = 'en';
+        setLanguage('en');
+
         languageSelect.addEventListener('change', (e) => {
             setLanguage(e.target.value);
         });

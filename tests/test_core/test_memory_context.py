@@ -190,9 +190,9 @@ class TestQueryContextMap:
         assert cfg["sql"] is True
         assert cfg["sum"] is True
 
-    def test_general_chat_no_mem(self):
+    def test_general_chat_profile_mem(self):
         cfg = QUERY_CONTEXT_MAP["general_chat"]
-        assert cfg["mem"] is False
+        assert cfg["mem"] == "profile"
         assert cfg["sql"] is False
 
     def test_undo_last_exists(self):

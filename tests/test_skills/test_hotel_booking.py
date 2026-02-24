@@ -726,7 +726,7 @@ async def test_execute_booking_payment_required():
         patch("src.tools.browser_booking._set_state", new_callable=AsyncMock),
     ):
         result = await execute_booking("u1")
-    assert result["action"] == "payment_required"
+    assert result["action"] == "payment_handoff"
     assert "$405" in result["text"]
     # Should have a URL button for manual payment
     assert any("url" in str(b) for b in result.get("buttons", []))

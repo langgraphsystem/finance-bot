@@ -36,6 +36,8 @@ Thumbs.db
 .coverage
 htmlcov/
 .pytest_cache/
+coverage.xml
+scripts/test_results/
 
 # Claude Code
 .claude/

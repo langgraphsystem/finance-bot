@@ -102,6 +102,7 @@ async def test_low_confidence_triggers_clarify(sample_ctx, clarify_result):
 
     mock_redis = AsyncMock()
     mock_redis.set = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)
 
     with (
         patch(
@@ -120,6 +121,8 @@ async def test_low_confidence_triggers_clarify(sample_ctx, clarify_result):
             return_value=True,
         ),
         patch("src.core.db.redis", mock_redis),
+        patch("src.tools.browser_login.redis", mock_redis),
+        patch("src.tools.browser_booking.redis", mock_redis),
     ):
         from src.core.router import handle_message
 
@@ -157,6 +160,9 @@ async def test_high_confidence_skips_clarify(sample_ctx, high_confidence_result)
     mock_dr = MagicMock()
     mock_dr.route = AsyncMock(return_value=mock_skill_result)
 
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)
+
     with (
         patch(
             f"{MODULE}.detect_intent",
@@ -183,6 +189,8 @@ async def test_high_confidence_skips_clarify(sample_ctx, high_confidence_result)
             f"{MODULE}.sliding_window.add_message",
             new_callable=AsyncMock,
         ),
+        patch("src.tools.browser_login.redis", mock_redis),
+        patch("src.tools.browser_booking.redis", mock_redis),
     ):
         from src.core.router import handle_message
 

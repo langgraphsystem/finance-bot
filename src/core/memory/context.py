@@ -7,6 +7,7 @@ Phase 3.5: Progressive Context Disclosure — regex heuristic to skip
 heavy context layers for simple queries (saves 80-96% tokens).
 """
 
+import asyncio
 import logging
 import re
 from dataclasses import dataclass, field
@@ -566,7 +567,14 @@ async def assemble_context(
     memories: list[dict] = []
     mem_block = ""
     if ctx_config["mem"]:
-        memories = await _load_memories(ctx_config["mem"], current_message, user_id)
+        try:
+            memories = await asyncio.wait_for(
+                _load_memories(ctx_config["mem"], current_message, user_id),
+                timeout=5.0,
+            )
+        except TimeoutError:
+            logger.warning("Mem0 load timed out after 5s for user %s", user_id)
+            memories = []
         if memories:
             # Pre-trim to per-layer budget
             memories = _trim_memories(memories, budget_mem)

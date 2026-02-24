@@ -805,6 +805,282 @@ async def _get_hotel_details_pw(context: Any, url: str) -> dict:
     return details
 
 
+# ── Playwright Booking (navigate → select room → detect payment) ─────────────
+
+_PAYMENT_DETECT_JS = r"""
+() => {
+    const text = document.body.innerText || '';
+    const isPaymentStep = (
+        /credit card|debit card|payment (method|detail|info)|card number/i.test(text)
+        || /how.*(?:you like to|want to).*pay/i.test(text)
+        || !!document.querySelector(
+            'input[name*="cc_number"], input[name*="card_number"], '
+            + 'input[autocomplete="cc-number"], '
+            + '[data-testid="payment-method"], .payment-method, #payment'
+        )
+    );
+    const savedCardMatch = text.match(
+        /(Visa|Mastercard|Amex|Maestro|JCB)[^\d]{0,30}?(\d{4})/i
+    );
+    let savedCard = savedCardMatch
+        ? `${savedCardMatch[1]} ••••${savedCardMatch[2]}`
+        : '';
+    if (!savedCard) {
+        document.querySelectorAll('span, div, label, p').forEach(el => {
+            const ct = el.textContent || '';
+            if (ct.length < 80 && !savedCard) {
+                const m = ct.match(/(Visa|Mastercard|Amex|Maestro|JCB)[^\d]{0,20}?(\d{4})/i);
+                if (m) savedCard = `${m[1]} ••••${m[2]}`;
+            }
+        });
+    }
+    const needsCvv = !!document.querySelector(
+        'input[name*="cvc"], input[name*="cvv"], '
+        + 'input[autocomplete="cc-csc"]'
+    );
+    const priceEl = document.querySelector(
+        '[data-testid="total-price"], .bui-price-display__value, '
+        + '.bp-price-details__total-amount, .priceIsland__total-price'
+    );
+    return {
+        is_payment_step: isPaymentStep,
+        saved_card: savedCard,
+        needs_cvv: needsCvv,
+        total_price: priceEl ? priceEl.textContent.trim() : '',
+        page_url: window.location.href,
+    };
+}
+"""
+
+_IFRAME_CARD_DETECT_JS = r"""
+() => {
+    const text = document.body.innerText || '';
+    const m = text.match(/(Visa|Mastercard|Amex|Maestro|JCB)[^\d]{0,30}?(\d{4})/i);
+    let card = m ? `${m[1]} ••••${m[2]}` : '';
+    if (!card) {
+        document.querySelectorAll('span, div, label, p').forEach(el => {
+            const ct = el.textContent || '';
+            if (ct.length < 80 && !card) {
+                const mm = ct.match(/(Visa|Mastercard|Amex|Maestro|JCB)[^\d]{0,20}?(\d{4})/i);
+                if (mm) card = `${mm[1]} ••••${mm[2]}`;
+            }
+        });
+    }
+    const hasSaved = /saved card|your card|stored card/i.test(text);
+    const hasCvv = !!document.querySelector(
+        'input[name*="cvc"], input[name*="cvv"], input[autocomplete="cc-csc"]'
+    );
+    return { saved_card: card, has_saved_card_text: hasSaved, needs_cvv: hasCvv };
+}
+"""
+
+
+async def _execute_playwright_booking(
+    storage_state: dict,
+    hotel: dict,
+    parsed: dict,
+) -> dict[str, Any]:
+    """Navigate to hotel → select room → advance to payment → detect saved card.
+
+    Returns: {status, saved_card, needs_cvv, booking_url, total_price,
+              prefilled_name, prefilled_email}
+    """
+    result: dict[str, Any] = {"status": "ERROR"}
+
+    try:
+        from playwright.async_api import async_playwright as _ap
+    except ImportError:
+        return result
+
+    async with _ap() as p:
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ],
+        )
+        try:
+            context = await browser.new_context(
+                storage_state=storage_state,
+                viewport={"width": 1280, "height": 900},
+                user_agent=_PLAYWRIGHT_UA,
+            )
+            page = await context.new_page()
+
+            hotel_url = hotel.get("url", "")
+            if not hotel_url:
+                result["status"] = "NO_URL"
+                return result
+
+            # Navigate to hotel page
+            await page.goto(hotel_url, wait_until="domcontentloaded")
+            await page.wait_for_timeout(3000)
+
+            # Close popups
+            for sel in [
+                '[aria-label="Dismiss sign-in info."]',
+                '[id="onetrust-accept-btn-handler"]',
+            ]:
+                try:
+                    btn = page.locator(sel).first
+                    if await btn.is_visible(timeout=1000):
+                        await btn.click()
+                except Exception:
+                    pass
+
+            # Select room from dropdown
+            room_selects = page.locator("select.hprt-nos-select")
+            if await room_selects.count() > 0:
+                first_select = room_selects.first
+                await first_select.scroll_into_view_if_needed()
+                await page.wait_for_timeout(500)
+                await first_select.select_option("1")
+                await page.wait_for_timeout(1000)
+
+            # Click "I'll reserve"
+            reserve_btn = page.locator(
+                'button.js-reservation-button, '
+                "button:has-text(\"I'll reserve\"), "
+                'button:has-text("Reserve")'
+            ).first
+
+            if await reserve_btn.is_visible(timeout=5000):
+                try:
+                    async with page.expect_navigation(
+                        wait_until="domcontentloaded", timeout=15000
+                    ):
+                        await reserve_btn.click()
+                except Exception:
+                    try:
+                        await page.wait_for_load_state(
+                            "domcontentloaded", timeout=10000
+                        )
+                    except Exception:
+                        pass
+                    await page.wait_for_timeout(3000)
+
+            # Wait for booking page to load
+            try:
+                await page.wait_for_load_state("domcontentloaded", timeout=10000)
+            except Exception:
+                pass
+            await page.wait_for_timeout(2000)
+
+            # Check if we're on the booking form
+            url = page.url
+            if "book" not in url.lower() and "secure" not in url.lower():
+                result["status"] = "NOT_ON_BOOKING_PAGE"
+                result["page_url"] = url
+                return result
+
+            # Check pre-filled form data
+            form_check = await page.evaluate("""
+            () => {
+                const fn = document.querySelector(
+                    'input[name="firstname"], input[name="booker.firstname"]'
+                );
+                const ln = document.querySelector(
+                    'input[name="lastname"], input[name="booker.lastname"]'
+                );
+                const em = document.querySelector(
+                    'input[name="email"], input[name="booker.email"]'
+                );
+                return {
+                    first: fn ? fn.value : '',
+                    last: ln ? ln.value : '',
+                    email: em ? em.value : '',
+                };
+            }
+            """)
+            result["prefilled_name"] = (
+                f"{form_check.get('first', '')} {form_check.get('last', '')}".strip()
+            )
+            result["prefilled_email"] = form_check.get("email", "")
+
+            # Click through booking form steps
+            for _step in range(4):
+                await page.evaluate(
+                    "window.scrollTo(0, document.body.scrollHeight)"
+                )
+                await page.wait_for_timeout(1000)
+
+                btn = page.locator(
+                    'button:has-text("Next: Final details"), '
+                    'button:has-text("Final details"), '
+                    'button:has-text("Complete booking"), '
+                    'button:has-text("Book now")'
+                ).first
+
+                if not await btn.is_visible(timeout=5000):
+                    break
+
+                btn_text = (await btn.text_content()).strip()
+                await btn.scroll_into_view_if_needed()
+                await page.wait_for_timeout(500)
+
+                is_complete = any(
+                    w in btn_text.lower()
+                    for w in ("complete", "finish", "book now")
+                )
+
+                try:
+                    async with page.expect_navigation(
+                        wait_until="domcontentloaded", timeout=15000
+                    ):
+                        await btn.click()
+                except Exception:
+                    await page.wait_for_timeout(3000)
+
+                await page.wait_for_timeout(2000)
+
+                if is_complete:
+                    # Check for saved card in payment iframe
+                    payment = await page.evaluate(_PAYMENT_DETECT_JS)
+                    if payment.get("is_payment_step"):
+                        break
+
+            # Detect payment + saved card (main page)
+            payment = await page.evaluate(_PAYMENT_DETECT_JS)
+            result["booking_url"] = page.url
+            result["total_price"] = payment.get("total_price", "")
+
+            # Check payment iframe for saved card
+            saved_card = payment.get("saved_card", "")
+            if not saved_card:
+                for frame in page.frames:
+                    if "paymentcomponent" in frame.url or "payment" in frame.url:
+                        try:
+                            iframe_info = await frame.evaluate(_IFRAME_CARD_DETECT_JS)
+                            if iframe_info.get("saved_card"):
+                                saved_card = iframe_info["saved_card"]
+                                payment["needs_cvv"] = iframe_info.get(
+                                    "needs_cvv", True
+                                )
+                        except Exception:
+                            pass
+                        break
+
+            if saved_card:
+                result["status"] = "SAVED_CARD"
+                result["saved_card"] = saved_card
+                result["needs_cvv"] = payment.get("needs_cvv", True)
+            elif payment.get("is_payment_step"):
+                result["status"] = "NEEDS_CARD"
+            else:
+                result["status"] = "READY_TO_BOOK"
+
+        except Exception as e:
+            logger.error("Playwright booking error: %s", e, exc_info=True)
+            result["status"] = "ERROR"
+            result["error"] = str(e)[:300]
+        finally:
+            await browser.close()
+
+    return result
+
+
 # ── Browser Search (Playwright-first, browser-use fallback) ─────────────────
 
 
@@ -1219,11 +1495,10 @@ async def handle_back_to_results(user_id: str) -> dict[str, Any]:
 
 
 async def execute_booking(user_id: str) -> dict[str, Any]:
-    """Navigate to booking form via Browser-Use. Stops before payment.
+    """Navigate to booking form — Playwright first, browser-use fallback.
 
     Returns dict with: action, text, buttons.
-    Actions: "ready", "payment_required", "sold_out", "price_changed",
-             "login_required", "error"
+    Actions: "payment_handoff", "sold_out", "login_required", "error"
     """
     from src.tools import browser_service
 
@@ -1249,6 +1524,102 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
     state["step"] = "browser_booking"
     await _set_state(user_id, state)
 
+    # ── Playwright-first for booking.com ──
+    booking_result = None
+    if site == "booking.com":
+        try:
+            booking_result = await asyncio.wait_for(
+                _execute_playwright_booking(storage_state, hotel, parsed),
+                timeout=BOOKING_TIMEOUT,
+            )
+        except TimeoutError:
+            logger.warning("Playwright booking timed out for %s", user_id)
+        except Exception as e:
+            logger.error("Playwright booking error: %s", e, exc_info=True)
+
+    if booking_result:
+        pw_status = booking_result.get("status", "")
+        booking_url = booking_result.get("booking_url", hotel.get("url", ""))
+        total_price = (
+            booking_result.get("total_price") or hotel.get("total_price", "")
+        )
+        cancellation = hotel.get("cancellation", "")
+        saved_card = booking_result.get("saved_card", "")
+        prefilled_name = booking_result.get("prefilled_name", "")
+
+        if pw_status == "SAVED_CARD":
+            # Card on file — user just needs to enter CVV
+            state["step"] = "payment_handoff"
+            state["booking_data"] = booking_result
+            await _set_state(user_id, state)
+
+            text = (
+                f"<b>Almost done!</b>\n\n"
+                f"Hotel: <b>{hotel.get('name', '')}</b>\n"
+                f"Total: <b>{total_price}</b>\n"
+            )
+            if cancellation:
+                text += f"Cancellation: {cancellation}\n"
+            if prefilled_name:
+                text += f"Guest: {prefilled_name}\n"
+            text += (
+                f"\nYour saved card <b>{saved_card}</b> is ready. "
+                "Just enter your CVV to complete the booking."
+            )
+
+            buttons = []
+            if booking_url:
+                buttons.append(
+                    {"text": "Complete booking", "url": booking_url}
+                )
+            buttons.append(
+                {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"}
+            )
+            return {
+                "action": "payment_handoff",
+                "text": text,
+                "buttons": buttons,
+            }
+
+        if pw_status == "NEEDS_CARD":
+            # No saved card — user must enter card details
+            state["step"] = "payment_handoff"
+            state["booking_data"] = booking_result
+            await _set_state(user_id, state)
+
+            text = (
+                f"<b>Card required</b>\n\n"
+                f"Hotel: <b>{hotel.get('name', '')}</b>\n"
+                f"Total: <b>{total_price}</b>\n"
+            )
+            if cancellation:
+                text += f"Cancellation: {cancellation}\n"
+            text += (
+                "\nA credit card is required as guarantee (even for free "
+                "cancellation). Please enter your card details to complete."
+            )
+
+            buttons = []
+            if booking_url:
+                buttons.append(
+                    {"text": "Enter card & complete", "url": booking_url}
+                )
+            buttons.append(
+                {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"}
+            )
+            return {
+                "action": "payment_handoff",
+                "text": text,
+                "buttons": buttons,
+            }
+
+        if pw_status in ("NOT_ON_BOOKING_PAGE", "NO_URL"):
+            logger.warning(
+                "Playwright booking didn't reach form: %s", pw_status
+            )
+            # Fall through to browser-use
+
+    # ── Browser-Use fallback ──
     prompt = _BOOKING_TASK_PROMPT.format(
         site_url=_SUPPORTED_PLATFORMS.get(site, f"https://{site}"),
         hotel_name=hotel.get("name", ""),
@@ -1271,7 +1642,6 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
     booking_data = _extract_json_object(raw)
 
     if not booking_data:
-        # Try to detect status from raw text
         status = _detect_booking_status(raw)
         booking_data = {"status": status, "raw": raw}
 
@@ -1298,125 +1668,78 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
         await _set_state(user_id, state)
         return await check_auth_and_search(user_id)
 
-    if status == "PAYMENT_REQUIRED":
-        booking_url = booking_data.get("booking_url", "")
-        final_price = booking_data.get("final_price", hotel.get("total_price", ""))
-        cancellation = booking_data.get(
-            "cancellation_policy", hotel.get("cancellation", "")
-        )
+    # Default: treat as payment required (booking.com always needs a card)
+    booking_url = booking_data.get("booking_url", hotel.get("url", ""))
+    final_price = booking_data.get(
+        "final_price", hotel.get("total_price", "")
+    )
+    cancellation = booking_data.get(
+        "cancellation_policy", hotel.get("cancellation", "")
+    )
 
-        state["step"] = "payment_handoff"
-        state["booking_data"] = booking_data
-        await _set_state(user_id, state)
+    state["step"] = "payment_handoff"
+    state["booking_data"] = booking_data
+    await _set_state(user_id, state)
 
-        text = (
-            f"<b>Payment required</b>\n\n"
-            f"Hotel: <b>{hotel.get('name', '')}</b>\n"
-            f"Total: <b>{final_price}</b>\n"
-        )
-        if cancellation:
-            text += f"Cancellation: {cancellation}\n"
-        text += (
-            "\nThe booking is ready but requires payment. "
-            "Please complete the payment using the link below."
-        )
+    text = (
+        f"<b>Card required</b>\n\n"
+        f"Hotel: <b>{hotel.get('name', '')}</b>\n"
+        f"Total: <b>{final_price}</b>\n"
+    )
+    if cancellation:
+        text += f"Cancellation: {cancellation}\n"
+    text += (
+        "\nPlease complete the booking using the link below."
+    )
 
-        buttons = []
-        if booking_url:
-            buttons.append({"text": "Complete payment", "url": booking_url})
-        buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
+    buttons = []
+    if booking_url:
+        buttons.append({"text": "Complete booking", "url": booking_url})
+    buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
 
-        return {"action": "payment_required", "text": text, "buttons": buttons}
-
-    if status == "READY_TO_BOOK":
-        # Check if price changed
-        expected = hotel.get("total_price", "")
-        actual = booking_data.get("final_price", "")
-        if expected and actual and expected != actual:
-            state["booking_data"] = booking_data
-            await _set_state(user_id, state)
-            return {
-                "action": "price_changed",
-                "text": (
-                    f"<b>Price changed</b>\n\n"
-                    f"Expected: {expected}\n"
-                    f"Actual: <b>{actual}</b>\n\n"
-                    "Proceed at the new price?"
-                ),
-                "buttons": [
-                    {"text": "Proceed", "callback": f"hotel_confirm_final:{flow_id}"},
-                    {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"},
-                ],
-            }
-
-        # Ready — confirm immediately
-        return await confirm_booking(user_id)
-
-    # Unknown status — try to proceed
-    await _clear_state(user_id)
-    return {
-        "action": "error",
-        "text": (
-            f"Booking result unclear.\n\n"
-            f"<code>{_truncate(raw, 800)}</code>"
-        ),
-    }
+    return {"action": "payment_handoff", "text": text, "buttons": buttons}
 
 
 async def confirm_booking(user_id: str) -> dict[str, Any]:
-    """Click the final booking button (no-payment flow).
+    """Send the booking URL for manual completion.
 
-    Returns dict with: action, text.
+    Booking sites require card details for confirmation, so this sends
+    the payment URL to the user rather than clicking the final button.
     """
-    from src.tools import browser_service
-
     state = await get_booking_state(user_id)
     if not state:
         return {"action": "error", "text": "No booking to confirm."}
 
     hotel = state.get("selected_hotel", {})
-    site = state.get("site", "")
-
-    prompt = _CONFIRM_BOOKING_PROMPT.format(
-        site_url=_SUPPORTED_PLATFORMS.get(site, f"https://{site}"),
+    flow_id = state.get("flow_id", "")
+    booking_data = state.get("booking_data", {})
+    booking_url = booking_data.get("booking_url", hotel.get("url", ""))
+    saved_card = booking_data.get("saved_card", "")
+    total_price = (
+        booking_data.get("total_price") or hotel.get("total_price", "")
     )
 
-    result = await browser_service.execute_with_session(
-        user_id=user_id,
-        family_id=state["family_id"],
-        site=site,
-        task=prompt,
-        max_steps=10,
-        timeout=60,
-    )
+    state["step"] = "payment_handoff"
+    await _set_state(user_id, state)
 
-    raw = result.get("result", "")
-    confirmation = _extract_json_object(raw)
+    if saved_card:
+        text = (
+            f"Your saved card <b>{saved_card}</b> is ready.\n"
+            f"Enter your CVV to complete the booking for "
+            f"<b>{hotel.get('name', '')}</b> ({total_price})."
+        )
+    else:
+        text = (
+            f"Enter your card details to complete the booking for "
+            f"<b>{hotel.get('name', '')}</b> ({total_price})."
+        )
 
-    await _clear_state(user_id)
+    buttons = []
+    if booking_url:
+        buttons.append({"text": "Complete booking", "url": booking_url})
+    buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
 
-    if confirmation and confirmation.get("confirmation_number"):
-        return {
-            "action": "success",
-            "text": _format_booking_success(confirmation, hotel),
-        }
-
-    # Even without structured confirmation, booking may have succeeded
-    if result.get("success"):
-        return {
-            "action": "success",
-            "text": (
-                f"<b>Booking submitted!</b>\n\n"
-                f"Hotel: {hotel.get('name', 'N/A')}\n\n"
-                f"{_truncate(raw, 500)}\n\n"
-                "Check your email for confirmation details."
-            ),
-        }
-
-    return {
-        "action": "error",
-        "text": f"Booking may not have completed:\n\n{_truncate(raw, 500)}",
-    }
+    return {"action": "payment_handoff", "text": text, "buttons": buttons}
 
 
 async def cancel_flow(user_id: str) -> None:

@@ -76,5 +76,6 @@ async def check_input(text: str) -> tuple[bool, str | None]:
         return True, None
     except Exception as e:
         # If guardrails check fails, allow the message through (fail-open)
-        logger.warning("Guardrails check failed: %s", e)
+        # but log at CRITICAL so monitoring picks it up immediately
+        logger.critical("Guardrails check UNAVAILABLE — fail-open, input unchecked: %s", e)
         return True, None

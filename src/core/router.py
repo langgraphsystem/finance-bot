@@ -163,7 +163,12 @@ async def handle_message(
     """Main message handler: intent detection → skill execution → response."""
     registry = get_registry()
 
-    if not await check_rate_limit(message.user_id):
+    try:
+        rate_ok = await check_rate_limit(message.user_id)
+    except Exception as e:
+        logger.warning("Rate limit check failed (Redis down?): %s — allowing message", e)
+        rate_ok = True
+    if not rate_ok:
         return OutgoingMessage(
             text="Слишком много сообщений. Подождите минуту.",
             chat_id=message.chat_id,
@@ -253,6 +258,15 @@ async def _dispatch_message(
     if message.type in (MessageType.photo, MessageType.document):
         # Always cache file for potential follow-up conversion text message
         await _cache_last_file(context.user_id, message)
+
+        # Guardrails check on photo/document captions
+        if message.text:
+            is_safe, refusal_text = await check_input(message.text)
+            if not is_safe:
+                return OutgoingMessage(
+                    text=(refusal_text or "Я не могу помочь с этим запросом."),
+                    chat_id=message.chat_id,
+                )
 
         if message.text:
             # Caption present → let LLM decide the intent (convert_document, scan_document, etc.)
@@ -368,6 +382,19 @@ async def _dispatch_message(
                 channel=message.channel,
             )
 
+    # Persist user message BEFORE skill execution (audit trail)
+    if message.text:
+        await sliding_window.add_message(context.user_id, "user", message.text, intent_name)
+        asyncio.create_task(
+            _persist_message(
+                context.user_id,
+                context.family_id,
+                MessageRole.user,
+                message.text,
+                intent_name,
+            )
+        )
+
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
     domain_router = get_domain_router()
     try:
@@ -388,19 +415,6 @@ async def _dispatch_message(
         except Exception as inner_e:
             logger.error("Fallback skill %s also failed: %s", intent_name, inner_e, exc_info=True)
             skill_result = SkillResult(response_text="Произошла ошибка. Попробуйте ещё раз.")
-
-    # Save to sliding window (Redis) AND persist to PostgreSQL
-    if message.text:
-        await sliding_window.add_message(context.user_id, "user", message.text, intent_name)
-        asyncio.create_task(
-            _persist_message(
-                context.user_id,
-                context.family_id,
-                MessageRole.user,
-                message.text,
-                intent_name,
-            )
-        )
     if skill_result.response_text:
         await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
         asyncio.create_task(
@@ -643,7 +657,7 @@ async def _handle_clarify(
     }
 
     key = f"clarify_pending:{context.user_id}"
-    await redis.set(key, _json.dumps(payload, default=str), ex=300)
+    await redis.set(key, _json.dumps(payload, default=str), ex=1800)  # 30 min TTL
 
     question = result.response or "Что именно вы хотите?"
     buttons = [
@@ -823,9 +837,27 @@ async def _handle_callback(
         tx_id = parts[1] if len(parts) > 1 else None
         if tx_id:
             try:
+                tx_uuid = uuid.UUID(tx_id)
+            except ValueError:
+                return OutgoingMessage(
+                    text="Неверный формат транзакции.", chat_id=message.chat_id
+                )
+            try:
                 async with async_session() as session:
+                    # Verify the transaction belongs to this user's family
+                    tx_result = await session.execute(
+                        select(Transaction).where(
+                            Transaction.id == tx_uuid,
+                            Transaction.family_id == uuid.UUID(context.family_id),
+                        )
+                    )
+                    tx = tx_result.scalar_one_or_none()
+                    if not tx:
+                        return OutgoingMessage(
+                            text="Транзакция не найдена.", chat_id=message.chat_id
+                        )
                     await session.execute(
-                        delete(Transaction).where(Transaction.id == uuid.UUID(tx_id))
+                        delete(Transaction).where(Transaction.id == tx_uuid)
                     )
                     await session.commit()
                 logger.info("Transaction %s deleted by user %s", tx_id, context.user_id)
