@@ -226,6 +226,16 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         )
 
 
+async def _typing_loop(gw, chat_id: str, interval: float = 4.0):
+    """Send typing indicator every N seconds until cancelled."""
+    try:
+        while True:
+            await gw.send_typing(chat_id)
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:
+        pass
+
+
 async def on_message(incoming):
     """Main message handler called by Telegram gateway."""
     context = await build_session_context(incoming.user_id)
@@ -311,20 +321,24 @@ async def on_message(incoming):
         tg_language = chosen_lang or incoming.language or "en"
         intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
 
-        result = await onboarding.execute(
-            incoming,
-            SessionContext(
-                user_id=incoming.user_id,
-                family_id="",
-                role="owner",
-                language=tg_language,
-                currency="USD",
-                business_type=None,
-                categories=[],
-                merchant_mappings=[],
-            ),
-            intent_data,
-        )
+        typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
+        try:
+            result = await onboarding.execute(
+                incoming,
+                SessionContext(
+                    user_id=incoming.user_id,
+                    family_id="",
+                    role="owner",
+                    language=tg_language,
+                    currency="USD",
+                    business_type=None,
+                    categories=[],
+                    merchant_mappings=[],
+                ),
+                intent_data,
+            )
+        finally:
+            typing_task.cancel()
 
         # After /start: set awaiting_language so user can type language
         if not onboarding_state:
@@ -351,8 +365,11 @@ async def on_message(incoming):
     if incoming.language:
         asyncio.create_task(_maybe_set_timezone_from_language(context.user_id, incoming.language))
 
-    await gateway.send_typing(incoming.chat_id)
-    response = await handle_message(incoming, context)
+    typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
+    try:
+        response = await handle_message(incoming, context)
+    finally:
+        typing_task.cancel()
     await gateway.send(response)
 
 
@@ -377,8 +394,11 @@ async def _handle_channel_message(incoming, gw):
         await _handle_channel_onboarding(incoming, gw)
         return
 
-    await gw.send_typing(incoming.chat_id)
-    response = await handle_message(incoming, context)
+    typing_task = asyncio.create_task(_typing_loop(gw, incoming.chat_id))
+    try:
+        response = await handle_message(incoming, context)
+    finally:
+        typing_task.cancel()
     response.chat_id = incoming.chat_id
     response.channel = incoming.channel
     await gw.send(response)
