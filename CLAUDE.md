@@ -32,8 +32,12 @@ alembic upgrade head
 # Dev server
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 
-# Task queue worker
-python -m taskiq worker src.core.tasks.broker:broker
+# Task queue worker (full command with all task modules)
+TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks"
+python -m taskiq worker src.core.tasks.broker:broker $TASK_MODULES
+
+# Task queue scheduler (separate process, needed for cron tasks)
+python -m taskiq scheduler src.core.tasks.broker:scheduler $TASK_MODULES
 
 # Deploy to Railway (manual)
 railway up -d
@@ -50,7 +54,7 @@ Telegram/Slack/WhatsApp/SMS webhook
   → api/main.py
   → src/core/router.py builds SessionContext
   → src/core/guardrails.py input safety check (Claude Haiku)
-  → src/core/intent.py detects intent (Gemini Flash primary, Claude Haiku fallback)
+  → src/core/intent.py detects intent (Gemini Pro primary, Claude Haiku fallback)
   → CLARIFY gate: if ambiguous → disambiguation buttons via Redis
   → src/core/domain_router.py checks for orchestrator (email, brief domains)
     → If orchestrator registered → LangGraph graph.invoke()
@@ -63,11 +67,11 @@ Telegram/Slack/WhatsApp/SMS webhook
 
 ### Key Abstractions
 
-- **SessionContext** (`src/core/context.py`): Immutable per-request context with user_id, family_id, role, categories, merchant_mappings. Enforces multi-tenant isolation.
+- **SessionContext** (`src/core/context.py`): Immutable per-request context. Core fields: `user_id`, `family_id`, `role` (owner/member), `language`, `currency`, `business_type`, `categories`, `merchant_mappings`, `profile_config`, `channel`, `timezone`, `user_profile`. Enforces multi-tenant isolation via `filter_query()`.
 - **AgentConfig** (`src/agents/config.py`): 11 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
 - **BaseSkill** protocol (`src/skills/base.py`): `name`, `intents[]`, `model`, `execute(message, context, intent_data) → SkillResult`, `get_system_prompt(context)`.
-- **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `chart_url`, `background_tasks`.
-- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 61 skills registered.
+- **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `document_name`, `photo_url`, `photo_bytes`, `chart_url`, `reply_keyboard`, `background_tasks`.
+- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 68 skills registered.
 - **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email (send_email, draft_reply) and brief (morning_brief, evening_recap).
 
 ### Model Routing
@@ -77,11 +81,11 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 | Model | ID | Role |
 |-------|-----|------|
 | Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email |
-| Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, fallback |
-| GPT-5.2 | `gpt-5.2` | Fallback |
-| Gemini 3 Flash | `gemini-3-flash-preview` | Intent, OCR, summarization, research |
-| Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email, onboarding |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | Guardrails, intent fallback |
+| GPT-5.2 | `gpt-5.2` | Chat, tasks, calendar, life, booking agents |
+| Gemini 3 Flash | `gemini-3-flash-preview` | OCR, research, summarization |
+| Gemini 3 Pro | `gemini-3-pro-preview` | Intent detection (primary), deep reasoning |
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
 
@@ -91,15 +95,15 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 |-------|-------|--------|
 | receipt | gemini-3-flash-preview | scan_receipt, scan_document |
 | analytics | claude-sonnet-4-6 | query_stats, complex_query, query_report |
-| chat | claude-haiku-4-5 | add_expense, add_income, correct_category, undo_last, set_budget, mark_paid, add_recurring |
+| chat | gpt-5.2 | add_expense, add_income, correct_category, undo_last, set_budget, mark_paid, add_recurring, delete_data |
 | onboarding | claude-sonnet-4-6 | onboarding, general_chat |
-| tasks | claude-haiku-4-5 | create_task, list_tasks, set_reminder, complete_task, shopping_list_* |
-| research | gemini-3-flash-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action |
-| writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread |
+| tasks | gpt-5.2 | create_task, list_tasks, set_reminder, complete_task, shopping_list_add, shopping_list_view, shopping_list_remove, shopping_list_clear |
+| research | gemini-3-flash-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action, browser_action |
+| writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread, generate_image, generate_card, generate_program, modify_program, convert_document |
 | email | claude-sonnet-4-6 | read_inbox, send_email, draft_reply, follow_up_email, summarize_thread |
-| calendar | claude-haiku-4-5 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
-| life | claude-haiku-4-5 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor |
-| booking | claude-haiku-4-5 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client |
+| calendar | gpt-5.2 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
+| life | gpt-5.2 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor |
+| booking | gpt-5.2 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client |
 
 ### Context Assembly & Token Budget
 
@@ -107,7 +111,7 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 
 ### Database
 
-SQLAlchemy 2.0 async with `asyncpg`. 28 tables across 7 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys.
+SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 13 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
 
 ### LangGraph Orchestrators
 
@@ -116,7 +120,7 @@ SQLAlchemy 2.0 async with `asyncpg`. 28 tables across 7 Alembic migrations. Mode
 
 ### Background Tasks
 
-Taskiq + Redis (`src/core/tasks/broker.py`). 11 cron tasks: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning. Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
+Taskiq + Redis (`src/core/tasks/broker.py`). 11 cron tasks across 7 task modules: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning. Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
 
 ### Multi-Channel Gateways
 
@@ -125,6 +129,10 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 ### Dual-Mode Research Skills
 
 `maps_search` and `youtube_search` use **Gemini Google Search Grounding** as default (quick mode). Direct REST APIs (Google Maps Platform, YouTube Data API v3) activate only when `detail_mode=True` AND the respective API key is configured. YouTube also supports direct URL analysis — sending a YouTube link triggers Gemini to analyze that specific video.
+
+### Browser Tools
+
+`src/tools/browser.py` (Browser-Use + Playwright fallback), `src/tools/browser_booking.py` (Playwright booking with saved card detection), `src/tools/browser_login.py` (Telegram login flow with Fernet-encrypted cookies in Supabase), `src/tools/browser_service.py` (service layer). The `browser_action` skill uses authenticated Playwright sessions; `web_action` uses headless browsing for simpler tasks.
 
 ## Adding a New Skill
 
@@ -144,7 +152,7 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 `detect_intent()` → `IntentDetectionResult.data` → `model_dump()` → dict passed to `handler.execute()`. Handler `intent_data.get()` keys **MUST** match `IntentData` field names exactly.
 
 ### Alembic + PostgreSQL enums
-Never use `sa.Enum(create_type=False)` in `op.create_table` — SQLAlchemy ignores it. Use raw SQL: `CREATE TYPE IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS`. Watch for multiple heads after branch merges — use `down_revision = ("rev_a", "rev_b")` tuple for merge points.
+Never use `sa.Enum(create_type=False)` in `op.create_table` — SQLAlchemy ignores it. Use raw SQL: `CREATE TYPE IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS`. Watch for multiple heads after branch merges — use `down_revision = ("rev_a", "rev_b")` tuple for merge points. Always run `alembic heads` before creating a new migration.
 
 ### Gemini Google Search Grounding pattern
 ```python
@@ -164,7 +172,7 @@ response = await client.aio.models.generate_content(
 ## Testing Patterns
 
 - `pytest-asyncio` with `asyncio_mode = "auto"` — no `@pytest.mark.asyncio` needed
-- Fixtures in `tests/conftest.py`: `sample_context`, `text_message`, `photo_message`, `skill_registry`
+- Fixtures in `tests/conftest.py`: `sample_context`, `member_context`, `text_message`, `photo_message`, `callback_message`, `skill_registry`, `mock_gateway`, `profile_loader`
 - Mock external calls with `unittest.mock.patch` + `AsyncMock`:
   ```python
   with patch("src.skills.<name>.handler.save_life_event", new_callable=AsyncMock) as mock:
@@ -207,5 +215,5 @@ This project is an **AI Life Assistant** ($49/month). Implementation plan: `IMPL
 
 - **Railway**: `railway up -d` from project root. Entrypoint: `scripts/entrypoint.sh` → `alembic upgrade head` → `uvicorn`
 - **Docker**: Multi-stage Dockerfile (python:3.12-slim), WeasyPrint deps, healthcheck on `/health`
-- **CI/CD**: `.github/workflows/ci.yml` — lint → test (with Redis service) → docker build → Railway deploy (requires `RAILWAY_TOKEN` secret)
-- **Worker process**: Separate Railway service with `RAILWAY_PROCESS_TYPE=worker` for Taskiq cron tasks
+- **CI/CD**: `.github/workflows/ci.yml` — lint → test (with Redis service) → docker build → Railway deploy (requires `RAILWAY_TOKEN` secret AND `vars.RAILWAY_DEPLOY=true` repository variable)
+- **Worker process**: Separate Railway service with `RAILWAY_PROCESS_TYPE=worker` for Taskiq worker + scheduler

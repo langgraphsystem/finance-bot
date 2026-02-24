@@ -1,0 +1,37 @@
+agents:
+  codex:
+    cmd: "codex"
+    exec_args: ["exec", "--json"]
+    model: "gpt-5.3-codex"
+    timeout: 300
+    max_retries: 1
+    instructions_file: "AGENTS.md"
+
+  gemini:
+    cmd: "gemini"
+    exec_args: ["-p", "--sandbox", "--approval-mode", "yolo", "-o", "json"]
+    timeout: 300
+    max_retries: 1
+    instructions_file: "GEMINI.md"
+
+worktrees:
+  base_dir: "../Finance bot_worktrees"
+  branch_prefix: "agent/"
+  auto_cleanup: true
+
+review:
+  run_lint: true
+  run_tests: true
+  lint_cmd: "ruff check src/ tests/"
+  test_cmd: "pytest tests/ -x -q --tb=short"
+  auto_merge: true
+
+routing:
+  write_tests:       { agent: "codex",  model: "gpt-5.3-codex" }
+  bulk_refactor:     { agent: "codex",  model: "gpt-5.3-codex" }
+  code_review:       { agent: "codex",  model: "gpt-5.3-codex" }
+  fix_bug:           { agent: "codex",  model: "gpt-5.3-codex" }
+  ui_prototype:      { agent: "gemini" }
+  research_codebase: { agent: "gemini" }
+  generate_docs:     { agent: "gemini" }
+  critical_code:     { agent: "both" }

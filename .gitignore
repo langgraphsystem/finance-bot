@@ -51,3 +51,7 @@ logs/
 
 # Docker
 docker-compose.override.yml
+
+# Agent worktrees
+*_worktrees/
+.agent_output.log
