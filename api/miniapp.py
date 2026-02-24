@@ -407,31 +407,31 @@ async def get_stats(
         income_rows = inc_result.all()
         total_income = sum(float(r[3]) for r in income_rows)
 
-    return StatsResponse(
-        period=period,
-        total_expense=total_expense,
-        total_income=total_income,
-        balance=total_income - total_expense,
-        currency=currency,
-        expense_categories=[
-            CategoryStats(
-                name=r[1],
-                icon=r[2],
-                total=float(r[3]),
-                percent=(float(r[3]) / total_expense * 100) if total_expense > 0 else 0,
-            )
-            for r in expense_rows
-        ],
-        income_categories=[
-            CategoryStats(
-                name=r[1],
-                icon=r[2],
-                total=float(r[3]),
-                percent=(float(r[3]) / total_income * 100) if total_income > 0 else 0,
-            )
-            for r in income_rows
-        ],
-    )
+        return StatsResponse(
+            period=period,
+            total_expense=total_expense,
+            total_income=total_income,
+            balance=total_income - total_expense,
+            currency=currency,
+            expense_categories=[
+                CategoryStats(
+                    name=r[1],
+                    icon=r[2],
+                    total=float(r[3]),
+                    percent=(float(r[3]) / total_expense * 100) if total_expense > 0 else 0,
+                )
+                for r in expense_rows
+            ],
+            income_categories=[
+                CategoryStats(
+                    name=r[1],
+                    icon=r[2],
+                    total=float(r[3]),
+                    percent=(float(r[3]) / total_income * 100) if total_income > 0 else 0,
+                )
+                for r in income_rows
+            ],
+        )
 
 
 @router.get("/stats/trend/monthly")
@@ -473,7 +473,7 @@ async def get_monthly_trend(
                     "income": float(inc or 0),
                 }
             )
-    return result
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -552,12 +552,12 @@ async def list_transactions(
         )
         rows = (await session.execute(query)).all()
 
-    return TransactionListResponse(
-        items=[_tx_to_item(tx, cat_name, str(cat_id)) for tx, cat_name, cat_id in rows],
-        total=total,
-        page=page,
-        per_page=per_page,
-    )
+        return TransactionListResponse(
+            items=[_tx_to_item(tx, cat_name, str(cat_id)) for tx, cat_name, cat_id in rows],
+            total=total,
+            page=page,
+            per_page=per_page,
+        )
 
 
 @router.get("/transactions/{tx_id}", response_model=TransactionItem)
@@ -698,7 +698,7 @@ async def delete_transaction(
             )
         await session.delete(tx)
         await session.commit()
-    return {"ok": True}
+        return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -774,7 +774,7 @@ async def list_budgets(user: User = Depends(get_current_user)):
                     ),
                 )
             )
-    return result
+        return result
 
 
 @router.post("/budgets", response_model=BudgetItem)
@@ -837,7 +837,7 @@ async def delete_budget(
             )
         await session.delete(b)
         await session.commit()
-    return {"ok": True}
+        return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -969,8 +969,9 @@ async def mark_recurring_paid(
         }
         r.next_date = r.next_date + freq_delta.get(r.frequency, timedelta(days=30))
         await session.commit()
+        next_date_str = r.next_date.isoformat()
 
-    return {"ok": True, "next_date": r.next_date.isoformat()}
+    return {"ok": True, "next_date": next_date_str}
 
 
 # ---------------------------------------------------------------------------
@@ -1239,7 +1240,7 @@ async def delete_task(
             )
         await session.delete(t)
         await session.commit()
-    return {"ok": True}
+        return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -1276,21 +1277,21 @@ async def export_csv(
             )
         ).all()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Date", "Type", "Amount", "Category", "Merchant", "Description", "Scope"])
-    for tx, cat_name in rows:
-        writer.writerow(
-            [
-                tx.date.isoformat(),
-                tx.type.value,
-                float(tx.amount),
-                cat_name,
-                tx.merchant or "",
-                tx.description or "",
-                tx.scope.value,
-            ]
-        )
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Date", "Type", "Amount", "Category", "Merchant", "Description", "Scope"])
+        for tx, cat_name in rows:
+            writer.writerow(
+                [
+                    tx.date.isoformat(),
+                    tx.type.value,
+                    float(tx.amount),
+                    cat_name,
+                    tx.merchant or "",
+                    tx.description or "",
+                    tx.scope.value,
+                ]
+            )
 
     output.seek(0)
     filename = f"transactions_{date.today().isoformat()}.csv"
