@@ -118,17 +118,35 @@ Respond with valid JSON only. No markdown."""
 _STRINGS = {
     "en": {
         "empty": "What should I remind you about?",
-        "with_time": "🔔 Reminder set for {time}: {title}",
-        "no_time": "🔔 Reminder saved: {title} (no specific time)",
-        "with_time_recurring": "🔔 {recurrence} reminder set for {time}: {title}",
-        "multi_set": "🔔 Reminders set",
+        "ask_time": (
+            "Got it — <b>{title}</b>\n\n"
+            "What time should I remind you?"
+        ),
+        "ask_both": (
+            "I'd like to help! Could you clarify:\n"
+            "• What should I remind you about?\n"
+            "• When?"
+        ),
+        "with_time": "\U0001f514 Reminder set for {time}: {title}",
+        "no_time": "\U0001f514 Reminder saved: {title} (no specific time)",
+        "with_time_recurring": "\U0001f514 {recurrence} reminder set for {time}: {title}",
+        "multi_set": "\U0001f514 Reminders set",
     },
     "ru": {
         "empty": "О чём вам напомнить?",
-        "with_time": "🔔 Напоминание установлено на {time}: {title}",
-        "no_time": "🔔 Напоминание сохранено: {title} (без конкретного времени)",
-        "with_time_recurring": "🔔 {recurrence} напоминание на {time}: {title}",
-        "multi_set": "🔔 Напоминания установлены",
+        "ask_time": (
+            "Понял — <b>{title}</b>\n\n"
+            "На какое время поставить напоминание?"
+        ),
+        "ask_both": (
+            "Хочу помочь! Уточните:\n"
+            "• О чём напомнить?\n"
+            "• Когда?"
+        ),
+        "with_time": "\U0001f514 Напоминание на {time}: {title}",
+        "no_time": "\U0001f514 Напоминание сохранено: {title} (без времени)",
+        "with_time_recurring": "\U0001f514 {recurrence} напоминание на {time}: {title}",
+        "multi_set": "\U0001f514 Напоминания установлены",
     },
 }
 
@@ -258,39 +276,45 @@ class SetReminderSkill:
                 title = _clean_reminder_title(fallback)
         title = title.strip()
 
-        if not title:
-            return SkillResult(response_text=_t("empty", lang))
-
         reminder_time = _parse_reminder_time(intent_data, context.timezone)
         recurrence_str = intent_data.get("reminder_recurrence")
         end_date_str = intent_data.get("reminder_end_date")
 
-        # Context-aware extraction: if no time was parsed, use dialog context + LLM
+        # Always try context extraction to enrich title + time from dialog
         extracted_times: list[dict] = []
-        if not reminder_time:
-            assembled = intent_data.get("_assembled")
-            if assembled and hasattr(assembled, "messages") and assembled.messages:
-                try:
-                    extracted = await _extract_from_context(
-                        message.text or title,
-                        assembled.messages,
-                        context.timezone,
-                    )
-                    extracted_times = extracted.get("reminder_times") or []
-                    if not recurrence_str:
-                        recurrence_str = extracted.get("recurrence")
-                    if not end_date_str:
-                        end_date_str = extracted.get("end_date")
-                    if extracted.get("reminder_title"):
-                        title = extracted["reminder_title"]
-                except Exception as e:
-                    logger.warning("Context extraction failed: %s", e)
+        assembled = intent_data.get("_assembled")
+        if assembled and hasattr(assembled, "messages") and assembled.messages:
+            try:
+                extracted = await _extract_from_context(
+                    message.text or title,
+                    assembled.messages,
+                    context.timezone,
+                )
+                extracted_times = extracted.get("reminder_times") or []
+                if not recurrence_str:
+                    recurrence_str = extracted.get("recurrence")
+                if not end_date_str:
+                    end_date_str = extracted.get("end_date")
+                if extracted.get("reminder_title"):
+                    title = extracted["reminder_title"]
+            except Exception as e:
+                logger.warning("Context extraction failed: %s", e)
 
-        # Fix: if any LLM put the relative time expression as title, extract the real action
+        # Fix: if any LLM put the relative time expression as title
         if title and _RELATIVE_TIME_ONLY_RE.match(title):
             action = _extract_action_from_relative_time(message.text or "")
             if action:
                 title = action
+
+        # --- Clarification: ask user if info is missing ---
+        if not title and not reminder_time and not extracted_times:
+            return SkillResult(response_text=_t("ask_both", lang))
+        if not title:
+            return SkillResult(response_text=_t("empty", lang))
+        if not reminder_time and not extracted_times:
+            return SkillResult(
+                response_text=_t("ask_time", lang, title=title),
+            )
 
         recurrence = _parse_recurrence(recurrence_str)
         recurrence_end = _parse_end_date(end_date_str)
@@ -298,11 +322,12 @@ class SetReminderSkill:
         # Multiple reminders (e.g., suhur at 5:08 + iftar at 17:28)
         if len(extracted_times) > 1:
             return await _create_multiple_reminders(
-                extracted_times, title, recurrence, recurrence_end, context, message, lang
+                extracted_times, title, recurrence, recurrence_end,
+                context, message, lang,
             )
 
         # Single extracted time
-        if extracted_times:
+        if extracted_times and not reminder_time:
             t = extracted_times[0]
             reminder_time = _parse_time_str(t["time"], context.timezone)
             title = t.get("label") or title

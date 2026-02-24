@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.core.context import SessionContext
-from src.core.models.enums import ReminderRecurrence, TaskPriority, TaskStatus
+from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.set_reminder.handler import (
     SetReminderSkill,
@@ -77,8 +77,8 @@ async def test_set_reminder_with_time(skill, message, ctx):
     assert "pick up Emma" in result.response_text
 
 
-async def test_set_reminder_without_time(skill, ctx):
-    """Reminder without time saves task but notes no time."""
+async def test_set_reminder_without_time_asks_clarification(skill, ctx):
+    """Reminder without time asks user for time instead of saving."""
     msg = IncomingMessage(
         id="msg-2",
         user_id="tg_1",
@@ -86,19 +86,14 @@ async def test_set_reminder_without_time(skill, ctx):
         type=MessageType.text,
         text="remind me to call the dentist",
     )
-    with patch(
-        "src.skills.set_reminder.handler.save_reminder",
-        new_callable=AsyncMock,
-    ) as mock_save:
-        result = await skill.execute(msg, ctx, {"task_title": "call the dentist"})
+    result = await skill.execute(msg, ctx, {"task_title": "call the dentist"})
 
-    task = mock_save.call_args.args[0]
-    assert task.reminder_at is None
-    assert "no specific time" in result.response_text.lower()
+    assert "call the dentist" in result.response_text
+    assert "time" in result.response_text.lower() or "время" in result.response_text.lower()
 
 
 async def test_set_reminder_empty_text(skill, ctx):
-    """Empty text returns a prompt."""
+    """Empty text returns a clarification prompt."""
     msg = IncomingMessage(
         id="msg-3",
         user_id="tg_1",
@@ -107,11 +102,12 @@ async def test_set_reminder_empty_text(skill, ctx):
         text="",
     )
     result = await skill.execute(msg, ctx, {})
-    assert "remind you about" in result.response_text.lower()
+    # Should ask for both title and time
+    assert "clarify" in result.response_text.lower() or "уточните" in result.response_text.lower()
 
 
-async def test_set_reminder_from_message_text(skill, ctx):
-    """Falls back to message.text when intent_data has no title."""
+async def test_set_reminder_from_message_text_asks_time(skill, ctx):
+    """Falls back to message.text for title, then asks for time."""
     msg = IncomingMessage(
         id="msg-4",
         user_id="tg_1",
@@ -119,15 +115,11 @@ async def test_set_reminder_from_message_text(skill, ctx):
         type=MessageType.text,
         text="remind me to buy milk",
     )
-    with patch(
-        "src.skills.set_reminder.handler.save_reminder",
-        new_callable=AsyncMock,
-    ) as mock_save:
-        await skill.execute(msg, ctx, {})
+    result = await skill.execute(msg, ctx, {})
 
-    task = mock_save.call_args.args[0]
-    assert task.title == "remind me to buy milk"
-    assert task.priority == TaskPriority.medium
+    # Title extracted from message, but no time → ask for time
+    assert "buy milk" in result.response_text
+    assert "time" in result.response_text.lower() or "время" in result.response_text.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -313,8 +305,8 @@ async def test_context_extraction_single_time(skill, ctx):
     assert task.recurrence == ReminderRecurrence.none
 
 
-async def test_context_extraction_failure_graceful(skill, ctx):
-    """When context extraction fails, falls back to no-time behavior."""
+async def test_context_extraction_failure_asks_time(skill, ctx):
+    """When context extraction fails, asks user for time."""
     assembled = FakeAssembledContext(
         messages=[{"role": "user", "content": "remind me daily"}],
     )
@@ -326,22 +318,18 @@ async def test_context_extraction_failure_graceful(skill, ctx):
         type=MessageType.text,
         text="remind me daily",
     )
-    with (
-        patch(
-            "src.skills.set_reminder.handler.save_reminder",
-            new_callable=AsyncMock,
-        ),
-        patch(
-            "src.skills.set_reminder.handler._extract_from_context",
-            new_callable=AsyncMock,
-            side_effect=Exception("LLM timeout"),
-        ),
+    with patch(
+        "src.skills.set_reminder.handler._extract_from_context",
+        new_callable=AsyncMock,
+        side_effect=Exception("LLM timeout"),
     ):
         result = await skill.execute(
             msg, ctx, {"task_title": "daily reminder", "_assembled": assembled}
         )
 
-    assert "no specific time" in result.response_text.lower()
+    # Has title but no time → ask for time
+    assert "daily reminder" in result.response_text
+    assert "time" in result.response_text.lower() or "время" in result.response_text.lower()
 
 
 # ---------------------------------------------------------------------------
