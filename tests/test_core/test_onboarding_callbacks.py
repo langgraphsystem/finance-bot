@@ -47,12 +47,17 @@ async def test_onboard_new_callback_sets_activity_state(sample_ctx):
             f"{MODULE}._set_onboarding_state",
             new_callable=AsyncMock,
         ) as mock_set_state,
+        patch(
+            f"{MODULE}._get_onboarding_language",
+            new_callable=AsyncMock,
+            return_value="ru",
+        ),
     ):
         from src.core.router import handle_message
 
         result = await handle_message(msg, sample_ctx)
 
-    assert "деятельности" in (result.text or "").lower()
+    assert "занимаетесь" in (result.text or "").lower()
     mock_set_state.assert_awaited_once_with(
         msg.user_id, ConversationState.onboarding_awaiting_activity
     )
@@ -79,6 +84,11 @@ async def test_onboard_join_callback_sets_invite_code_state(sample_ctx):
             f"{MODULE}._set_onboarding_state",
             new_callable=AsyncMock,
         ) as mock_set_state,
+        patch(
+            f"{MODULE}._get_onboarding_language",
+            new_callable=AsyncMock,
+            return_value="ru",
+        ),
     ):
         from src.core.router import handle_message
 

@@ -8,6 +8,7 @@ from src.core.context import SessionContext
 from src.core.models.enums import ConversationState
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.onboarding.handler import (
+    ONBOARDING_TEXTS,
     OnboardingSkill,
     _ask_activity_result,
     _ask_invite_code_result,
@@ -220,6 +221,125 @@ class TestStartCommand:
         result = await onboarding_skill.execute(msg, empty_context, {})
         # Should show welcome since family_id is empty and no state
         assert result.buttons is not None
+
+    @pytest.mark.asyncio
+    async def test_language_picker_has_type_hint(
+        self, onboarding_skill, start_message, empty_context
+    ):
+        result = await onboarding_skill.execute(start_message, empty_context, {})
+        assert "type in your language" in result.response_text.lower()
+
+
+# ---- Step 0.5: text-based language selection --------------------------------
+
+
+class TestTextLanguageSelection:
+    @pytest.mark.asyncio
+    async def test_typing_english_shows_welcome(
+        self, onboarding_skill, empty_context
+    ):
+        """User types 'English' during language selection."""
+        msg = IncomingMessage(
+            id="30",
+            user_id="999999999",
+            chat_id="chat_999",
+            type=MessageType.text,
+            text="English",
+        )
+        intent_data = {
+            "onboarding_state": (
+                ConversationState.onboarding_awaiting_language.value
+            ),
+        }
+        mock_redis = AsyncMock()
+        with (
+            patch(
+                "src.skills.onboarding.handler.detect_language",
+                new_callable=AsyncMock,
+                return_value=("en", "English"),
+            ),
+            patch("src.skills.onboarding.handler.redis", mock_redis),
+        ):
+            result = await onboarding_skill.execute(
+                msg, empty_context, intent_data
+            )
+        assert result.buttons is not None
+        assert len(result.buttons) == 2
+        assert "AI Assistant" in result.response_text
+
+    @pytest.mark.asyncio
+    async def test_typing_french_detects_and_translates(
+        self, onboarding_skill, empty_context
+    ):
+        """User types 'Français' → detect French → translate + show welcome."""
+        msg = IncomingMessage(
+            id="31",
+            user_id="999999999",
+            chat_id="chat_999",
+            type=MessageType.text,
+            text="Français",
+        )
+        intent_data = {
+            "onboarding_state": (
+                ConversationState.onboarding_awaiting_language.value
+            ),
+        }
+        mock_redis = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=None)
+
+        with (
+            patch(
+                "src.skills.onboarding.handler.detect_language",
+                new_callable=AsyncMock,
+                return_value=("fr", "French"),
+            ),
+            patch(
+                "src.skills.onboarding.handler.translate_onboarding_texts",
+                new_callable=AsyncMock,
+                return_value=ONBOARDING_TEXTS["en"],
+            ),
+            patch("src.skills.onboarding.handler.redis", mock_redis),
+        ):
+            result = await onboarding_skill.execute(
+                msg, empty_context, intent_data
+            )
+        assert result.buttons is not None
+        assert len(result.buttons) == 2
+        callbacks = [b["callback"] for b in result.buttons]
+        assert "onboard:new" in callbacks
+        assert "onboard:join" in callbacks
+
+    @pytest.mark.asyncio
+    async def test_detection_failure_falls_back_to_english(
+        self, onboarding_skill, empty_context
+    ):
+        """When detect_language fails, fall back to English."""
+        msg = IncomingMessage(
+            id="32",
+            user_id="999999999",
+            chat_id="chat_999",
+            type=MessageType.text,
+            text="xyz",
+        )
+        intent_data = {
+            "onboarding_state": (
+                ConversationState.onboarding_awaiting_language.value
+            ),
+        }
+        mock_redis = AsyncMock()
+        with (
+            patch(
+                "src.skills.onboarding.handler.detect_language",
+                new_callable=AsyncMock,
+                return_value=("en", "English"),
+            ),
+            patch("src.skills.onboarding.handler.redis", mock_redis),
+        ):
+            result = await onboarding_skill.execute(
+                msg, empty_context, intent_data
+            )
+        assert result.buttons is not None
+        assert "AI Assistant" in result.response_text
 
 
 # ---- Step 2a: activity description → LLM → create family --------------------

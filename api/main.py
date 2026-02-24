@@ -241,36 +241,50 @@ async def on_message(incoming):
             _set_onboarding_state,
             get_registry,
         )
-        from src.skills.onboarding.handler import ONBOARDING_TEXTS
+        from src.skills.onboarding.handler import (
+            ONBOARDING_TEXTS,
+            get_onboarding_texts,
+        )
 
         # Handle callback buttons (onboard:lang:XX / onboard:new / onboard:join)
         if incoming.type == MessageType.callback and incoming.callback_data:
             parts = incoming.callback_data.split(":")
             if len(parts) >= 2 and parts[0] == "onboard":
                 if parts[1] == "lang" and len(parts) >= 3:
-                    # Language selection
+                    # Language selection via button
                     chosen_lang = parts[2]
                     if chosen_lang not in ONBOARDING_TEXTS:
                         chosen_lang = "en"
-                    await _set_onboarding_language(incoming.user_id, chosen_lang)
-                    await _set_onboarding_state(
-                        incoming.user_id, ConversationState.onboarding_awaiting_choice
+                    await _set_onboarding_language(
+                        incoming.user_id, chosen_lang,
                     )
-                    t = ONBOARDING_TEXTS[chosen_lang]
+                    await _set_onboarding_state(
+                        incoming.user_id,
+                        ConversationState.onboarding_awaiting_choice,
+                    )
+                    t = await get_onboarding_texts(chosen_lang)
                     await gateway.send(
                         OutgoingMessage(
                             text=t["welcome"],
                             chat_id=incoming.chat_id,
                             buttons=[
-                                {"text": t["new_account"], "callback": "onboard:new"},
-                                {"text": t["join_family"], "callback": "onboard:join"},
+                                {
+                                    "text": t["new_account"],
+                                    "callback": "onboard:new",
+                                },
+                                {
+                                    "text": t["join_family"],
+                                    "callback": "onboard:join",
+                                },
                             ],
                         )
                     )
                     return
 
-                lang = await _get_onboarding_language(incoming.user_id) or "en"
-                t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
+                lang = await _get_onboarding_language(
+                    incoming.user_id,
+                ) or "en"
+                t = await get_onboarding_texts(lang)
 
                 if parts[1] == "new":
                     await _set_onboarding_state(
@@ -311,6 +325,13 @@ async def on_message(incoming):
             ),
             intent_data,
         )
+
+        # After /start: set awaiting_language so user can type language
+        if not onboarding_state:
+            await _set_onboarding_state(
+                incoming.user_id,
+                ConversationState.onboarding_awaiting_language,
+            )
 
         # If onboarding completed (no buttons = done), clear state
         if not result.buttons:

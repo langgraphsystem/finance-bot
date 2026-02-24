@@ -9,11 +9,12 @@ Family member flow:
   enter invite_code -> join_family -> done.
 """
 
+import json
 import logging
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import async_session, redis
 from src.core.family import (
     create_family,
     create_family_for_channel,
@@ -42,6 +43,17 @@ ONBOARDING_SYSTEM_PROMPT = (
 # ---- translations ----------------------------------------------------------
 
 SUPPORTED_LANGUAGES = ("en", "es", "zh", "ru")
+
+LANGUAGE_NAMES: dict[str, str] = {
+    "en": "English", "es": "Spanish", "zh": "Chinese", "ru": "Russian",
+    "fr": "French", "de": "German", "pt": "Portuguese", "it": "Italian",
+    "ja": "Japanese", "ko": "Korean", "ar": "Arabic", "hi": "Hindi",
+    "tr": "Turkish", "pl": "Polish", "nl": "Dutch", "sv": "Swedish",
+    "uk": "Ukrainian", "vi": "Vietnamese", "th": "Thai", "id": "Indonesian",
+    "cs": "Czech", "ro": "Romanian", "hu": "Hungarian", "el": "Greek",
+    "he": "Hebrew", "da": "Danish", "fi": "Finnish", "no": "Norwegian",
+    "ky": "Kyrgyz", "kk": "Kazakh", "uz": "Uzbek", "tg": "Tajik",
+}
 
 ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
     "en": {
@@ -372,6 +384,88 @@ def _get_texts(language: str) -> dict[str, str]:
     return ONBOARDING_TEXTS.get(language, ONBOARDING_TEXTS["en"])
 
 
+async def detect_language(text: str) -> tuple[str, str]:
+    """Detect language from user input. Returns (iso_code, language_name)."""
+    try:
+        raw = await generate_text(
+            "claude-haiku-4-5",
+            (
+                "Detect the language of the text. "
+                "Return ONLY JSON: "
+                '{"code": "xx", "name": "Language Name"}\n'
+                "Use ISO 639-1 two-letter codes. "
+                'If unsure, return {"code": "en", "name": "English"}'
+            ),
+            [{"role": "user", "content": text}],
+            max_tokens=50,
+        )
+        data = json.loads(raw.strip())
+        code = data.get("code", "en")[:5]
+        name = data.get("name", LANGUAGE_NAMES.get(code, "English"))
+        return code, name
+    except Exception as e:
+        logger.warning("Language detection failed: %s", e)
+        return "en", "English"
+
+
+async def translate_onboarding_texts(
+    lang_code: str,
+    lang_name: str,
+) -> dict[str, str]:
+    """Translate all onboarding texts to a target language via LLM."""
+    source = ONBOARDING_TEXTS["en"]
+    texts_json = json.dumps(source, ensure_ascii=False)
+    prompt = (
+        f"Translate ALL values in this JSON to {lang_name} "
+        f"({lang_code}).\nRules:\n"
+        "- Keep HTML tags (<b>, <i>, <code>) exactly as they are\n"
+        "- Keep emoji characters exactly as they are\n"
+        "- Keep {profile}, {name}, {n} placeholders as they are\n"
+        "- Return ONLY valid JSON with the same keys\n\n"
+        f"{texts_json}"
+    )
+    try:
+        raw = await generate_text(
+            "claude-haiku-4-5",
+            "You are a professional translator. Return only valid JSON.",
+            [{"role": "user", "content": prompt}],
+            max_tokens=4000,
+        )
+        text = raw.strip()
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            text = text.rsplit("```", 1)[0]
+        translated = json.loads(text.strip())
+        return {**source, **translated}
+    except Exception as e:
+        logger.warning("Translation to %s failed: %s", lang_name, e)
+        return source
+
+
+async def get_onboarding_texts(lang_code: str) -> dict[str, str]:
+    """Get onboarding texts for any language. Translates + caches if needed."""
+    if lang_code in ONBOARDING_TEXTS:
+        return ONBOARDING_TEXTS[lang_code]
+    cache_key = f"onboarding_texts:{lang_code}"
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+    lang_name = LANGUAGE_NAMES.get(lang_code, lang_code)
+    texts = await translate_onboarding_texts(lang_code, lang_name)
+    try:
+        await redis.set(
+            cache_key,
+            json.dumps(texts, ensure_ascii=False),
+            ex=86400,
+        )
+    except Exception:
+        pass
+    return texts
+
+
 def _extract_owner_name(message: IncomingMessage) -> str:
     """Try to get the user's first name from the message object.
 
@@ -405,7 +499,8 @@ def _language_picker_result() -> SkillResult:
             "Por favor, elige tu idioma:\n"
             "\u8bf7\u9009\u62e9\u4f60\u7684\u8bed\u8a00\uff1a\n"
             "\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 "
-            "\u044f\u0437\u044b\u043a:"
+            "\u044f\u0437\u044b\u043a:\n\n"
+            "<i>\u2328\ufe0f Or just type in your language</i>"
         ),
         buttons=[
             {
@@ -429,9 +524,11 @@ def _language_picker_result() -> SkillResult:
     )
 
 
-def _welcome_result(language: str = "en") -> SkillResult:
+def _welcome_result(
+    language: str = "en", *, texts: dict | None = None,
+) -> SkillResult:
     """Welcome message with new account / join family buttons."""
-    t = _get_texts(language)
+    t = texts or _get_texts(language)
     return SkillResult(
         response_text=t["welcome"],
         buttons=[
@@ -441,19 +538,25 @@ def _welcome_result(language: str = "en") -> SkillResult:
     )
 
 
-def _ask_activity_result(language: str = "en") -> SkillResult:
+def _ask_activity_result(
+    language: str = "en", *, texts: dict | None = None,
+) -> SkillResult:
     """Prompt the user to describe their activity (owner path)."""
-    t = _get_texts(language)
+    t = texts or _get_texts(language)
     return SkillResult(response_text=t["ask_activity"])
 
 
-def _ask_invite_code_result(language: str = "en") -> SkillResult:
+def _ask_invite_code_result(
+    language: str = "en", *, texts: dict | None = None,
+) -> SkillResult:
     """Prompt the user to enter an invite code (family member path)."""
-    t = _get_texts(language)
+    t = texts or _get_texts(language)
     return SkillResult(response_text=t["ask_invite"])
 
 
-def _format_categories_text(profile, language: str = "en") -> str:
+def _format_categories_text(
+    profile, language: str = "en", *, texts: dict | None = None,
+) -> str:
     """Format category names from a profile for display."""
     if not profile or not profile.categories:
         return ""
@@ -474,7 +577,7 @@ def _format_categories_text(profile, language: str = "en") -> str:
         return ""
     display = ", ".join(names[:5])
     if len(names) > 5:
-        t = _get_texts(language)
+        t = texts or _get_texts(language)
         display += " " + t["and_more"].format(n=len(names) - 5)
     return display
 
@@ -524,9 +627,44 @@ class OnboardingSkill:
         if text == "/start" or (not context.family_id and not onboarding_state):
             return _language_picker_result()
 
+        # ---- Step 0.5: user typed their language (text, not button) ----
+        if (
+            onboarding_state
+            == ConversationState.onboarding_awaiting_language.value
+        ):
+            lang_code, _lang_name = await detect_language(text)
+            try:
+                await redis.set(
+                    f"onboarding_lang:{message.user_id}",
+                    lang_code,
+                    ex=3600,
+                )
+                await redis.set(
+                    f"onboarding_state:{message.user_id}",
+                    ConversationState.onboarding_awaiting_choice.value,
+                    ex=3600,
+                )
+            except Exception as e:
+                logger.warning("Redis set failed: %s", e)
+            t = await get_onboarding_texts(lang_code)
+            return SkillResult(
+                response_text=t["welcome"],
+                buttons=[
+                    {
+                        "text": t["new_account"],
+                        "callback": "onboard:new",
+                    },
+                    {
+                        "text": t["join_family"],
+                        "callback": "onboard:join",
+                    },
+                ],
+            )
+
         # ---- Step 1: user chose language, show welcome ----
         if onboarding_state == ConversationState.onboarding_awaiting_choice.value:
-            return _welcome_result(lang)
+            t = await get_onboarding_texts(lang)
+            return _welcome_result(texts=t)
 
         # ---- Step 2a: user chose "New account", now waiting for activity ----
         if onboarding_state == ConversationState.onboarding_awaiting_activity.value:
@@ -617,7 +755,7 @@ class OnboardingSkill:
             business_type = "household"
 
         lang = context.language or "en"
-        t = _get_texts(lang)
+        t = await get_onboarding_texts(lang)
 
         try:
             async with async_session() as session:
@@ -641,7 +779,7 @@ class OnboardingSkill:
                         currency=context.currency,
                     )
             invite_code = family.invite_code
-            categories_text = _format_categories_text(profile, lang)
+            categories_text = _format_categories_text(profile, texts=t)
             cat_line = (
                 f"\n{t['categories_label']}: {categories_text}\n" if categories_text else "\n"
             )
@@ -677,7 +815,7 @@ class OnboardingSkill:
     ) -> SkillResult:
         """User entered an invite code. Try to join the family."""
         lang = context.language or "en"
-        t = _get_texts(lang)
+        t = await get_onboarding_texts(lang)
         invite_code = text.strip().upper()
 
         if not invite_code or len(invite_code) < 4:

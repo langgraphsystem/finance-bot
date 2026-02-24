@@ -80,29 +80,41 @@ def sms_message():
 
 
 class TestChannelWelcome:
-    """Non-Telegram channels should get English welcome."""
+    """Non-Telegram channels should get language picker first."""
 
-    async def test_slack_first_message_shows_english_welcome(
+    async def test_slack_first_message_shows_language_picker(
         self, onboarding_skill, slack_message, empty_context
     ):
         intent_data = {"channel": "slack", "channel_user_id": "U123ABC"}
-        result = await onboarding_skill.execute(slack_message, empty_context, intent_data)
-        assert "Hi!" in result.response_text
-        assert "New account" in str(result.buttons)
+        result = await onboarding_skill.execute(
+            slack_message, empty_context, intent_data,
+        )
+        assert "Welcome!" in result.response_text
+        assert len(result.buttons) == 4
 
-    async def test_whatsapp_first_message_shows_english_welcome(
+    async def test_whatsapp_first_message_shows_language_picker(
         self, onboarding_skill, whatsapp_message, empty_context
     ):
-        intent_data = {"channel": "whatsapp", "channel_user_id": "+12025551234"}
-        result = await onboarding_skill.execute(whatsapp_message, empty_context, intent_data)
-        assert "Hi!" in result.response_text
+        intent_data = {
+            "channel": "whatsapp",
+            "channel_user_id": "+12025551234",
+        }
+        result = await onboarding_skill.execute(
+            whatsapp_message, empty_context, intent_data,
+        )
+        assert "Welcome!" in result.response_text
 
-    async def test_sms_first_message_shows_english_welcome(
+    async def test_sms_first_message_shows_language_picker(
         self, onboarding_skill, sms_message, empty_context
     ):
-        intent_data = {"channel": "sms", "channel_user_id": "+12025559999"}
-        result = await onboarding_skill.execute(sms_message, empty_context, intent_data)
-        assert "Hi!" in result.response_text
+        intent_data = {
+            "channel": "sms",
+            "channel_user_id": "+12025559999",
+        }
+        result = await onboarding_skill.execute(
+            sms_message, empty_context, intent_data,
+        )
+        assert "Welcome!" in result.response_text
 
 
 class TestChannelAccountCreation:
@@ -230,6 +242,6 @@ class TestTelegramUnchanged:
 
             result = await onboarding_skill.execute(msg, empty_context, intent_data)
 
-        assert "Отлично!" in result.response_text
+        assert "All set!" in result.response_text
         mock_create.assert_called_once()
         assert mock_create.call_args.kwargs["owner_telegram_id"] == 999999999

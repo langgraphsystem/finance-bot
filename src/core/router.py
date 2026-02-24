@@ -918,7 +918,10 @@ async def _handle_callback(
 
         if sub_action == "lang" and len(parts) >= 3:
             # Language selection: onboard:lang:en / onboard:lang:ru / etc.
-            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+            from src.skills.onboarding.handler import (
+                ONBOARDING_TEXTS,
+                get_onboarding_texts,
+            )
 
             chosen_lang = parts[2]
             if chosen_lang not in ONBOARDING_TEXTS:
@@ -927,7 +930,7 @@ async def _handle_callback(
             await _set_onboarding_state(
                 message.user_id, ConversationState.onboarding_awaiting_choice
             )
-            t = ONBOARDING_TEXTS[chosen_lang]
+            t = await get_onboarding_texts(chosen_lang)
             return OutgoingMessage(
                 text=t["welcome"],
                 chat_id=message.chat_id,
@@ -938,20 +941,20 @@ async def _handle_callback(
             )
 
         if sub_action == "new":
-            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+            from src.skills.onboarding.handler import get_onboarding_texts
 
             lang = await _get_onboarding_language(message.user_id) or "en"
-            t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
+            t = await get_onboarding_texts(lang)
             await _set_onboarding_state(
                 message.user_id, ConversationState.onboarding_awaiting_activity
             )
             return OutgoingMessage(text=t["ask_activity"], chat_id=message.chat_id)
 
         elif sub_action == "join":
-            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+            from src.skills.onboarding.handler import get_onboarding_texts
 
             lang = await _get_onboarding_language(message.user_id) or "en"
-            t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
+            t = await get_onboarding_texts(lang)
             await _set_onboarding_state(
                 message.user_id, ConversationState.onboarding_awaiting_invite_code
             )
