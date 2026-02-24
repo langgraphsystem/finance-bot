@@ -2,6 +2,7 @@
 
 import csv
 import io
+import ipaddress
 import logging
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -35,6 +36,53 @@ from src.core.models.user import User
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["miniapp"])
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _escape_like(s: str) -> str:
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_enum(enum_cls, value: str, field_name: str):
+    try:
+        return enum_cls(value)
+    except (ValueError, KeyError):
+        raise HTTPException(
+            status_code=400, detail=f"Invalid {field_name}: {value}"
+        )
+
+
+def _require_owner(user: User):
+    if user.role.value != "owner":
+        raise HTTPException(status_code=403, detail="Owner access required")
+
+
+def _is_public_ip(ip_str: str) -> bool:
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        return ip.is_global
+    except ValueError:
+        return False
+
+
+def _month_offset(base: date, months_back: int) -> date:
+    m = base.month - months_back
+    y = base.year + (m - 1) // 12
+    m = (m - 1) % 12 + 1
+    return date(y, m, 1)
+
+
+def _parse_uuid(value: str, field_name: str) -> uuid.UUID:
+    try:
+        return uuid.UUID(value)
+    except (ValueError, AttributeError):
+        raise HTTPException(
+            status_code=400, detail=f"Invalid UUID for {field_name}: {value}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -240,30 +288,35 @@ async def get_current_user(
 async def get_me(user: User = Depends(get_current_user)):
     """Get current user profile with family info."""
     async with async_session() as session:
-        fam = await session.scalar(select(Family).where(Family.id == user.family_id))
+        fam = await session.scalar(
+            select(Family).where(Family.id == user.family_id)
+        )
         if not fam:
             raise HTTPException(status_code=404, detail="Family not found")
-    return UserProfile(
-        id=str(user.id),
-        name=user.name,
-        role=user.role.value,
-        language=user.language,
-        currency=fam.currency,
-        business_type=user.business_type,
-        family_id=str(user.family_id),
-        family_name=fam.name,
-        invite_code=fam.invite_code,
-    )
+        return UserProfile(
+            id=str(user.id),
+            name=user.name,
+            role=user.role.value,
+            language=user.language,
+            currency=fam.currency,
+            business_type=user.business_type,
+            family_id=str(user.family_id),
+            family_name=fam.name,
+            invite_code=fam.invite_code,
+        )
 
 
 @router.get("/family/invite-code")
 async def get_invite_code(user: User = Depends(get_current_user)):
     """Get family invite code (owner only)."""
+    _require_owner(user)
     async with async_session() as session:
-        fam = await session.scalar(select(Family).where(Family.id == user.family_id))
+        fam = await session.scalar(
+            select(Family).where(Family.id == user.family_id)
+        )
         if not fam:
             raise HTTPException(status_code=404, detail="Family not found")
-    return {"invite_code": fam.invite_code, "family_name": fam.name}
+        return {"invite_code": fam.invite_code, "family_name": fam.name}
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +334,13 @@ async def list_categories(user: User = Depends(get_current_user)):
             .order_by(Category.scope, Category.name)
         )
         cats = result.scalars().all()
-    return [CategoryItem(id=str(c.id), name=c.name, icon=c.icon, scope=c.scope.value) for c in cats]
+        return [
+            CategoryItem(
+                id=str(c.id), name=c.name,
+                icon=c.icon, scope=c.scope.value,
+            )
+            for c in cats
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -385,8 +444,7 @@ async def get_monthly_trend(
     result = []
     async with async_session() as session:
         for i in range(months - 1, -1, -1):
-            month_date = today.replace(day=1) - timedelta(days=i * 28)
-            month_date = month_date.replace(day=1)
+            month_date = _month_offset(today, i)
             if month_date.month == 12:
                 end = month_date.replace(year=month_date.year + 1, month=1, day=1)
             else:
@@ -452,17 +510,34 @@ async def list_transactions(
     async with async_session() as session:
         base_filter = [Transaction.family_id == user.family_id]
         if type:
-            base_filter.append(Transaction.type == TransactionType(type))
-        if category_id:
-            base_filter.append(Transaction.category_id == uuid.UUID(category_id))
-        if date_from:
-            base_filter.append(Transaction.date >= date.fromisoformat(date_from))
-        if date_to:
-            base_filter.append(Transaction.date <= date.fromisoformat(date_to))
-        if search:
             base_filter.append(
-                Transaction.merchant.ilike(f"%{search}%")
-                | Transaction.description.ilike(f"%{search}%")
+                Transaction.type == _parse_enum(
+                    TransactionType, type, "type"
+                )
+            )
+        if category_id:
+            base_filter.append(
+                Transaction.category_id == _parse_uuid(
+                    category_id, "category_id"
+                )
+            )
+        if date_from:
+            base_filter.append(
+                Transaction.date >= date.fromisoformat(date_from)
+            )
+        if date_to:
+            base_filter.append(
+                Transaction.date <= date.fromisoformat(date_to)
+            )
+        if search:
+            escaped = _escape_like(search)
+            base_filter.append(
+                Transaction.merchant.ilike(
+                    f"%{escaped}%", escape="\\"
+                )
+                | Transaction.description.ilike(
+                    f"%{escaped}%", escape="\\"
+                )
             )
 
         total = (await session.scalar(select(func.count(Transaction.id)).where(*base_filter))) or 0
@@ -487,7 +562,7 @@ async def list_transactions(
 
 @router.get("/transactions/{tx_id}", response_model=TransactionItem)
 async def get_transaction(
-    tx_id: str,
+    tx_id: uuid.UUID,
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
@@ -496,15 +571,17 @@ async def get_transaction(
                 select(Transaction, Category.name, Category.id)
                 .join(Category, Transaction.category_id == Category.id)
                 .where(
-                    Transaction.id == uuid.UUID(tx_id),
+                    Transaction.id == tx_id,
                     Transaction.family_id == user.family_id,
                 )
             )
         ).first()
         if not row:
-            raise HTTPException(status_code=404, detail="Transaction not found")
+            raise HTTPException(
+                status_code=404, detail="Transaction not found"
+            )
         tx, cat_name, cat_id = row
-    return _tx_to_item(tx, cat_name, str(cat_id))
+        return _tx_to_item(tx, cat_name, str(cat_id))
 
 
 @router.post("/transactions", response_model=TransactionItem)
@@ -513,66 +590,75 @@ async def create_transaction(
     user: User = Depends(get_current_user),
 ):
     tx_date = date.fromisoformat(data.date) if data.date else date.today()
-    tx_type = TransactionType(data.type)
+    tx_type = _parse_enum(TransactionType, data.type, "type")
+    cat_id = _parse_uuid(data.category_id, "category_id")
 
     async with async_session() as session:
         cat = await session.scalar(
             select(Category).where(
-                Category.id == uuid.UUID(data.category_id),
+                Category.id == cat_id,
                 Category.family_id == user.family_id,
             )
         )
         if not cat:
-            raise HTTPException(status_code=404, detail="Category not found")
+            raise HTTPException(
+                status_code=404, detail="Category not found"
+            )
 
         tx = Transaction(
             family_id=user.family_id,
             user_id=user.id,
-            category_id=uuid.UUID(data.category_id),
+            category_id=cat_id,
             type=tx_type,
             amount=Decimal(str(data.amount)),
             merchant=data.merchant,
             description=data.description,
             date=tx_date,
-            scope=Scope.family,
+            scope=cat.scope,
             ai_confidence=Decimal("1.0"),
             meta={"source": "miniapp"},
         )
         session.add(tx)
         await session.commit()
         await session.refresh(tx)
-
-    return _tx_to_item(tx, cat.name, str(cat.id))
+        return _tx_to_item(tx, cat.name, str(cat.id))
 
 
 @router.put("/transactions/{tx_id}", response_model=TransactionItem)
 async def update_transaction(
-    tx_id: str,
+    tx_id: uuid.UUID,
     data: TransactionUpdateRequest,
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
         tx = await session.scalar(
             select(Transaction).where(
-                Transaction.id == uuid.UUID(tx_id),
+                Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
         )
         if not tx:
-            raise HTTPException(status_code=404, detail="Transaction not found")
+            raise HTTPException(
+                status_code=404, detail="Transaction not found"
+            )
 
         if data.amount is not None:
             tx.amount = Decimal(str(data.amount))
         if data.category_id is not None:
+            new_cat_id = _parse_uuid(
+                data.category_id, "category_id"
+            )
             cat_check = await session.scalar(
                 select(Category).where(
-                    Category.id == uuid.UUID(data.category_id),
+                    Category.id == new_cat_id,
                     Category.family_id == user.family_id,
                 )
             )
             if not cat_check:
-                raise HTTPException(status_code=404, detail="Category not found")
-            tx.category_id = uuid.UUID(data.category_id)
+                raise HTTPException(
+                    status_code=404, detail="Category not found"
+                )
+            tx.category_id = new_cat_id
         if data.merchant is not None:
             tx.merchant = data.merchant
         if data.description is not None:
@@ -591,23 +677,25 @@ async def update_transaction(
             )
         ).first()
         tx, cat_name, cat_id = row
-    return _tx_to_item(tx, cat_name, str(cat_id))
+        return _tx_to_item(tx, cat_name, str(cat_id))
 
 
 @router.delete("/transactions/{tx_id}")
 async def delete_transaction(
-    tx_id: str,
+    tx_id: uuid.UUID,
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
         tx = await session.scalar(
             select(Transaction).where(
-                Transaction.id == uuid.UUID(tx_id),
+                Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
         )
         if not tx:
-            raise HTTPException(status_code=404, detail="Transaction not found")
+            raise HTTPException(
+                status_code=404, detail="Transaction not found"
+            )
         await session.delete(tx)
         await session.commit()
     return {"ok": True}
@@ -626,21 +714,24 @@ async def list_budgets(user: User = Depends(get_current_user)):
     week_start = today - timedelta(days=today.weekday())
 
     async with async_session() as session:
-        budgets = (
-            (
-                await session.execute(
-                    select(Budget)
-                    .where(Budget.family_id == user.family_id, Budget.is_active == True)  # noqa: E712
-                    .order_by(Budget.period, Budget.created_at)
-                )
+        query = (
+            select(Budget, Category.name, Category.icon)
+            .outerjoin(Category, Budget.category_id == Category.id)
+            .where(
+                Budget.family_id == user.family_id,
+                Budget.is_active == True,  # noqa: E712
             )
-            .scalars()
-            .all()
+            .order_by(Budget.period, Budget.created_at)
         )
+        rows = (await session.execute(query)).all()
 
         result = []
-        for b in budgets:
-            start = week_start if b.period == BudgetPeriod.weekly else month_start
+        for b, cat_name, cat_icon in rows:
+            start = (
+                week_start
+                if b.period == BudgetPeriod.weekly
+                else month_start
+            )
 
             spent_filter = [
                 Transaction.family_id == user.family_id,
@@ -648,25 +739,26 @@ async def list_budgets(user: User = Depends(get_current_user)):
                 Transaction.type == TransactionType.expense,
             ]
             if b.category_id:
-                spent_filter.append(Transaction.category_id == b.category_id)
+                spent_filter.append(
+                    Transaction.category_id == b.category_id
+                )
 
             spent = float(
-                await session.scalar(select(func.sum(Transaction.amount)).where(*spent_filter)) or 0
+                await session.scalar(
+                    select(func.sum(Transaction.amount)).where(
+                        *spent_filter
+                    )
+                )
+                or 0
             )
-
-            cat_name = None
-            cat_icon = None
-            if b.category_id:
-                cat = await session.scalar(select(Category).where(Category.id == b.category_id))
-                if cat:
-                    cat_name = cat.name
-                    cat_icon = cat.icon
 
             budget_amount = float(b.amount)
             result.append(
                 BudgetItem(
                     id=str(b.id),
-                    category_id=str(b.category_id) if b.category_id else None,
+                    category_id=(
+                        str(b.category_id) if b.category_id else None
+                    ),
                     category_name=cat_name,
                     category_icon=cat_icon,
                     scope=b.scope.value,
@@ -675,7 +767,11 @@ async def list_budgets(user: User = Depends(get_current_user)):
                     alert_at=float(b.alert_at),
                     is_active=b.is_active,
                     spent=spent,
-                    percent=(spent / budget_amount * 100) if budget_amount > 0 else 0,
+                    percent=(
+                        (spent / budget_amount * 100)
+                        if budget_amount > 0
+                        else 0
+                    ),
                 )
             )
     return result
@@ -686,46 +782,59 @@ async def create_budget(
     data: BudgetCreateRequest,
     user: User = Depends(get_current_user),
 ):
+    scope = _parse_enum(Scope, data.scope, "scope")
+    period = _parse_enum(BudgetPeriod, data.period, "period")
+    cat_id = (
+        _parse_uuid(data.category_id, "category_id")
+        if data.category_id
+        else None
+    )
+
     async with async_session() as session:
         b = Budget(
             family_id=user.family_id,
-            category_id=uuid.UUID(data.category_id) if data.category_id else None,
-            scope=Scope(data.scope),
+            category_id=cat_id,
+            scope=scope,
             amount=Decimal(str(data.amount)),
-            period=BudgetPeriod(data.period),
+            period=period,
             alert_at=Decimal(str(data.alert_at)),
             is_active=True,
         )
         session.add(b)
         await session.commit()
         await session.refresh(b)
-
-    return BudgetItem(
-        id=str(b.id),
-        category_id=data.category_id,
-        category_name=None,
-        category_icon=None,
-        scope=b.scope.value,
-        amount=float(b.amount),
-        period=b.period.value,
-        alert_at=float(b.alert_at),
-        is_active=b.is_active,
-        spent=0,
-        percent=0,
-    )
+        return BudgetItem(
+            id=str(b.id),
+            category_id=data.category_id,
+            category_name=None,
+            category_icon=None,
+            scope=b.scope.value,
+            amount=float(b.amount),
+            period=b.period.value,
+            alert_at=float(b.alert_at),
+            is_active=b.is_active,
+            spent=0,
+            percent=0,
+        )
 
 
 @router.delete("/budgets/{budget_id}")
-async def delete_budget(budget_id: str, user: User = Depends(get_current_user)):
+async def delete_budget(
+    budget_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    _require_owner(user)
     async with async_session() as session:
         b = await session.scalar(
             select(Budget).where(
-                Budget.id == uuid.UUID(budget_id),
+                Budget.id == budget_id,
                 Budget.family_id == user.family_id,
             )
         )
         if not b:
-            raise HTTPException(status_code=404, detail="Budget not found")
+            raise HTTPException(
+                status_code=404, detail="Budget not found"
+            )
         await session.delete(b)
         await session.commit()
     return {"ok": True}
@@ -741,8 +850,13 @@ async def list_recurring(user: User = Depends(get_current_user)):
     async with async_session() as session:
         rows = (
             await session.execute(
-                select(RecurringPayment, Category.name, Category.icon)
-                .join(Category, RecurringPayment.category_id == Category.id)
+                select(
+                    RecurringPayment, Category.name, Category.icon
+                )
+                .join(
+                    Category,
+                    RecurringPayment.category_id == Category.id,
+                )
                 .where(
                     RecurringPayment.family_id == user.family_id,
                     RecurringPayment.is_active == True,  # noqa: E712
@@ -751,20 +865,20 @@ async def list_recurring(user: User = Depends(get_current_user)):
             )
         ).all()
 
-    return [
-        RecurringItem(
-            id=str(r.id),
-            name=r.name,
-            amount=float(r.amount),
-            frequency=r.frequency.value,
-            next_date=r.next_date.isoformat(),
-            category=cat_name,
-            category_icon=cat_icon,
-            is_active=r.is_active,
-            auto_record=r.auto_record,
-        )
-        for r, cat_name, cat_icon in rows
-    ]
+        return [
+            RecurringItem(
+                id=str(r.id),
+                name=r.name,
+                amount=float(r.amount),
+                frequency=r.frequency.value,
+                next_date=r.next_date.isoformat(),
+                category=cat_name,
+                category_icon=cat_icon,
+                is_active=r.is_active,
+                auto_record=r.auto_record,
+            )
+            for r, cat_name, cat_icon in rows
+        ]
 
 
 @router.post("/recurring", response_model=RecurringItem)
@@ -772,23 +886,28 @@ async def create_recurring(
     data: RecurringCreateRequest,
     user: User = Depends(get_current_user),
 ):
+    cat_id = _parse_uuid(data.category_id, "category_id")
+    freq = _parse_enum(PaymentFrequency, data.frequency, "frequency")
+
     async with async_session() as session:
         cat = await session.scalar(
             select(Category).where(
-                Category.id == uuid.UUID(data.category_id),
+                Category.id == cat_id,
                 Category.family_id == user.family_id,
             )
         )
         if not cat:
-            raise HTTPException(status_code=404, detail="Category not found")
+            raise HTTPException(
+                status_code=404, detail="Category not found"
+            )
 
         r = RecurringPayment(
             family_id=user.family_id,
             user_id=user.id,
-            category_id=uuid.UUID(data.category_id),
+            category_id=cat_id,
             name=data.name,
             amount=Decimal(str(data.amount)),
-            frequency=PaymentFrequency(data.frequency),
+            frequency=freq,
             next_date=date.fromisoformat(data.next_date),
             auto_record=data.auto_record,
             is_active=True,
@@ -796,27 +915,29 @@ async def create_recurring(
         session.add(r)
         await session.commit()
         await session.refresh(r)
-
-    return RecurringItem(
-        id=str(r.id),
-        name=r.name,
-        amount=float(r.amount),
-        frequency=r.frequency.value,
-        next_date=r.next_date.isoformat(),
-        category=cat.name,
-        category_icon=cat.icon,
-        is_active=r.is_active,
-        auto_record=r.auto_record,
-    )
+        return RecurringItem(
+            id=str(r.id),
+            name=r.name,
+            amount=float(r.amount),
+            frequency=r.frequency.value,
+            next_date=r.next_date.isoformat(),
+            category=cat.name,
+            category_icon=cat.icon,
+            is_active=r.is_active,
+            auto_record=r.auto_record,
+        )
 
 
 @router.put("/recurring/{rec_id}/mark-paid")
-async def mark_recurring_paid(rec_id: str, user: User = Depends(get_current_user)):
+async def mark_recurring_paid(
+    rec_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
     """Record payment for this cycle and advance next_date."""
     async with async_session() as session:
         r = await session.scalar(
             select(RecurringPayment).where(
-                RecurringPayment.id == uuid.UUID(rec_id),
+                RecurringPayment.id == rec_id,
                 RecurringPayment.family_id == user.family_id,
             )
         )
@@ -868,7 +989,11 @@ async def list_life_events(
     async with async_session() as session:
         filters = [LifeEvent.family_id == user.family_id]
         if type:
-            filters.append(LifeEvent.type == LifeEventType(type))
+            filters.append(
+                LifeEvent.type == _parse_enum(
+                    LifeEventType, type, "type"
+                )
+            )
         if date_from:
             filters.append(LifeEvent.date >= date.fromisoformat(date_from))
         if date_to:
@@ -879,7 +1004,10 @@ async def list_life_events(
                 await session.execute(
                     select(LifeEvent)
                     .where(*filters)
-                    .order_by(desc(LifeEvent.date), desc(LifeEvent.created_at))
+                    .order_by(
+                        desc(LifeEvent.date),
+                        desc(LifeEvent.created_at),
+                    )
                     .limit(limit)
                 )
             )
@@ -887,18 +1015,18 @@ async def list_life_events(
             .all()
         )
 
-    return [
-        LifeEventItem(
-            id=str(e.id),
-            type=e.type.value,
-            date=e.date.isoformat(),
-            text=e.text,
-            tags=e.tags,
-            data=e.data,
-            created_at=e.created_at.isoformat(),
-        )
-        for e in rows
-    ]
+        return [
+            LifeEventItem(
+                id=str(e.id),
+                type=e.type.value,
+                date=e.date.isoformat(),
+                text=e.text,
+                tags=e.tags,
+                data=e.data,
+                created_at=e.created_at.isoformat(),
+            )
+            for e in rows
+        ]
 
 
 @router.post("/life-events", response_model=LifeEventItem)
@@ -906,12 +1034,15 @@ async def create_life_event(
     data: LifeEventCreateRequest,
     user: User = Depends(get_current_user),
 ):
-    event_date = date.fromisoformat(data.date) if data.date else date.today()
+    event_date = (
+        date.fromisoformat(data.date) if data.date else date.today()
+    )
+    event_type = _parse_enum(LifeEventType, data.type, "type")
     async with async_session() as session:
         e = LifeEvent(
             family_id=user.family_id,
             user_id=user.id,
-            type=LifeEventType(data.type),
+            type=event_type,
             date=event_date,
             text=data.text,
             tags=data.tags,
@@ -920,16 +1051,15 @@ async def create_life_event(
         session.add(e)
         await session.commit()
         await session.refresh(e)
-
-    return LifeEventItem(
-        id=str(e.id),
-        type=e.type.value,
-        date=e.date.isoformat(),
-        text=e.text,
-        tags=e.tags,
-        data=e.data,
-        created_at=e.created_at.isoformat(),
-    )
+        return LifeEventItem(
+            id=str(e.id),
+            type=e.type.value,
+            date=e.date.isoformat(),
+            text=e.text,
+            tags=e.tags,
+            data=e.data,
+            created_at=e.created_at.isoformat(),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -946,9 +1076,17 @@ async def list_tasks(
     async with async_session() as session:
         filters = [Task.family_id == user.family_id]
         if status:
-            filters.append(Task.status == TaskStatus(status))
+            filters.append(
+                Task.status == _parse_enum(
+                    TaskStatus, status, "status"
+                )
+            )
         if priority:
-            filters.append(Task.priority == TaskPriority(priority))
+            filters.append(
+                Task.priority == _parse_enum(
+                    TaskPriority, priority, "priority"
+                )
+            )
 
         rows = (
             (
@@ -966,18 +1104,24 @@ async def list_tasks(
             .all()
         )
 
-    return [
-        TaskItem(
-            id=str(t.id),
-            title=t.title,
-            description=t.description,
-            status=t.status.value,
-            priority=t.priority.value,
-            due_at=t.due_at.isoformat() if t.due_at else None,
-            completed_at=t.completed_at.isoformat() if t.completed_at else None,
-        )
-        for t in rows
-    ]
+        return [
+            TaskItem(
+                id=str(t.id),
+                title=t.title,
+                description=t.description,
+                status=t.status.value,
+                priority=t.priority.value,
+                due_at=(
+                    t.due_at.isoformat() if t.due_at else None
+                ),
+                completed_at=(
+                    t.completed_at.isoformat()
+                    if t.completed_at
+                    else None
+                ),
+            )
+            for t in rows
+        ]
 
 
 @router.post("/tasks", response_model=TaskItem)
@@ -985,88 +1129,114 @@ async def create_task(
     data: TaskCreateRequest,
     user: User = Depends(get_current_user),
 ):
+    task_priority = _parse_enum(TaskPriority, data.priority, "priority")
     async with async_session() as session:
         due = None
         if data.due_at:
-            due = datetime.fromisoformat(data.due_at).replace(tzinfo=UTC)
+            due = datetime.fromisoformat(data.due_at).replace(
+                tzinfo=UTC
+            )
         t = Task(
             family_id=user.family_id,
             user_id=user.id,
             title=data.title,
             description=data.description,
-            priority=TaskPriority(data.priority),
+            priority=task_priority,
             due_at=due,
             status=TaskStatus.pending,
         )
         session.add(t)
         await session.commit()
         await session.refresh(t)
-
-    return TaskItem(
-        id=str(t.id),
-        title=t.title,
-        description=t.description,
-        status=t.status.value,
-        priority=t.priority.value,
-        due_at=t.due_at.isoformat() if t.due_at else None,
-        completed_at=t.completed_at.isoformat() if t.completed_at else None,
-    )
+        return TaskItem(
+            id=str(t.id),
+            title=t.title,
+            description=t.description,
+            status=t.status.value,
+            priority=t.priority.value,
+            due_at=(
+                t.due_at.isoformat() if t.due_at else None
+            ),
+            completed_at=(
+                t.completed_at.isoformat()
+                if t.completed_at
+                else None
+            ),
+        )
 
 
 @router.put("/tasks/{task_id}", response_model=TaskItem)
 async def update_task(
-    task_id: str,
+    task_id: uuid.UUID,
     data: TaskUpdateRequest,
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
         t = await session.scalar(
             select(Task).where(
-                Task.id == uuid.UUID(task_id),
+                Task.id == task_id,
                 Task.family_id == user.family_id,
             )
         )
         if not t:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(
+                status_code=404, detail="Task not found"
+            )
 
         if data.status is not None:
-            t.status = TaskStatus(data.status)
+            t.status = _parse_enum(
+                TaskStatus, data.status, "status"
+            )
             if data.status == "done":
                 t.completed_at = datetime.now(UTC)
         if data.priority is not None:
-            t.priority = TaskPriority(data.priority)
+            t.priority = _parse_enum(
+                TaskPriority, data.priority, "priority"
+            )
         if data.title is not None:
             t.title = data.title
         if data.description is not None:
             t.description = data.description
         if data.due_at is not None:
-            t.due_at = datetime.fromisoformat(data.due_at).replace(tzinfo=UTC)
+            t.due_at = datetime.fromisoformat(
+                data.due_at
+            ).replace(tzinfo=UTC)
 
         await session.commit()
         await session.refresh(t)
-
-    return TaskItem(
-        id=str(t.id),
-        title=t.title,
-        description=t.description,
-        status=t.status.value,
-        priority=t.priority.value,
-        due_at=t.due_at.isoformat() if t.due_at else None,
-        completed_at=t.completed_at.isoformat() if t.completed_at else None,
-    )
+        return TaskItem(
+            id=str(t.id),
+            title=t.title,
+            description=t.description,
+            status=t.status.value,
+            priority=t.priority.value,
+            due_at=(
+                t.due_at.isoformat() if t.due_at else None
+            ),
+            completed_at=(
+                t.completed_at.isoformat()
+                if t.completed_at
+                else None
+            ),
+        )
 
 
 @router.delete("/tasks/{task_id}")
-async def delete_task(task_id: str, user: User = Depends(get_current_user)):
+async def delete_task(
+    task_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
     async with async_session() as session:
         t = await session.scalar(
             select(Task).where(
-                Task.id == uuid.UUID(task_id),
+                Task.id == task_id,
                 Task.family_id == user.family_id,
             )
         )
         if not t:
-            raise HTTPException(status_code=404, detail="Task not found")
+            raise HTTPException(
+                status_code=404, detail="Task not found"
+            )
         await session.delete(t)
         await session.commit()
     return {"ok": True}
@@ -1093,10 +1263,16 @@ async def export_csv(
 
         rows = (
             await session.execute(
-                select(Transaction, Category.name.label("cat_name"))
-                .join(Category, Transaction.category_id == Category.id)
+                select(
+                    Transaction, Category.name.label("cat_name")
+                )
+                .join(
+                    Category,
+                    Transaction.category_id == Category.id,
+                )
                 .where(*filters)
                 .order_by(desc(Transaction.date))
+                .limit(10000)
             )
         ).all()
 
@@ -1133,20 +1309,34 @@ async def export_csv(
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(user: User = Depends(get_current_user)):
     async with async_session() as session:
-        fam = await session.scalar(select(Family).where(Family.id == user.family_id))
+        fam = await session.scalar(
+            select(Family).where(Family.id == user.family_id)
+        )
         cats = (
-            (await session.execute(select(Category).where(Category.family_id == user.family_id)))
+            (
+                await session.execute(
+                    select(Category).where(
+                        Category.family_id == user.family_id
+                    )
+                )
+            )
             .scalars()
             .all()
         )
-    return SettingsResponse(
-        language=user.language,
-        currency=fam.currency if fam else "USD",
-        business_type=user.business_type,
-        categories=[
-            {"id": str(c.id), "name": c.name, "icon": c.icon, "scope": c.scope.value} for c in cats
-        ],
-    )
+        return SettingsResponse(
+            language=user.language,
+            currency=fam.currency if fam else "USD",
+            business_type=user.business_type,
+            categories=[
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "icon": c.icon,
+                    "scope": c.scope.value,
+                }
+                for c in cats
+            ],
+        )
 
 
 @router.put("/settings", response_model=SettingsResponse)
@@ -1154,9 +1344,15 @@ async def update_settings(
     data: SettingsUpdateRequest,
     user: User = Depends(get_current_user),
 ):
+    if data.currency:
+        _require_owner(user)
     async with async_session() as session:
-        db_user = await session.scalar(select(User).where(User.id == user.id))
-        fam = await session.scalar(select(Family).where(Family.id == db_user.family_id))
+        db_user = await session.scalar(
+            select(User).where(User.id == user.id)
+        )
+        fam = await session.scalar(
+            select(Family).where(Family.id == db_user.family_id)
+        )
 
         if data.language:
             db_user.language = data.language
@@ -1166,19 +1362,30 @@ async def update_settings(
         await session.commit()
 
         cats = (
-            (await session.execute(select(Category).where(Category.family_id == db_user.family_id)))
+            (
+                await session.execute(
+                    select(Category).where(
+                        Category.family_id == db_user.family_id
+                    )
+                )
+            )
             .scalars()
             .all()
         )
-
-    return SettingsResponse(
-        language=db_user.language,
-        currency=fam.currency if fam else "USD",
-        business_type=db_user.business_type,
-        categories=[
-            {"id": str(c.id), "name": c.name, "icon": c.icon, "scope": c.scope.value} for c in cats
-        ],
-    )
+        return SettingsResponse(
+            language=db_user.language,
+            currency=fam.currency if fam else "USD",
+            business_type=db_user.business_type,
+            categories=[
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "icon": c.icon,
+                    "scope": c.scope.value,
+                }
+                for c in cats
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1203,8 +1410,8 @@ async def detect_geo_from_ip(
     if not client_ip and request.client:
         client_ip = request.client.host
 
-    if not client_ip or client_ip in ("127.0.0.1", "::1"):
-        return {"ok": False, "reason": "localhost"}
+    if not client_ip or not _is_public_ip(client_ip):
+        return {"ok": False, "reason": "invalid_ip"}
 
     # Call ip-api.com (free, no key, 45 req/min)
     try:

@@ -2,6 +2,7 @@
 
 import json as _json
 import logging
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Any
@@ -18,6 +19,40 @@ from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+# Bare trigger words that shouldn't be used as a reminder title
+_REMINDER_TRIGGERS = {
+    "напомни", "напоминай", "напоминание", "напомните",
+    "remind", "remind me", "reminder", "set reminder", "set a reminder",
+    "recuérdame", "recordatorio",
+}
+
+# Regex patterns for relative time expressions (RU/EN/ES)
+_RELATIVE_TIME_RE = re.compile(
+    r"^(?:напомни(?:те)?|remind\s+me|recuérdame)\s+"  # trigger word
+    r"(?:через\s+\d+\s+(?:минут\w*|час\w*|секунд\w*)"  # RU: через N минут/часов
+    r"|in\s+\d+\s+(?:minute|hour|second)s?"  # EN: in N minutes/hours
+    r"|en\s+\d+\s+(?:minuto|hora|segundo)s?)"  # ES: en N minutos/horas
+    r"\s+(.+)",  # capture the action part
+    re.IGNORECASE,
+)
+
+# Standalone relative time (used as task_title by the LLM)
+_RELATIVE_TIME_ONLY_RE = re.compile(
+    r"^(?:через\s+\d+\s+(?:минут\w*|час\w*|секунд\w*)"
+    r"|in\s+\d+\s+(?:minute|hour|second)s?"
+    r"|en\s+\d+\s+(?:minuto|hora|segundo)s?)$",
+    re.IGNORECASE,
+)
+
+
+def _extract_action_from_relative_time(message_text: str) -> str | None:
+    """Extract the action part from a relative-time reminder message.
+
+    E.g., "напомни через 10 минут проверить духовку" → "проверить духовку"
+    """
+    m = _RELATIVE_TIME_RE.match(message_text.strip())
+    return m.group(1).strip() if m else None
 
 SET_REMINDER_SYSTEM_PROMPT = """\
 You help users set reminders. Extract the reminder text, time, and recurrence.
@@ -177,9 +212,12 @@ class SetReminderSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         lang = context.language or "en"
-        title = (
-            intent_data.get("task_title") or intent_data.get("description") or message.text or ""
-        )
+        title = intent_data.get("task_title") or intent_data.get("description") or ""
+        if not title:
+            # Fallback to message text, but skip bare trigger words
+            fallback = (message.text or "").strip()
+            if fallback.lower() not in _REMINDER_TRIGGERS:
+                title = fallback
         title = title.strip()
 
         if not title:
@@ -209,6 +247,12 @@ class SetReminderSkill:
                         title = extracted["reminder_title"]
                 except Exception as e:
                     logger.warning("Context extraction failed: %s", e)
+
+        # Fix: if any LLM put the relative time expression as title, extract the real action
+        if title and _RELATIVE_TIME_ONLY_RE.match(title):
+            action = _extract_action_from_relative_time(message.text or "")
+            if action:
+                title = action
 
         recurrence = _parse_recurrence(recurrence_str)
         recurrence_end = _parse_end_date(end_date_str)

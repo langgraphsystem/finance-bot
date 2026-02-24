@@ -274,6 +274,14 @@ general_chat — крайний случай. Если сообщение хот
 "соль" после "купил макароны" → shopping_list_remove
 - "задача: ..." или "add task: ..." → create_task (всегда)
 - "напомни ..." или "remind me ..." → set_reminder (всегда)
+- ВАЖНО для set_reminder: task_title = ДЕЙСТВИЕ (что сделать), НЕ время. \
+Относительное время ("через N минут", "in N minutes") → вычисли task_deadline, \
+а task_title = текст ПОСЛЕ времени. \
+"напомни через 10 минут проверить духовку" → task_title: "проверить духовку", \
+task_deadline: текущее время + 10 минут. \
+"remind me in 15 minutes to check the oven" → task_title: "check the oven". \
+"через 5 минут позвонить маме" → task_title: "позвонить маме"
+- Голое "напомни" / "remind me" БЕЗ деталей → set_reminder, task_title: null, confidence: 0.9
 - "каждый день", "ежедневно", "daily" + напоминание → set_reminder с reminder_recurrence: "daily"
 - "каждую неделю", "weekly" + напоминание → set_reminder с reminder_recurrence: "weekly"
 - "каждый месяц", "monthly" + напоминание → set_reminder с reminder_recurrence: "monthly"
@@ -664,6 +672,101 @@ _MODIFY_NOUNS_RU = ("программ", "скрипт", "код", "функци"
 _MODIFY_NOUNS_EN = ("program", "script", "code", "function", "app")
 
 
+_BARE_REMINDER_WORDS = {
+    "напомни",
+    "напоминай",
+    "напоминание",
+    "remind",
+    "remind me",
+    "reminder",
+    "set reminder",
+    "set a reminder",
+    "recuérdame",
+    "recordatorio",
+}
+
+
+def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
+    """Fast-path: bare 'напомни' / 'remind me' without details → set_reminder with no title."""
+    if text.lower().strip() in _BARE_REMINDER_WORDS:
+        return IntentDetectionResult(
+            intent="set_reminder",
+            confidence=0.95,
+            intent_type="action",
+            data=IntentData(),
+            response=None,
+        )
+    return None
+
+
+# Relative time reminder patterns: extract action + compute deadline
+_RELATIVE_TIME_PATTERNS = [
+    # RU: "напомни через N минут/часов X"
+    re.compile(
+        r"^(?:напомни(?:те)?)\s+через\s+(\d+)\s+(минут\w*|час\w*|секунд\w*)\s+(.+)",
+        re.IGNORECASE,
+    ),
+    # EN: "remind me in N minutes/hours to X"
+    re.compile(
+        r"^remind\s+me\s+in\s+(\d+)\s+(minute|hour|second)s?\s+(?:to\s+)?(.+)",
+        re.IGNORECASE,
+    ),
+    # ES: "recuérdame en N minutos/horas X"
+    re.compile(
+        r"^recuérdame\s+en\s+(\d+)\s+(minuto|hora|segundo)s?\s+(.+)",
+        re.IGNORECASE,
+    ),
+]
+
+_TIME_UNIT_MINUTES = {
+    "минут": 1, "час": 60, "секунд": 1,
+    "minute": 1, "hour": 60, "second": 1,
+    "minuto": 1, "hora": 60, "segundo": 1,
+}
+
+
+def _rule_based_relative_reminder(text: str) -> IntentDetectionResult | None:
+    """Fast-path: 'напомни через 10 минут X' / 'remind me in 15 minutes to X'."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+
+    stripped = text.strip()
+    for pattern in _RELATIVE_TIME_PATTERNS:
+        m = pattern.match(stripped)
+        if not m:
+            continue
+        amount = int(m.group(1))
+        unit_raw = m.group(2).lower()
+        action = m.group(3).strip()
+        if not action:
+            continue
+
+        # Determine minutes multiplier
+        multiplier = 1
+        for prefix, mins in _TIME_UNIT_MINUTES.items():
+            if unit_raw.startswith(prefix):
+                multiplier = mins
+                break
+        total_minutes = amount * multiplier
+
+        # Compute deadline (UTC+3 fallback; actual timezone applied in handler)
+        try:
+            now = datetime.now(ZoneInfo("UTC"))
+        except Exception:
+            now = datetime.utcnow()
+        deadline = now + timedelta(minutes=total_minutes)
+        deadline_iso = deadline.strftime("%Y-%m-%dT%H:%M:%S")
+
+        return IntentDetectionResult(
+            intent="set_reminder",
+            confidence=0.97,
+            intent_type="action",
+            data=IntentData(task_title=action, task_deadline=deadline_iso),
+            response=None,
+        )
+    return None
+
+
 def _rule_based_modify_program(text: str) -> IntentDetectionResult | None:
     """Fast-path modify_program for clear 'edit/fix the code' requests."""
     lower = text.lower().strip()
@@ -737,6 +840,14 @@ async def detect_intent(
     delete_fast_path = _rule_based_delete_intent(text)
     if delete_fast_path:
         return delete_fast_path
+
+    relative_reminder = _rule_based_relative_reminder(text)
+    if relative_reminder:
+        return relative_reminder
+
+    bare_reminder = _rule_based_bare_reminder(text)
+    if bare_reminder:
+        return bare_reminder
 
     modify_fast_path = _rule_based_modify_program(text)
     if modify_fast_path:

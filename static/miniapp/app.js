@@ -18,6 +18,7 @@ const INIT_DATA = tg?.initData || '';
 const state = {
   user: null,
   categories: [],
+  tasks: [],
   currentTab: 'dashboard',
   charts: {},
   txFilter: { type: null, category: null, search: '' },
@@ -33,10 +34,18 @@ async function api(path, opts = {}) {
     'X-Telegram-Init-Data': INIT_DATA,
     ...opts.headers,
   };
-  const r = await fetch('/api' + path, { ...opts, headers });
+  let r;
+  try {
+    r = await fetch('/api' + path, { ...opts, headers });
+  } catch (e) {
+    throw new Error('Network error — check your connection');
+  }
+  if (r.status === 401) {
+    throw new Error('Session expired — please reopen the app');
+  }
   if (!r.ok) {
     const err = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(err.detail || 'API error');
+    throw new Error(err.detail || `Error ${r.status}`);
   }
   const ct = r.headers.get('content-type') || '';
   if (ct.includes('text/csv')) return r;
@@ -118,6 +127,9 @@ function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function escAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
 function catIcon(catName) {
   const map = { Food:'🍔',Grocery:'🛒',Transport:'🚗',Fuel:'⛽',Entertainment:'🎬',Health:'💊',
     Shopping:'🛍',Rent:'🏠',Utilities:'💡',Income:'💵',Salary:'💵',Business:'💼',Other:'📦' };
@@ -135,7 +147,7 @@ async function renderDashboard(content) {
     state.user = profile;
     if (!state.categories.length) state.categories = await get('/categories');
 
-    document.getElementById('user-avatar').textContent = profile.name[0].toUpperCase();
+    document.getElementById('user-avatar').textContent = (profile.name || '?')[0].toUpperCase();
     const cur = profile.currency, sym = currSymbol(cur);
     const balSign = stats.balance >= 0 ? '+' : '';
     const balColor = stats.balance >= 0 ? 'rgba(255,255,255,0.9)' : '#ffcdd2';
@@ -167,6 +179,7 @@ async function renderDashboard(content) {
           <div style="font-size:12px;font-weight:700;color:var(--hint);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.5px;">Expenditure</div>
           <div class="chart-wrap" style="padding:0;display:flex;justify-content:center;margin-bottom:12px;"><canvas id="donut-chart" style="max-height:140px;"></canvas></div>
           <div class="bento-chart-val text-center" style="font-size:18px;font-weight:800;color:var(--text);">${sym}${Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0})}</div>
+          <div class="cat-legend" id="cat-legend"></div>
         </div>`;
     }
 
@@ -233,24 +246,66 @@ async function renderDashboard(content) {
 }
 
 async function dashChangePeriod(period) {
+  haptic('light');
+  state.statsperiod = period;
   document.querySelectorAll('#dash-period-tabs .period-tab').forEach(t =>
     t.classList.toggle('active', t.textContent.toLowerCase() === period)
   );
   try {
-    const stats = await get(`/stats/${period}`);
-    const cur = state.user?.currency || 'USD';
+    const [stats, budgets, txData] = await Promise.all([
+      get(`/stats/${period}`), get('/budgets'), get('/transactions?per_page=5'),
+    ]);
+    const cur = state.user?.currency || 'USD', sym = currSymbol(cur);
+    const balSign = stats.balance >= 0 ? '+' : '';
+    const balColor = stats.balance >= 0 ? 'rgba(255,255,255,0.9)' : '#ffcdd2';
+
     const amountEl = document.querySelector('.balance-card .amount');
-    if (amountEl) amountEl.textContent = (stats.balance >= 0 ? '+' : '') + fmtMoney(stats.balance);
+    if (amountEl) {
+      amountEl.textContent = balSign + fmtMoney(stats.balance);
+      amountEl.style.color = balColor;
+    }
     const cols = document.querySelectorAll('.balance-col .b-val');
-    if (cols[0]) cols[0].textContent = currSymbol(cur) + Number(stats.total_income).toLocaleString('en-US',{maximumFractionDigits:0});
-    if (cols[1]) cols[1].textContent = currSymbol(cur) + Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0});
+    if (cols[0]) cols[0].textContent = sym + Number(stats.total_income).toLocaleString('en-US',{maximumFractionDigits:0});
+    if (cols[1]) cols[1].textContent = sym + Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0});
+
+    if (state.charts.donut) state.charts.donut.destroy();
+    const COLORS = ['#2481cc','#f59e0b','#2dbe6c','#e53935','#9c27b0','#00bcd4','#ff5722','#607d8b'];
+    if (stats.expense_categories.length > 0) {
+      const cats = stats.expense_categories.slice(0, 8);
+      const ctx = document.getElementById('donut-chart')?.getContext('2d');
+      if (ctx) {
+        state.charts.donut = new Chart(ctx, {
+          type: 'doughnut',
+          data: { labels: cats.map(c => c.name), datasets: [{
+            data: cats.map(c => c.total), backgroundColor: COLORS, borderWidth: 2,
+            borderColor: getComputedStyle(document.body).getPropertyValue('--bg') || '#fff',
+          }]},
+          options: { cutout: '68%', plugins: { legend: { display: false }, tooltip: {
+            callbacks: { label: ctx2 => ` ${fmtMoney(ctx2.parsed, cur)} (${cats[ctx2.dataIndex].percent.toFixed(1)}%)` }
+          }}},
+        });
+        const legendEl = document.getElementById('cat-legend');
+        if (legendEl) {
+          legendEl.innerHTML = cats.map((c, i) =>
+            `<div class="cat-legend-item">
+              <div class="cat-dot" style="background:${COLORS[i]}"></div>
+              <div class="cat-legend-name">${c.icon||'📦'} ${esc(c.name)}</div>
+              <div class="cat-legend-val">${fmtMoney(c.total, cur)}</div>
+              <div class="cat-legend-pct">${c.percent.toFixed(1)}%</div>
+            </div>`
+          ).join('');
+        }
+      }
+      const chartVal = document.querySelector('.bento-chart-val');
+      if (chartVal) chartVal.textContent = sym + Number(stats.total_expense).toLocaleString('en-US',{maximumFractionDigits:0});
+    }
   } catch (e) { toast(e.message); }
 }
 
 // ─── TX ROW ────────────────────────────────────────────────────────────────
 function txRow(tx, currency) {
   const isExp = tx.type === 'expense';
-  return `<div class="tx-item" onclick="showTxDetail('${tx.id}')">
+  return `<div class="tx-item" onclick="showTxDetail('${escAttr(tx.id)}')">
     <div class="tx-icon ${tx.type}">${catIcon(tx.category)}</div>
     <div class="tx-body">
       <div class="tx-name">${esc(tx.merchant || tx.category)}</div>
@@ -275,7 +330,7 @@ async function renderTransactions(content) {
       <div class="chip ${state.txFilter.type==='expense'?'active':''}" onclick="setTxFilter('type','expense',this)">Expenses</div>
       <div class="chip ${state.txFilter.type==='income'?'active':''}"  onclick="setTxFilter('type','income',this)">Income</div>
       ${cats.slice(0,6).map(c =>
-        `<div class="chip ${state.txFilter.category===c.id?'active':''}" onclick="setTxCat('${c.id}',this)">${c.icon||'📦'} ${esc(c.name)}</div>`
+        `<div class="chip ${state.txFilter.category===c.id?'active':''}" onclick="setTxCat('${escAttr(c.id)}',this)">${c.icon||'📦'} ${esc(c.name)}</div>`
       ).join('')}
     </div>
     <div id="tx-list-container">${spinner()}</div>`;
@@ -308,10 +363,10 @@ function setTxCat(id, el) {
 let txDebounce;
 function debounceLoadTx() { clearTimeout(txDebounce); txDebounce = setTimeout(loadTransactions, 350); }
 
-async function loadTransactions() {
+async function loadTransactions(append = false) {
   const container = document.getElementById('tx-list-container');
   if (!container) return;
-  container.innerHTML = spinner();
+  if (!append) container.innerHTML = spinner();
   const f = state.txFilter;
   const params = new URLSearchParams({ page: state.txPage, per_page: 20 });
   if (f.type)     params.set('type', f.type);
@@ -319,22 +374,33 @@ async function loadTransactions() {
   if (f.search)   params.set('search', f.search);
   try {
     const data = await get(`/transactions?${params}`);
+    state.txTotal = data.total;
     const cur = state.user?.currency || 'USD';
-    if (data.items.length === 0) {
+    if (data.items.length === 0 && !append) {
       container.innerHTML = `<div class="empty"><div class="empty-icon">💸</div><p>No transactions</p><small>Try adjusting filters</small></div>`;
       return;
     }
-    container.innerHTML = `
-      <div class="tx-list">${data.items.map(tx => txRow(tx, cur)).join('')}</div>
-      ${data.total > state.txPage * 20
-        ? `<div class="btn-wrap"><button class="btn btn-ghost" onclick="loadMoreTx()">Load more (${data.total - state.txPage*20} left)</button></div>` : ''}
-      <div style="height:16px"></div>`;
+    if (append) {
+      const list = container.querySelector('.tx-list');
+      if (list) list.insertAdjacentHTML('beforeend', data.items.map(tx => txRow(tx, cur)).join(''));
+      const oldBtn = container.querySelector('.btn-wrap');
+      if (oldBtn) oldBtn.remove();
+    } else {
+      container.innerHTML = `
+        <div class="tx-list">${data.items.map(tx => txRow(tx, cur)).join('')}</div>`;
+    }
+    if (data.total > state.txPage * 20) {
+      container.insertAdjacentHTML('beforeend',
+        `<div class="btn-wrap"><button class="btn btn-ghost" onclick="loadMoreTx()">Load more (${data.total - state.txPage*20} left)</button></div>`);
+    }
+    if (!append) container.insertAdjacentHTML('beforeend', '<div style="height:16px"></div>');
   } catch (e) {
-    container.innerHTML = `<div class="empty"><p>${esc(e.message)}</p></div>`;
+    if (!append) container.innerHTML = `<div class="empty"><p>${esc(e.message)}</p></div>`;
+    else toast(e.message);
   }
 }
 
-async function loadMoreTx() { state.txPage++; await loadTransactions(); }
+async function loadMoreTx() { state.txPage++; await loadTransactions(true); }
 
 async function showTxDetail(id) {
   haptic('light');
@@ -359,8 +425,8 @@ async function showTxDetail(id) {
           ${tx.description ? detailRow('Note', tx.description) : ''}
         </div>
         <div style="display:flex;gap:8px;margin-bottom:16px">
-          <button class="btn btn-ghost" style="flex:1" onclick="editTxModal('${tx.id}')">✏️ Edit</button>
-          <button class="btn btn-danger" style="flex:1" onclick="deleteTx('${tx.id}')">🗑 Delete</button>
+          <button class="btn btn-ghost" style="flex:1" onclick="editTxModal('${escAttr(tx.id)}')">✏️ Edit</button>
+          <button class="btn btn-danger" style="flex:1" onclick="deleteTx('${escAttr(tx.id)}')">🗑 Delete</button>
         </div>
       </div>`);
   } catch (e) { setModalContent(`<div class="empty"><p>${esc(e.message)}</p></div>`); }
@@ -405,7 +471,7 @@ async function editTxModal(id) {
       <div class="form-group"><div class="form-label">Note</div>
         <input class="form-input" id="edit-desc" type="text" value="${esc(tx.description||'')}"></div>
       <div class="btn-wrap" style="padding-bottom:16px">
-        <button class="btn btn-primary" onclick="submitEditTx('${id}')">Save changes</button></div>`);
+        <button class="btn btn-primary" onclick="submitEditTx('${escAttr(id)}')">Save changes</button></div>`);
   } catch (e) { setModalContent(`<div class="empty"><p>${esc(e.message)}</p></div>`); }
 }
 
@@ -449,7 +515,7 @@ function renderAdd(content) {
         <div class="form-label">Category</div>
         <div class="cat-grid" id="add-cat-grid">
           ${cats.slice(0,12).map((c,i) =>
-            `<div class="cat-chip ${i===0?'selected':''}" data-id="${c.id}" onclick="selectCat(this)">
+            `<div class="cat-chip ${i===0?'selected':''}" data-id="${escAttr(c.id)}" onclick="selectCat(this)">
               <div class="cat-emoji">${c.icon||'📦'}</div>
               <div class="cat-label">${esc(c.name)}</div>
             </div>`
@@ -635,6 +701,7 @@ async function loadTaskList(status) {
   if (status) params.set('status', status);
   try {
     const tasks = await get('/tasks?' + params);
+    state.tasks = tasks;
     if (tasks.length === 0) {
       taskList.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><p>All done!</p><small>Add a new task below</small></div>`;
       return;
@@ -642,10 +709,10 @@ async function loadTaskList(status) {
     taskList.innerHTML = `<div class="tx-list">
       ${tasks.map(t => `
         <div class="task-item">
-          <div class="task-check ${t.status==='done'?'done':''}" onclick="toggleTask('${t.id}','${t.status}')">
+          <div class="task-check ${t.status==='done'?'done':''}" onclick="toggleTask('${escAttr(t.id)}','${escAttr(t.status)}')">
             ${t.status==='done'?'✓':''}
           </div>
-          <div class="task-body" onclick="editTaskModal('${t.id}')">
+          <div class="task-body" onclick="editTaskModal('${escAttr(t.id)}')">
             <div class="task-title ${t.status==='done'?'done':''}">${esc(t.title)}</div>
             ${t.due_at ? `<div class="task-sub">📅 ${fmtDate(t.due_at)}</div>` : ''}
           </div>
@@ -704,34 +771,30 @@ async function submitAddTask() {
 
 async function editTaskModal(id) {
   haptic('light');
-  openModal(spinner());
-  try {
-    const tasks = await get('/tasks');
-    const t = tasks.find(x => x.id === id);
-    if (!t) { setModalContent(`<div class="empty"><p>Not found</p></div>`); return; }
-    setModalContent(`
-      <div class="modal-title">Edit Task</div>
-      <div class="form-group"><div class="form-label">Title</div>
-        <input class="form-input" id="etask-title" type="text" value="${esc(t.title)}"></div>
-      <div class="form-group"><div class="form-label">Status</div>
-        <select class="form-input" id="etask-status">
-          <option value="pending"     ${t.status==='pending'?'selected':''}>Pending</option>
-          <option value="in_progress" ${t.status==='in_progress'?'selected':''}>In Progress</option>
-          <option value="done"        ${t.status==='done'?'selected':''}>Done</option>
-          <option value="cancelled"   ${t.status==='cancelled'?'selected':''}>Cancelled</option>
-        </select></div>
-      <div class="form-group"><div class="form-label">Priority</div>
-        <select class="form-input" id="etask-priority">
-          <option value="low"    ${t.priority==='low'?'selected':''}>🟢 Low</option>
-          <option value="medium" ${t.priority==='medium'?'selected':''}>🟡 Medium</option>
-          <option value="high"   ${t.priority==='high'?'selected':''}>🔴 High</option>
-          <option value="urgent" ${t.priority==='urgent'?'selected':''}>🚨 Urgent</option>
-        </select></div>
-      <div style="display:flex;gap:8px;padding:0 12px 16px;margin-top:8px">
-        <button class="btn btn-primary" style="flex:2" onclick="submitEditTask('${id}')">Save</button>
-        <button class="btn btn-danger"  style="flex:1" onclick="deleteTask('${id}')">Delete</button>
-      </div>`);
-  } catch (e) { setModalContent(`<div class="empty"><p>${esc(e.message)}</p></div>`); }
+  const t = state.tasks?.find(x => x.id === id);
+  if (!t) { toast('Task not found'); return; }
+  openModal(`
+    <div class="modal-title">Edit Task</div>
+    <div class="form-group"><div class="form-label">Title</div>
+      <input class="form-input" id="etask-title" type="text" value="${esc(t.title)}"></div>
+    <div class="form-group"><div class="form-label">Status</div>
+      <select class="form-input" id="etask-status">
+        <option value="pending"     ${t.status==='pending'?'selected':''}>Pending</option>
+        <option value="in_progress" ${t.status==='in_progress'?'selected':''}>In Progress</option>
+        <option value="done"        ${t.status==='done'?'selected':''}>Done</option>
+        <option value="cancelled"   ${t.status==='cancelled'?'selected':''}>Cancelled</option>
+      </select></div>
+    <div class="form-group"><div class="form-label">Priority</div>
+      <select class="form-input" id="etask-priority">
+        <option value="low"    ${t.priority==='low'?'selected':''}>🟢 Low</option>
+        <option value="medium" ${t.priority==='medium'?'selected':''}>🟡 Medium</option>
+        <option value="high"   ${t.priority==='high'?'selected':''}>🔴 High</option>
+        <option value="urgent" ${t.priority==='urgent'?'selected':''}>🚨 Urgent</option>
+      </select></div>
+    <div style="display:flex;gap:8px;padding:0 12px 16px;margin-top:8px">
+      <button class="btn btn-primary" style="flex:2" onclick="submitEditTask('${escAttr(id)}')">Save</button>
+      <button class="btn btn-danger"  style="flex:1" onclick="deleteTask('${escAttr(id)}')">Delete</button>
+    </div>`);
 }
 
 async function submitEditTask(id) {
@@ -929,7 +992,7 @@ async function renderSettings(content) {
     state.user = profile;
     content.innerHTML = `
       <div class="card" style="display:flex;align-items:center;gap:14px">
-        <div class="avatar" style="width:52px;height:52px;font-size:22px">${profile.name[0].toUpperCase()}</div>
+        <div class="avatar" style="width:52px;height:52px;font-size:22px">${(profile.name || '?')[0].toUpperCase()}</div>
         <div>
           <div style="font-size:17px;font-weight:600">${esc(profile.name)}</div>
           <div style="font-size:13px;color:var(--hint)">${profile.role} · ${esc(profile.family_name)}</div>
@@ -976,7 +1039,7 @@ async function renderSettings(content) {
               </div>
               <div>
                 <div class="rec-amount">-${fmtMoney(r.amount)}</div>
-                <button class="btn btn-sm btn-ghost" style="margin-top:4px" onclick="markRecurringPaid('${r.id}')">✓ Paid</button>
+                <button class="btn btn-sm btn-ghost" style="margin-top:4px" onclick="markRecurringPaid('${escAttr(r.id)}')">✓ Paid</button>
               </div>
             </div>`).join('')}
         </div>` : ''}
@@ -1012,7 +1075,7 @@ async function openBudgetsModal() {
                 <div style="display:flex;align-items:center;gap:6px">
                   <div class="progress-bar-wrap"><div class="progress-bar ${over?'over':''}" style="width:${pct}%"></div></div>
                   <div class="progress-pct">${Math.round(b.percent)}%</div>
-                  <button class="btn btn-sm btn-danger" onclick="deleteBudget('${b.id}')">✕</button>
+                  <button class="btn btn-sm btn-danger" onclick="deleteBudget('${escAttr(b.id)}')">✕</button>
                 </div>
               </div>`;
             }).join('')}
@@ -1072,7 +1135,7 @@ function changeLang() {
   openModal(`
     <div class="modal-title">Language</div>
     ${[['en','🇺🇸 English'],['ru','🇷🇺 Русский'],['es','🇪🇸 Español'],['uk','🇺🇦 Українська'],['de','🇩🇪 Deutsch'],['fr','🇫🇷 Français'],['zh','🇨🇳 中文']].map(([l,label]) =>
-      `<div class="settings-row" onclick="saveLang('${l}')">
+      `<div class="settings-row" onclick="saveLang('${escAttr(l)}')">
         <span class="row-label">${label}</span>
         ${state.user?.language===l?'<span style="color:var(--btn)">✓</span>':''}
       </div>`
@@ -1093,7 +1156,7 @@ function changeCurrency() {
   openModal(`
     <div class="modal-title">Currency</div>
     ${['USD','EUR','GBP','RUB','CAD','AUD','UAH','PLN'].map(c =>
-      `<div class="settings-row" onclick="saveCurrency('${c}')">
+      `<div class="settings-row" onclick="saveCurrency('${escAttr(c)}')">
         <span class="row-label">${c} ${currSymbol(c)}</span>
         ${state.user?.currency===c?'<span style="color:var(--btn)">✓</span>':''}
       </div>`
@@ -1116,11 +1179,11 @@ function showInviteCode() {
   openModal(`
     <div class="modal-title">Invite to Family</div>
     <div class="invite-code-box">
-      <div class="invite-code" onclick="copyInvite('${code}')">${code}</div>
+      <div class="invite-code" onclick="copyInvite('${escAttr(code)}')">${esc(code)}</div>
       <div class="invite-hint">Tap code to copy · Share with family members</div>
     </div>
     <div class="btn-wrap" style="padding-bottom:16px">
-      <button class="btn btn-primary" onclick="copyInvite('${code}')">📋 Copy Code</button></div>`);
+      <button class="btn btn-primary" onclick="copyInvite('${escAttr(code)}')">📋 Copy Code</button></div>`);
 }
 
 function copyInvite(code) {
@@ -1146,6 +1209,7 @@ async function exportCSV() {
 function openModal(html) {
   document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal').classList.add('open');
+  tg?.BackButton?.offClick(closeModal);
   tg?.BackButton?.show();
   tg?.BackButton?.onClick(closeModal);
 }
@@ -1169,7 +1233,7 @@ function closeModal(evt) {
     if (user) {
       state.user = user;
       state.categories = cats;
-      document.getElementById('user-avatar').textContent = user.name[0].toUpperCase();
+      document.getElementById('user-avatar').textContent = (user.name || '?')[0].toUpperCase();
     }
   } catch (_) {}
   navigate('dashboard');
