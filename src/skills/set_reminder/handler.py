@@ -54,6 +54,34 @@ def _extract_action_from_relative_time(message_text: str) -> str | None:
     m = _RELATIVE_TIME_RE.match(message_text.strip())
     return m.group(1).strip() if m else None
 
+_TITLE_STRIP_RE = re.compile(
+    r"^(?:(?:напомни(?:те)?|remind\s+me|recuérdame)"
+    r"\s+(?:about\s+(?:this|that)|об\s+этом|sobre\s+esto)"
+    r"(?:\s+(?:tomorrow|завтра|mañana))?"
+    r"(?:\s+(?:at|в|a)\s+\S+)?)"
+    r"\s*",
+    re.IGNORECASE,
+)
+
+_TITLE_PREFIX_RE = re.compile(
+    r"^(?:напомни(?:те)?|remind\s+me|recuérdame)\s+",
+    re.IGNORECASE,
+)
+
+
+def _clean_reminder_title(text: str) -> str:
+    """Strip trigger words and time references from a reminder message."""
+    # Try stripping "remind me about this tomorrow at 5pm" → ""
+    cleaned = _TITLE_STRIP_RE.sub("", text).strip()
+    if cleaned:
+        return cleaned
+    # Try stripping just "remind me " prefix → rest
+    cleaned = _TITLE_PREFIX_RE.sub("", text).strip()
+    if cleaned:
+        return cleaned
+    return text
+
+
 SET_REMINDER_SYSTEM_PROMPT = """\
 You help users set reminders. Extract the reminder text, time, and recurrence.
 ALWAYS respond in the same language as the user's message/query.
@@ -62,10 +90,20 @@ If no preference is set, detect and match the language of their message."""
 CONTEXT_EXTRACTION_PROMPT = """\
 You extract reminder details from a conversation.
 The user wants to set a reminder. Extract:
-1. reminder_title: what to remind about (short, 3-10 words)
+1. reminder_title: what to remind about (short, 3-10 words). \
+If the user says "remind me about this/that", look at previous messages \
+to find what "this/that" refers to.
 2. reminder_times: list of objects {{"time": "HH:MM", "label": "short description"}}
 3. recurrence: "daily", "weekly", "monthly", or null
 4. end_date: "YYYY-MM-DD" or null
+
+CRITICAL RULES:
+- Only include times that were EXPLICITLY mentioned by the user.
+- If the user says "tomorrow" without a specific time, return reminder_times: [].
+- NEVER invent a default time (like 09:00). If no time was stated, \
+return an empty list.
+- If the user says "remind me about this", extract the subject from \
+the PREVIOUS message in the conversation, not from the current one.
 
 Today: {today}. User timezone: {timezone}.
 
@@ -214,10 +252,10 @@ class SetReminderSkill:
         lang = context.language or "en"
         title = intent_data.get("task_title") or intent_data.get("description") or ""
         if not title:
-            # Fallback to message text, but skip bare trigger words
+            # Fallback to message text, but clean it up
             fallback = (message.text or "").strip()
             if fallback.lower() not in _REMINDER_TRIGGERS:
-                title = fallback
+                title = _clean_reminder_title(fallback)
         title = title.strip()
 
         if not title:
@@ -288,18 +326,21 @@ class SetReminderSkill:
         )
 
         await save_reminder(task)
-        return _build_response(task, lang, recurrence)
+        return _build_response(task, lang, recurrence, context.timezone)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return SET_REMINDER_SYSTEM_PROMPT.format(language=context.language or "en")
 
 
 def _build_response(
-    task: Task, lang: str, recurrence: ReminderRecurrence
+    task: Task, lang: str, recurrence: ReminderRecurrence,
+    timezone: str = "America/New_York",
 ) -> SkillResult:
     """Build response text for a single reminder."""
     if task.reminder_at:
-        time_str = task.reminder_at.strftime("%I:%M %p").lstrip("0")
+        from src.skills._i18n import fmt_time
+
+        time_str = fmt_time(task.reminder_at, lang, timezone=timezone)
         if recurrence != ReminderRecurrence.none:
             labels = _RECURRENCE_LABELS.get(lang, _RECURRENCE_LABELS["en"])
             rec_label = labels.get(recurrence.value, recurrence.value)
@@ -351,9 +392,11 @@ async def _create_multiple_reminders(
         created.append((label, reminder_time))
 
     # Build response
+    from src.skills._i18n import fmt_time
+
     lines: list[str] = []
     for label, rt in created:
-        time_str = rt.strftime("%I:%M %p").lstrip("0") if rt else "?"
+        time_str = fmt_time(rt, lang, timezone=context.timezone) if rt else "?"
         lines.append(f"  • {label}: {time_str}")
 
     recurrence_note = ""

@@ -63,12 +63,13 @@ class ListTasksSkill:
             return SkillResult(response_text=tr(_STRINGS, "empty", lang))
 
         lines = [tr(_STRINGS, "header", lang, count=str(len(tasks)))]
+        tz = context.timezone
         for i, t in enumerate(tasks, 1):
             icon = PRIORITY_ICONS.get(t.priority, "")
             prefix = f"{icon} " if icon else ""
             due = ""
             if t.due_at:
-                due = f" — {fmt_date(t.due_at, lang)}"
+                due = f" — {fmt_date(t.due_at, lang, timezone=tz)}"
             lines.append(f"{i}. {prefix}{t.title}{due}")
 
         lines.append(tr(_STRINGS, "action", lang))
