@@ -235,28 +235,49 @@ async def on_message(incoming):
         from src.core.models.enums import ConversationState
         from src.core.router import (
             _clear_onboarding_state,
+            _get_onboarding_language,
             _get_onboarding_state,
+            _set_onboarding_language,
             _set_onboarding_state,
             get_registry,
         )
+        from src.skills.onboarding.handler import ONBOARDING_TEXTS
 
-        # Handle callback buttons (onboard:new / onboard:join)
+        # Handle callback buttons (onboard:lang:XX / onboard:new / onboard:join)
         if incoming.type == MessageType.callback and incoming.callback_data:
             parts = incoming.callback_data.split(":")
             if len(parts) >= 2 and parts[0] == "onboard":
+                if parts[1] == "lang" and len(parts) >= 3:
+                    # Language selection
+                    chosen_lang = parts[2]
+                    if chosen_lang not in ONBOARDING_TEXTS:
+                        chosen_lang = "en"
+                    await _set_onboarding_language(incoming.user_id, chosen_lang)
+                    await _set_onboarding_state(
+                        incoming.user_id, ConversationState.onboarding_awaiting_choice
+                    )
+                    t = ONBOARDING_TEXTS[chosen_lang]
+                    await gateway.send(
+                        OutgoingMessage(
+                            text=t["welcome"],
+                            chat_id=incoming.chat_id,
+                            buttons=[
+                                {"text": t["new_account"], "callback": "onboard:new"},
+                                {"text": t["join_family"], "callback": "onboard:join"},
+                            ],
+                        )
+                    )
+                    return
+
+                lang = await _get_onboarding_language(incoming.user_id) or "en"
+                t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
+
                 if parts[1] == "new":
                     await _set_onboarding_state(
                         incoming.user_id, ConversationState.onboarding_awaiting_activity
                     )
                     await gateway.send(
-                        OutgoingMessage(
-                            text=(
-                                "Расскажите о своей деятельности — чем занимаетесь?\n\n"
-                                "Например: «я таксист», «у меня трак», "
-                                "«просто хочу следить за расходами»"
-                            ),
-                            chat_id=incoming.chat_id,
-                        )
+                        OutgoingMessage(text=t["ask_activity"], chat_id=incoming.chat_id)
                     )
                     return
                 elif parts[1] == "join":
@@ -264,10 +285,7 @@ async def on_message(incoming):
                         incoming.user_id, ConversationState.onboarding_awaiting_invite_code
                     )
                     await gateway.send(
-                        OutgoingMessage(
-                            text="Введите код приглашения, который вам прислал владелец аккаунта:",
-                            chat_id=incoming.chat_id,
-                        )
+                        OutgoingMessage(text=t["ask_invite"], chat_id=incoming.chat_id)
                     )
                     return
 
@@ -275,9 +293,10 @@ async def on_message(incoming):
         onboarding = registry.get("onboarding")
 
         onboarding_state = await _get_onboarding_state(incoming.user_id)
+        chosen_lang = await _get_onboarding_language(incoming.user_id)
+        tg_language = chosen_lang or incoming.language or "en"
         intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
 
-        tg_language = incoming.language or "ru"
         result = await onboarding.execute(
             incoming,
             SessionContext(

@@ -39,6 +39,7 @@ class MessageRole(enum.StrEnum):
 
 class ConversationState(enum.StrEnum):
     onboarding = "onboarding"
+    onboarding_awaiting_language = "onboarding_awaiting_language"
     onboarding_awaiting_choice = "onboarding_awaiting_choice"
     onboarding_awaiting_activity = "onboarding_awaiting_activity"
     onboarding_awaiting_invite_code = "onboarding_awaiting_invite_code"

@@ -123,13 +123,21 @@ class TestHelpers:
 
     def test_ask_activity_result(self):
         result = _ask_activity_result()
-        assert "деятельности" in result.response_text
+        assert "activity" in result.response_text
         assert result.buttons is None
+
+    def test_ask_activity_result_ru(self):
+        result = _ask_activity_result("ru")
+        assert "деятельности" in result.response_text
 
     def test_ask_invite_code_result(self):
         result = _ask_invite_code_result()
-        assert "код приглашения" in result.response_text.lower()
+        assert "invite code" in result.response_text.lower()
         assert result.buttons is None
+
+    def test_ask_invite_code_result_ru(self):
+        result = _ask_invite_code_result("ru")
+        assert "код приглашения" in result.response_text.lower()
 
     def test_format_categories_text_with_dict(self):
         from src.core.profiles import ProfileConfig
@@ -164,6 +172,14 @@ class TestHelpers:
         cats = [{"name": f"Cat{i}", "icon": "X"} for i in range(8)]
         profile = ProfileConfig(name="Test", categories={"business": cats})
         text = _format_categories_text(profile)
+        assert "and 3 more" in text
+
+    def test_format_categories_text_more_than_five_ru(self):
+        from src.core.profiles import ProfileConfig
+
+        cats = [{"name": f"Cat{i}", "icon": "X"} for i in range(8)]
+        profile = ProfileConfig(name="Test", categories={"business": cats})
+        text = _format_categories_text(profile, "ru")
         assert "и ещё 3" in text
 
 
@@ -172,22 +188,24 @@ class TestHelpers:
 
 class TestStartCommand:
     @pytest.mark.asyncio
-    async def test_start_returns_welcome_with_buttons(
+    async def test_start_returns_language_picker(
         self, onboarding_skill, start_message, empty_context
     ):
         result = await onboarding_skill.execute(start_message, empty_context, {})
         assert result.buttons is not None
-        assert len(result.buttons) == 2
-        assert "AI Assistant" in result.response_text
+        assert len(result.buttons) == 4
+        assert "Welcome!" in result.response_text
 
     @pytest.mark.asyncio
-    async def test_start_buttons_have_correct_callbacks(
+    async def test_start_buttons_have_language_callbacks(
         self, onboarding_skill, start_message, empty_context
     ):
         result = await onboarding_skill.execute(start_message, empty_context, {})
         callbacks = [b["callback"] for b in result.buttons]
-        assert "onboard:new" in callbacks
-        assert "onboard:join" in callbacks
+        assert "onboard:lang:en" in callbacks
+        assert "onboard:lang:es" in callbacks
+        assert "onboard:lang:zh" in callbacks
+        assert "onboard:lang:ru" in callbacks
 
     @pytest.mark.asyncio
     async def test_no_family_no_state_shows_welcome(self, onboarding_skill, empty_context):
@@ -442,7 +460,7 @@ class TestAlreadyRegistered:
 
     @pytest.mark.asyncio
     async def test_registered_user_start_still_works(self, onboarding_skill):
-        """Registered user sending /start should still see welcome."""
+        """Registered user sending /start should see language picker."""
         ctx = SessionContext(
             user_id="11111111-1111-1111-1111-111111111111",
             family_id="22222222-2222-2222-2222-222222222222",
@@ -462,7 +480,7 @@ class TestAlreadyRegistered:
         )
         result = await onboarding_skill.execute(msg, ctx, {})
         assert result.buttons is not None
-        assert len(result.buttons) == 2
+        assert len(result.buttons) == 4
 
 
 class TestDuplicateUser:

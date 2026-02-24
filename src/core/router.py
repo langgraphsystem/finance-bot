@@ -627,8 +627,34 @@ async def _clear_onboarding_state(telegram_id: str) -> None:
 
         key = f"onboarding_state:{telegram_id}"
         await redis.delete(key)
+        lang_key = f"onboarding_lang:{telegram_id}"
+        await redis.delete(lang_key)
     except Exception as e:
         logger.warning("Failed to clear onboarding state from Redis: %s", e)
+
+
+async def _set_onboarding_language(telegram_id: str, language: str) -> None:
+    """Store chosen onboarding language in Redis."""
+    try:
+        from src.core.db import redis
+
+        key = f"onboarding_lang:{telegram_id}"
+        await redis.set(key, language, ex=3600)
+    except Exception as e:
+        logger.warning("Failed to set onboarding language in Redis: %s", e)
+
+
+async def _get_onboarding_language(telegram_id: str) -> str:
+    """Retrieve chosen onboarding language from Redis."""
+    try:
+        from src.core.db import redis
+
+        key = f"onboarding_lang:{telegram_id}"
+        value = await redis.get(key)
+        return value if value else ""
+    except Exception as e:
+        logger.warning("Failed to get onboarding language from Redis: %s", e)
+        return ""
 
 
 async def _handle_clarify(
@@ -890,29 +916,46 @@ async def _handle_callback(
     elif action == "onboard":
         sub_action = parts[1] if len(parts) > 1 else "household"
 
+        if sub_action == "lang" and len(parts) >= 3:
+            # Language selection: onboard:lang:en / onboard:lang:ru / etc.
+            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+
+            chosen_lang = parts[2]
+            if chosen_lang not in ONBOARDING_TEXTS:
+                chosen_lang = "en"
+            await _set_onboarding_language(message.user_id, chosen_lang)
+            await _set_onboarding_state(
+                message.user_id, ConversationState.onboarding_awaiting_choice
+            )
+            t = ONBOARDING_TEXTS[chosen_lang]
+            return OutgoingMessage(
+                text=t["welcome"],
+                chat_id=message.chat_id,
+                buttons=[
+                    {"text": t["new_account"], "callback": "onboard:new"},
+                    {"text": t["join_family"], "callback": "onboard:join"},
+                ],
+            )
+
         if sub_action == "new":
-            # Owner flow: set state to awaiting_activity, ask for description
+            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+
+            lang = await _get_onboarding_language(message.user_id) or "en"
+            t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
             await _set_onboarding_state(
                 message.user_id, ConversationState.onboarding_awaiting_activity
             )
-            return OutgoingMessage(
-                text=(
-                    "Расскажите о своей деятельности — чем занимаетесь?\n\n"
-                    "Например: «я таксист», «у меня трак», "
-                    "«просто хочу следить за расходами»"
-                ),
-                chat_id=message.chat_id,
-            )
+            return OutgoingMessage(text=t["ask_activity"], chat_id=message.chat_id)
 
         elif sub_action == "join":
-            # Family member flow: set state to awaiting_invite_code
+            from src.skills.onboarding.handler import ONBOARDING_TEXTS
+
+            lang = await _get_onboarding_language(message.user_id) or "en"
+            t = ONBOARDING_TEXTS.get(lang, ONBOARDING_TEXTS["en"])
             await _set_onboarding_state(
                 message.user_id, ConversationState.onboarding_awaiting_invite_code
             )
-            return OutgoingMessage(
-                text="Введите код приглашения, который вам прислал владелец аккаунта:",
-                chat_id=message.chat_id,
-            )
+            return OutgoingMessage(text=t["ask_invite"], chat_id=message.chat_id)
 
         else:
             # Legacy: direct profile selection (e.g. onboard:trucker)
