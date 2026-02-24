@@ -154,7 +154,6 @@ class TestChannelAccountCreation:
             )
 
         assert "All set!" in result.response_text
-        assert "ABC12345" in result.response_text
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args
         assert call_kwargs.kwargs["channel"] == "slack"

@@ -367,7 +367,6 @@ class TestActivityDescription:
                 result = await onboarding_skill.execute(trucker_message, empty_context, intent_data)
 
         assert "Отлично!" in result.response_text
-        assert "TESTCODE" in result.response_text
         assert result.buttons is None
 
     @pytest.mark.asyncio
@@ -628,7 +627,6 @@ class TestDuplicateUser:
 
         # Should succeed, NOT return error
         assert "Отлично!" in result.response_text
-        assert "EXISTING" in result.response_text
 
 
 # ---- Awaiting choice state --------------------------------------------------

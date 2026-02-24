@@ -44,6 +44,52 @@ ONBOARDING_SYSTEM_PROMPT = (
 
 SUPPORTED_LANGUAGES = ("en", "es", "zh", "ru")
 
+# Profile display names per language (YAML names are Russian-only)
+PROFILE_DISPLAY_NAMES: dict[str, dict[str, str]] = {
+    "household": {
+        "en": "Household",
+        "es": "Hogar",
+        "zh": "家庭",
+        "ru": "Домохозяйство",
+    },
+    "trucker": {
+        "en": "Trucking",
+        "es": "Transporte",
+        "zh": "卡车运输",
+        "ru": "Грузоперевозки",
+    },
+    "taxi": {
+        "en": "Taxi",
+        "es": "Taxi",
+        "zh": "出租车",
+        "ru": "Такси",
+    },
+    "delivery": {
+        "en": "Delivery",
+        "es": "Entregas",
+        "zh": "配送",
+        "ru": "Доставка",
+    },
+    "flowers": {
+        "en": "Flower Shop",
+        "es": "Floreria",
+        "zh": "花店",
+        "ru": "Цветочный бизнес",
+    },
+    "manicure": {
+        "en": "Beauty Salon",
+        "es": "Salon de belleza",
+        "zh": "美甲沙龙",
+        "ru": "Салон красоты",
+    },
+    "construction": {
+        "en": "Construction",
+        "es": "Construccion",
+        "zh": "建筑",
+        "ru": "Строительство",
+    },
+}
+
 LANGUAGE_NAMES: dict[str, str] = {
     "en": "English", "es": "Spanish", "zh": "Chinese", "ru": "Russian",
     "fr": "French", "de": "German", "pt": "Portuguese", "it": "Italian",
@@ -382,6 +428,12 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
 def _get_texts(language: str) -> dict[str, str]:
     """Get onboarding texts for a language, defaulting to English."""
     return ONBOARDING_TEXTS.get(language, ONBOARDING_TEXTS["en"])
+
+
+def _profile_display_name(business_type: str, lang: str) -> str:
+    """Get profile display name in the user's language."""
+    names = PROFILE_DISPLAY_NAMES.get(business_type, {})
+    return names.get(lang, names.get("en", business_type.title()))
 
 
 async def detect_language(text: str) -> tuple[str, str]:
@@ -778,18 +830,18 @@ class OnboardingSkill:
                         language=context.language,
                         currency=context.currency,
                     )
-            invite_code = family.invite_code
+            display_name = _profile_display_name(business_type, lang)
             categories_text = _format_categories_text(profile, texts=t)
             cat_line = (
-                f"\n{t['categories_label']}: {categories_text}\n" if categories_text else "\n"
+                f"\n{t['categories_label']}: {categories_text}\n"
+                if categories_text
+                else "\n"
             )
 
             return SkillResult(
                 response_text=(
-                    f"{t['setup_done'].format(profile=profile.name)}\n"
+                    f"{t['setup_done'].format(profile=display_name)}\n"
                     f"{cat_line}\n"
-                    f"{t['invite_code_label']}: <b>{invite_code}</b>\n"
-                    f"{t['invite_code_hint']}\n\n"
                     f"{t['start_tracking']}\n\n"
                     f"{t['share_location_prompt']}"
                 ),
