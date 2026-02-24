@@ -9,7 +9,7 @@ agents:
 
   gemini:
     cmd: "gemini"
-    exec_args: ["-p", "--sandbox", "--approval-mode", "yolo", "-o", "json"]
+    # No model specified — Gemini CLI Auto (Gemini 3) picks between gemini-3.1-pro and gemini-3-flash
     timeout: 300
     max_retries: 1
     instructions_file: "GEMINI.md"
