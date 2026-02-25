@@ -130,6 +130,14 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 `maps_search` and `youtube_search` use **Gemini Google Search Grounding** as default (quick mode). Direct REST APIs (Google Maps Platform, YouTube Data API v3) activate only when `detail_mode=True` AND the respective API key is configured. YouTube also supports direct URL analysis — sending a YouTube link triggers Gemini to analyze that specific video.
 
+### AI Data Tools (LLM Function Calling)
+
+`src/tools/data_tools.py` — 5 universal database tools (`query_data`, `create_record`, `update_record`, `delete_record`, `aggregate_data`). LLM decides which tools to call via multi-provider function calling (`src/core/llm/clients.py:generate_text_with_tools()`). Enabled on 5 agents: analytics, chat, tasks, life, booking (`data_tools_enabled=True` in AgentConfig). Security: family_id injection, table whitelist (11 tables), column validation, confirm-before-delete for important tables. Schemas in `src/tools/data_tool_schemas.py`, executor in `src/tools/tool_executor.py`.
+
+### Specialist Config Engine
+
+`src/core/specialist.py` — YAML-driven business-specific configuration that adapts the booking agent into a specialized receptionist. Pydantic models: `SpecialistConfig`, `SpecialistService`, `SpecialistStaff`, `WorkingHours`. Optional `specialist:` section in `config/profiles/*.yaml` defines services, staff, working hours, greetings, FAQ, capabilities, and extra system prompt. `ProfileConfig.specialist` loaded by `ProfileLoader`. `AgentRouter._add_specialist_knowledge()` injects specialist knowledge into system prompts. Currently configured: `manicure.yaml`, `flowers.yaml`. Profiles without `specialist:` section work unchanged.
+
 ### Browser Tools
 
 `src/tools/browser.py` (Browser-Use + Playwright fallback), `src/tools/browser_booking.py` (Playwright booking with saved card detection), `src/tools/browser_login.py` (Telegram login flow with Fernet-encrypted cookies in Supabase), `src/tools/browser_service.py` (service layer). The `browser_action` skill uses authenticated Playwright sessions; `web_action` uses headless browsing for simpler tasks.
@@ -201,12 +209,19 @@ This project is an **AI Life Assistant** ($49/month). Implementation plan: `IMPL
 - Smart capable friend tone — not corporate, not chirpy
 - Lead with the answer, use contractions, max 3 sentences for confirmations
 
+## Plans & Docs
+
+- `docs/plans/2026-02-25-comprehensive-integration-analysis.md` — Master integration plan: LangGraph, Deep Agents, LangSmith, 40+ specialists, scaling roadmap
+- `docs/plans/2026-02-25-langgraph-langchain-integration-audit.md` — LangGraph/LangChain audit (Codex): 5 priorities (P1 Booking FSM, P2 HITL, P3 Brief, P4 Email, P5 New domains)
+- `docs/plans/2026-02-25-architecture-audit-vnext-language-timezone-reminders.md` — Locale/timezone/reminder vNext (Phase 0-1 done, Phase 2 partial)
+- `docs/plans/2026-02-24-multi-agent-orchestrator-design.md` — Multi-agent dev workflow (Claude Code + Codex/Gemini in worktrees)
+
 ## Conventions
 
 - Bot language: English (primary) → Spanish (second) → user's preferred language
 - Telegram HTML formatting (not Markdown) — `<b>`, `<i>`, `<code>`
 - Langfuse observability via `@observe(name="...")` decorator from `src/core/observability.py`
-- Business profiles in `config/profiles/*.yaml` define categories, metrics, reports per business type
+- Business profiles in `config/profiles/*.yaml` define categories, metrics, reports, and optional `specialist:` config (services, staff, hours, FAQ) per business type
 - Communication modes for life-tracking skills: `silent` (no response), `receipt` (one-line confirmation, default), `coaching` (confirmation + AI insight)
 - Confirmation flow: dangerous actions (delete, send email, create event) store pending action in Redis + show inline buttons → callback handler executes or cancels
 - Google OAuth required for email/calendar skills — use `require_google_or_prompt` helper
