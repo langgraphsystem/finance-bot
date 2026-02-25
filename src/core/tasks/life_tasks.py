@@ -187,7 +187,7 @@ async def _get_family_users() -> list[tuple[str, str, int, str, str]]:
                 User.family_id,
                 User.id,
                 User.telegram_id,
-                func.coalesce(User.language, UserProfile.preferred_language).label("language"),
+                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
                 UserProfile.timezone,
             ).outerjoin(UserProfile, UserProfile.user_id == User.id)
         )

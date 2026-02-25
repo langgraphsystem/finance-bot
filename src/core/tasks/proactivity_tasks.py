@@ -37,7 +37,7 @@ async def evaluate_proactive_triggers():
                 User.id,
                 User.family_id,
                 User.telegram_id,
-                func.coalesce(User.language, UserProfile.preferred_language).label("language"),
+                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
                 UserProfile.tone_preference,
                 UserProfile.learned_patterns,
             ).outerjoin(UserProfile, UserProfile.user_id == User.id)
