@@ -29,6 +29,7 @@ class AgentConfig:
     skills: list[str]  # intents this agent handles
     default_model: str
     context_config: dict = field(default_factory=dict)  # which memory layers to load
+    data_tools_enabled: bool = False  # enable LLM function calling with data tools
 
 
 class AgentRouter:
@@ -91,6 +92,86 @@ class AgentRouter:
         )
         return system_prompt + block
 
+    @observe(name="agent_route_with_tools")
+    async def route_with_tools(
+        self,
+        intent: str,
+        message: IncomingMessage,
+        context: SessionContext,
+        intent_data: dict[str, Any],
+    ) -> SkillResult:
+        """Route intent using LLM function calling with data tools.
+
+        The LLM receives the user message + data tool schemas and decides
+        whether to call tools or respond directly. This replaces the need
+        for individual skill handlers for basic CRUD operations.
+        """
+        from src.core.llm.clients import generate_text_with_tools
+        from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
+        from src.tools.tool_executor import execute_tool_call
+
+        agent = self.get_agent(intent)
+        if not agent:
+            agent = self._intent_to_agent.get("general_chat")
+
+        # Build system prompt with data tools context
+        prompt = agent.system_prompt if agent else ""
+        prompt = self._add_language_instruction(prompt, context)
+        prompt = self._add_date_instruction(prompt, context)
+        prompt += (
+            "\n\nYou have access to database tools. Use them to look up, create, "
+            "update, or delete the user's records as needed. Always query first "
+            "before answering questions about the user's data. "
+            "For deletions of important data, you'll get a pending_id — "
+            "ask the user to confirm via the button."
+        )
+
+        # Assemble context (memories, history, etc.)
+        try:
+            assembled = await assemble_context(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                current_message=message.text or ".",
+                intent=intent,
+                system_prompt=prompt,
+            )
+            system_prompt = assembled.system_prompt if assembled else prompt
+            messages = assembled.messages if assembled else []
+        except Exception as e:
+            logger.warning("Tool agent context assembly failed: %s", e)
+            system_prompt = prompt
+            messages = []
+
+        # Ensure we have at least the user message
+        user_msgs = [m for m in messages if m.get("role") == "user"]
+        if not user_msgs:
+            messages.append({"role": "user", "content": message.text or "."})
+
+        async def _tool_executor(name: str, args: dict) -> dict:
+            return await execute_tool_call(name, args, context)
+
+        model = agent.default_model if agent else "gpt-5.2"
+        response_text, tool_log = await generate_text_with_tools(
+            model=model,
+            system=system_prompt,
+            messages=[m for m in messages if m.get("role") in ("user", "assistant")],
+            tools=DATA_TOOL_SCHEMAS,
+            tool_executor=_tool_executor,
+        )
+
+        # Check tool results for pending actions (delete confirmations)
+        buttons = None
+        for entry in tool_log:
+            result = entry.get("result", {})
+            if isinstance(result, dict) and "pending_id" in result:
+                pending_id = result["pending_id"]
+                buttons = [
+                    {"text": "\u2705 Confirm", "callback": f"confirm_action:{pending_id}"},
+                    {"text": "\u274c Cancel", "callback": f"cancel_action:{pending_id}"},
+                ]
+
+        return SkillResult(response_text=response_text, buttons=buttons)
+
     @observe(name="agent_route")
     async def route(
         self,
@@ -102,8 +183,8 @@ class AgentRouter:
         """Route intent to the appropriate agent and skill.
 
         1. Find the agent for the intent (fallback: onboarding/general_chat).
-        2. Assemble context with the agent's system prompt.
-        3. Execute the skill from the registry.
+        2. If agent has data_tools_enabled, use tool-augmented LLM flow.
+        3. Otherwise, assemble context and execute the skill from the registry.
 
         If the agent-based routing fails at any step, falls back to
         direct skill dispatch for backward compatibility.
@@ -112,6 +193,18 @@ class AgentRouter:
         if not agent:
             # Fallback to onboarding agent (handles general_chat)
             agent = self._intent_to_agent.get("general_chat")
+
+        # Tool-augmented path: LLM decides which tools to call
+        if agent and agent.data_tools_enabled:
+            try:
+                return await self.route_with_tools(intent, message, context, intent_data)
+            except Exception as e:
+                logger.warning(
+                    "Tool-augmented route failed for %s, falling back to skill: %s",
+                    intent,
+                    e,
+                )
+                # Fall through to standard skill dispatch
 
         if agent:
             # Assemble context with agent-specific system prompt

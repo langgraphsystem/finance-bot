@@ -824,6 +824,16 @@ async def _execute_pending_action(
             else:
                 result_text = f"Browser task failed: {result['result']}"
 
+        elif intent == "data_tool_delete":
+            from src.tools.data_tools import delete_record_confirmed
+
+            result_text = await delete_record_confirmed(
+                family_id=context.family_id,
+                user_id=context.user_id,
+                table=action_data["table"],
+                record_id=action_data["record_id"],
+            )
+
         elif intent == "delete_all":
             from src.core.gdpr import MemoryGDPR
 

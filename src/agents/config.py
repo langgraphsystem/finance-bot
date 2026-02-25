@@ -94,6 +94,7 @@ AGENTS: list[AgentConfig] = [
         skills=["query_stats", "complex_query", "query_report"],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "budgets", "hist": 0, "sql": True, "sum": True},
+        data_tools_enabled=True,
     ),
     AgentConfig(
         name="chat",
@@ -110,6 +111,7 @@ AGENTS: list[AgentConfig] = [
         ],
         default_model="gpt-5.2",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
+        data_tools_enabled=True,
     ),
     AgentConfig(
         name="onboarding",
@@ -133,6 +135,7 @@ AGENTS: list[AgentConfig] = [
         ],
         default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
+        data_tools_enabled=True,
     ),
     AgentConfig(
         name="research",
@@ -205,6 +208,7 @@ AGENTS: list[AgentConfig] = [
         ],
         default_model="gpt-5.2",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},
+        data_tools_enabled=True,
     ),
     AgentConfig(
         name="booking",
@@ -221,5 +225,6 @@ AGENTS: list[AgentConfig] = [
         ],
         default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
+        data_tools_enabled=True,
     ),
 ]
