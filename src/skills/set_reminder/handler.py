@@ -5,6 +5,7 @@ import logging
 import re
 import uuid
 from datetime import date, datetime, timedelta
+from math import ceil
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -220,6 +221,37 @@ def _parse_end_date(raw: str | None) -> datetime | None:
         return None
 
 
+def _format_confirmation_time(reminder_at: datetime, timezone: str) -> tuple[str, str]:
+    """Format 12-hour wall-clock time and a human-readable relative delta."""
+    tz = ZoneInfo(timezone)
+    now_local = datetime.now(tz)
+    reminder_local = reminder_at.astimezone(tz)
+    total_seconds = max((reminder_local - now_local).total_seconds(), 0)
+    total_minutes = max(1, ceil(total_seconds / 60))
+
+    if total_minutes < 60:
+        unit = "minute" if total_minutes == 1 else "minutes"
+        relative = f"in {total_minutes} {unit}"
+    else:
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        hour_unit = "hour" if hours == 1 else "hours"
+        if minutes == 0:
+            relative = f"in {hours} {hour_unit}"
+        else:
+            minute_unit = "minute" if minutes == 1 else "minutes"
+            relative = f"in {hours} {hour_unit} {minutes} {minute_unit}"
+
+    time_str = reminder_local.strftime("%I:%M %p").lstrip("0")
+    return time_str, relative
+
+
+def _build_scheduled_confirmation(task_title: str, reminder_at: datetime, timezone: str) -> str:
+    """Build strict 3-line reminder confirmation text."""
+    time_str, relative = _format_confirmation_time(reminder_at, timezone)
+    return f"⏰ Reminder scheduled\n{task_title}\n{time_str} · {relative}"
+
+
 async def _extract_from_context(
     message_text: str,
     assembled_messages: list[dict[str, str]],
@@ -363,20 +395,8 @@ def _build_response(
 ) -> SkillResult:
     """Build response text for a single reminder."""
     if task.reminder_at:
-        from src.skills._i18n import fmt_time
-
-        time_str = fmt_time(task.reminder_at, lang, timezone=timezone)
-        if recurrence != ReminderRecurrence.none:
-            labels = _RECURRENCE_LABELS.get(lang, _RECURRENCE_LABELS["en"])
-            rec_label = labels.get(recurrence.value, recurrence.value)
-            return SkillResult(
-                response_text=_t(
-                    "with_time_recurring", lang,
-                    time=time_str, title=task.title, recurrence=rec_label,
-                )
-            )
         return SkillResult(
-            response_text=_t("with_time", lang, time=time_str, title=task.title)
+            response_text=_build_scheduled_confirmation(task.title, task.reminder_at, timezone)
         )
     return SkillResult(response_text=_t("no_time", lang, title=task.title))
 

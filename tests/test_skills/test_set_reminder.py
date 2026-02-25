@@ -1,8 +1,11 @@
 """Tests for set_reminder skill — one-shot, recurring, and context extraction."""
 
+import re
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -11,6 +14,7 @@ from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.set_reminder.handler import (
     SetReminderSkill,
+    _build_scheduled_confirmation,
     _parse_recurrence,
     _parse_time_str,
 )
@@ -73,8 +77,11 @@ async def test_set_reminder_with_time(skill, message, ctx):
     assert task.due_at is not None
     assert task.status == TaskStatus.pending
     assert task.recurrence == ReminderRecurrence.none
-    assert "3:15 PM" in result.response_text
-    assert "pick up Emma" in result.response_text
+    lines = result.response_text.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "⏰ Reminder scheduled"
+    assert lines[1] == "pick up Emma"
+    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
 
 
 async def test_set_reminder_without_time_asks_clarification(skill, ctx):
@@ -154,8 +161,11 @@ async def test_set_reminder_daily_recurrence(skill, ctx):
     assert task.recurrence == ReminderRecurrence.daily
     assert task.original_reminder_time == "08:00"
     assert task.reminder_at is not None
-    # Response should mention recurrence
-    assert "daily" in result.response_text.lower() or "ежедневн" in result.response_text.lower()
+    lines = result.response_text.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "⏰ Reminder scheduled"
+    assert lines[1] == "take vitamins"
+    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
 
 
 async def test_set_reminder_weekly_recurrence(skill, ctx):
@@ -365,3 +375,14 @@ def test_parse_time_str_valid():
 def test_parse_time_str_invalid():
     assert _parse_time_str("invalid", "America/New_York") is None
     assert _parse_time_str("25:00", "America/New_York") is None
+
+
+def test_build_scheduled_confirmation_three_lines():
+    tz = "America/New_York"
+    reminder_at = datetime.now(ZoneInfo(tz)) + timedelta(minutes=2)
+    text = _build_scheduled_confirmation("turn on the oven", reminder_at, tz)
+    lines = text.splitlines()
+    assert len(lines) == 3
+    assert lines[0] == "⏰ Reminder scheduled"
+    assert lines[1] == "turn on the oven"
+    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
