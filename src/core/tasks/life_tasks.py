@@ -3,12 +3,13 @@
 import logging
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.life_helpers import get_communication_mode, query_life_events
 from src.core.models.enums import LifeEventType
 from src.core.models.user import User
+from src.core.models.user_profile import UserProfile
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -118,18 +119,32 @@ _TEXTS = {
 }
 
 
-def _t(lang: str) -> dict[str, str]:
+def _normalize_language(lang: str | None) -> str:
+    """Normalize language codes (e.g. en-US/en_US -> en)."""
+    if not lang:
+        return "en"
+    normalized = lang.strip().lower().replace("_", "-")
+    normalized = normalized.split("-", 1)[0]
+    return normalized or "en"
+
+
+def _t(lang: str | None) -> dict[str, str]:
     """Get texts for a language, defaulting to English."""
-    return _TEXTS.get(lang, _TEXTS["en"])
+    return _TEXTS.get(_normalize_language(lang), _TEXTS["en"])
 
 
 async def _get_family_users() -> list[tuple[str, str, int, str]]:
     """Get (family_id, user_id, telegram_id, language) for all users."""
     async with async_session() as session:
         result = await session.execute(
-            select(User.family_id, User.id, User.telegram_id, User.language)
+            select(
+                User.family_id,
+                User.id,
+                User.telegram_id,
+                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+            ).outerjoin(UserProfile, UserProfile.user_id == User.id)
         )
-        return [(str(r[0]), str(r[1]), r[2], r[3] or "en") for r in result.all()]
+        return [(str(r[0]), str(r[1]), r[2], _normalize_language(r[3])) for r in result.all()]
 
 
 async def _send_telegram_message(telegram_id: int, text: str) -> None:

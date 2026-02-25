@@ -2,7 +2,7 @@
 
 import logging
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.models.user import User
@@ -11,6 +11,15 @@ from src.core.tasks.broker import broker
 from src.core.tasks.life_tasks import _send_telegram_message
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_language(lang: str | None) -> str:
+    """Normalize language codes (e.g. en-US/en_US -> en)."""
+    if not lang:
+        return "en"
+    normalized = lang.strip().lower().replace("_", "-")
+    normalized = normalized.split("-", 1)[0]
+    return normalized or "en"
 
 
 @broker.task(schedule=[{"cron": "*/10 * * * *"}])
@@ -28,31 +37,31 @@ async def evaluate_proactive_triggers():
                 User.id,
                 User.family_id,
                 User.telegram_id,
-                User.language,
-            )
+                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+                UserProfile.tone_preference,
+                UserProfile.learned_patterns,
+            ).outerjoin(UserProfile, UserProfile.user_id == User.id)
         )
         users = result.all()
 
-    for user_id, family_id, telegram_id, language in users:
+    for (
+        user_id,
+        family_id,
+        telegram_id,
+        language,
+        tone_preference,
+        learned_patterns,
+    ) in users:
         try:
-            # Load user profile for communication mode + suppressions
-            comm_mode = "receipt"
+            comm_mode = tone_preference or "receipt"
             suppressed: list[str] = []
-
-            async with async_session() as session:
-                prof_result = await session.execute(
-                    select(UserProfile).where(UserProfile.user_id == user_id).limit(1)
-                )
-                profile = prof_result.scalar_one_or_none()
-                if profile:
-                    comm_mode = profile.tone_preference or "receipt"
-                    if profile.learned_patterns and isinstance(profile.learned_patterns, dict):
-                        suppressed = profile.learned_patterns.get("suppressed_triggers", [])
+            if learned_patterns and isinstance(learned_patterns, dict):
+                suppressed = learned_patterns.get("suppressed_triggers", [])
 
             messages = await run_for_user(
                 user_id=str(user_id),
                 family_id=str(family_id),
-                language=language or "en",
+                language=_normalize_language(language),
                 communication_mode=comm_mode,
                 suppressed_triggers=suppressed,
             )

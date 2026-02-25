@@ -1347,6 +1347,9 @@ async def update_settings(
 ):
     if data.currency:
         _require_owner(user)
+
+    from src.core.models.user_profile import UserProfile as UserProfileModel
+
     async with async_session() as session:
         db_user = await session.scalar(
             select(User).where(User.id == user.id)
@@ -1354,9 +1357,14 @@ async def update_settings(
         fam = await session.scalar(
             select(Family).where(Family.id == db_user.family_id)
         )
+        profile = await session.scalar(
+            select(UserProfileModel).where(UserProfileModel.user_id == db_user.id).limit(1)
+        )
 
         if data.language:
             db_user.language = data.language
+            if profile:
+                profile.preferred_language = data.language
         if data.currency and fam:
             fam.currency = data.currency
 

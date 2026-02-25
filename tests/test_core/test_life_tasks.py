@@ -185,6 +185,40 @@ async def test_morning_reminder_sends_to_eligible_users():
     assert "утро" in call_args[0][1].lower()
 
 
+@pytest.mark.asyncio
+async def test_morning_reminder_normalizes_regional_language_code():
+    """Regional language codes should map to base localized texts."""
+    from src.core.tasks.life_tasks import morning_plan_reminder
+
+    mock_users = [("fam-1", "usr-1", 111, "en-US")]
+
+    with (
+        patch(
+            "src.core.tasks.life_tasks._get_family_users",
+            new_callable=AsyncMock,
+            return_value=mock_users,
+        ),
+        patch(
+            "src.core.tasks.life_tasks.query_life_events",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "src.core.tasks.life_tasks.get_communication_mode",
+            new_callable=AsyncMock,
+            return_value="receipt",
+        ),
+        patch(
+            "src.core.tasks.life_tasks._send_telegram_message",
+            new_callable=AsyncMock,
+        ) as mock_send,
+    ):
+        await morning_plan_reminder()
+
+    text = mock_send.call_args[0][1]
+    assert "good morning" in text.lower()
+
+
 # --- evening_reflection_prompt ---
 
 

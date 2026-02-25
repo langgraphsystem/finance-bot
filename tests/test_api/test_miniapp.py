@@ -397,6 +397,8 @@ class TestUpdateSettingsEndpoint:
 
         mock_fam = MagicMock()
         mock_fam.currency = "USD"
+        mock_profile = MagicMock()
+        mock_profile.preferred_language = "en"
 
         cat_id = uuid.uuid4()
         mock_cat = MagicMock()
@@ -411,8 +413,8 @@ class TestUpdateSettingsEndpoint:
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
 
-            # Two scalar() calls: user then family
-            mock_session.scalar = AsyncMock(side_effect=[mock_db_user, mock_fam])
+            # Three scalar() calls: user, family, profile
+            mock_session.scalar = AsyncMock(side_effect=[mock_db_user, mock_fam, mock_profile])
             mock_session.commit = AsyncMock()
 
             # One execute() call for categories
@@ -435,3 +437,4 @@ class TestUpdateSettingsEndpoint:
         assert data["business_type"] == "trucker"
         assert len(data["categories"]) == 1
         assert data["categories"][0]["name"] == "Fuel"
+        assert mock_profile.preferred_language == "en"

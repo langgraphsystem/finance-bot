@@ -8,12 +8,13 @@ import logging
 from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from src.core.db import async_session
 from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.core.models.task import Task
 from src.core.models.user import User
+from src.core.models.user_profile import UserProfile
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,15 @@ _RECURRENCE_LABELS = {
     ReminderRecurrence.weekly: "weekly",
     ReminderRecurrence.monthly: "monthly",
 }
+
+
+def _normalize_language(lang: str | None) -> str:
+    """Normalize language codes (e.g. en-US/en_US -> en)."""
+    if not lang:
+        return "en"
+    normalized = lang.strip().lower().replace("_", "-")
+    normalized = normalized.split("-", 1)[0]
+    return normalized or "en"
 
 
 async def _send_telegram_message(telegram_id: int, text: str) -> None:
@@ -80,8 +90,13 @@ async def dispatch_due_reminders() -> None:
     async with async_session() as session:
         # Find all pending tasks with reminder_at <= now
         result = await session.execute(
-            select(Task, User.telegram_id, User.language)
+            select(
+                Task,
+                User.telegram_id,
+                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+            )
             .join(User, Task.user_id == User.id)
+            .outerjoin(UserProfile, UserProfile.user_id == User.id)
             .where(
                 Task.reminder_at <= now,
                 Task.status == TaskStatus.pending,
@@ -104,8 +119,9 @@ async def dispatch_due_reminders() -> None:
         sent_ids: list[tuple] = []  # (task, telegram_id)
         for task, telegram_id, lang in due_tasks:
             try:
+                language = _normalize_language(lang)
                 label = _reminder_label.get(
-                    lang or "en", "Reminder",
+                    language, "Reminder",
                 )
                 text = f"\U0001f514 <b>{label}</b>\n\n{task.title}"
                 if task.description:
