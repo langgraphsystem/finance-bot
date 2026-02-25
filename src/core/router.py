@@ -62,22 +62,17 @@ def get_agent_router() -> AgentRouter:
 def get_domain_router() -> DomainRouter:
     """Lazy-init the DomainRouter (wraps AgentRouter).
 
-    Phase 1: thin wrapper — all intents pass through to AgentRouter.
-    Phase 2+: complex domains get LangGraph orchestrators.
+    All 13 domains are handled by deepagents-powered orchestrators.
+    AgentRouter remains as fallback for unregistered domains.
     """
     global _domain_router
     if _domain_router is None:
         _domain_router = DomainRouter(get_agent_router())
 
-        # Register LangGraph orchestrators for complex domains
-        from src.core.domains import Domain
-        from src.orchestrators.brief.graph import BriefOrchestrator
-        from src.orchestrators.email.graph import EmailOrchestrator
+        # Register deepagents orchestrators for all domains
+        from src.orchestrators.deep.domains import register_all_orchestrators
 
-        _domain_router.register_orchestrator(
-            Domain.email, EmailOrchestrator(agent_router=get_agent_router())
-        )
-        _domain_router.register_orchestrator(Domain.brief, BriefOrchestrator())
+        register_all_orchestrators(_domain_router)
     return _domain_router
 
 

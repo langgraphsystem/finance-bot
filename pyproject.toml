@@ -48,6 +48,7 @@ dependencies = [
     "composio>=0.11.0",
     "cryptography>=46.0.5",
     "langgraph>=1.0.8",
+    "deepagents>=0.1.0",
     "pypdfium2>=5.5.0",
     "playwright>=1.54.0",
     "e2b-code-interpreter>=2.4.1",
