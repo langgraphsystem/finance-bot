@@ -1,6 +1,7 @@
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,8 +18,14 @@ class UserProfile(Base, TimestampMixin):
     )
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     timezone: Mapped[str] = mapped_column(String(50), default="America/New_York")
+    timezone_source: Mapped[str] = mapped_column(String(32), default="default")
+    timezone_confidence: Mapped[int] = mapped_column(Integer, default=0)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
     preferred_language: Mapped[str] = mapped_column(String(10), default="en")
+    notification_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    locale_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     occupation: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tone_preference: Mapped[str] = mapped_column(String(50), default="friendly")
     response_length: Mapped[str] = mapped_column(String(20), default="concise")

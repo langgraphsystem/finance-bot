@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
     rate_limit_per_minute: int = 30
+    ff_locale_v2_read: bool = False
+    ff_locale_v2_write: bool = False
+    ff_reminder_dispatch_v2: bool = False
 
     @property
     def is_production(self) -> bool:

@@ -10,7 +10,9 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
 
+from src.core.config import settings
 from src.core.db import async_session
+from src.core.locale_resolution import normalize_language, resolve_notification_locale
 from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.core.models.task import Task
 from src.core.models.user import User
@@ -24,15 +26,6 @@ _RECURRENCE_LABELS = {
     ReminderRecurrence.weekly: "weekly",
     ReminderRecurrence.monthly: "monthly",
 }
-
-
-def _normalize_language(lang: str | None) -> str:
-    """Normalize language codes (e.g. en-US/en_US -> en)."""
-    if not lang:
-        return "en"
-    normalized = lang.strip().lower().replace("_", "-")
-    normalized = normalized.split("-", 1)[0]
-    return normalized or "en"
 
 
 async def _send_telegram_message(telegram_id: int, text: str) -> None:
@@ -82,6 +75,31 @@ def _compute_next_reminder(task: Task, now: datetime) -> datetime | None:
     return next_at
 
 
+def _extract_due_row(row: tuple) -> dict[str, str | int | Task | None]:
+    """Extract reminder row fields, keeping backward compatibility in tests."""
+    task = row[0]
+    telegram_id = row[1] if len(row) > 1 else None
+    legacy_language = row[2] if len(row) > 2 else None
+    user_id = str(row[3]) if len(row) > 3 and row[3] else None
+    user_language = row[4] if len(row) > 4 else None
+    preferred_language = row[5] if len(row) > 5 else None
+    notification_language = row[6] if len(row) > 6 else None
+    timezone = row[7] if len(row) > 7 else None
+    timezone_source = row[8] if len(row) > 8 else None
+
+    return {
+        "task": task,
+        "telegram_id": telegram_id,
+        "legacy_language": legacy_language,
+        "user_id": user_id,
+        "user_language": user_language,
+        "preferred_language": preferred_language,
+        "notification_language": notification_language,
+        "timezone": timezone,
+        "timezone_source": timezone_source,
+    }
+
+
 @broker.task(schedule=[{"cron": "* * * * *"}])  # Every minute
 async def dispatch_due_reminders() -> None:
     """Check for due reminders and send them via Telegram."""
@@ -94,6 +112,12 @@ async def dispatch_due_reminders() -> None:
                 Task,
                 User.telegram_id,
                 func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+                User.id.label("user_id"),
+                User.language.label("user_language"),
+                UserProfile.preferred_language,
+                UserProfile.notification_language,
+                UserProfile.timezone,
+                UserProfile.timezone_source,
             )
             .join(User, Task.user_id == User.id)
             .outerjoin(UserProfile, UserProfile.user_id == User.id)
@@ -117,9 +141,38 @@ async def dispatch_due_reminders() -> None:
         }
 
         sent_ids: list[tuple] = []  # (task, telegram_id)
-        for task, telegram_id, lang in due_tasks:
+        language_stats: dict[str, int] = {}
+        for row in due_tasks:
             try:
-                language = _normalize_language(lang)
+                fields = _extract_due_row(row)
+                task = fields["task"]
+                telegram_id = fields["telegram_id"]
+                if telegram_id is None:
+                    logger.warning("Skipping reminder %s: missing telegram_id", task.id)
+                    continue
+
+                if settings.ff_locale_v2_read:
+                    resolved = resolve_notification_locale(
+                        user_language=fields["user_language"],
+                        preferred_language=fields["preferred_language"],
+                        notification_language=fields["notification_language"],
+                        timezone=fields["timezone"],
+                        timezone_source=fields["timezone_source"],
+                        use_v2_read=True,
+                    )
+                    language = resolved.language
+                    language_source = resolved.language_source
+                    timezone = resolved.timezone
+                    timezone_source = resolved.timezone_source
+                else:
+                    language = normalize_language(fields["legacy_language"])
+                    language_source = "legacy_preferred_or_user"
+                    timezone = (fields["timezone"] or "UTC").strip() or "UTC"
+                    timezone_source = (
+                        fields["timezone_source"]
+                        or ("user_profile.timezone" if fields["timezone"] else "unknown")
+                    )
+
                 label = _reminder_label.get(
                     language, "Reminder",
                 )
@@ -135,7 +188,19 @@ async def dispatch_due_reminders() -> None:
 
                 await _send_telegram_message(telegram_id, text)
                 sent_ids.append((task, telegram_id))
-                logger.info("Reminder sent: task %s to user %s", task.id, telegram_id)
+                language_stats[language] = language_stats.get(language, 0) + 1
+                logger.info(
+                    "Reminder sent: task_id=%s telegram_id=%s user_id=%s language=%s "
+                    "language_source=%s timezone=%s timezone_source=%s ff_locale_v2_read=%s",
+                    task.id,
+                    telegram_id,
+                    fields["user_id"],
+                    language,
+                    language_source,
+                    timezone,
+                    timezone_source,
+                    settings.ff_locale_v2_read,
+                )
             except Exception as e:
                 logger.error("Failed to dispatch reminder %s: %s", task.id, e)
 
@@ -186,4 +251,12 @@ async def dispatch_due_reminders() -> None:
             len(sent_ids),
             len(one_shot_ids),
             len(recurring_tasks),
+        )
+        logger.info(
+            "Reminder locale metrics: sent_total=%d by_language=%s ff_locale_v2_read=%s "
+            "ff_reminder_dispatch_v2=%s",
+            len(sent_ids),
+            language_stats,
+            settings.ff_locale_v2_read,
+            settings.ff_reminder_dispatch_v2,
         )

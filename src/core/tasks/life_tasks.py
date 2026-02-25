@@ -4,10 +4,12 @@ import logging
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
+from src.core.config import settings
 from src.core.db import async_session, redis
 from src.core.life_helpers import get_communication_mode, query_life_events
+from src.core.locale_resolution import normalize_language, resolve_notification_locale
 from src.core.models.enums import LifeEventType
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
@@ -120,18 +122,9 @@ _TEXTS = {
 }
 
 
-def _normalize_language(lang: str | None) -> str:
-    """Normalize language codes (e.g. en-US/en_US -> en)."""
-    if not lang:
-        return "en"
-    normalized = lang.strip().lower().replace("_", "-")
-    normalized = normalized.split("-", 1)[0]
-    return normalized or "en"
-
-
 def _t(lang: str | None) -> dict[str, str]:
     """Get texts for a language, defaulting to English."""
-    return _TEXTS.get(_normalize_language(lang), _TEXTS["en"])
+    return _TEXTS.get(normalize_language(lang), _TEXTS["en"])
 
 
 def _normalize_timezone(timezone: str | None) -> str:
@@ -179,28 +172,43 @@ async def _mark_daily_once(kind: str, user_id: str, day: date) -> bool:
         return True
 
 
-async def _get_family_users() -> list[tuple[str, str, int, str, str]]:
-    """Get (family_id, user_id, telegram_id, language, timezone) for all users."""
+async def _get_family_users() -> list[tuple[str, str, int, str, str, str, str]]:
+    """Get user locale/scheduling data for notification tasks."""
     async with async_session() as session:
         result = await session.execute(
             select(
                 User.family_id,
                 User.id,
                 User.telegram_id,
-                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+                User.language,
+                UserProfile.preferred_language,
+                UserProfile.notification_language,
                 UserProfile.timezone,
+                UserProfile.timezone_source,
             ).outerjoin(UserProfile, UserProfile.user_id == User.id)
         )
-        return [
-            (
-                str(r[0]),
-                str(r[1]),
-                r[2],
-                _normalize_language(r[3]),
-                _normalize_timezone(r[4]),
+        users: list[tuple[str, str, int, str, str, str, str]] = []
+        for row in result.all():
+            resolved = resolve_notification_locale(
+                user_language=row[3],
+                preferred_language=row[4],
+                notification_language=row[5],
+                timezone=row[6],
+                timezone_source=row[7],
+                use_v2_read=settings.ff_locale_v2_read,
             )
-            for r in result.all()
-        ]
+            users.append(
+                (
+                    str(row[0]),
+                    str(row[1]),
+                    row[2],
+                    resolved.language,
+                    _normalize_timezone(resolved.timezone),
+                    resolved.language_source,
+                    resolved.timezone_source,
+                )
+            )
+        return users
 
 
 async def _send_telegram_message(telegram_id: int, text: str) -> None:
@@ -231,6 +239,9 @@ async def weekly_life_digest() -> None:
 
     for row in users:
         family_id, user_id, telegram_id, lang = row[:4]
+        language_source = row[5] if len(row) >= 6 else "legacy_preferred_or_user"
+        timezone = row[4] if len(row) >= 5 else "UTC"
+        timezone_source = row[6] if len(row) >= 7 else "unknown"
         try:
             events = await query_life_events(
                 family_id=family_id,
@@ -321,7 +332,17 @@ async def weekly_life_digest() -> None:
             except Exception as e:
                 logger.warning("Mem0 digest storage failed: %s", e)
 
-            logger.info("Weekly digest sent to user %s", telegram_id)
+            logger.info(
+                "Weekly digest sent: telegram_id=%s user_id=%s language=%s language_source=%s "
+                "timezone=%s timezone_source=%s ff_locale_v2_read=%s",
+                telegram_id,
+                user_id,
+                lang,
+                language_source,
+                timezone,
+                timezone_source,
+                settings.ff_locale_v2_read,
+            )
 
         except Exception as e:
             logger.error("Weekly digest failed for user %s: %s", user_id, e)
@@ -347,13 +368,21 @@ async def _generate_digest_analysis(events: list, lang: str = "en") -> str:
 async def morning_plan_reminder() -> None:
     """Remind users who haven't created a day plan yet."""
     users = await _get_family_users()
+    sent_count = 0
+    language_stats: dict[str, int] = {}
 
     for row in users:
-        if len(row) >= 5:
-            family_id, user_id, telegram_id, lang, timezone = row
+        if len(row) >= 7:
+            family_id, user_id, telegram_id, lang, timezone, language_source, timezone_source = row
+        elif len(row) >= 5:
+            family_id, user_id, telegram_id, lang, timezone = row[:5]
+            language_source = "legacy_preferred_or_user"
+            timezone_source = "unknown"
         else:
             family_id, user_id, telegram_id, lang = row[:4]
             timezone = "UTC"
+            language_source = "legacy_preferred_or_user"
+            timezone_source = "default"
         try:
             if not _is_send_window(timezone, target_hour=8, target_minute=0):
                 continue
@@ -386,23 +415,51 @@ async def morning_plan_reminder() -> None:
                 telegram_id,
                 f"{t['morning_title']}\n{t['morning_body']}",
             )
-            logger.info("Morning reminder sent to user %s", telegram_id)
+            sent_count += 1
+            language_stats[lang] = language_stats.get(lang, 0) + 1
+            logger.info(
+                "Morning reminder sent: telegram_id=%s user_id=%s language=%s language_source=%s "
+                "timezone=%s timezone_source=%s ff_locale_v2_read=%s",
+                telegram_id,
+                user_id,
+                lang,
+                language_source,
+                timezone,
+                timezone_source,
+                settings.ff_locale_v2_read,
+            )
 
         except Exception as e:
             logger.error("Morning reminder failed for user %s: %s", user_id, e)
+    logger.info(
+        "Morning reminder metrics: sent_total=%d by_language=%s ff_locale_v2_read=%s "
+        "ff_reminder_dispatch_v2=%s",
+        sent_count,
+        language_stats,
+        settings.ff_locale_v2_read,
+        settings.ff_reminder_dispatch_v2,
+    )
 
 
 @broker.task(schedule=[{"cron": "*/15 * * * *"}])  # Every 15 min, local-time gated
 async def evening_reflection_prompt() -> None:
     """Prompt users who haven't done their daily reflection."""
     users = await _get_family_users()
+    sent_count = 0
+    language_stats: dict[str, int] = {}
 
     for row in users:
-        if len(row) >= 5:
-            family_id, user_id, telegram_id, lang, timezone = row
+        if len(row) >= 7:
+            family_id, user_id, telegram_id, lang, timezone, language_source, timezone_source = row
+        elif len(row) >= 5:
+            family_id, user_id, telegram_id, lang, timezone = row[:5]
+            language_source = "legacy_preferred_or_user"
+            timezone_source = "unknown"
         else:
             family_id, user_id, telegram_id, lang = row[:4]
             timezone = "UTC"
+            language_source = "legacy_preferred_or_user"
+            timezone_source = "default"
         try:
             if not _is_send_window(timezone, target_hour=21, target_minute=30):
                 continue
@@ -451,7 +508,27 @@ async def evening_reflection_prompt() -> None:
                 telegram_id,
                 f"{t['evening_title']}{summary}\n\n{t['evening_body']}",
             )
-            logger.info("Evening reflection prompt sent to user %s", telegram_id)
+            sent_count += 1
+            language_stats[lang] = language_stats.get(lang, 0) + 1
+            logger.info(
+                "Evening reflection sent: telegram_id=%s user_id=%s language=%s "
+                "language_source=%s timezone=%s timezone_source=%s ff_locale_v2_read=%s",
+                telegram_id,
+                user_id,
+                lang,
+                language_source,
+                timezone,
+                timezone_source,
+                settings.ff_locale_v2_read,
+            )
 
         except Exception as e:
             logger.error("Evening reflection prompt failed for user %s: %s", user_id, e)
+    logger.info(
+        "Evening reflection metrics: sent_total=%d by_language=%s ff_locale_v2_read=%s "
+        "ff_reminder_dispatch_v2=%s",
+        sent_count,
+        language_stats,
+        settings.ff_locale_v2_read,
+        settings.ff_reminder_dispatch_v2,
+    )
