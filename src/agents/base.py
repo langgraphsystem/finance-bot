@@ -23,6 +23,7 @@ _SKILL_ONLY_INTENTS = {
     # Relative/one-shot reminders are handled more reliably by the dedicated skill.
     "set_reminder",
 }
+_TOOL_ROUND_EXHAUSTED_RESPONSE = "I needed more steps to complete this request."
 
 
 @dataclass
@@ -163,6 +164,8 @@ class AgentRouter:
             tools=DATA_TOOL_SCHEMAS,
             tool_executor=_tool_executor,
         )
+        if response_text.strip() == _TOOL_ROUND_EXHAUSTED_RESPONSE:
+            raise RuntimeError("Tool-calling exhausted maximum rounds")
 
         # Check tool results for pending actions (delete confirmations)
         buttons = None

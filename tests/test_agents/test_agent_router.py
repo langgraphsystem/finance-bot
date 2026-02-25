@@ -221,6 +221,24 @@ class TestRouteCallsCorrectSkill:
         assert result.response_text == "Response from set_reminder"
         route_with_tools.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_route_tool_exhaustion_text_falls_back_to_skill(
+        self, agent_router, text_message, sample_context, monkeypatch
+    ):
+        """If tool-loop exhaustion text appears, route() should still use skill fallback."""
+        mock_assemble = AsyncMock(return_value=MagicMock(messages=[]))
+        monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
+        monkeypatch.setattr(
+            "src.core.llm.clients.generate_text_with_tools",
+            AsyncMock(
+                return_value=("I needed more steps to complete this request.", []),
+            ),
+        )
+
+        result = await agent_router.route("add_expense", text_message, sample_context, {})
+
+        assert result.response_text == "Response from add_expense"
+
 
 # --- Tests: agent configurations completeness ---
 
