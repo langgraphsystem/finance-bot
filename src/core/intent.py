@@ -755,7 +755,7 @@ def _rule_based_relative_reminder(text: str) -> IntentDetectionResult | None:
         except Exception:
             now = datetime.utcnow()
         deadline = now + timedelta(minutes=total_minutes)
-        deadline_iso = deadline.strftime("%Y-%m-%dT%H:%M:%S")
+        deadline_iso = deadline.replace(microsecond=0).isoformat()
 
         return IntentDetectionResult(
             intent="set_reminder",

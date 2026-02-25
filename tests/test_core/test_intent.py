@@ -1,5 +1,6 @@
 """Tests for intent detection with Instructor structured output."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -217,6 +218,34 @@ async def test_detect_intent_fast_path_delete_drink_specific_entry():
     assert result.data is not None
     assert result.data.delete_scope == "drinks"
     assert result.data.period == "today"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_relative_reminder_uses_tz_aware_deadline():
+    """Relative reminder should bypass LLM and return timezone-aware ISO deadline."""
+    with (
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+        ) as mock_gemini,
+        patch(
+            "src.core.intent._detect_with_claude",
+            new_callable=AsyncMock,
+        ) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("Remind me in 2 minutes that I need to turn on the oven.")
+
+    assert result.intent == "set_reminder"
+    assert result.data is not None
+    assert result.data.task_title == "that I need to turn on the oven."
+    assert result.data.task_deadline is not None
+    deadline = datetime.fromisoformat(result.data.task_deadline)
+    assert deadline.tzinfo is not None
+    assert 60 <= (deadline - datetime.now(UTC)).total_seconds() <= 180
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()
 

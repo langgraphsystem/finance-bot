@@ -68,6 +68,7 @@ def mock_registry():
         _make_mock_skill("add_income", ["add_income"]),
         _make_mock_skill("correct_category", ["correct_category"]),
         _make_mock_skill("undo_last", ["undo_last"]),
+        _make_mock_skill("set_reminder", ["set_reminder"]),
         _make_mock_skill("onboarding", ["onboarding"]),
         _make_mock_skill("general_chat", ["general_chat"]),
     ]
@@ -204,6 +205,21 @@ class TestRouteCallsCorrectSkill:
         await agent_router.route("add_expense", text_message, sample_context, intent_data)
         assert intent_data.get("_agent") == "chat"
         assert intent_data.get("_model") == "gpt-5.2"
+
+    @pytest.mark.asyncio
+    async def test_route_set_reminder_skips_tool_augmented_path(
+        self, agent_router, text_message, sample_context, monkeypatch
+    ):
+        """set_reminder should run deterministic skill handler, not LLM data tools."""
+        mock_assemble = AsyncMock(return_value=MagicMock())
+        monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
+        route_with_tools = AsyncMock(return_value=SkillResult(response_text="tool response"))
+        monkeypatch.setattr(agent_router, "route_with_tools", route_with_tools)
+
+        result = await agent_router.route("set_reminder", text_message, sample_context, {})
+
+        assert result.response_text == "Response from set_reminder"
+        route_with_tools.assert_not_awaited()
 
 
 # --- Tests: agent configurations completeness ---

@@ -19,6 +19,11 @@ from src.skills.base import SkillRegistry, SkillResult
 
 logger = logging.getLogger(__name__)
 
+_SKILL_ONLY_INTENTS = {
+    # Relative/one-shot reminders are handled more reliably by the dedicated skill.
+    "set_reminder",
+}
+
 
 @dataclass
 class AgentConfig:
@@ -194,8 +199,9 @@ class AgentRouter:
             # Fallback to onboarding agent (handles general_chat)
             agent = self._intent_to_agent.get("general_chat")
 
-        # Tool-augmented path: LLM decides which tools to call
-        if agent and agent.data_tools_enabled:
+        # Tool-augmented path: LLM decides which tools to call.
+        # Some intents are intentionally kept on deterministic skill handlers.
+        if agent and agent.data_tools_enabled and intent not in _SKILL_ONLY_INTENTS:
             try:
                 return await self.route_with_tools(intent, message, context, intent_data)
             except Exception as e:
