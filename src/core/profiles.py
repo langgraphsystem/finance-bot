@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel
+
+from src.core.specialist import SpecialistConfig
 
 
 class ProfileConfig(BaseModel):
@@ -14,6 +18,7 @@ class ProfileConfig(BaseModel):
     metrics: list[dict] = []
     special_features: dict = {}
     tax: dict | None = None
+    specialist: SpecialistConfig | None = None
 
 
 class ProfileLoader:

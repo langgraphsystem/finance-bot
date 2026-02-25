@@ -68,6 +68,22 @@ class AgentRouter:
         return list(self._agents.values())
 
     @staticmethod
+    def _add_specialist_knowledge(system_prompt: str, context: SessionContext) -> str:
+        """Inject specialist knowledge from profile_config into the system prompt."""
+        if not context.profile_config or not context.profile_config.specialist:
+            return system_prompt
+        from src.core.specialist import build_specialist_system_block
+
+        block = build_specialist_system_block(
+            specialist=context.profile_config.specialist,
+            language=context.language or "en",
+            business_name=context.profile_config.name,
+        )
+        if block:
+            return system_prompt + "\n\n" + block
+        return system_prompt
+
+    @staticmethod
     def _add_language_instruction(system_prompt: str, context: SessionContext) -> str:
         """Append a language instruction to the system prompt."""
         lang = context.language or "en"
@@ -122,6 +138,7 @@ class AgentRouter:
 
         # Build system prompt with data tools context
         prompt = agent.system_prompt if agent else ""
+        prompt = self._add_specialist_knowledge(prompt, context)
         prompt = self._add_language_instruction(prompt, context)
         prompt = self._add_date_instruction(prompt, context)
         prompt += (
@@ -218,7 +235,8 @@ class AgentRouter:
         if agent:
             # Assemble context with agent-specific system prompt
             try:
-                prompt = self._add_language_instruction(agent.system_prompt, context)
+                prompt = self._add_specialist_knowledge(agent.system_prompt, context)
+                prompt = self._add_language_instruction(prompt, context)
                 prompt = self._add_date_instruction(prompt, context)
                 assembled = await assemble_context(
                     user_id=context.user_id,

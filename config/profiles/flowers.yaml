@@ -45,3 +45,46 @@ metrics:
 special_features:
   ifta: false
   loads_tracking: false
+
+specialist:
+  greeting:
+    ru: "Добрый день! Цветочный магазин, чем могу помочь?"
+    en: "Hello! Flower shop, how can I help?"
+  services:
+    - name: "Букет на заказ"
+      duration_min: 30
+      price: 3000
+      currency: "RUB"
+      description: "Индивидуальный букет по вашему пожеланию"
+    - name: "Свадебная флористика"
+      duration_min: 60
+      description: "Консультация и оформление свадьбы"
+    - name: "Доставка букета"
+      duration_min: 60
+      price: 500
+      currency: "RUB"
+    - name: "Оформление помещения"
+      duration_min: 120
+      description: "Декорирование цветами для мероприятий"
+  staff:
+    - name: "Флорист 1"
+      specialties: ["букеты", "свадьбы"]
+    - name: "Флорист 2"
+      specialties: ["оформление", "композиции"]
+  working_hours:
+    default: "09:00-20:00"
+    sun: "10:00-16:00"
+  capabilities:
+    - booking
+    - price_inquiry
+    - faq
+    - reminder
+  faq:
+    - q: "За сколько дней нужно заказывать свадебную флористику?"
+      a: "Рекомендуем за 2-4 недели, чтобы обсудить все детали."
+    - q: "Есть доставка?"
+      a: "Да, доставка по городу — 500 руб."
+  system_prompt_extra: |
+    Ты — консультант цветочного магазина.
+    Помогай с выбором букетов и оформлением заказов.
+    Уточняй повод, бюджет и предпочтения по цветам.

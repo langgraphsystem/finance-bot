@@ -42,3 +42,53 @@ metrics:
 special_features:
   ifta: false
   loads_tracking: false
+
+specialist:
+  greeting:
+    ru: "Здравствуйте! Салон красоты, чем могу помочь?"
+    en: "Hello! Beauty salon, how can I help you?"
+  services:
+    - name: "Маникюр классический"
+      duration_min: 60
+      price: 2000
+      currency: "RUB"
+    - name: "Маникюр с гель-лаком"
+      duration_min: 90
+      price: 3000
+      currency: "RUB"
+    - name: "Педикюр"
+      duration_min: 90
+      price: 2500
+      currency: "RUB"
+    - name: "Наращивание ногтей"
+      duration_min: 120
+      price: 4500
+      currency: "RUB"
+    - name: "Снятие покрытия"
+      duration_min: 30
+      price: 500
+      currency: "RUB"
+  staff:
+    - name: "Мастер 1"
+      specialties: ["маникюр", "гель-лак", "дизайн"]
+    - name: "Мастер 2"
+      specialties: ["педикюр", "наращивание"]
+  working_hours:
+    default: "10:00-20:00"
+    sat: "10:00-18:00"
+    sun: closed
+  capabilities:
+    - booking
+    - price_inquiry
+    - faq
+    - reminder
+  faq:
+    - q: "Сколько стоит маникюр?"
+      a: "Классический маникюр — 2000 руб, с гель-лаком — 3000 руб."
+    - q: "Как долго держится гель-лак?"
+      a: "Гель-лак держится 2-3 недели при правильном уходе."
+  system_prompt_extra: |
+    Ты — администратор салона красоты.
+    Будь вежлива и профессиональна.
+    Предлагай удобное время, учитывай загрузку мастеров.
+    При записи уточняй: какую услугу, к какому мастеру, на какое время.
