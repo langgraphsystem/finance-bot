@@ -1,11 +1,12 @@
 """Life-tracking cron tasks: weekly digest, morning reminder, evening reflection."""
 
 import logging
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
 
-from src.core.db import async_session
+from src.core.db import async_session, redis
 from src.core.life_helpers import get_communication_mode, query_life_events
 from src.core.models.enums import LifeEventType
 from src.core.models.user import User
@@ -133,18 +134,73 @@ def _t(lang: str | None) -> dict[str, str]:
     return _TEXTS.get(_normalize_language(lang), _TEXTS["en"])
 
 
-async def _get_family_users() -> list[tuple[str, str, int, str]]:
-    """Get (family_id, user_id, telegram_id, language) for all users."""
+def _normalize_timezone(timezone: str | None) -> str:
+    """Normalize timezone, falling back to UTC when invalid."""
+    tz_name = (timezone or "").strip() or "UTC"
+    try:
+        ZoneInfo(tz_name)
+        return tz_name
+    except ZoneInfoNotFoundError:
+        return "UTC"
+
+
+def _now_in_timezone(timezone: str) -> datetime:
+    """Current datetime in the provided timezone."""
+    return datetime.now(UTC).astimezone(ZoneInfo(_normalize_timezone(timezone)))
+
+
+def _is_send_window(
+    timezone: str,
+    *,
+    target_hour: int,
+    target_minute: int = 0,
+    window_minutes: int = 15,
+) -> bool:
+    """Check whether local time is within the dispatch window."""
+    now_local = _now_in_timezone(timezone)
+    start = now_local.replace(
+        hour=target_hour,
+        minute=target_minute,
+        second=0,
+        microsecond=0,
+    )
+    end = start + timedelta(minutes=window_minutes)
+    return start <= now_local < end
+
+
+async def _mark_daily_once(kind: str, user_id: str, day: date) -> bool:
+    """Mark daily notification as sent once per user/day."""
+    key = f"life:{kind}:{user_id}:{day.isoformat()}"
+    try:
+        was_set = await redis.set(key, "1", ex=172800, nx=True)
+        return bool(was_set)
+    except Exception:
+        # If Redis is unavailable, avoid blocking notifications.
+        return True
+
+
+async def _get_family_users() -> list[tuple[str, str, int, str, str]]:
+    """Get (family_id, user_id, telegram_id, language, timezone) for all users."""
     async with async_session() as session:
         result = await session.execute(
             select(
                 User.family_id,
                 User.id,
                 User.telegram_id,
-                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+                func.coalesce(User.language, UserProfile.preferred_language).label("language"),
+                UserProfile.timezone,
             ).outerjoin(UserProfile, UserProfile.user_id == User.id)
         )
-        return [(str(r[0]), str(r[1]), r[2], _normalize_language(r[3])) for r in result.all()]
+        return [
+            (
+                str(r[0]),
+                str(r[1]),
+                r[2],
+                _normalize_language(r[3]),
+                _normalize_timezone(r[4]),
+            )
+            for r in result.all()
+        ]
 
 
 async def _send_telegram_message(telegram_id: int, text: str) -> None:
@@ -173,7 +229,8 @@ async def weekly_life_digest() -> None:
 
     users = await _get_family_users()
 
-    for family_id, user_id, telegram_id, lang in users:
+    for row in users:
+        family_id, user_id, telegram_id, lang = row[:4]
         try:
             events = await query_life_events(
                 family_id=family_id,
@@ -286,14 +343,23 @@ async def _generate_digest_analysis(events: list, lang: str = "en") -> str:
     return response.content[0].text.strip()
 
 
-@broker.task(schedule=[{"cron": "0 8 * * *"}])  # Daily 08:00
+@broker.task(schedule=[{"cron": "*/15 * * * *"}])  # Every 15 min, local-time gated
 async def morning_plan_reminder() -> None:
     """Remind users who haven't created a day plan yet."""
-    today = date.today()
     users = await _get_family_users()
 
-    for family_id, user_id, telegram_id, lang in users:
+    for row in users:
+        if len(row) >= 5:
+            family_id, user_id, telegram_id, lang, timezone = row
+        else:
+            family_id, user_id, telegram_id, lang = row[:4]
+            timezone = "UTC"
         try:
+            if not _is_send_window(timezone, target_hour=8, target_minute=0):
+                continue
+
+            today = _now_in_timezone(timezone).date()
+
             # Check if user has a day plan for today
             today_plans = await query_life_events(
                 family_id=family_id,
@@ -312,6 +378,9 @@ async def morning_plan_reminder() -> None:
             if mode == "silent":
                 continue
 
+            if not await _mark_daily_once("morning", user_id, today):
+                continue
+
             t = _t(lang)
             await _send_telegram_message(
                 telegram_id,
@@ -323,14 +392,23 @@ async def morning_plan_reminder() -> None:
             logger.error("Morning reminder failed for user %s: %s", user_id, e)
 
 
-@broker.task(schedule=[{"cron": "30 21 * * *"}])  # Daily 21:30
+@broker.task(schedule=[{"cron": "*/15 * * * *"}])  # Every 15 min, local-time gated
 async def evening_reflection_prompt() -> None:
     """Prompt users who haven't done their daily reflection."""
-    today = date.today()
     users = await _get_family_users()
 
-    for family_id, user_id, telegram_id, lang in users:
+    for row in users:
+        if len(row) >= 5:
+            family_id, user_id, telegram_id, lang, timezone = row
+        else:
+            family_id, user_id, telegram_id, lang = row[:4]
+            timezone = "UTC"
         try:
+            if not _is_send_window(timezone, target_hour=21, target_minute=30):
+                continue
+
+            today = _now_in_timezone(timezone).date()
+
             # Check if user already reflected today
             reflections = await query_life_events(
                 family_id=family_id,
@@ -346,6 +424,9 @@ async def evening_reflection_prompt() -> None:
 
             mode = await get_communication_mode(user_id)
             if mode == "silent":
+                continue
+
+            if not await _mark_daily_once("evening", user_id, today):
                 continue
 
             t = _t(lang)

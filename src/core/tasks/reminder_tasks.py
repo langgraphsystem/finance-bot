@@ -93,7 +93,7 @@ async def dispatch_due_reminders() -> None:
             select(
                 Task,
                 User.telegram_id,
-                func.coalesce(UserProfile.preferred_language, User.language).label("language"),
+                func.coalesce(User.language, UserProfile.preferred_language).label("language"),
             )
             .join(User, Task.user_id == User.id)
             .outerjoin(UserProfile, UserProfile.user_id == User.id)
