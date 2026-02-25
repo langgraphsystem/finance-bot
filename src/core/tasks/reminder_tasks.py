@@ -12,7 +12,7 @@ from sqlalchemy import func, select, update
 
 from src.core.config import settings
 from src.core.db import async_session
-from src.core.locale_resolution import normalize_language, resolve_notification_locale
+from src.core.locale_resolution import resolve_notification_locale
 from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.core.models.task import Task
 from src.core.models.user import User
@@ -151,27 +151,19 @@ async def dispatch_due_reminders() -> None:
                     logger.warning("Skipping reminder %s: missing telegram_id", task.id)
                     continue
 
-                if settings.ff_locale_v2_read:
-                    resolved = resolve_notification_locale(
-                        user_language=fields["user_language"],
-                        preferred_language=fields["preferred_language"],
-                        notification_language=fields["notification_language"],
-                        timezone=fields["timezone"],
-                        timezone_source=fields["timezone_source"],
-                        use_v2_read=True,
-                    )
-                    language = resolved.language
-                    language_source = resolved.language_source
-                    timezone = resolved.timezone
-                    timezone_source = resolved.timezone_source
-                else:
-                    language = normalize_language(fields["legacy_language"])
-                    language_source = "legacy_preferred_or_user"
-                    timezone = (fields["timezone"] or "UTC").strip() or "UTC"
-                    timezone_source = (
-                        fields["timezone_source"]
-                        or ("user_profile.timezone" if fields["timezone"] else "unknown")
-                    )
+                resolved = resolve_notification_locale(
+                    user_language=fields["user_language"] or fields["legacy_language"],
+                    preferred_language=fields["preferred_language"],
+                    notification_language=fields["notification_language"],
+                    timezone=fields["timezone"],
+                    timezone_source=fields["timezone_source"],
+                    use_v2_read=settings.ff_locale_v2_read,
+                    prefer_user_on_desync=True,
+                )
+                language = resolved.language
+                language_source = resolved.language_source
+                timezone = resolved.timezone
+                timezone_source = resolved.timezone_source
 
                 label = _reminder_label.get(
                     language, "Reminder",

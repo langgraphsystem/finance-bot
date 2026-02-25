@@ -125,3 +125,47 @@ async def test_dispatch_normalizes_language_code():
 
     text = mock_send.call_args[0][1]
     assert "<b>Reminder</b>" in text
+
+
+@pytest.mark.asyncio
+async def test_dispatch_prefers_users_language_when_profile_desynced():
+    """When user/profile language diverge, reminder text follows users.language."""
+    task_id = uuid.uuid4()
+
+    mock_task = MagicMock()
+    mock_task.id = task_id
+    mock_task.title = "Turn on the oven"
+    mock_task.description = None
+
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.all.return_value = [
+        (
+            mock_task,
+            555,
+            "ru",
+            str(uuid.uuid4()),
+            "en",
+            "ru",
+            None,
+            "America/New_York",
+            "user_profile.timezone",
+        )
+    ]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.commit = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch(f"{MODULE}.async_session", return_value=mock_session),
+        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.settings.ff_locale_v2_read", False),
+    ):
+        from src.core.tasks.reminder_tasks import dispatch_due_reminders
+
+        await dispatch_due_reminders()
+
+    text = mock_send.call_args[0][1]
+    assert "<b>Reminder</b>" in text
+    assert "Напоминание" not in text

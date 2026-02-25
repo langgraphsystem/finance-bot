@@ -65,6 +65,7 @@ async def evaluate_proactive_triggers():
                 timezone=timezone,
                 timezone_source=timezone_source,
                 use_v2_read=settings.ff_locale_v2_read,
+                prefer_user_on_desync=True,
             )
             comm_mode = tone_preference or "receipt"
             suppressed: list[str] = []

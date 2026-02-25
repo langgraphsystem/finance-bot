@@ -196,6 +196,7 @@ async def _get_family_users() -> list[tuple[str, str, int, str, str, str, str]]:
                 timezone=row[6],
                 timezone_source=row[7],
                 use_v2_read=settings.ff_locale_v2_read,
+                prefer_user_on_desync=True,
             )
             users.append(
                 (

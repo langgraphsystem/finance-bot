@@ -30,6 +30,7 @@ def resolve_notification_locale(
     timezone: str | None,
     timezone_source: str | None,
     use_v2_read: bool,
+    prefer_user_on_desync: bool = False,
 ) -> LocaleResolution:
     """Resolve language/timezone with source metadata.
 
@@ -37,9 +38,21 @@ def resolve_notification_locale(
     - Legacy mode (`use_v2_read=False`): preferred_language -> user_language -> en.
     - v2 read mode (`use_v2_read=True`): notification_language -> preferred -> user -> en.
     """
+    normalized_user = normalize_language(user_language) if user_language else ""
+    normalized_preferred = normalize_language(preferred_language) if preferred_language else ""
+
     if use_v2_read and notification_language:
         language = notification_language
         language_source = "user_profile.notification_language"
+    elif (
+        prefer_user_on_desync
+        and normalized_user
+        and normalized_preferred
+        and normalized_user != normalized_preferred
+    ):
+        # Keep async pushes aligned with current conversational language when fields diverge.
+        language = user_language
+        language_source = "users.language_desync_override"
     elif preferred_language:
         language = preferred_language
         language_source = "user_profile.preferred_language"
@@ -61,4 +74,3 @@ def resolve_notification_locale(
         timezone=resolved_timezone,
         timezone_source=resolved_timezone_source,
     )
-

@@ -37,3 +37,16 @@ def test_resolve_locale_v2_mode_prefers_notification_language():
     assert resolved.timezone == "UTC"
     assert resolved.timezone_source == "default"
 
+
+def test_resolve_locale_prefers_user_when_desynced():
+    resolved = resolve_notification_locale(
+        user_language="en",
+        preferred_language="ru",
+        notification_language=None,
+        timezone="America/New_York",
+        timezone_source="user_profile.timezone",
+        use_v2_read=False,
+        prefer_user_on_desync=True,
+    )
+    assert resolved.language == "en"
+    assert resolved.language_source == "users.language_desync_override"
