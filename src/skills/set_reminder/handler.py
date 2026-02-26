@@ -221,35 +221,117 @@ def _parse_end_date(raw: str | None) -> datetime | None:
         return None
 
 
-def _format_confirmation_time(reminder_at: datetime, timezone: str) -> tuple[str, str]:
-    """Format 12-hour wall-clock time and a human-readable relative delta."""
+def _ru_minutes(n: int) -> str:
+    """Russian plural for 'минута'."""
+    if 11 <= n % 100 <= 19:
+        return "минут"
+    last = n % 10
+    if last == 1:
+        return "минуту"
+    if 2 <= last <= 4:
+        return "минуты"
+    return "минут"
+
+
+def _ru_hours(n: int) -> str:
+    """Russian plural for 'час'."""
+    if 11 <= n % 100 <= 19:
+        return "часов"
+    last = n % 10
+    if last == 1:
+        return "час"
+    if 2 <= last <= 4:
+        return "часа"
+    return "часов"
+
+
+def _format_relative_en(total_minutes: int) -> str:
+    """English relative time: 'in 15 minutes'."""
+    if total_minutes < 60:
+        unit = "minute" if total_minutes == 1 else "minutes"
+        return f"in {total_minutes} {unit}"
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    hour_unit = "hour" if hours == 1 else "hours"
+    if minutes == 0:
+        return f"in {hours} {hour_unit}"
+    minute_unit = "minute" if minutes == 1 else "minutes"
+    return f"in {hours} {hour_unit} {minutes} {minute_unit}"
+
+
+def _format_relative_ru(total_minutes: int) -> str:
+    """Russian relative time: 'через 15 минут'."""
+    if total_minutes < 60:
+        return f"через {total_minutes} {_ru_minutes(total_minutes)}"
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    if minutes == 0:
+        return f"через {hours} {_ru_hours(hours)}"
+    return f"через {hours} {_ru_hours(hours)} {minutes} {_ru_minutes(minutes)}"
+
+
+def _format_confirmation_time(
+    reminder_at: datetime, timezone: str, lang: str = "en",
+) -> tuple[str, str]:
+    """Format wall-clock time and a localized human-readable relative delta."""
     tz = ZoneInfo(timezone)
     now_local = datetime.now(tz)
     reminder_local = reminder_at.astimezone(tz)
     total_seconds = max((reminder_local - now_local).total_seconds(), 0)
     total_minutes = max(1, ceil(total_seconds / 60))
 
-    if total_minutes < 60:
-        unit = "minute" if total_minutes == 1 else "minutes"
-        relative = f"in {total_minutes} {unit}"
+    if lang == "ru":
+        relative = _format_relative_ru(total_minutes)
     else:
-        hours = total_minutes // 60
-        minutes = total_minutes % 60
-        hour_unit = "hour" if hours == 1 else "hours"
-        if minutes == 0:
-            relative = f"in {hours} {hour_unit}"
-        else:
-            minute_unit = "minute" if minutes == 1 else "minutes"
-            relative = f"in {hours} {hour_unit} {minutes} {minute_unit}"
+        relative = _format_relative_en(total_minutes)
 
-    time_str = reminder_local.strftime("%I:%M %p").lstrip("0")
+    if lang == "ru":
+        time_str = reminder_local.strftime("%H:%M")
+    else:
+        time_str = reminder_local.strftime("%I:%M %p").lstrip("0")
+
     return time_str, relative
 
 
-def _build_scheduled_confirmation(task_title: str, reminder_at: datetime, timezone: str) -> str:
-    """Build strict 3-line reminder confirmation text."""
-    time_str, relative = _format_confirmation_time(reminder_at, timezone)
-    return f"⏰ Reminder scheduled\n{task_title}\n{time_str} · {relative}"
+_CONFIRMATION_HEADER = {
+    "en": "⏰ <b>Reminder set</b>",
+    "ru": "⏰ <b>Напоминание установлено</b>",
+}
+
+_RECURRENCE_LINE = {
+    "en": {
+        "daily": "🔄 Repeats daily",
+        "weekly": "🔄 Repeats weekly",
+        "monthly": "🔄 Repeats monthly",
+    },
+    "ru": {
+        "daily": "🔄 Ежедневно",
+        "weekly": "🔄 Еженедельно",
+        "monthly": "🔄 Ежемесячно",
+    },
+}
+
+
+def _build_scheduled_confirmation(
+    task_title: str,
+    reminder_at: datetime,
+    timezone: str,
+    lang: str = "en",
+    recurrence: ReminderRecurrence = ReminderRecurrence.none,
+) -> str:
+    """Build a nicely formatted reminder confirmation (Telegram HTML)."""
+    time_str, relative = _format_confirmation_time(reminder_at, timezone, lang)
+    header = _CONFIRMATION_HEADER.get(lang, _CONFIRMATION_HEADER["en"])
+
+    lines = [header, "", f"📝 {task_title}", f"🕐 {time_str} ({relative})"]
+
+    if recurrence != ReminderRecurrence.none:
+        rec_labels = _RECURRENCE_LINE.get(lang, _RECURRENCE_LINE["en"])
+        rec_line = rec_labels.get(recurrence.value)
+        if rec_line:
+            lines.append(rec_line)
+
+    return "\n".join(lines)
 
 
 async def _extract_from_context(
@@ -396,9 +478,13 @@ def _build_response(
     """Build response text for a single reminder."""
     if task.reminder_at:
         return SkillResult(
-            response_text=_build_scheduled_confirmation(task.title, task.reminder_at, timezone)
+            response_text=_build_scheduled_confirmation(
+                task.title, task.reminder_at, timezone, lang, recurrence,
+            )
         )
-    return SkillResult(response_text=_t("no_time", lang, title=task.title))
+    header = _CONFIRMATION_HEADER.get(lang, _CONFIRMATION_HEADER["en"])
+    no_time_hint = "⏳ Без указания времени" if lang == "ru" else "⏳ No specific time"
+    return SkillResult(response_text=f"{header}\n\n📝 {task.title}\n{no_time_hint}")
 
 
 async def _create_multiple_reminders(
@@ -439,19 +525,23 @@ async def _create_multiple_reminders(
     # Build response
     from src.skills._i18n import fmt_time
 
-    lines: list[str] = []
+    multi_header = {
+        "en": "⏰ <b>Reminders set</b>",
+        "ru": "⏰ <b>Напоминания установлены</b>",
+    }
+    header = multi_header.get(lang, multi_header["en"])
+    lines: list[str] = [header, ""]
     for label, rt in created:
         time_str = fmt_time(rt, lang, timezone=context.timezone) if rt else "?"
-        lines.append(f"  • {label}: {time_str}")
+        lines.append(f"📝 {label} — {time_str}")
 
-    recurrence_note = ""
     if recurrence != ReminderRecurrence.none:
-        labels = _RECURRENCE_LABELS.get(lang, _RECURRENCE_LABELS["en"])
-        recurrence_note = f" ({labels.get(recurrence.value, recurrence.value)})"
+        rec_labels = _RECURRENCE_LINE.get(lang, _RECURRENCE_LINE["en"])
+        rec_line = rec_labels.get(recurrence.value)
+        if rec_line:
+            lines.append(rec_line)
 
-    header = _t("multi_set", lang)
-    text = f"{header}{recurrence_note}:\n" + "\n".join(lines)
-    return SkillResult(response_text=text)
+    return SkillResult(response_text="\n".join(lines))
 
 
 async def save_reminder(task: Task) -> None:

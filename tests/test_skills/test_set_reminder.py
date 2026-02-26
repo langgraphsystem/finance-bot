@@ -78,10 +78,11 @@ async def test_set_reminder_with_time(skill, message, ctx):
     assert task.status == TaskStatus.pending
     assert task.recurrence == ReminderRecurrence.none
     lines = result.response_text.splitlines()
-    assert len(lines) == 3
-    assert lines[0] == "⏰ Reminder scheduled"
-    assert lines[1] == "pick up Emma"
-    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
+    assert len(lines) == 4
+    assert lines[0] == "⏰ <b>Reminder set</b>"
+    assert lines[1] == ""
+    assert lines[2] == "📝 pick up Emma"
+    assert re.match(r"^🕐 \d{1,2}:\d{2} [AP]M \(in .+\)$", lines[3])
 
 
 async def test_set_reminder_without_time_asks_clarification(skill, ctx):
@@ -162,10 +163,12 @@ async def test_set_reminder_daily_recurrence(skill, ctx):
     assert task.original_reminder_time == "08:00"
     assert task.reminder_at is not None
     lines = result.response_text.splitlines()
-    assert len(lines) == 3
-    assert lines[0] == "⏰ Reminder scheduled"
-    assert lines[1] == "take vitamins"
-    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
+    assert len(lines) == 5
+    assert lines[0] == "⏰ <b>Reminder set</b>"
+    assert lines[1] == ""
+    assert lines[2] == "📝 take vitamins"
+    assert re.match(r"^🕐 \d{1,2}:\d{2} [AP]M \(in .+\)$", lines[3])
+    assert lines[4] == "🔄 Repeats daily"
 
 
 async def test_set_reminder_weekly_recurrence(skill, ctx):
@@ -377,12 +380,36 @@ def test_parse_time_str_invalid():
     assert _parse_time_str("25:00", "America/New_York") is None
 
 
-def test_build_scheduled_confirmation_three_lines():
+def test_build_scheduled_confirmation_format():
     tz = "America/New_York"
     reminder_at = datetime.now(ZoneInfo(tz)) + timedelta(minutes=2)
     text = _build_scheduled_confirmation("turn on the oven", reminder_at, tz)
     lines = text.splitlines()
-    assert len(lines) == 3
-    assert lines[0] == "⏰ Reminder scheduled"
-    assert lines[1] == "turn on the oven"
-    assert re.match(r"^\d{1,2}:\d{2} [AP]M · in .+$", lines[2])
+    assert len(lines) == 4
+    assert lines[0] == "⏰ <b>Reminder set</b>"
+    assert lines[1] == ""
+    assert lines[2] == "📝 turn on the oven"
+    assert re.match(r"^🕐 \d{1,2}:\d{2} [AP]M \(in .+\)$", lines[3])
+
+
+def test_build_scheduled_confirmation_russian():
+    tz = "Europe/Moscow"
+    reminder_at = datetime.now(ZoneInfo(tz)) + timedelta(minutes=15)
+    text = _build_scheduled_confirmation("включить духовку", reminder_at, tz, lang="ru")
+    lines = text.splitlines()
+    assert lines[0] == "⏰ <b>Напоминание установлено</b>"
+    assert lines[2] == "📝 включить духовку"
+    assert "через" in lines[3]
+
+
+def test_build_scheduled_confirmation_with_recurrence():
+    from src.core.models.enums import ReminderRecurrence
+
+    tz = "America/New_York"
+    reminder_at = datetime.now(ZoneInfo(tz)) + timedelta(hours=3)
+    text = _build_scheduled_confirmation(
+        "take vitamins", reminder_at, tz, recurrence=ReminderRecurrence.daily,
+    )
+    lines = text.splitlines()
+    assert len(lines) == 5
+    assert lines[4] == "🔄 Repeats daily"
