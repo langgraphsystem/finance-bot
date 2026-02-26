@@ -514,20 +514,100 @@ def _profile_display_name(business_type: str, lang: str) -> str:
     return names.get(lang, names.get("en", business_type.title()))
 
 
+# Maps native/colloquial language names and common variations → ISO code.
+# Covers: native name, English name, short forms, transliterations, demonyms.
 _NATIVE_LANGUAGE_NAMES: dict[str, str] = {
-    "deutsch": "de", "français": "fr", "francais": "fr",
-    "español": "es", "espanol": "es", "português": "pt", "portugues": "pt",
-    "italiano": "it", "日本語": "ja", "한국어": "ko",
-    "العربية": "ar", "हिन्दी": "hi", "हिंदी": "hi",
-    "türkçe": "tr", "turkce": "tr", "polski": "pl",
-    "nederlands": "nl", "svenska": "sv",
-    "українська": "uk", "tiếng việt": "vi",
-    "ไทย": "th", "bahasa indonesia": "id", "indonesia": "id",
-    "čeština": "cs", "cestina": "cs", "română": "ro", "romana": "ro",
-    "magyar": "hu", "ελληνικά": "el",
-    "עברית": "he", "dansk": "da", "suomi": "fi", "norsk": "no",
-    "кыргызча": "ky", "қазақша": "kk", "ўзбекча": "uz", "тоҷикӣ": "tg",
-    "русский": "ru", "english": "en", "chinese": "zh", "中文": "zh",
+    # English
+    "english": "en", "eng": "en", "инглиш": "en", "англиский": "en",
+    "английский": "en",
+    # Spanish
+    "español": "es", "espanol": "es", "spanish": "es", "испанский": "es",
+    # French
+    "français": "fr", "francais": "fr", "french": "fr", "француз": "fr",
+    "французский": "fr",
+    # German
+    "deutsch": "de", "german": "de", "немецкий": "de",
+    # Portuguese
+    "português": "pt", "portugues": "pt", "portuguese": "pt",
+    "португальский": "pt",
+    # Italian
+    "italiano": "it", "italian": "it", "итальянский": "it",
+    # Russian
+    "русский": "ru", "russian": "ru", "руский": "ru", "рус": "ru",
+    # Chinese
+    "chinese": "zh", "中文": "zh", "汉语": "zh", "китайский": "zh",
+    # Japanese
+    "日本語": "ja", "japanese": "ja", "японский": "ja",
+    # Korean
+    "한국어": "ko", "korean": "ko", "корейский": "ko",
+    # Arabic
+    "العربية": "ar", "عربي": "ar", "arabic": "ar", "арабский": "ar",
+    # Hindi
+    "हिन्दी": "hi", "हिंदी": "hi", "hindi": "hi", "хинди": "hi",
+    # Turkish
+    "türkçe": "tr", "turkce": "tr", "turkish": "tr", "турецкий": "tr",
+    "турок": "tr",
+    # Polish
+    "polski": "pl", "polish": "pl", "польский": "pl",
+    # Dutch
+    "nederlands": "nl", "dutch": "nl", "голландский": "nl",
+    # Swedish
+    "svenska": "sv", "swedish": "sv", "шведский": "sv",
+    # Ukrainian
+    "українська": "uk", "украинский": "uk", "ukrainian": "uk",
+    "украинська": "uk", "укр": "uk",
+    # Vietnamese
+    "tiếng việt": "vi", "vietnamese": "vi", "вьетнамский": "vi",
+    # Thai
+    "ไทย": "th", "thai": "th", "тайский": "th",
+    # Indonesian
+    "bahasa indonesia": "id", "bahasa": "id", "indonesia": "id",
+    "indonesian": "id",
+    # Czech
+    "čeština": "cs", "cestina": "cs", "czech": "cs", "чешский": "cs",
+    # Romanian
+    "română": "ro", "romana": "ro", "romanian": "ro", "румынский": "ro",
+    # Hungarian
+    "magyar": "hu", "hungarian": "hu", "венгерский": "hu",
+    # Greek
+    "ελληνικά": "el", "greek": "el", "греческий": "el",
+    # Hebrew
+    "עברית": "he", "hebrew": "he", "иврит": "he",
+    # Danish
+    "dansk": "da", "danish": "da", "датский": "da",
+    # Finnish
+    "suomi": "fi", "finnish": "fi", "финский": "fi",
+    # Norwegian
+    "norsk": "no", "norwegian": "no", "норвежский": "no",
+    # Kyrgyz — all variations
+    "кыргызча": "ky", "кыргыз": "ky", "кыргызский": "ky", "киргиз": "ky",
+    "киргизский": "ky", "kyrgyz": "ky",
+    # Kazakh
+    "қазақша": "kk", "қазақ": "kk", "казахский": "kk", "казах": "kk",
+    "kazakh": "kk",
+    # Uzbek
+    "ўзбекча": "uz", "o'zbekcha": "uz", "узбекский": "uz", "узбек": "uz",
+    "uzbek": "uz",
+    # Tajik
+    "тоҷикӣ": "tg", "тоҷик": "tg", "таджикский": "tg", "таджик": "tg",
+    "tajik": "tg",
+    # Georgian
+    "ქართული": "ka", "georgian": "ka", "грузинский": "ka", "грузин": "ka",
+    # Armenian
+    "հայերեն": "hy", "armenian": "hy", "армянский": "hy", "армян": "hy",
+    # Azerbaijani
+    "azərbaycan": "az", "azerbaijani": "az", "азербайджанский": "az",
+    "азербайджан": "az",
+    # Mongolian
+    "монгол": "mn", "mongolian": "mn", "монгольский": "mn",
+    # Persian / Farsi
+    "فارسی": "fa", "farsi": "fa", "persian": "fa", "персидский": "fa",
+    # Swahili
+    "kiswahili": "sw", "swahili": "sw",
+    # Tagalog / Filipino
+    "tagalog": "tl", "filipino": "tl",
+    # Malay
+    "melayu": "ms", "malay": "ms",
 }
 
 
@@ -541,15 +621,21 @@ async def detect_language(text: str) -> tuple[str, str]:
 
     Returns (iso_code, language_name).
     """
-    # Quick match: if user typed a known language name (English or native)
+    # Quick match: exact or partial against known language names
     text_lower = text.strip().lower()
+    # 1) Exact match in LANGUAGE_NAMES (English names)
     for code, name in LANGUAGE_NAMES.items():
         if text_lower == name.lower() or text_lower == code:
             return code, name
-    # Also match common native names (Deutsch, Français, Русский, etc.)
+    # 2) Exact match in native names dict
     native = _NATIVE_LANGUAGE_NAMES.get(text_lower)
     if native:
         return native, LANGUAGE_NAMES.get(native, text.strip().title())
+    # 3) Partial match: user input starts with or is a prefix of a known name
+    #    e.g. "кыргыз" matches "кыргызча", "franc" matches "français"
+    for variant, code in _NATIVE_LANGUAGE_NAMES.items():
+        if variant.startswith(text_lower) or text_lower.startswith(variant):
+            return code, LANGUAGE_NAMES.get(code, text.strip().title())
 
     try:
         raw = await generate_text(
