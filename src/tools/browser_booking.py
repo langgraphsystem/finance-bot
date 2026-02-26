@@ -55,29 +55,34 @@ _SUPPORTED_PLATFORMS = {
 
 _PARSE_REQUEST_PROMPT = """\
 Extract hotel booking details from this message. Return ONLY valid JSON, no text.
+The message may be in any language (English, Russian, Spanish, etc.) — extract all fields.
 
 Message: "{task}"
+Message language: {language}
 Today's date: {today}
 
 Return:
 {{"city": "city name in English",
-  "check_in": "YYYY-MM-DD",
-  "check_out": "YYYY-MM-DD",
+  "check_in": "YYYY-MM-DD or null",
+  "check_out": "YYYY-MM-DD or null",
   "guests": 2,
   "budget_per_night": null or number,
   "currency": "USD",
   "amenities": [],
   "star_rating": null or number,
-  "distance_from": null or "landmark name",
+  "distance_from": null or "landmark name in English",
   "sort_by": "best_value"}}
 
 Rules:
+- ALWAYS translate city names to English (e.g. "Чикаго" → "Chicago", "Москва" → "Moscow")
 - If dates are relative ("next week", "завтра"), calculate from today
 - If only duration given ("на 3 ночи"), set check_in to tomorrow
 - Default guests=2 if not specified
 - Keep budget as number only (no currency symbol)
-- Detect language and translate city to English
-- If info is missing, set to null"""
+- Extract budget from any format: "150 долларов" → 150, "$200" → 200, "до 100€" → 100
+- If info is missing, set to null
+- "ближе к центру" / "near center" → distance_from: "city center"
+- You MUST return valid JSON even if some fields are null"""
 
 _PREVIEW_PROMPT = """\
 Find current hotel prices for this search: {task}
@@ -296,20 +301,29 @@ async def parse_booking_request(
 
     try:
         prompt = _PARSE_REQUEST_PROMPT.format(
-            task=task, today=date.today().isoformat()
+            task=task, language=language, today=date.today().isoformat()
         )
         raw = await generate_text(
             "gemini-3-flash-preview",
-            "You extract structured data from text. Return only valid JSON.",
-            max_tokens=256,
+            (
+                "You extract structured data from multilingual text. "
+                "The user message may be in any language. "
+                "Return ONLY valid JSON, no extra text or markdown."
+            ),
+            max_tokens=512,
             prompt=prompt,
         )
+        logger.debug("Booking parse raw response: %s", raw)
         parsed = _extract_json_object(raw)
         if not parsed:
+            logger.warning(
+                "Booking parse: failed to extract JSON from response: %.200s", raw
+            )
             return None
 
         # Validate minimum fields
         if not parsed.get("city"):
+            logger.warning("Booking parse: city is empty, parsed=%s", parsed)
             return None
 
         # Defaults
@@ -318,9 +332,11 @@ async def parse_booking_request(
         parsed.setdefault("amenities", [])
         parsed.setdefault("sort_by", "best_value")
 
+        logger.info("Booking parse OK: city=%s, dates=%s-%s", parsed.get("city"),
+                     parsed.get("check_in"), parsed.get("check_out"))
         return parsed
     except Exception as e:
-        logger.warning("Failed to parse booking request: %s", e)
+        logger.warning("Failed to parse booking request: %s", e, exc_info=True)
         return None
 
 

@@ -31,28 +31,57 @@ async def parse_request(state: dict[str, Any]) -> dict[str, Any]:
 
     parsed = await parse_booking_request(task, language)
     if not parsed or not parsed.get("city"):
+        logger.warning("Booking parse_request failed for task: %.120s", task)
+        _examples = {
+            "ru": (
+                "Не удалось разобрать запрос.\n\n"
+                "Укажите <b>город</b> и <b>даты</b>:\n"
+                "<i>Найди отель в Барселоне на 15-18 марта, до $150/ночь</i>"
+            ),
+            "es": (
+                "No pude entender la solicitud.\n\n"
+                "Incluye: <b>ciudad</b>, <b>fechas</b>\n"
+                "<i>Busca hotel en Barcelona del 15 al 18 de marzo, hasta $150/noche</i>"
+            ),
+        }
         return {
             "step": "error",
             "error": "parse_failed",
-            "response_text": (
+            "response_text": _examples.get(
+                language,
                 "I need more details to search for hotels.\n\n"
                 "Please include: <b>city</b>, <b>dates</b>\n"
                 "Example: <i>Find a hotel in Barcelona for March 15-18, "
-                "up to $150/night</i>"
+                "up to $150/night</i>",
             ),
             "buttons": [],
         }
 
     if not parsed.get("check_in") or not parsed.get("check_out"):
+        _date_prompts = {
+            "ru": (
+                f"Ищу отели в <b>{parsed['city']}</b>, "
+                "но нужны <b>даты</b>.\n\n"
+                "Когда заезд и выезд?\n"
+                "Например: <i>15-18 марта</i>"
+            ),
+            "es": (
+                f"Buscaré hoteles en <b>{parsed['city']}</b>, "
+                "pero necesito las <b>fechas</b>.\n\n"
+                "¿Cuándo quieres registrarte?\n"
+                "Ejemplo: <i>15-18 de marzo</i>"
+            ),
+        }
         return {
             "step": "error",
             "error": "missing_dates",
             "parsed": parsed,
-            "response_text": (
+            "response_text": _date_prompts.get(
+                language,
                 f"I'll search hotels in <b>{parsed['city']}</b>, "
                 "but I need the <b>dates</b>.\n\n"
                 "When do you want to check in and check out?\n"
-                "Example: <i>March 15-18</i>"
+                "Example: <i>March 15-18</i>",
             ),
             "buttons": [],
         }
