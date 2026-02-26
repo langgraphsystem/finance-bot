@@ -26,6 +26,9 @@ class EmailState(TypedDict, total=False):
     quality_ok: bool
     revision_feedback: str
 
+    # Populated by approval node (HITL)
+    user_approved: bool
+
     # Final output
     response_text: str
     sent: bool

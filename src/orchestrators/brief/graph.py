@@ -1,26 +1,23 @@
 """Brief orchestrator — LangGraph StateGraph for morning_brief + evening_recap.
 
-Replaces the ad-hoc asyncio.gather() in skill handlers with a proper
-LangGraph DAG that runs cross-domain collectors in parallel, then
-synthesizes the collected data into a single message.
+Graph structure (true parallel fan-out → fan-in)::
 
-Graph structure::
+    START ──┬── collect_calendar ──┐
+            ├── collect_tasks ─────┤
+            ├── collect_finance ───┼──► synthesize ──► END
+            ├── collect_email ─────┤
+            └── collect_outstanding┘
 
-    collect_calendar ──┐
-    collect_tasks ─────┤
-    collect_finance ───┼──► synthesize ──► END
-    collect_email ─────┤
-    collect_outstanding┘
-
-All collector nodes run in parallel (fan-out). The synthesize node runs
-after all collectors complete (fan-in).
+All collector nodes run in parallel (fan-out from START).
+The synthesize node runs after all collectors complete (fan-in).
 """
 
 import logging
 from typing import Any
 
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 
+from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.plugin_loader import plugin_loader
 from src.gateway.types import IncomingMessage
@@ -37,37 +34,77 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
+_COLLECTORS = [
+    "collect_calendar",
+    "collect_tasks",
+    "collect_finance",
+    "collect_email",
+    "collect_outstanding",
+]
 
-def build_brief_graph() -> StateGraph:
-    """Build the brief orchestrator graph with parallel collector fan-out."""
+
+def build_brief_graph_parallel() -> StateGraph:
+    """Build the brief graph with true parallel fan-out from START."""
     graph = StateGraph(BriefState)
 
-    # Collector nodes (run in parallel via fan-out)
     graph.add_node("collect_calendar", collect_calendar)
     graph.add_node("collect_tasks", collect_tasks)
     graph.add_node("collect_finance", collect_finance)
     graph.add_node("collect_email", collect_email)
     graph.add_node("collect_outstanding", collect_outstanding)
-
-    # Synthesizer node (fan-in: waits for all collectors)
     graph.add_node("synthesize", synthesize)
 
-    # Fan-out: entry point goes to all collectors in parallel
-    graph.set_entry_point("collect_calendar")
+    # Fan-out: START → all collectors in parallel
+    for name in _COLLECTORS:
+        graph.add_edge(START, name)
+
+    # Fan-in: all collectors → synthesize (waits for all)
+    for name in _COLLECTORS:
+        graph.add_edge(name, "synthesize")
+
+    graph.add_edge("synthesize", END)
+
+    return graph
+
+
+def build_brief_graph_sequential() -> StateGraph:
+    """Build the brief graph with sequential collector chain (legacy)."""
+    graph = StateGraph(BriefState)
+
+    graph.add_node("collect_calendar", collect_calendar)
+    graph.add_node("collect_tasks", collect_tasks)
+    graph.add_node("collect_finance", collect_finance)
+    graph.add_node("collect_email", collect_email)
+    graph.add_node("collect_outstanding", collect_outstanding)
+    graph.add_node("synthesize", synthesize)
+
+    graph.add_edge(START, "collect_calendar")
     graph.add_edge("collect_calendar", "collect_tasks")
     graph.add_edge("collect_tasks", "collect_finance")
     graph.add_edge("collect_finance", "collect_email")
     graph.add_edge("collect_email", "collect_outstanding")
-
-    # Fan-in: all collectors → synthesize → END
     graph.add_edge("collect_outstanding", "synthesize")
     graph.add_edge("synthesize", END)
 
     return graph
 
 
+def _compile_brief_graph():
+    """Compile the brief graph with optional checkpointer."""
+    if settings.ff_langgraph_brief_parallel:
+        builder = build_brief_graph_parallel()
+    else:
+        builder = build_brief_graph_sequential()
+
+    if settings.ff_langgraph_checkpointer:
+        from src.orchestrators.checkpointer import get_checkpointer
+
+        return builder.compile(checkpointer=get_checkpointer())
+    return builder.compile()
+
+
 # Compiled graph (singleton)
-_brief_graph = build_brief_graph().compile()
+_brief_graph = _compile_brief_graph()
 
 
 class BriefOrchestrator:
@@ -108,12 +145,21 @@ class BriefOrchestrator:
             "response_text": "",
         }
 
+        config: dict[str, Any] = {}
+        if settings.ff_langgraph_checkpointer:
+            thread_id = f"brief-{context.user_id}-{intent}"
+            config = {"configurable": {"thread_id": thread_id}}
+
         try:
-            result = await _brief_graph.ainvoke(initial_state)
+            result = await _brief_graph.ainvoke(initial_state, config or None)
             text = result.get("response_text", "")
             if text:
                 return SkillResult(response_text=text)
-            return SkillResult(response_text="Couldn't prepare your brief. Try again later.")
+            return SkillResult(
+                response_text="Couldn't prepare your brief. Try again later."
+            )
         except Exception as e:
             logger.exception("Brief orchestrator failed: %s", e)
-            return SkillResult(response_text="Couldn't prepare your brief. Try again later.")
+            return SkillResult(
+                response_text="Couldn't prepare your brief. Try again later."
+            )

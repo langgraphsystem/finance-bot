@@ -108,6 +108,9 @@ class Settings(BaseSettings):
     ff_locale_v2_read: bool = True
     ff_locale_v2_write: bool = True
     ff_reminder_dispatch_v2: bool = True
+    ff_langgraph_checkpointer: bool = True
+    ff_langgraph_brief_parallel: bool = True
+    ff_langgraph_email_hitl: bool = True
 
     @property
     def is_production(self) -> bool:

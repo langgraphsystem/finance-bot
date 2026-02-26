@@ -3,6 +3,7 @@
 import logging
 from typing import Any
 
+from src.core.config import settings
 from src.orchestrators.email.state import EmailState
 
 logger = logging.getLogger(__name__)
@@ -19,9 +20,10 @@ async def email_planner(state: EmailState) -> dict[str, Any]:
 
 async def email_reader(state: EmailState) -> dict[str, Any]:
     """Read emails from Gmail (via Google Workspace client)."""
-    # In production, this would call GoogleWorkspaceClient.list_messages()
-    # For now, return the state for skill-level handling
-    return {"emails": state.get("emails", []), "summary": state.get("summary", "")}
+    return {
+        "emails": state.get("emails", []),
+        "summary": state.get("summary", ""),
+    }
 
 
 async def email_writer(state: EmailState) -> dict[str, Any]:
@@ -36,9 +38,44 @@ async def email_writer(state: EmailState) -> dict[str, Any]:
 async def email_reviewer(state: EmailState) -> dict[str, Any]:
     """Review draft quality."""
     revision_count = state.get("revision_count", 0)
-    # Auto-approve if we've revised enough or first draft is good
     quality_ok = revision_count >= MAX_REVISIONS or True
     return {"quality_ok": quality_ok}
+
+
+async def email_approval(state: EmailState) -> dict[str, Any]:
+    """Ask the user to approve the email before sending.
+
+    When ``ff_langgraph_email_hitl`` is enabled, this node uses
+    ``interrupt()`` to pause the graph and wait for user confirmation.
+    The router resumes the graph with ``Command(resume="yes"|"no")``.
+    """
+    if settings.ff_langgraph_email_hitl:
+        from langgraph.types import interrupt
+
+        answer = interrupt({
+            "type": "email_approval",
+            "draft_to": state.get("draft_to", ""),
+            "draft_subject": state.get("draft_subject", ""),
+            "draft_body": state.get("draft_body", ""),
+        })
+        return {"user_approved": answer == "yes"}
+
+    # Without HITL flag, auto-approve
+    return {"user_approved": True}
+
+
+async def email_finalizer(state: EmailState) -> dict[str, Any]:
+    """Execute the send or return cancellation message."""
+    if not state.get("user_approved", False):
+        return {
+            "response_text": "Email cancelled.",
+            "sent": False,
+        }
+    # In production this would call the send skill
+    return {
+        "response_text": state.get("response_text", ""),
+        "sent": True,
+    }
 
 
 def route_email_action(state: EmailState) -> str:
@@ -46,10 +83,6 @@ def route_email_action(state: EmailState) -> str:
     intent = state.get("intent", "read_inbox")
     if intent in ("send_email", "draft_reply"):
         return "writer"
-    if intent == "summarize_thread":
-        return "end"
-    if intent == "follow_up_email":
-        return "end"
     return "end"
 
 

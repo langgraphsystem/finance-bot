@@ -761,6 +761,34 @@ async def _resolve_clarify(
     )
 
 
+async def _resume_graph(
+    thread_id: str,
+    answer: str,
+    message: IncomingMessage,
+) -> OutgoingMessage:
+    """Resume a paused LangGraph (approval or email HITL)."""
+    if thread_id.startswith("approval-"):
+        from src.orchestrators.approval.graph import resume_approval
+
+        result_text = await resume_approval(thread_id, answer)
+        return OutgoingMessage(text=result_text, chat_id=message.chat_id)
+
+    if thread_id.startswith("email-"):
+        from src.orchestrators.email.graph import EmailOrchestrator
+
+        orch = EmailOrchestrator()
+        skill_result = await orch.resume(thread_id, answer)
+        return OutgoingMessage(
+            text=skill_result.response_text,
+            chat_id=message.chat_id,
+        )
+
+    return OutgoingMessage(
+        text="Unknown graph thread.",
+        chat_id=message.chat_id,
+    )
+
+
 async def _execute_pending_action(
     pending_id: str,
     message: IncomingMessage,
@@ -1082,6 +1110,12 @@ async def _handle_callback(
 
         await delete_pending_action(pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
+
+    elif action == "graph_resume":
+        # Resume a paused LangGraph (approval or email HITL)
+        thread_id = parts[1] if len(parts) > 1 else ""
+        answer = parts[2] if len(parts) > 2 else "no"
+        return await _resume_graph(thread_id, answer, message)
 
     # ── Hotel booking flow callbacks ──
 

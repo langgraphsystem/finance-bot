@@ -48,6 +48,7 @@ dependencies = [
     "composio>=0.11.0",
     "cryptography>=46.0.5",
     "langgraph>=1.0.8",
+    "langgraph-checkpoint-postgres>=2.0.0",
     "pypdfium2>=5.5.0",
     "Pillow>=11.0.0",
     "playwright>=1.54.0",

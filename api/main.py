@@ -546,6 +546,12 @@ async def lifespan(app: FastAPI):
         _sms_gw = SMSGateway()
         logger.info("SMS gateway configured")
 
+    # Set up LangGraph checkpoint tables (PostgreSQL)
+    if settings.ff_langgraph_checkpointer:
+        from src.orchestrators.checkpointer import setup_checkpointer
+
+        await setup_checkpointer()
+
     yield
 
     if gateway:

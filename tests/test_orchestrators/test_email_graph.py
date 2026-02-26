@@ -1,7 +1,7 @@
 """Tests for the email LangGraph orchestrator."""
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
@@ -22,7 +22,10 @@ def _make_context():
 
 
 def _make_message(text="read my inbox"):
-    return IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text=text)
+    return IncomingMessage(
+        id="1", user_id="u1", chat_id="c1",
+        type=MessageType.text, text=text,
+    )
 
 
 async def test_email_orchestrator_simple_intent_uses_agent_router():
@@ -46,7 +49,9 @@ async def test_email_orchestrator_compose_intent_uses_graph():
     orch = EmailOrchestrator(agent_router=AsyncMock())
 
     with patch("src.orchestrators.email.graph._email_graph") as mock_graph:
-        mock_graph.ainvoke = AsyncMock(return_value={"response_text": "Draft ready for review."})
+        mock_graph.ainvoke = AsyncMock(
+            return_value={"response_text": "Draft ready for review."}
+        )
         ctx = _make_context()
         msg = _make_message("send email to john")
 
@@ -65,13 +70,14 @@ async def test_email_orchestrator_graph_fallback_on_error():
     orch = EmailOrchestrator(agent_router=mock_agent_router)
 
     with patch("src.orchestrators.email.graph._email_graph") as mock_graph:
-        mock_graph.ainvoke = AsyncMock(side_effect=RuntimeError("graph broke"))
+        mock_graph.ainvoke = AsyncMock(
+            side_effect=RuntimeError("graph broke")
+        )
         ctx = _make_context()
         msg = _make_message("send email to john")
 
         result = await orch.invoke("send_email", msg, ctx, {})
 
-    # Falls back to agent router
     mock_agent_router.route.assert_called_once()
     assert "fallback" in result.response_text.lower()
 
@@ -82,3 +88,49 @@ async def test_email_orchestrator_graph_intents():
     assert "draft_reply" in EmailOrchestrator._GRAPH_INTENTS
     assert "read_inbox" not in EmailOrchestrator._GRAPH_INTENTS
     assert "summarize_thread" not in EmailOrchestrator._GRAPH_INTENTS
+
+
+async def test_email_orchestrator_hitl_interrupt():
+    """When the graph interrupts, orchestrator returns approval buttons."""
+    orch = EmailOrchestrator(agent_router=AsyncMock())
+
+    interrupt_obj = MagicMock()
+    interrupt_obj.value = {
+        "type": "email_approval",
+        "draft_to": "john@example.com",
+        "draft_subject": "Hello",
+        "draft_body": "Hi John",
+    }
+
+    with (
+        patch("src.orchestrators.email.graph._email_graph") as mock_graph,
+        patch("src.orchestrators.email.graph.settings") as mock_settings,
+    ):
+        mock_settings.ff_langgraph_checkpointer = True
+        mock_settings.ff_langgraph_email_hitl = True
+        mock_graph.ainvoke = AsyncMock(return_value={
+            "__interrupt__": [interrupt_obj],
+        })
+        ctx = _make_context()
+        msg = _make_message("send email to john")
+
+        result = await orch.invoke("send_email", msg, ctx, {})
+
+    assert "john@example.com" in result.response_text
+    assert result.buttons is not None
+    assert len(result.buttons) == 2
+    assert "graph_resume:" in result.buttons[0]["callback"]
+
+
+async def test_email_orchestrator_resume():
+    """EmailOrchestrator.resume should invoke graph with Command."""
+    orch = EmailOrchestrator()
+
+    with patch("src.orchestrators.email.graph._email_graph") as mock_graph:
+        mock_graph.ainvoke = AsyncMock(return_value={
+            "response_text": "Email sent successfully!",
+        })
+
+        result = await orch.resume("email-abc-123", "yes")
+
+    assert result.response_text == "Email sent successfully!"
