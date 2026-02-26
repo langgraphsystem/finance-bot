@@ -55,3 +55,9 @@ docker-compose.override.yml
 # Agent worktrees
 *_worktrees/
 .agent_output.log
+
+# Sensitive session/cookie files
+scripts/booking_cookies.json
+scripts/test_telegram.session
+*.session
+*.session-journal
