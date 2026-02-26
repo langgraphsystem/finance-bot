@@ -36,7 +36,19 @@ def test_get_checkpointer_singleton():
 
 def test_get_checkpointer_production_uses_postgres():
     """In production mode, get_checkpointer attempts PostgreSQL saver."""
-    with patch("src.orchestrators.checkpointer.settings") as mock_settings:
+    from unittest.mock import MagicMock
+
+    fake_saver = MagicMock(spec_set=["setup"])
+    fake_module = MagicMock()
+    fake_module.AsyncPostgresSaver.from_conn_string.return_value = fake_saver
+
+    with (
+        patch("src.orchestrators.checkpointer.settings") as mock_settings,
+        patch.dict(
+            "sys.modules",
+            {"langgraph.checkpoint.postgres.aio": fake_module},
+        ),
+    ):
         mock_settings.app_env = "production"
         mock_settings.database_url = "postgresql://user:pass@localhost/db"
 
@@ -45,7 +57,8 @@ def test_get_checkpointer_production_uses_postgres():
         mod._checkpointer = None
 
         cp = mod.get_checkpointer()
-        # from_conn_string returns an async context manager, not MemorySaver
         assert not isinstance(cp, MemorySaver)
+        assert cp is fake_saver
+        fake_module.AsyncPostgresSaver.from_conn_string.assert_called_once()
 
         mod._checkpointer = None

@@ -3,7 +3,7 @@
 import pytest
 
 from src.gateway.sms_gw import SMSGateway
-from src.gateway.types import MessageType, OutgoingMessage
+from src.gateway.types import MessageType
 
 
 @pytest.fixture

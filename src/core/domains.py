@@ -10,6 +10,7 @@ from enum import StrEnum
 
 class Domain(StrEnum):
     finance = "finance"
+    finance_specialist = "finance_specialist"
     email = "email"
     calendar = "calendar"
     brief = "brief"
@@ -97,8 +98,8 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "onboarding": Domain.onboarding,
     "evening_recap": Domain.brief,
     # Wave 1 Financial Specialists
-    "financial_summary": Domain.finance,
-    "generate_invoice": Domain.finance,
-    "tax_estimate": Domain.finance,
-    "cash_flow_forecast": Domain.finance,
+    "financial_summary": Domain.finance_specialist,
+    "generate_invoice": Domain.finance_specialist,
+    "tax_estimate": Domain.finance_specialist,
+    "cash_flow_forecast": Domain.finance_specialist,
 }

@@ -7,6 +7,7 @@ def test_domain_enum_has_all_domains():
     """All expected domains exist."""
     expected = {
         "finance",
+        "finance_specialist",
         "email",
         "calendar",
         "brief",
@@ -74,6 +75,20 @@ def test_booking_intents_map_correctly():
     assert INTENT_DOMAIN_MAP["list_contacts"] == Domain.contacts
     assert INTENT_DOMAIN_MAP["find_contact"] == Domain.contacts
     assert INTENT_DOMAIN_MAP["send_to_client"] == Domain.booking
+
+
+def test_finance_specialist_intents_map_correctly():
+    """Wave 1 financial specialist intents should map to finance_specialist domain."""
+    specialist_intents = [
+        "financial_summary",
+        "generate_invoice",
+        "tax_estimate",
+        "cash_flow_forecast",
+    ]
+    for intent in specialist_intents:
+        assert INTENT_DOMAIN_MAP[intent] == Domain.finance_specialist, (
+            f"{intent} not in finance_specialist"
+        )
 
 
 def test_all_current_intents_are_mapped():

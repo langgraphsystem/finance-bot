@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from src.gateway.types import MessageType, OutgoingMessage
+from src.gateway.types import MessageType
 from src.gateway.whatsapp_gw import WhatsAppGateway
 
 

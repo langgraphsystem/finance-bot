@@ -68,7 +68,10 @@ async def test_grounding_empty_falls_back_to_browser(sample_context):
         patch("src.skills.price_check.handler.browser_tool") as mock_browser,
     ):
         mock_browser.execute_task = AsyncMock(
-            return_value={"success": True, "result": "$9.99 found", "steps": 3, "engine": "browser_use"}
+            return_value={
+                "success": True, "result": "$9.99 found",
+                "steps": 3, "engine": "browser_use",
+            }
         )
         result = await skill.execute(msg, sample_context, {})
 
@@ -91,7 +94,10 @@ async def test_grounding_exception_falls_back_to_browser(sample_context):
         patch("src.skills.price_check.handler.browser_tool") as mock_browser,
     ):
         mock_browser.execute_task = AsyncMock(
-            return_value={"success": True, "result": "$1199 at Apple", "steps": 5, "engine": "browser_use"}
+            return_value={
+                "success": True, "result": "$1199 at Apple",
+                "steps": 5, "engine": "browser_use",
+            }
         )
         result = await skill.execute(msg, sample_context, {})
 

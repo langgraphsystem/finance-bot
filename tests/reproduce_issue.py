@@ -1,6 +1,6 @@
 
-import pytest
 from src.proactivity.engine import _format_task_deadline
+
 
 def test_format_task_deadline_ru():
     data = {
