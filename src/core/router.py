@@ -78,6 +78,15 @@ def get_domain_router() -> DomainRouter:
             Domain.email, EmailOrchestrator(agent_router=get_agent_router())
         )
         _domain_router.register_orchestrator(Domain.brief, BriefOrchestrator())
+
+        from src.core.config import settings as _settings
+
+        if _settings.ff_langgraph_booking:
+            from src.orchestrators.booking.graph import BookingOrchestrator
+
+            _domain_router.register_orchestrator(
+                Domain.booking, BookingOrchestrator(agent_router=get_agent_router())
+            )
     return _domain_router
 
 
@@ -781,6 +790,17 @@ async def _resume_graph(
         return OutgoingMessage(
             text=skill_result.response_text,
             chat_id=message.chat_id,
+        )
+
+    if thread_id.startswith("booking-"):
+        from src.orchestrators.booking.graph import BookingOrchestrator
+
+        orch = BookingOrchestrator()
+        skill_result = await orch.resume(thread_id, answer)
+        return OutgoingMessage(
+            text=skill_result.response_text,
+            chat_id=message.chat_id,
+            buttons=skill_result.buttons,
         )
 
     return OutgoingMessage(

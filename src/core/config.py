@@ -111,6 +111,7 @@ class Settings(BaseSettings):
     ff_langgraph_checkpointer: bool = True
     ff_langgraph_brief_parallel: bool = True
     ff_langgraph_email_hitl: bool = True
+    ff_langgraph_booking: bool = False
 
     @property
     def is_production(self) -> bool:
