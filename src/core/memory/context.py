@@ -130,6 +130,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "generate_program": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "modify_program": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "convert_document": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    # Wave 1 Financial Specialists
+    "financial_summary": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
+    "generate_invoice": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "tax_estimate": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
+    "cash_flow_forecast": {"mem": "budgets", "hist": 0, "sql": True, "sum": True},
 }
 
 
@@ -179,6 +184,9 @@ ALWAYS_HEAVY_INTENTS: set[str] = {
     "onboarding",
     "morning_brief",
     "evening_recap",
+    "financial_summary",
+    "tax_estimate",
+    "cash_flow_forecast",
 }
 
 

@@ -5,6 +5,7 @@ from src.skills.add_recurring.handler import skill as add_recurring_skill
 from src.skills.base import SkillRegistry
 from src.skills.browser_action.handler import skill as browser_action_skill
 from src.skills.cancel_booking.handler import skill as cancel_booking_skill
+from src.skills.cash_flow_forecast.handler import skill as cash_flow_forecast_skill
 from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
@@ -19,12 +20,14 @@ from src.skills.delete_data.handler import skill as delete_data_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
+from src.skills.financial_summary.handler import skill as financial_summary_skill
 from src.skills.find_contact.handler import skill as find_contact_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.generate_card.handler import skill as generate_card_skill
 from src.skills.generate_image.handler import skill as generate_image_skill
+from src.skills.generate_invoice.handler import skill as generate_invoice_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
@@ -62,6 +65,7 @@ from src.skills.shopping_list.handler import (
     shopping_list_view_skill,
 )
 from src.skills.summarize_thread.handler import skill as summarize_thread_skill
+from src.skills.tax_estimate.handler import skill as tax_estimate_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.translate_text.handler import skill as translate_text_skill
@@ -150,4 +154,9 @@ def create_registry() -> SkillRegistry:
     registry.register(browser_action_skill)
     # Document conversion
     registry.register(convert_document_skill)
+    # Wave 1 Financial Specialists
+    registry.register(financial_summary_skill)
+    registry.register(generate_invoice_skill)
+    registry.register(tax_estimate_skill)
+    registry.register(cash_flow_forecast_skill)
     return registry

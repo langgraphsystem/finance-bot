@@ -75,6 +75,13 @@ Show schedule, create events, find free slots, reschedule. Check for conflicts b
 For creating/modifying: confirm the details.
 Use HTML tags for Telegram (<b>bold</b>). No Markdown."""
 
+FINANCE_SPECIALIST_PROMPT = """\
+You are a financial specialist assistant combining bookkeeper, invoicing, tax, and cash flow skills.
+You receive READY data from SQL. NEVER calculate yourself — use the provided numbers.
+Provide clear, actionable financial intelligence. Use HTML tags for Telegram (<b>bold</b>).
+For tax estimates, always add: "This is an estimate, not professional tax advice."
+Lead with the key number, then break down details. Max 8 lines for summaries."""
+
 BOOKING_AGENT_PROMPT = """\
 You are a booking and CRM assistant. Help the user manage appointments, clients, and outreach.
 Create/cancel/reschedule bookings. Add and find contacts. Send messages to clients.
@@ -225,6 +232,19 @@ AGENTS: list[AgentConfig] = [
         ],
         default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
+        data_tools_enabled=True,
+    ),
+    AgentConfig(
+        name="finance_specialist",
+        system_prompt=FINANCE_SPECIALIST_PROMPT,
+        skills=[
+            "financial_summary",
+            "generate_invoice",
+            "tax_estimate",
+            "cash_flow_forecast",
+        ],
+        default_model="claude-sonnet-4-6",
+        context_config={"mem": "budgets", "hist": 3, "sql": True, "sum": True},
         data_tools_enabled=True,
     ),
 ]

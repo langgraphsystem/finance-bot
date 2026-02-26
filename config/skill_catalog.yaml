@@ -36,7 +36,7 @@ domains:
       - delete_data
 
   analytics:
-    description: "Financial reports, statistics, complex queries, spending analysis"
+    description: "Financial reports, statistics, complex queries, spending analysis, invoices, taxes, forecasts"
     triggers:
       - report
       - statistic
@@ -46,11 +46,25 @@ domains:
       - отчёт
       - статистик
       - сравни
+      - summary
+      - invoice
+      - инвойс
+      - счёт
+      - tax
+      - налог
+      - forecast
+      - прогноз
+      - afford
+      - хватит
     agent: analytics
     skills:
       - query_stats
       - complex_query
       - query_report
+      - financial_summary
+      - generate_invoice
+      - tax_estimate
+      - cash_flow_forecast
 
   receipt:
     description: "Scan receipts and documents from photos"

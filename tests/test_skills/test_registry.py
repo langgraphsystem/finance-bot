@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 68
+    assert len(skills) == 72
 
 
 def test_registry_routes_intents(skill_registry):
@@ -83,6 +83,11 @@ def test_registry_routes_intents(skill_registry):
         "browser_action",
         # Document conversion
         "convert_document",
+        # Wave 1 Financial Specialists
+        "financial_summary",
+        "generate_invoice",
+        "tax_estimate",
+        "cash_flow_forecast",
     ]
     for intent in intents:
         skill = skill_registry.get(intent)

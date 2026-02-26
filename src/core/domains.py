@@ -95,4 +95,9 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,
     "evening_recap": Domain.brief,
+    # Wave 1 Financial Specialists
+    "financial_summary": Domain.finance,
+    "generate_invoice": Domain.finance,
+    "tax_estimate": Domain.finance,
+    "cash_flow_forecast": Domain.finance,
 }
