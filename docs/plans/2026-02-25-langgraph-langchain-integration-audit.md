@@ -20,6 +20,9 @@ Scope: Current use of LangGraph/LangChain in the project and practical integrati
 | — | Scoped intent detection (2-stage) | **DONE** |
 | — | Pre/Post model hooks | **DONE** |
 | — | Full supervisor integration | **DONE** |
+| — | Finance Specialist domain routing | **DONE** (`f191faf`) |
+| — | Checkpointer test fix (mock psycopg) | **DONE** (`f191faf`) |
+| — | Dead code cleanup (hooks.py removed) | **DONE** (`f191faf`) |
 
 ## 1. Summary
 

@@ -68,11 +68,11 @@ Telegram/Slack/WhatsApp/SMS webhook
 ### Key Abstractions
 
 - **SessionContext** (`src/core/context.py`): Immutable per-request context. Core fields: `user_id`, `family_id`, `role` (owner/member), `language`, `currency`, `business_type`, `categories`, `merchant_mappings`, `profile_config`, `channel`, `timezone`, `user_profile`. Enforces multi-tenant isolation via `filter_query()`.
-- **AgentConfig** (`src/agents/config.py`): 11 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
+- **AgentConfig** (`src/agents/config.py`): 12 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
 - **BaseSkill** protocol (`src/skills/base.py`): `name`, `intents[]`, `model`, `execute(message, context, intent_data) → SkillResult`, `get_system_prompt(context)`.
 - **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `document_name`, `photo_url`, `photo_bytes`, `chart_url`, `reply_keyboard`, `background_tasks`.
-- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 68 skills registered.
-- **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email (send_email, draft_reply) and brief (morning_brief, evening_recap).
+- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 74 skills registered.
+- **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email, brief, booking (if `ff_langgraph_booking`). Approval orchestrator invoked directly via `start_approval()`.
 
 ### Model Routing
 
@@ -89,7 +89,7 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
 
-### Agents (11)
+### Agents (12)
 
 | Agent | Model | Skills |
 |-------|-------|--------|
@@ -103,7 +103,8 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 | email | claude-sonnet-4-6 | read_inbox, send_email, draft_reply, follow_up_email, summarize_thread |
 | calendar | gpt-5.2 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
 | life | gpt-5.2 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor |
-| booking | gpt-5.2 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client |
+| booking | gpt-5.2 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client, receptionist |
+| finance_specialist | claude-sonnet-4-6 | financial_summary, generate_invoice, tax_estimate, cash_flow_forecast |
 
 ### Context Assembly & Token Budget
 
@@ -115,8 +116,10 @@ SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 13 Alembic migrations. Mod
 
 ### LangGraph Orchestrators
 
-- **EmailOrchestrator** (`src/orchestrators/email/`): `planner → reader → writer → reviewer → END` with revision loop (max 2 revisions). For `send_email` and `draft_reply`.
-- **BriefOrchestrator** (`src/orchestrators/brief/`): Sequential fan-out collecting calendar, tasks, finance, email, overdue payments → Claude Sonnet synthesizer. For `morning_brief` and `evening_recap`. Business-type aware via plugin_loader.
+- **EmailOrchestrator** (`src/orchestrators/email/`): `planner → reader → writer → reviewer → approval → END` with revision loop (max 2 revisions) and HITL interrupt. For `send_email` and `draft_reply`.
+- **BriefOrchestrator** (`src/orchestrators/brief/`): Parallel fan-out (Deferred Nodes) collecting calendar, tasks, finance, email, overdue payments → Claude Sonnet synthesizer. Node caching (60s TTL). For `morning_brief` and `evening_recap`. Business-type aware via plugin_loader.
+- **BookingOrchestrator** (`src/orchestrators/booking/`): LangGraph FSM for multi-step hotel booking with interrupt-based user confirmation. Gated by `ff_langgraph_booking`.
+- **ApprovalOrchestrator** (`src/orchestrators/approval/`): 2-node graph (`ask_approval → execute_action → END`) with `interrupt()`/`resume()`. Replaces Redis pending_actions for dangerous actions (send_email, create_event, delete).
 
 ### Background Tasks
 
@@ -134,9 +137,13 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 `src/tools/data_tools.py` — 5 universal database tools (`query_data`, `create_record`, `update_record`, `delete_record`, `aggregate_data`). LLM decides which tools to call via multi-provider function calling (`src/core/llm/clients.py:generate_text_with_tools()`). Enabled on 5 agents: analytics, chat, tasks, life, booking (`data_tools_enabled=True` in AgentConfig). Security: family_id injection, table whitelist (11 tables), column validation, confirm-before-delete for important tables. Schemas in `src/tools/data_tool_schemas.py`, executor in `src/tools/tool_executor.py`.
 
+### Supervisor Routing & Skill Catalog
+
+`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 12 domains, 74 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
+
 ### Specialist Config Engine
 
-`src/core/specialist.py` — YAML-driven business-specific configuration that adapts the booking agent into a specialized receptionist. Pydantic models: `SpecialistConfig`, `SpecialistService`, `SpecialistStaff`, `WorkingHours`. Optional `specialist:` section in `config/profiles/*.yaml` defines services, staff, working hours, greetings, FAQ, capabilities, and extra system prompt. `ProfileConfig.specialist` loaded by `ProfileLoader`. `AgentRouter._add_specialist_knowledge()` injects specialist knowledge into system prompts. Currently configured: `manicure.yaml`, `flowers.yaml`. Profiles without `specialist:` section work unchanged.
+`src/core/specialist.py` — YAML-driven business-specific configuration that adapts the booking agent into a specialized receptionist. Pydantic models: `SpecialistConfig`, `SpecialistService`, `SpecialistStaff`, `WorkingHours`. Optional `specialist:` section in `config/profiles/*.yaml` defines services, staff, working hours, greetings, FAQ, capabilities, and extra system prompt. `ProfileConfig.specialist` loaded by `ProfileLoader`. `AgentRouter._add_specialist_knowledge()` injects specialist knowledge into system prompts. Currently configured: `manicure.yaml`, `flowers.yaml`, `construction.yaml`. Profiles without `specialist:` section work unchanged.
 
 ### Browser Tools
 
@@ -151,8 +158,10 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 5. Add extracted fields to `IntentData` in `src/core/schemas/intent.py` if needed
 6. Add `QUERY_CONTEXT_MAP` entry in `src/core/memory/context.py`
 7. Assign to an agent's `skills` list in `src/agents/config.py`
-8. Update tests in `tests/test_skills/test_registry.py` (count + intents list)
-9. Create `tests/test_skills/test_<name>.py` with mocked external I/O
+8. Add skill to domain in `config/skill_catalog.yaml` (triggers + skills list)
+9. Add intent→domain mapping in `src/core/domains.py` (`INTENT_DOMAIN_MAP`)
+10. Update tests in `tests/test_skills/test_registry.py` (count + intents list)
+11. Create `tests/test_skills/test_<name>.py` with mocked external I/O
 
 ## Critical Patterns
 

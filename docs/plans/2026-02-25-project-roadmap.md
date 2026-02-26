@@ -1,68 +1,32 @@
 # Project Roadmap
 
 **Date:** 2026-02-25
+**Updated:** 2026-02-26
 **Status:** Active
 
 ## Completed (Phase 1-6 + Recent)
 
 | What | When | Status |
 |------|------|--------|
-| Finance, Life-tracking, Research, Tasks, Writing, Email, Calendar, Shopping, Browser, CRM/Booking | before Feb 2026 | **DONE** — 68 skills, 11 agents |
-| Locale/Timezone vNext Phase 0-1 | Feb 2026 | **DONE** — migration, backfill, telemetry |
-| Locale vNext Phase 2 (read path) | Feb 2026 | **PARTIAL** — reminders/life done, proactivity not yet |
+| Finance, Life-tracking, Research, Tasks, Writing, Email, Calendar, Shopping, Browser, CRM/Booking | before Feb 2026 | **DONE** — 68 base skills, 11 agents |
+| Locale/Timezone vNext Phase 0-5 | Feb 2026 | **DONE** — migration, backfill, resolver, write path, dispatch, hardening |
 | AI Data Tools (LLM function calling) | 25 Feb | **DONE** — 5 tools, 5 agents |
-| Specialist Config Engine | 25 Feb | **DONE** — YAML-driven, manicure + flowers |
+| Specialist Config Engine | 25 Feb | **DONE** — YAML-driven, manicure + flowers + construction |
+| LangGraph upgrade (checkpointer + HITL + parallel Brief) | 25 Feb | **DONE** — 4 orchestrators (email, brief, booking, approval) |
+| Universal Receptionist Skill | 25 Feb | **DONE** — config-driven business front desk (`fa87ed8`) |
+| Hierarchical Supervisor Routing | 25 Feb | **DONE** — 2-level domain→intent, YAML skill catalog (`a5c235f`) |
+| Wave 1 Financial Specialists | 25 Feb | **DONE** — financial_summary, generate_invoice, tax_estimate, cash_flow_forecast (`2195c06`) |
+| Finance Specialist domain routing | 26 Feb | **DONE** — `Domain.finance_specialist` enum, correct agent routing (`f191faf`) |
+| Dead code cleanup (hooks.py removed) | 26 Feb | **DONE** — removed orphaned 178-line hooks module |
+| Multilingual booking parsing | 26 Feb | **DONE** — RU/ES error messages, improved parse prompt (`9e2cd96`) |
+
+**Current totals: 74 skills, 12 agents, 4 LangGraph orchestrators, 1516 tests**
 
 ---
 
 ## Near-Term (March 2026)
 
-### 1. Locale/Timezone — Close Out (1 week)
-
-- Phase 2: connect locale resolver in proactivity tasks
-- Phase 3: normalize write path (onboarding, settings)
-- Phase 4: unify dispatch (single template service)
-- Phase 5: hardening + cleanup
-
-Details: `docs/plans/2026-02-25-architecture-audit-vnext-language-timezone-reminders.md`
-
-### 2. LangGraph Integration (2 weeks)
-
-- `langgraph-checkpoint-postgres` — durable state for email/brief graphs
-- `interrupt()` / `resume()` — replace `pending_actions.py` (Redis → LangGraph HITL)
-- Deferred Nodes — Brief collectors in parallel (currently sequential)
-- Node Caching — Brief collectors 60s cache
-- Feature flags: `FF_LANGGRAPH_BOOKING_V1`, `FF_LANGGRAPH_PENDING_ACTIONS_V1`, `FF_LANGGRAPH_EMAIL_V2`, `FF_LANGGRAPH_BRIEF_PARALLEL_V2`
-
-Details: `docs/plans/2026-02-25-langgraph-langchain-integration-audit.md`
-
-### 3. Universal Receptionist Skill — **DONE** (`fa87ed8`)
-
-- Single `receptionist` skill, adaptable via specialist config
-- Integration with existing booking/contacts skills
-- Added specialist config to construction.yaml (3 profiles now configured)
-- Config-driven system prompts per business_type
-
----
-
-## Mid-Term (April-May 2026)
-
-### 4. Hierarchical Supervisor — **DONE** (`a5c235f`)
-
-- Supervisor routing, scoped intent detection, pre/post model hooks
-- Progressive Skill Loading via YAML catalog
-- Feature flag `ff_supervisor_routing`
-
-### 5. Wave 1 Specialists — **DONE** (`2195c06`)
-
-| Specialist | Tier | What Already Exists |
-|-----------|------|-------------------|
-| **Bookkeeper** | Workflow | transactions, categories, budgets |
-| **Invoicing** | Workflow | contacts + transactions → PDF generation |
-| **Tax Consultant** | Deep | transactions → Schedule C, deductions, quarterly estimates |
-| **Cash Flow Forecast** | Workflow | historical data → trend analysis → prediction |
-
-### 6. Deep Agents (selective integration)
+### 1. Deep Agents (selective integration)
 
 - `generate_program` complex path — planning + subagents + filesystem
 - Tax reports — data collection → analysis → PDF
@@ -132,20 +96,22 @@ Nutritionist, Fitness Trainer, Coach/Personal Growth, Tutor, Career Consultant, 
 
 ## Cleanup (any time)
 
-- [ ] Delete 5 dead agent branches in GitHub
+- [ ] Delete dead agent branches in GitHub
 - [ ] Fix node_modules in Gemini branch
-- [ ] Locale vNext Phase 3-5 (close out)
 - [ ] Mini App frontend SPA (backend api/miniapp.py ready)
 - [ ] CI auto-deploy (`RAILWAY_TOKEN` secret in GitHub)
+- [x] ~~Locale vNext Phase 3-5~~ — DONE (Feb 2026)
+- [x] ~~LangGraph integration~~ — DONE (4 orchestrators, Feb 2026)
+- [x] ~~Remove hooks.py dead code~~ — DONE (26 Feb)
 
 ---
 
 ## Architecture Evolution
 
 ```
-NOW:        Intent → 11 agents → 68 skills (flat)
+NOW:        Intent → Supervisor → 12 agents → 74 skills (2-level routing ready)
 
-PHASE 2:    Intent → Supervisor → Domain Supervisors → 15+ agents → 80+ skills
+NEXT:       Intent → Supervisor → Domain Supervisors → 15+ agents → 80+ skills
 
 TARGET:     Intent → Top Supervisor → 3 Domain Supervisors → 40+ agents → 200+ skills
                                        (Finance, Life, Business)
@@ -171,12 +137,12 @@ TARGET:     Intent → Top Supervisor → 3 Domain Supervisors → 40+ agents �
 
 ## Key Metrics
 
-| Metric | Current (68 skills) | After Phase 2 | After All Waves |
+| Metric | Current (74 skills) | After Wave 2 | After All Waves |
 |--------|-------------------|--------------|-----------------|
-| Skills | 68 | ~80 | 200+ |
-| Agents | 11 | ~15 | 40+ |
-| Orchestrators | 2 (email, brief) | 5+ | 10+ |
-| Routing levels | 1 (flat) | 2 (supervisor) | 3 (hierarchical) |
+| Skills | 74 | ~85 | 200+ |
+| Agents | 12 | ~15 | 40+ |
+| Orchestrators | 4 (email, brief, booking, approval) | 6+ | 10+ |
+| Routing levels | 2 (supervisor ready) | 2 (supervisor active) | 3 (hierarchical) |
 | Avg simple request tokens | ~1K | ~1.2K | ~1.5K |
 | Avg complex request tokens | ~5K | ~15K | ~100K |
 | Monthly LLM cost (1K users) | ~$200 | ~$350 | ~$600 |

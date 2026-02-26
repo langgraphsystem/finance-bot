@@ -1,10 +1,10 @@
 # AI Life Assistant — Implementation Plan
 
-## Version: 4.0 | Date: 2026-02-19
+## Version: 5.0 | Date: 2026-02-26
 
 **Approach**: 100% Python — no TypeScript sidecar, no external orchestration frameworks for channel management
-**Base**: Existing Finance Bot codebase (383 Python files, 61 skills, 11 agents, deployed on Railway + Supabase)
-**New in v4.0**: All planned phases (0–6) implemented. Shopping lists, multi-channel gateways (Slack/WhatsApp/SMS), Stripe billing, LangGraph orchestrators (email/brief), browser automation, CRM/booking, proactivity engine, maps/youtube with Gemini Search Grounding. PRD: `docs/prds/platform-architecture.md`
+**Base**: Existing Finance Bot codebase (390+ Python files, 74 skills, 12 agents, deployed on Railway + Supabase)
+**New in v5.0**: Wave 1 financial specialists (bookkeeper, invoicing, tax, cash flow), 4 LangGraph orchestrators (email, brief, booking FSM, approval HITL), hierarchical supervisor routing with YAML skill catalog, locale/timezone vNext complete (Phases 0-5), multilingual booking parsing. PRD: `docs/prds/platform-architecture.md`
 
 ---
 
@@ -29,22 +29,24 @@
 
 ---
 
-## 1. CURRENT STATE (as of v4.0 — 2026-02-19)
+## 1. CURRENT STATE (as of v5.0 — 2026-02-26)
 
 ```
-Codebase:       383 Python files (255 src, 123 tests, 5 api)
-Skills:         61 (14 finance + 8 life + 5 research + 4 tasks + 4 shopping + 4 writing
-                    + 5 email + 5 calendar + 4 browser/monitor + 1 brief + 8 CRM/booking)
-Agents:         11 (receipt, analytics, chat, onboarding, life, tasks, research, writing,
-                    email, calendar, booking)
-Orchestrators:  2 active LangGraph (email compose+review, brief collector+synthesizer)
-DB Tables:      28 (SQLAlchemy 2.0 async + asyncpg, 7 Alembic migrations)
+Codebase:       390+ Python files (260+ src, 125+ tests, 5 api)
+Skills:         74 (14 finance + 4 finance_specialist + 8 life + 8 research + 4 tasks
+                    + 4 shopping + 9 writing + 5 email + 5 calendar + 5 browser/monitor
+                    + 1 brief + 9 CRM/booking + 2 onboarding)
+Agents:         12 (receipt, analytics, chat, onboarding, life, tasks, research, writing,
+                    email, calendar, booking, finance_specialist)
+Orchestrators:  4 active LangGraph (email, brief, booking FSM, approval HITL)
+DB Tables:      30 (SQLAlchemy 2.0 async + asyncpg, 13 Alembic migrations)
 Channels:       4 (Telegram primary + Slack, WhatsApp, SMS implemented)
-Tests:          123 test files (~948 tests)
+Tests:          125+ test files (1516 tests)
 Deploy:         Railway + Supabase (PostgreSQL + pgvector)
-Packages:       ~256 managed with uv
+Packages:       ~260 managed with uv
 CI/CD:          GitHub Actions (lint → test → docker → Railway deploy)
 Billing:        Stripe ($49/month subscription)
+Routing:        Supervisor (2-level) + YAML skill catalog (12 domains)
 ```
 
 ### Phases Completed
@@ -79,9 +81,11 @@ All previously identified gaps from Phases 0–3 have been addressed:
 | Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization, web search grounding |
 | Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
 
-### Current Skills (61)
+### Current Skills (74)
 
 **Finance (14):** add_expense, add_income, scan_receipt, scan_document, query_stats, query_report, complex_query, onboarding, general_chat, correct_category, undo_last, set_budget, add_recurring, mark_paid
+
+**Finance Specialist (4):** financial_summary, generate_invoice, tax_estimate, cash_flow_forecast
 
 **Life-tracking (8):** quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode
 

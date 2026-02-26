@@ -25,6 +25,10 @@
 | Pre/Post model hooks | **DONE** | |
 | Hierarchical Supervisor (full integration) | **DONE** | |
 | Wave 1 specialists (Bookkeeper, Tax, etc.) | **DONE** | `2195c06` |
+| Finance Specialist domain routing fix | **DONE** | `f191faf` |
+| Dead code cleanup (hooks.py removed) | **DONE** | `f191faf` |
+| Multilingual booking parsing (RU/ES) | **DONE** | `9e2cd96` |
+| Checkpointer test fix (mock psycopg) | **DONE** | `f191faf` |
 | Deep Agents for generate_program | NOT STARTED | |
 
 ---
@@ -32,9 +36,9 @@
 ## 1. Current Project State
 
 ### Scale
-- **383 Python files** (255 src, 123 tests, 5 api)
-- **68 skills**, **11 agents**, **2 LangGraph orchestrators**
-- **~948 tests**, **~256 packages** (uv)
+- **390+ Python files** (260+ src, 125+ tests, 5 api)
+- **74 skills**, **12 agents**, **4 LangGraph orchestrators** (email, brief, booking, approval)
+- **1516 tests**, **~260 packages** (uv)
 - Deployed on **Railway + Supabase**, Telegram as primary channel
 - Subscription: **$49/month**
 
@@ -42,7 +46,7 @@
 
 | Branch | Status | Content |
 |--------|--------|---------|
-| `main` | Active | 68 skills, all phases 1-6 complete |
+| `main` | Active | 74 skills, 12 agents, all phases 1-6 + Wave 1 specialists complete |
 | `agent/codex-analyze-ui` | 2 commits | UI Review (141 lines) — detailed landing + Mini App audit |
 | `agent/gemini-review-miniapp` | 3 commits | Refactored miniapp/app.js + **ISSUE: node_modules (1320 files committed)** |
 | 5 empty agent branches | Dead | Codex failed to complete tasks, can be deleted |
