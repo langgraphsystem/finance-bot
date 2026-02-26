@@ -229,6 +229,7 @@ AGENTS: list[AgentConfig] = [
             "list_contacts",
             "find_contact",
             "send_to_client",
+            "receptionist",
         ],
         default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},

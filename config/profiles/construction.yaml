@@ -47,3 +47,60 @@ metrics:
 special_features:
   ifta: false
   loads_tracking: false
+
+specialist:
+  greeting:
+    ru: "Здравствуйте! Строительная компания, чем могу помочь?"
+    en: "Hello! Construction company, how can I help?"
+  services:
+    - name: "Ремонт ванной"
+      duration_min: 2880
+      price: 150000
+      currency: "RUB"
+      description: "Полный ремонт ванной комнаты под ключ"
+    - name: "Ремонт кухни"
+      duration_min: 4320
+      price: 250000
+      currency: "RUB"
+      description: "Ремонт кухни включая сантехнику и электрику"
+    - name: "Электрика"
+      duration_min: 480
+      price: 15000
+      currency: "RUB"
+      description: "Электромонтажные работы, замена проводки"
+    - name: "Сантехника"
+      duration_min: 480
+      price: 12000
+      currency: "RUB"
+      description: "Установка и ремонт сантехники"
+    - name: "Оценка/смета"
+      duration_min: 120
+      description: "Бесплатный выезд и составление сметы"
+  staff:
+    - name: "Бригадир 1"
+      specialties: ["ванные", "кухни", "общий ремонт"]
+    - name: "Электрик"
+      specialties: ["электрика", "проводка"]
+    - name: "Сантехник"
+      specialties: ["сантехника", "трубы"]
+  working_hours:
+    default: "08:00-18:00"
+    sat: "09:00-15:00"
+    sun: closed
+  capabilities:
+    - booking
+    - price_inquiry
+    - faq
+    - reminder
+  faq:
+    - q: "Сколько стоит ремонт ванной?"
+      a: "От 150 000 руб. Точная стоимость после осмотра и составления сметы."
+    - q: "Даёте гарантию?"
+      a: "Да, гарантия на все работы — 2 года."
+    - q: "Выезд на оценку платный?"
+      a: "Нет, выезд и составление сметы — бесплатно."
+  system_prompt_extra: |
+    Ты — диспетчер строительной компании.
+    Предлагай бесплатный выезд на оценку.
+    Уточняй объём работ, адрес и удобное время.
+    Рекомендуй запись к конкретному специалисту по типу работ.

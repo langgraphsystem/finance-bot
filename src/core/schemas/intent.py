@@ -131,6 +131,9 @@ class IntentData(BaseModel):
     hotel_budget: float | None = None
     hotel_platform: str | None = None  # "booking.com", "airbnb.com"
 
+    # Receptionist fields
+    receptionist_topic: str | None = None  # "services", "hours", "faq", "general"
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

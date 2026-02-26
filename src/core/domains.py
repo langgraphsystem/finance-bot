@@ -91,6 +91,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "list_contacts": Domain.contacts,
     "find_contact": Domain.contacts,
     "send_to_client": Domain.booking,
+    "receptionist": Domain.booking,
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,

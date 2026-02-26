@@ -49,6 +49,7 @@ from src.skills.query_stats.handler import skill as query_stats_skill
 from src.skills.quick_answer.handler import skill as quick_answer_skill
 from src.skills.quick_capture.handler import skill as quick_capture_skill
 from src.skills.read_inbox.handler import skill as read_inbox_skill
+from src.skills.receptionist.handler import skill as receptionist_skill
 from src.skills.reschedule_booking.handler import skill as reschedule_booking_skill
 from src.skills.reschedule_event.handler import skill as reschedule_event_skill
 from src.skills.scan_document.handler import skill as scan_document_skill
@@ -145,6 +146,7 @@ def create_registry() -> SkillRegistry:
     registry.register(cancel_booking_skill)
     registry.register(reschedule_booking_skill)
     registry.register(send_to_client_skill)
+    registry.register(receptionist_skill)
     # Visual card / image generation
     registry.register(generate_image_skill)
     registry.register(generate_card_skill)

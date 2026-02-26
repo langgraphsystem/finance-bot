@@ -224,7 +224,7 @@ domains:
       - convert_document
 
   booking:
-    description: "Manage appointments, clients, contacts, send messages to clients"
+    description: "Manage appointments, clients, contacts, business info, receptionist"
     triggers:
       - book
       - appointment
@@ -234,6 +234,13 @@ domains:
       - клиент
       - контакт
       - бронир
+      - services
+      - услуг
+      - прайс
+      - price list
+      - hours
+      - часы работы
+      - расписание
     agent: booking
     skills:
       - create_booking
@@ -244,6 +251,7 @@ domains:
       - list_contacts
       - find_contact
       - send_to_client
+      - receptionist
 
   onboarding:
     description: "New user setup, general questions about the bot"

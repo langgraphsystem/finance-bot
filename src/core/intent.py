@@ -222,6 +222,11 @@ hotel_budget (число без валюты), hotel_platform (если указ
 - find_contact: найти контакт ("find John", "найди клиента", "search contact")
 - send_to_client: написать/позвонить клиенту ("text John I'm running late", \
 "напиши клиенту", "call Mrs. Johnson", "SMS клиенту")
+- receptionist: вопрос о бизнесе — услуги, цены, часы работы, FAQ \
+("what services do you offer?", "какие услуги?", "сколько стоит маникюр?", \
+"are you open on Saturday?", "часы работы", "what are your hours?", \
+"do you have X service?", "есть ли у вас доставка?", "price list", "прайс"). \
+Извлеки receptionist_topic: services / hours / faq / general
 - delete_data: удаление данных за период или по типу ("удали расходы за январь", \
 "очисти записи о еде за неделю", "delete my expenses for last month", \
 "удали все данные за прошлый месяц", "сотри историю сообщений", \
@@ -324,6 +329,8 @@ task_deadline: текущее время + 10 минут. \
 - "text client/напиши клиенту/call client/позвони клиенту/SMS" → send_to_client
 - ВАЖНО: "book" + конкретный клиент/время → create_booking (НЕ create_event)
 - "create_event" — для личного календаря; "create_booking" — для клиентов
+- "what services/prices/hours/FAQ" без запроса на бронирование → receptionist
+- "book appointment" или с конкретным временем → create_booking (НЕ receptionist)
 
 Правила приоритета (research vs general_chat):
 - Ссылка youtube.com/watch, youtu.be/, youtube.com/shorts/ → youtube_search (ВСЕГДА, приоритет!)
@@ -1034,6 +1041,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "list_contacts": 'список контактов ("my contacts")',
         "find_contact": 'найти контакт ("find John")',
         "send_to_client": 'написать клиенту ("text John I\'m running late")',
+        "receptionist": 'вопрос о бизнесе: услуги, цены, часы ("what services?", "часы работы")',
     },
     "onboarding": {
         "onboarding": "команда /start или просьба зарегистрироваться",
