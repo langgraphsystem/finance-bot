@@ -22,26 +22,35 @@ _GREETING_WORDS = frozenset({
     "ола", "hola", "здрасте", "здрасьте", "приветствую",
 })
 
-_GREETINGS_MORNING = [
-    "Доброе утро! Чем могу помочь?",
-    "Утро доброе! Что нужно сделать?",
-    "Доброе утро! Слушаю.",
-]
-_GREETINGS_DAY = [
-    "Привет! Чем могу помочь?",
-    "Привет! Что нужно?",
-    "Добрый день! Слушаю.",
-]
-_GREETINGS_EVENING = [
-    "Добрый вечер! Чем помочь?",
-    "Привет! Что нужно сделать?",
-    "Добрый вечер! Слушаю.",
-]
-_GREETINGS_NIGHT = [
-    "Привет! Не спится? Чем помочь?",
-    "Ещё не спишь? Чем могу помочь?",
-    "Привет! Слушаю.",
-]
+_GREETINGS = {
+    "en": {
+        "morning": ["Good morning! How can I help?", "Morning! What do you need?"],
+        "day": ["Hi! How can I help?", "Hey! What do you need?"],
+        "evening": ["Good evening! How can I help?", "Hey! What can I do for you?"],
+        "night": ["Hey! Can't sleep? How can I help?", "Hi! What do you need?"],
+    },
+    "ru": {
+        "morning": ["Доброе утро! Чем могу помочь?", "Утро доброе! Что нужно сделать?"],
+        "day": ["Привет! Чем могу помочь?", "Добрый день! Слушаю."],
+        "evening": ["Добрый вечер! Чем помочь?", "Добрый вечер! Слушаю."],
+        "night": ["Привет! Не спится? Чем помочь?", "Привет! Слушаю."],
+    },
+    "es": {
+        "morning": ["Buenos dias! En que puedo ayudar?", "Buen dia! Que necesitas?"],
+        "day": ["Hola! En que puedo ayudar?", "Hola! Que necesitas?"],
+        "evening": ["Buenas tardes! En que puedo ayudar?", "Hola! Que puedo hacer?"],
+        "night": ["Hola! En que puedo ayudar?", "Hola! Que necesitas?"],
+    },
+}
+
+# Russian greeting words to detect user language from greeting itself
+_RU_GREETING_WORDS = frozenset({
+    "привет", "здравствуй", "здравствуйте", "приветик", "хай", "хэй",
+    "добрый день", "доброе утро", "добрый вечер", "йо", "здаров",
+    "здарова", "прив", "ку", "хелло", "салам", "здрасте", "здрасьте",
+    "приветствую",
+})
+_ES_GREETING_WORDS = frozenset({"hola", "ола"})
 
 
 def _is_greeting(text: str) -> bool:
@@ -49,49 +58,66 @@ def _is_greeting(text: str) -> bool:
     return text.lower().strip().rstrip("!.?  ") in _GREETING_WORDS
 
 
-def _time_greeting(tz_name: str) -> str:
-    """Return a time-appropriate greeting."""
+def _detect_greeting_lang(text: str, context_lang: str | None) -> str:
+    """Detect language from greeting word, falling back to context language."""
+    word = text.lower().strip().rstrip("!.?  ")
+    if word in _RU_GREETING_WORDS:
+        return "ru"
+    if word in _ES_GREETING_WORDS:
+        return "es"
+    # English greetings or unknown → use context language
+    if context_lang and context_lang.startswith("ru"):
+        return "ru"
+    if context_lang and context_lang.startswith("es"):
+        return "es"
+    return "en"
+
+
+def _time_greeting(tz_name: str, language: str = "en") -> str:
+    """Return a time-appropriate greeting in the user's language."""
     try:
         now = datetime.now(ZoneInfo(tz_name))
     except Exception:
         now = datetime.now(timezone(timedelta(hours=-5)))  # fallback EST
     hour = now.hour
     if 5 <= hour < 12:
-        return random.choice(_GREETINGS_MORNING)
-    if 12 <= hour < 18:
-        return random.choice(_GREETINGS_DAY)
-    if 18 <= hour < 23:
-        return random.choice(_GREETINGS_EVENING)
-    return random.choice(_GREETINGS_NIGHT)
+        period = "morning"
+    elif 12 <= hour < 18:
+        period = "day"
+    elif 18 <= hour < 23:
+        period = "evening"
+    else:
+        period = "night"
+    greetings = _GREETINGS.get(language, _GREETINGS["en"])
+    return random.choice(greetings[period])
 
 CHAT_SYSTEM_PROMPT = """\
-Ты — персональный AI-ассистент пользователя в Telegram.
+You are a personal AI assistant in Telegram.
 
-Ты помогаешь с ЛЮБЫМ запросом: советы, объяснения, расчёты, \
-мозговой штурм, рецепты, обучение, анализ ситуации, личные вопросы, \
-планирование, творческие задачи — всё что угодно.
+You help with ANY request: advice, explanations, calculations, \
+brainstorming, recipes, learning, analysis, personal questions, \
+planning, creative tasks — anything.
 
-Также ты умеешь (подскажи если запрос похож на одну из функций):
-• Финансы: расходы, доходы, чеки, бюджеты, аналитика, отчёты PDF
-• Почта: проверить входящие, отправить email, ответить
-• Календарь: расписание, создать событие, утренняя сводка
-• Задачи: дела, напоминания, списки покупок
-• Трекинг: еда, напитки, настроение, план дня, рефлексия
-• Поиск: вопросы, интернет, сравнение, карты, YouTube
-• Тексты: письма, посты, перевод, проверка грамматики
-• Клиенты: бронирования, контакты
+You also have built-in features (mention if the request matches):
+• Finance: expenses, income, receipts, budgets, analytics, PDF reports
+• Email: check inbox, send email, reply
+• Calendar: schedule, create events, morning brief
+• Tasks: to-dos, reminders, shopping lists
+• Tracking: food, drinks, mood, day plan, reflection
+• Search: questions, web, comparisons, maps, YouTube
+• Writing: messages, posts, translation, proofreading
+• Clients: bookings, contacts
 
-Принципы:
-- Отвечай кратко — пользователь в мессенджере (3-6 предложений макс)
-- Если нужны данные которых нет — скажи что именно нужно
-- Не притворяйся что умеешь то чего не умеешь
-- На приветствие — коротко поздоровайся и спроси чем помочь (1-2 предложения)
-- Отвечай на языке пользователя
-- Если запрос связан с функцией из списка выше, можешь мягко \
-подсказать: «Кстати, я могу сделать это — просто напишите ...»
+Principles:
+- Keep it short — the user is in a messenger (3-6 sentences max)
+- If you need data you don't have — say exactly what you need
+- Don't pretend you can do things you can't
+- For greetings — say hi briefly and ask how you can help (1-2 sentences)
+- ALWAYS respond in the user's language (detect from their message)
+- If the request relates to a feature above, gently suggest it
 
-Форматирование: HTML-теги для Telegram (<b>, <i>, <code>).
-НЕ используй Markdown. Списки через • (bullet)."""
+Formatting: HTML tags for Telegram (<b>, <i>, <code>).
+Do NOT use Markdown. Use • (bullet) for lists."""
 
 
 class GeneralChatSkill:
@@ -103,11 +129,8 @@ class GeneralChatSkill:
         """Return system prompt with or without feature suggestions."""
         if suppress:
             return CHAT_SYSTEM_PROMPT.replace(
-                "можешь мягко "
-                "подсказать: «Кстати, я могу сделать это "
-                "— просто напишите ...»",
-                "НЕ добавляй подсказки о возможностях "
-                "— пользователь уже знает что ты умеешь",
+                "gently suggest it",
+                "do NOT suggest features — the user already knows what you can do",
             )
         return CHAT_SYSTEM_PROMPT
 
@@ -121,7 +144,8 @@ class GeneralChatSkill:
         # Fast-path: simple greetings — no LLM needed
         text_raw = (message.text or "").strip()
         if text_raw and _is_greeting(text_raw):
-            return SkillResult(response_text=_time_greeting(context.timezone))
+            lang = _detect_greeting_lang(text_raw, context.language)
+            return SkillResult(response_text=_time_greeting(context.timezone, lang))
 
         from src.core.memory import sliding_window
 
@@ -151,10 +175,10 @@ class GeneralChatSkill:
                 m for m in assembled.messages if m["role"] != "system" and m.get("content")
             ]
             if not msgs:
-                msgs = [{"role": "user", "content": message.text or "Привет"}]
+                msgs = [{"role": "user", "content": message.text or "Hi"}]
         else:
             sys = system_prompt
-            msgs = [{"role": "user", "content": message.text or "Привет"}]
+            msgs = [{"role": "user", "content": message.text or "Hi"}]
 
         text = await generate_text(self.model, sys, msgs, max_tokens=1024)
         return SkillResult(response_text=text)

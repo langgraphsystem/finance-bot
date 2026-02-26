@@ -9,6 +9,7 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.general_chat.handler import (
     GeneralChatSkill,
+    _detect_greeting_lang,
     _is_greeting,
     _time_greeting,
 )
@@ -135,7 +136,7 @@ async def test_general_chat_uses_own_prompt_even_with_assembled_context(skill, c
     assert result.response_text == "Вот анекдот..."
     call_args = mock_generate.call_args.args
     sent_system_prompt = call_args[1]
-    assert "персональный AI-ассистент" in sent_system_prompt
+    assert "personal AI assistant" in sent_system_prompt
     assert "онбординга, задавай вопросы анкеты" not in sent_system_prompt
 
 
@@ -155,7 +156,7 @@ async def test_general_chat_suppresses_suggestions_after_recent_chats(skill, ctx
         await skill.execute(_msg("как провести переговоры?"), ctx, {})
 
     sent_system_prompt = mock_generate.call_args.args[1]
-    assert "НЕ добавляй подсказки" in sent_system_prompt
+    assert "do NOT suggest features" in sent_system_prompt
 
 
 @pytest.mark.asyncio
@@ -203,4 +204,72 @@ async def test_general_chat_logs_original_intent(skill, ctx):
         "general_chat fallback from intent=%s conf=%.2f",
         "create_task",
         0.3,
+    )
+
+
+# --- Language-aware greeting tests ---
+
+
+def test_detect_greeting_lang_russian():
+    """Russian greeting words should detect 'ru'."""
+    assert _detect_greeting_lang("привет", "en") == "ru"
+    assert _detect_greeting_lang("Здравствуйте!", "en") == "ru"
+
+
+def test_detect_greeting_lang_spanish():
+    """Spanish greeting words should detect 'es'."""
+    assert _detect_greeting_lang("hola", "en") == "es"
+    assert _detect_greeting_lang("ола", "ru") == "es"
+
+
+def test_detect_greeting_lang_english():
+    """English greetings with English context should detect 'en'."""
+    assert _detect_greeting_lang("hi", "en") == "en"
+    assert _detect_greeting_lang("hello", None) == "en"
+
+
+def test_detect_greeting_lang_english_word_russian_context():
+    """English greeting word but Russian context → 'ru'."""
+    assert _detect_greeting_lang("hi", "ru") == "ru"
+    assert _detect_greeting_lang("hey", "ru-RU") == "ru"
+
+
+def test_time_greeting_english():
+    """English greeting should return English text."""
+    result = _time_greeting("America/New_York", "en")
+    assert any(w in result.lower() for w in ["morning", "hi", "hey", "evening", "sleep"])
+
+
+def test_time_greeting_russian():
+    """Russian greeting should return Russian text."""
+    result = _time_greeting("Europe/Moscow", "ru")
+    assert any(
+        w in result.lower()
+        for w in ["привет", "утро", "день", "вечер", "спишь", "слушаю", "помочь"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_english_greeting_returns_english(skill):
+    """'hi' from English user returns English greeting."""
+    ctx_en = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="en",
+        currency="USD",
+        business_type="household",
+        categories=[],
+        merchant_mappings=[],
+    )
+    result = await skill.execute(_msg("hi"), ctx_en, {})
+    # Should NOT contain Russian
+    assert not any(
+        word in result.response_text
+        for word in ["Привет", "Добрый", "Слушаю", "Утро"]
+    )
+    # Should contain English
+    assert any(
+        word in result.response_text
+        for word in ["Hi", "Hey", "Good", "Morning", "help", "need", "sleep"]
     )
