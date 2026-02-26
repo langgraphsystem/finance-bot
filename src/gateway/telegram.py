@@ -121,6 +121,8 @@ class TelegramGateway:
 
     async def start(self) -> None:
         if self.webhook_url:
+            # Delete+set to force Telegram to re-resolve DNS/IP after deploy
+            await self.bot.delete_webhook()
             await self.bot.set_webhook(self.webhook_url)
             logger.info("Webhook set to %s", self.webhook_url)
         else:
