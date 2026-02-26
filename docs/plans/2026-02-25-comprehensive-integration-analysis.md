@@ -1,7 +1,7 @@
 # Comprehensive Integration Analysis: LangGraph, LangChain, Deep Agents, LangSmith + Scaling Strategy
 
 **Date:** 2026-02-25
-**Updated:** 2026-02-25
+**Updated:** 2026-02-26
 **Scope:** Full analysis of current architecture, LangGraph/LangChain ecosystem, Deep Agents SDK, LangSmith platform, memory system, agent architecture, specialist roadmap, and scaling strategy.
 
 ## Progress Tracker
@@ -13,10 +13,16 @@
 | Specialist prompt injection in AgentRouter | **DONE** | `a34567f` |
 | Universal Receptionist Skill (Phase 2) | NOT STARTED | |
 | Voice Channel (Phase 3) | NOT STARTED | |
-| LangGraph checkpoint + HITL | NOT STARTED | |
-| Deferred Nodes for Brief | NOT STARTED | |
+| LangGraph checkpoint + HITL | **DONE** | `3a5df41` |
+| Parallel fan-out for Brief orchestrator | **DONE** | `3a5df41` |
+| Email HITL interrupt/resume | **DONE** | `3a5df41` |
+| Approval orchestrator (replaces pending_actions) | **DONE** | `3a5df41` |
+| Booking FSM → LangGraph orchestrator | **DONE** | `a5e2748` |
+| Node caching for Brief collectors (60s TTL) | **DONE** | |
+| Progressive Skill Loading (YAML catalog) | **DONE** | |
+| Supervisor routing module | **DONE** | |
 | Wave 1 specialists (Bookkeeper, Tax, etc.) | NOT STARTED | |
-| Hierarchical Supervisor | NOT STARTED | |
+| Hierarchical Supervisor (full integration) | NOT STARTED | |
 | Deep Agents for generate_program | NOT STARTED | |
 
 ---

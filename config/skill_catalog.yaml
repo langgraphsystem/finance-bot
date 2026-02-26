@@ -1,0 +1,245 @@
+# Skill catalog for progressive skill loading.
+#
+# Instead of loading all 68+ skill descriptions into the intent prompt,
+# the supervisor first classifies the domain, then loads only the relevant
+# skill group (~2K tokens vs ~40K for full catalog).
+#
+# Each domain group defines:
+#   - description: one-line summary for the supervisor prompt
+#   - triggers: keywords that hint at this domain (used for fast routing)
+#   - agent: which agent handles this domain
+#   - skills: list of intent names in this group
+
+domains:
+  finance:
+    description: "Track expenses, income, budgets, recurring payments, category corrections"
+    triggers:
+      - expense
+      - income
+      - budget
+      - receipt
+      - scan
+      - категори
+      - расход
+      - доход
+      - бюджет
+      - чек
+    agent: chat
+    skills:
+      - add_expense
+      - add_income
+      - correct_category
+      - undo_last
+      - set_budget
+      - mark_paid
+      - add_recurring
+      - delete_data
+
+  analytics:
+    description: "Financial reports, statistics, complex queries, spending analysis"
+    triggers:
+      - report
+      - statistic
+      - analytic
+      - compare
+      - trend
+      - отчёт
+      - статистик
+      - сравни
+    agent: analytics
+    skills:
+      - query_stats
+      - complex_query
+      - query_report
+
+  receipt:
+    description: "Scan receipts and documents from photos"
+    triggers:
+      - receipt
+      - scan
+      - photo
+      - document
+      - чек
+      - скан
+      - фото
+      - документ
+    agent: receipt
+    skills:
+      - scan_receipt
+      - scan_document
+
+  tasks:
+    description: "Create tasks, reminders, to-do lists, shopping lists"
+    triggers:
+      - task
+      - remind
+      - todo
+      - shopping
+      - list
+      - задач
+      - напомн
+      - список
+      - покупк
+    agent: tasks
+    skills:
+      - create_task
+      - list_tasks
+      - set_reminder
+      - complete_task
+      - shopping_list_add
+      - shopping_list_view
+      - shopping_list_remove
+      - shopping_list_clear
+
+  life:
+    description: "Track food, drinks, mood; day planning and reflection; life journal"
+    triggers:
+      - food
+      - drink
+      - mood
+      - plan
+      - reflect
+      - capture
+      - journal
+      - еда
+      - напит
+      - настроен
+      - план
+    agent: life
+    skills:
+      - quick_capture
+      - track_food
+      - track_drink
+      - mood_checkin
+      - day_plan
+      - day_reflection
+      - life_search
+      - set_comm_mode
+      - evening_recap
+      - price_alert
+      - news_monitor
+
+  email:
+    description: "Read inbox, send email, draft reply, follow up, summarize threads"
+    triggers:
+      - email
+      - inbox
+      - mail
+      - send
+      - reply
+      - почт
+      - письм
+      - отправ
+    agent: email
+    skills:
+      - read_inbox
+      - send_email
+      - draft_reply
+      - follow_up_email
+      - summarize_thread
+
+  calendar:
+    description: "View schedule, create events, find free slots, reschedule, morning brief"
+    triggers:
+      - calendar
+      - event
+      - schedule
+      - meeting
+      - free slot
+      - календар
+      - событ
+      - встреч
+      - расписан
+    agent: calendar
+    skills:
+      - list_events
+      - create_event
+      - find_free_slots
+      - reschedule_event
+      - morning_brief
+
+  research:
+    description: "Web search, quick answers, compare options, maps, YouTube, price check"
+    triggers:
+      - search
+      - find
+      - compare
+      - youtube
+      - map
+      - price
+      - поиск
+      - найди
+      - сравни
+      - цена
+    agent: research
+    skills:
+      - quick_answer
+      - web_search
+      - compare_options
+      - maps_search
+      - youtube_search
+      - price_check
+      - web_action
+      - browser_action
+
+  writing:
+    description: "Draft messages, translate, write posts, proofread, generate images/code"
+    triggers:
+      - write
+      - draft
+      - translate
+      - proofread
+      - generate
+      - image
+      - program
+      - code
+      - напиши
+      - переведи
+      - картинк
+      - программ
+    agent: writing
+    skills:
+      - draft_message
+      - translate_text
+      - write_post
+      - proofread
+      - generate_image
+      - generate_card
+      - generate_program
+      - modify_program
+      - convert_document
+
+  booking:
+    description: "Manage appointments, clients, contacts, send messages to clients"
+    triggers:
+      - book
+      - appointment
+      - client
+      - contact
+      - запис
+      - клиент
+      - контакт
+      - бронир
+    agent: booking
+    skills:
+      - create_booking
+      - list_bookings
+      - cancel_booking
+      - reschedule_booking
+      - add_contact
+      - list_contacts
+      - find_contact
+      - send_to_client
+
+  onboarding:
+    description: "New user setup, general questions about the bot"
+    triggers:
+      - start
+      - help
+      - what can you
+      - привет
+      - помощ
+    agent: onboarding
+    skills:
+      - onboarding
+      - general_chat

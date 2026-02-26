@@ -1,14 +1,31 @@
 # LangGraph/LangChain Audit and Integration Plan
 
-Date: 2026-02-25  
+Date: 2026-02-25
+Updated: 2026-02-26
 Scope: Current use of LangGraph/LangChain in the project and practical integration points.
+
+## 0. Implementation Status
+
+| Priority | Task | Status |
+|----------|------|--------|
+| P1 | Booking FSM → LangGraph | **DONE** (`a5e2748`) |
+| P2 | Pending actions → interrupt HITL | **DONE** (`3a5df41`) |
+| P3 | Brief fan-out/fan-in + caching | **DONE** (`3a5df41`) |
+| P4 | Email HITL + checkpointer | **DONE** (`3a5df41`) |
+| P5 | Expand orchestrators (booking) | **DONE** (`a5e2748`) |
+| — | PostgreSQL checkpointer | **DONE** (`3a5df41`) |
+| — | Node caching (Brief 60s) | **DONE** |
+| — | Progressive Skill Loading | **DONE** |
+| — | Supervisor routing module | **DONE** |
 
 ## 1. Summary
 
-Project already includes LangGraph dependencies and uses LangGraph in two orchestrators:
+Project already includes LangGraph dependencies and uses LangGraph in four orchestrators:
 
-1. Email orchestrator.
-2. Brief (morning/evening) orchestrator.
+1. Email orchestrator (with HITL interrupt/resume).
+2. Brief (morning/evening) orchestrator (parallel fan-out + node caching).
+3. Approval orchestrator (replaces Redis pending_actions).
+4. Booking orchestrator (FSM with interrupt-based HITL).
 
 LangChain packages are installed but practically not used in the runtime code path.
 
