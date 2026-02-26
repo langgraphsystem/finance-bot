@@ -116,7 +116,7 @@ async def test_forecast_with_data_calls_llm(sample_context):
     first_date = date.today() - timedelta(days=60)
 
     # We need multiple sessions: _get_first_transaction_date, _get_daily_averages (x2),
-    # _get_weekly_pattern, _get_recurring_payments, _get_monthly_totals
+    # _get_recurring_payments, _get_monthly_totals
     # Each opens its own async_session().
 
     call_count = 0
@@ -134,11 +134,6 @@ async def test_forecast_with_data_calls_llm(sample_context):
             # _get_daily_averages (30d, 90d) → two scalars per call (income, expense)
             mock_sess.scalar = AsyncMock(side_effect=[500.0, 300.0])
         elif call_count == 4:
-            # _get_weekly_pattern → execute().all()
-            result = MagicMock()
-            result.all.return_value = []
-            mock_sess.execute = AsyncMock(return_value=result)
-        elif call_count == 5:
             # _get_recurring_payments → scalars().all()
             scalars_result = MagicMock()
             scalars_result.all.return_value = []

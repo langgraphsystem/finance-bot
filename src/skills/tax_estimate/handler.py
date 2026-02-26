@@ -5,6 +5,7 @@ actual income and deductible expenses. Supports self-employment tax.
 """
 
 import logging
+import uuid
 from datetime import date
 from typing import Any
 
@@ -162,8 +163,6 @@ class TaxEstimateSkill:
         family_id: str, start: date, end: date, tx_type: str,
     ) -> float:
         """Get total income or expenses for a period."""
-        import uuid
-
         tt = TransactionType.income if tx_type == "income" else TransactionType.expense
         async with async_session() as session:
             stmt = select(func.sum(Transaction.amount)).where(
@@ -180,8 +179,6 @@ class TaxEstimateSkill:
         family_id: str, start: date, end: date,
     ) -> list[dict[str, Any]]:
         """Get expense breakdown by category."""
-        import uuid
-
         async with async_session() as session:
             stmt = (
                 select(

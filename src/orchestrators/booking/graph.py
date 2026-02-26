@@ -115,16 +115,22 @@ def build_booking_graph() -> StateGraph:
     return graph
 
 
-def _compile_booking_graph():
-    """Compile with checkpointer for durable state."""
+_booking_graph = None
+
+
+def _get_booking_graph():
+    """Lazily compile with checkpointer for durable state."""
+    global _booking_graph
+    if _booking_graph is not None:
+        return _booking_graph
+
+    from src.core.config import settings
     from src.orchestrators.checkpointer import get_checkpointer
 
     builder = build_booking_graph()
-    return builder.compile(checkpointer=get_checkpointer())
-
-
-# Compiled graph (singleton)
-_booking_graph = _compile_booking_graph()
+    checkpointer = get_checkpointer() if settings.ff_langgraph_checkpointer else None
+    _booking_graph = builder.compile(checkpointer=checkpointer)
+    return _booking_graph
 
 
 class BookingOrchestrator:
@@ -191,7 +197,7 @@ class BookingOrchestrator:
         }
 
         try:
-            result = await _booking_graph.ainvoke(initial_state, config)
+            result = await _get_booking_graph().ainvoke(initial_state, config)
             return self._build_result(result, thread_id)
         except Exception as e:
             logger.warning("Booking graph failed: %s", e)
@@ -209,7 +215,7 @@ class BookingOrchestrator:
 
         config = {"configurable": {"thread_id": thread_id}}
         try:
-            result = await _booking_graph.ainvoke(
+            result = await _get_booking_graph().ainvoke(
                 Command(resume=choice), config
             )
             return self._build_result(result, thread_id)

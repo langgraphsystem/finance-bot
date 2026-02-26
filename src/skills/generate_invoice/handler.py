@@ -5,6 +5,7 @@ generates a PDF document for sending to clients.
 """
 
 import logging
+import uuid
 from datetime import date, timedelta
 from typing import Any
 
@@ -122,8 +123,6 @@ class GenerateInvoiceSkill:
         family_id: str, name: str,
     ) -> dict[str, Any] | None:
         """Find a contact by name (fuzzy match)."""
-        import uuid
-
         async with async_session() as session:
             stmt = (
                 select(Contact)
@@ -148,8 +147,6 @@ class GenerateInvoiceSkill:
         family_id: str, days: int = 30,
     ) -> list[dict[str, Any]]:
         """Get recent income transactions as potential invoice items."""
-        import uuid
-
         cutoff = date.today() - timedelta(days=days)
         async with async_session() as session:
             stmt = (

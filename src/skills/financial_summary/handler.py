@@ -5,6 +5,7 @@ top merchants, and comparisons with previous periods.
 """
 
 import logging
+import uuid
 from datetime import date, timedelta
 from typing import Any
 
@@ -44,7 +45,7 @@ def _resolve_period(intent_data: dict[str, Any]) -> tuple[date, date, str]:
     if period == "prev_week":
         end = today - timedelta(days=today.weekday())
         start = end - timedelta(days=7)
-        return end, start, "last week"
+        return start, end, "last week"
 
     if period == "prev_month":
         first = today.replace(day=1)
@@ -146,8 +147,6 @@ class FinancialSummarySkill:
         family_id: str, start: date, end: date,
     ) -> list[dict[str, Any]]:
         """Get expense totals grouped by category."""
-        import uuid
-
         async with async_session() as session:
             stmt = (
                 select(
@@ -180,8 +179,6 @@ class FinancialSummarySkill:
         family_id: str, start: date, end: date, limit: int = 5,
     ) -> list[dict[str, Any]]:
         """Get top merchants by spend."""
-        import uuid
-
         async with async_session() as session:
             stmt = (
                 select(
@@ -209,8 +206,6 @@ class FinancialSummarySkill:
     @staticmethod
     async def _get_income_total(family_id: str, start: date, end: date) -> float:
         """Get total income for the period."""
-        import uuid
-
         async with async_session() as session:
             stmt = select(func.sum(Transaction.amount)).where(
                 Transaction.family_id == uuid.UUID(family_id),

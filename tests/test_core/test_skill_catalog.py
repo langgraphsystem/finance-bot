@@ -13,9 +13,9 @@ def test_load_catalog():
 
 
 def test_catalog_domain_count():
-    """Catalog should have all 11 domain groups."""
+    """Catalog should have all 12 domain groups."""
     catalog = load_catalog.__wrapped__()
-    assert len(catalog.domains) == 11
+    assert len(catalog.domains) == 12
 
 
 def test_all_skills_mapped():
@@ -66,6 +66,7 @@ def test_get_agent_for_domain():
     catalog = load_catalog.__wrapped__()
     assert catalog.get_agent_for_domain("finance") == "chat"
     assert catalog.get_agent_for_domain("analytics") == "analytics"
+    assert catalog.get_agent_for_domain("finance_specialist") == "finance_specialist"
     assert catalog.get_agent_for_domain("email") == "email"
     assert catalog.get_agent_for_domain("nonexistent") is None
 

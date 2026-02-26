@@ -21,7 +21,6 @@ from langgraph.graph import END, START, StateGraph
 
 from src.orchestrators.approval.nodes import ask_approval, execute_action
 from src.orchestrators.approval.state import ApprovalState
-from src.orchestrators.checkpointer import get_checkpointer
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -38,9 +37,21 @@ def build_approval_graph() -> StateGraph:
     return graph
 
 
-_approval_graph = build_approval_graph().compile(
-    checkpointer=get_checkpointer()
-)
+_approval_graph = None
+
+
+def _get_approval_graph():
+    """Lazily compile with checkpointer."""
+    global _approval_graph
+    if _approval_graph is not None:
+        return _approval_graph
+
+    from src.core.config import settings
+    from src.orchestrators.checkpointer import get_checkpointer
+
+    checkpointer = get_checkpointer() if settings.ff_langgraph_checkpointer else None
+    _approval_graph = build_approval_graph().compile(checkpointer=checkpointer)
+    return _approval_graph
 
 
 async def start_approval(
@@ -69,7 +80,7 @@ async def start_approval(
     }
 
     # This will pause at ask_approval due to interrupt()
-    await _approval_graph.ainvoke(initial_state, config)
+    await _get_approval_graph().ainvoke(initial_state, config)
 
     if buttons is None:
         buttons = [
@@ -94,7 +105,7 @@ async def resume_approval(thread_id: str, answer: str) -> str:
 
     config = {"configurable": {"thread_id": thread_id}}
     try:
-        result = await _approval_graph.ainvoke(Command(resume=answer), config)
+        result = await _get_approval_graph().ainvoke(Command(resume=answer), config)
         return result.get("result_text", "Done.")
     except Exception as e:
         logger.error("Approval graph resume failed: %s", e)

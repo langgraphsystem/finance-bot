@@ -965,6 +965,8 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "query_stats": 'статистика ("сколько потратил за неделю")',
         "complex_query": 'сложный аналитический запрос ("анализ трат за 3 месяца")',
         "query_report": 'PDF-отчёт ("отчёт", "report", "месячный отчёт")',
+    },
+    "finance_specialist": {
         "financial_summary": 'финансовый обзор по категориям ("куда уходят деньги?")',
         "generate_invoice": 'создать инвойс ("invoice Mike for the job")',
         "tax_estimate": 'оценка налогов ("quarterly taxes", "сколько налогов?")',

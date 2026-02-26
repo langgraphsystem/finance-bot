@@ -5,6 +5,7 @@ and trends to forecast cash flow for the next 30/60/90 days.
 """
 
 import logging
+import uuid
 from datetime import date, timedelta
 from typing import Any
 
@@ -74,9 +75,6 @@ class CashFlowForecastSkill:
         # Historical averages (last 30 and 90 days)
         avg_30 = await self._get_daily_averages(family_id, days=30)
         avg_90 = await self._get_daily_averages(family_id, days=90)
-
-        # Weekly pattern (which day of week has highest spend)
-        await self._get_weekly_pattern(family_id)
 
         # Recurring payments
         recurring = await self._get_recurring_payments(family_id)
@@ -163,8 +161,6 @@ class CashFlowForecastSkill:
     @staticmethod
     async def _get_first_transaction_date(family_id: str) -> date | None:
         """Get the date of the earliest transaction."""
-        import uuid
-
         async with async_session() as session:
             stmt = select(func.min(Transaction.date)).where(
                 Transaction.family_id == uuid.UUID(family_id),
@@ -176,8 +172,6 @@ class CashFlowForecastSkill:
         family_id: str, days: int = 30,
     ) -> dict[str, float]:
         """Get average daily income and expense over a period."""
-        import uuid
-
         cutoff = date.today() - timedelta(days=days)
         async with async_session() as session:
             for tx_type_name, tx_type in [
@@ -203,8 +197,6 @@ class CashFlowForecastSkill:
     @staticmethod
     async def _get_weekly_pattern(family_id: str) -> list[dict]:
         """Get spending pattern by day of week."""
-        import uuid
-
         cutoff = date.today() - timedelta(days=90)
         async with async_session() as session:
             stmt = (
@@ -230,8 +222,6 @@ class CashFlowForecastSkill:
     @staticmethod
     async def _get_recurring_payments(family_id: str) -> list[dict]:
         """Get active recurring payments."""
-        import uuid
-
         async with async_session() as session:
             stmt = (
                 select(RecurringPayment)
@@ -257,8 +247,6 @@ class CashFlowForecastSkill:
         family_id: str, months: int = 3,
     ) -> list[dict]:
         """Get monthly income/expense totals for trend analysis."""
-        import uuid
-
         results = []
         today = date.today()
 
