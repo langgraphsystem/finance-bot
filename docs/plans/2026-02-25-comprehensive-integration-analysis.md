@@ -11,7 +11,7 @@
 | Specialist Config Engine (Phase 1) | **DONE** | `a34567f` |
 | YAML profiles extended (manicure, flowers) | **DONE** | `a34567f` |
 | Specialist prompt injection in AgentRouter | **DONE** | `a34567f` |
-| Universal Receptionist Skill (Phase 2) | NOT STARTED | |
+| Universal Receptionist Skill (Phase 2) | **DONE** | `fa87ed8` |
 | Voice Channel (Phase 3) | NOT STARTED | |
 | LangGraph checkpoint + HITL | **DONE** | `3a5df41` |
 | Parallel fan-out for Brief orchestrator | **DONE** | `3a5df41` |
@@ -24,7 +24,7 @@
 | Scoped intent detection (2-stage pipeline) | **DONE** | |
 | Pre/Post model hooks | **DONE** | |
 | Hierarchical Supervisor (full integration) | **DONE** | |
-| Wave 1 specialists (Bookkeeper, Tax, etc.) | NOT STARTED | |
+| Wave 1 specialists (Bookkeeper, Tax, etc.) | **DONE** | `2195c06` |
 | Deep Agents for generate_program | NOT STARTED | |
 
 ---

@@ -36,24 +36,24 @@ Details: `docs/plans/2026-02-25-architecture-audit-vnext-language-timezone-remin
 
 Details: `docs/plans/2026-02-25-langgraph-langchain-integration-audit.md`
 
-### 3. Universal Receptionist Skill (1-2 weeks)
+### 3. Universal Receptionist Skill — **DONE** (`fa87ed8`)
 
 - Single `receptionist` skill, adaptable via specialist config
 - Integration with existing booking/contacts skills
-- Add specialist config to remaining profiles (construction, taxi, etc.)
+- Added specialist config to construction.yaml (3 profiles now configured)
 - Config-driven system prompts per business_type
 
 ---
 
 ## Mid-Term (April-May 2026)
 
-### 4. Hierarchical Supervisor
+### 4. Hierarchical Supervisor — **DONE** (`a5c235f`)
 
-- `langgraph-supervisor` — Top Supervisor → Domain Supervisors → Specialist Agents
-- Progressive Skill Loading — YAML catalog (500 tokens) + lazy load (2K) instead of 200+ tools in prompt (40K)
-- Pre/Post Model Hooks — guardrails + telemetry
+- Supervisor routing, scoped intent detection, pre/post model hooks
+- Progressive Skill Loading via YAML catalog
+- Feature flag `ff_supervisor_routing`
 
-### 5. Wave 1 Specialists (from existing data)
+### 5. Wave 1 Specialists — **DONE** (`2195c06`)
 
 | Specialist | Tier | What Already Exists |
 |-----------|------|-------------------|
