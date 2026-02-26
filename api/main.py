@@ -366,8 +366,11 @@ async def on_message(incoming):
         finally:
             typing_task.cancel()
 
-        # After /start: set awaiting_language so user can type language
-        if not onboarding_state:
+        # After /start or fresh entry: reset to awaiting_language
+        # so the user can type their preferred language.
+        # Always reset on /start to clear any stale state.
+        text_raw = (incoming.text or "").strip()
+        if text_raw == "/start" or not onboarding_state:
             await _set_onboarding_state(
                 incoming.user_id,
                 ConversationState.onboarding_awaiting_language,

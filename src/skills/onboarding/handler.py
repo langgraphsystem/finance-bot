@@ -514,6 +514,23 @@ def _profile_display_name(business_type: str, lang: str) -> str:
     return names.get(lang, names.get("en", business_type.title()))
 
 
+_NATIVE_LANGUAGE_NAMES: dict[str, str] = {
+    "deutsch": "de", "français": "fr", "francais": "fr",
+    "español": "es", "espanol": "es", "português": "pt", "portugues": "pt",
+    "italiano": "it", "日本語": "ja", "한국어": "ko",
+    "العربية": "ar", "हिन्दी": "hi", "हिंदी": "hi",
+    "türkçe": "tr", "turkce": "tr", "polski": "pl",
+    "nederlands": "nl", "svenska": "sv",
+    "українська": "uk", "tiếng việt": "vi",
+    "ไทย": "th", "bahasa indonesia": "id", "indonesia": "id",
+    "čeština": "cs", "cestina": "cs", "română": "ro", "romana": "ro",
+    "magyar": "hu", "ελληνικά": "el",
+    "עברית": "he", "dansk": "da", "suomi": "fi", "norsk": "no",
+    "кыргызча": "ky", "қазақша": "kk", "ўзбекча": "uz", "тоҷикӣ": "tg",
+    "русский": "ru", "english": "en", "chinese": "zh", "中文": "zh",
+}
+
+
 async def detect_language(text: str) -> tuple[str, str]:
     """Detect which language the user wants from their input.
 
@@ -524,11 +541,15 @@ async def detect_language(text: str) -> tuple[str, str]:
 
     Returns (iso_code, language_name).
     """
-    # Quick match: if user typed a known language name directly
+    # Quick match: if user typed a known language name (English or native)
     text_lower = text.strip().lower()
     for code, name in LANGUAGE_NAMES.items():
         if text_lower == name.lower() or text_lower == code:
             return code, name
+    # Also match common native names (Deutsch, Français, Русский, etc.)
+    native = _NATIVE_LANGUAGE_NAMES.get(text_lower)
+    if native:
+        return native, LANGUAGE_NAMES.get(native, text.strip().title())
 
     try:
         raw = await generate_text(
