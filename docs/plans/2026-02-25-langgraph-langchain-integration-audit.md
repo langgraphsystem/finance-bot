@@ -17,6 +17,9 @@ Scope: Current use of LangGraph/LangChain in the project and practical integrati
 | — | Node caching (Brief 60s) | **DONE** |
 | — | Progressive Skill Loading | **DONE** |
 | — | Supervisor routing module | **DONE** |
+| — | Scoped intent detection (2-stage) | **DONE** |
+| — | Pre/Post model hooks | **DONE** |
+| — | Full supervisor integration | **DONE** |
 
 ## 1. Summary
 

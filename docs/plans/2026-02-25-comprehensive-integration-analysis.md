@@ -21,8 +21,10 @@
 | Node caching for Brief collectors (60s TTL) | **DONE** | |
 | Progressive Skill Loading (YAML catalog) | **DONE** | |
 | Supervisor routing module | **DONE** | |
+| Scoped intent detection (2-stage pipeline) | **DONE** | |
+| Pre/Post model hooks | **DONE** | |
+| Hierarchical Supervisor (full integration) | **DONE** | |
 | Wave 1 specialists (Bookkeeper, Tax, etc.) | NOT STARTED | |
-| Hierarchical Supervisor (full integration) | NOT STARTED | |
 | Deep Agents for generate_program | NOT STARTED | |
 
 ---

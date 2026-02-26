@@ -15,7 +15,7 @@ from src.core.db import async_session
 from src.core.domain_router import DomainRouter
 from src.core.family import create_family
 from src.core.guardrails import check_input
-from src.core.intent import detect_intent
+from src.core.intent import detect_intent, detect_intent_v2
 from src.core.memory import sliding_window
 from src.core.memory.summarization import summarize_dialog
 from src.core.models.conversation import ConversationMessage
@@ -88,6 +88,20 @@ def get_domain_router() -> DomainRouter:
                 Domain.booking, BookingOrchestrator(agent_router=get_agent_router())
             )
     return _domain_router
+
+
+def _get_intent_detector():
+    """Return the appropriate intent detection function based on feature flags.
+
+    When ff_supervisor_routing is enabled, uses two-stage detection:
+    Stage 1: keyword-based domain resolution (zero LLM cost).
+    Stage 2: scoped intent detection with only the domain's intents.
+    """
+    from src.core.config import settings as _settings
+
+    if _settings.ff_supervisor_routing:
+        return detect_intent_v2
+    return detect_intent
 
 
 async def _persist_message(
@@ -279,7 +293,8 @@ async def _dispatch_message(
 
         if message.text:
             # Caption present → let LLM decide the intent (convert_document, scan_document, etc.)
-            result = await detect_intent(
+            _detect = _get_intent_detector()
+            result = await _detect(
                 text=message.text,
                 categories=context.categories,
                 language=context.language,
@@ -322,8 +337,9 @@ async def _dispatch_message(
         except Exception as e:
             logger.debug("Failed to fetch recent context for intent: %s", e)
 
-        # Intent detection
-        result = await detect_intent(
+        # Intent detection (supervisor-routed or full)
+        _detect = _get_intent_detector()
+        result = await _detect(
             text=message.text or "",
             categories=context.categories,
             language=context.language,

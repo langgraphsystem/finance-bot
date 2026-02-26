@@ -922,86 +922,302 @@ async def _detect_with_claude(
     return result
 
 
-# ── Two-stage intent detection (Phase 1 scaffold) ─────────────────
-# Activates when total registered intents exceed STAGE2_THRESHOLD.
-# Stage 1: classify domain (Gemini Flash) → Stage 2: classify intent within domain.
+# ── Two-stage intent detection (Supervisor + Scoped Prompts) ────────
+# Stage 1: keyword-based domain resolution (zero LLM cost) via supervisor.
+# Stage 2: scoped intent detection with only the domain's intents (~2K tokens).
+# Fallback: full INTENT_DETECTION_PROMPT when domain cannot be resolved (~10K tokens).
 
-STAGE2_THRESHOLD = 25
-
-DOMAIN_CLASSIFICATION_PROMPT = """\
-Classify the user's message into exactly one domain.
-
-Domains:
-- finance: expenses, income, receipts, budgets, reports, recurring payments
-- email: inbox, send, reply, draft, follow-up
-- calendar: events, schedule, meetings, free slots
-- booking: client bookings, appointments, scheduling clients, CRM outreach
-- tasks: to-do, reminders, deadlines, planning
-- shopping: shopping lists, grocery lists, items to buy
-- research: search, compare, analyze, investigate
-- writing: draft, translate, proofread, compose
-- contacts: people, CRM, follow-ups, add/find contacts
-- general: life tracking, chat, mood, food, drinks, notes, reflections
-- onboarding: setup, connect accounts, first use
-
-Respond with JSON: {{"domain": "...", "confidence": 0.0-1.0}}
-"""
-
-DOMAIN_INTENT_PROMPTS: dict[str, str] = {
-    "finance": "Finance domain intents — placeholder for Phase 2+ expansion.",
-    "email": "Email domain intents — placeholder for Phase 2.",
-    "calendar": "Calendar domain intents — placeholder for Phase 2.",
-    "tasks": "Tasks domain intents — placeholder for Phase 3.",
-    "shopping": "Shopping list intents — add, view, remove, clear items.",
-    "research": "Research domain intents — placeholder for Phase 3.",
-    "writing": "Writing domain intents — placeholder for Phase 3.",
-    "contacts": "Contacts domain intents — placeholder for Phase 3.",
-    "booking": "Booking domain intents — create/list/cancel/reschedule bookings, CRM.",
-    "general": "General domain intents — placeholder for Phase 2+ expansion.",
-    "onboarding": "Onboarding domain intents — placeholder.",
+# Per-domain compact intent descriptions for scoped prompts.
+# Each domain lists only its own intents + general_chat fallback.
+# ~500-2K tokens per domain vs ~10K for the full prompt.
+SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
+    "finance": {
+        "add_expense": 'запись расхода ("заправился на 50", "купил продукты 87.50")',
+        "add_income": "запись дохода С СУММОЙ "
+        '("заработал 185", "получил оплату за рейс 2500")',
+        "correct_category": 'исправление категории ("это не продукты, а бензин")',
+        "undo_last": 'отмена последней операции ("отмени последнюю", "undo")',
+        "set_budget": 'установить бюджет/лимит ("бюджет на продукты 30000")',
+        "mark_paid": "изменить статус на оплачен БЕЗ суммы "
+        '("груз оплачен", "mark paid")',
+        "add_recurring": 'регулярный платёж ("подписка", "аренда 50000")',
+        "delete_data": 'удаление данных ("удали расходы за январь")',
+    },
+    "analytics": {
+        "query_stats": 'статистика ("сколько потратил за неделю")',
+        "complex_query": 'сложный аналитический запрос ("анализ трат за 3 месяца")',
+        "query_report": 'PDF-отчёт ("отчёт", "report", "месячный отчёт")',
+    },
+    "receipt": {
+        "scan_receipt": "фото чека — распознать расход",
+        "scan_document": "фото документа, инвойса, rate confirmation",
+    },
+    "tasks": {
+        "create_task": 'создать задачу ("add task: ...", "задача: ...")',
+        "list_tasks": 'показать задачи ("мои задачи", "my tasks")',
+        "set_reminder": 'напоминание ("напомни ...", "remind me ...")',
+        "complete_task": 'отметить выполненной ("готово", "done with ...")',
+        "shopping_list_add": 'добавить товары в список ("добавь молоко")',
+        "shopping_list_view": 'показать список покупок ("мой список")',
+        "shopping_list_remove": 'отметить купленное ("купил молоко")',
+        "shopping_list_clear": 'очистить список ("очисти список")',
+    },
+    "life": {
+        "quick_capture": 'заметка, идея ("идея: ...", "запомни: ...")',
+        "track_food": 'запись еды БЕЗ суммы ("съел пиццу", "обед: суп")',
+        "track_drink": 'напиток БЕЗ суммы ("кофе", "вода", "2 кофе")',
+        "mood_checkin": 'чек-ин состояния ("настроение 7", "устал")',
+        "day_plan": 'план дня ("план: ...", "топ задача: ...")',
+        "day_reflection": 'рефлексия дня ("итоги дня", "review")',
+        "life_search": 'поиск по памяти ("что я ел вчера?", "идеи за неделю")',
+        "set_comm_mode": 'режим общения ("тихий режим", "coaching")',
+        "evening_recap": 'вечерний обзор ("evening recap", "итоги дня")',
+        "price_alert": 'мониторинг цены ("мониторь цену", "alert when price")',
+        "news_monitor": 'мониторинг новостей ("следи за новостями")',
+    },
+    "email": {
+        "read_inbox": 'проверить почту ("check email", "проверь почту")',
+        "send_email": 'отправить email ("email John about meeting")',
+        "draft_reply": 'ответить на письмо ("reply to email")',
+        "follow_up_email": 'неотвеченные письма ("any unanswered emails?")',
+        "summarize_thread": 'пересказать переписку ("summarize thread")',
+    },
+    "calendar": {
+        "list_events": 'расписание ("what\'s on my calendar?", "расписание")',
+        "create_event": 'создать событие ("schedule meeting at 3pm")',
+        "find_free_slots": 'свободное время ("when am I free?")',
+        "reschedule_event": 'перенести событие ("move dentist to Thursday")',
+        "morning_brief": 'утренняя сводка ("morning brief")',
+    },
+    "research": {
+        "quick_answer": 'фактический вопрос ("what\'s the capital of France?")',
+        "web_search": 'поиск в интернете ("what time does Costco close?")',
+        "compare_options": 'сравнение ("compare PEX vs copper")',
+        "maps_search": 'поиск мест ("кафе рядом", "directions to Walmart")',
+        "youtube_search": 'поиск видео ("найди видео", YouTube ссылка)',
+        "price_check": 'проверить цену ("check price at Home Depot")',
+        "web_action": 'действие на сайте ("зайди на сайт и посмотри")',
+        "browser_action": 'бронирование/покупка через браузер ("закажи на Amazon")',
+    },
+    "writing": {
+        "draft_message": 'написать сообщение ("write email to school")',
+        "translate_text": 'перевести ("translate to Spanish")',
+        "write_post": 'написать пост ("write review response")',
+        "proofread": 'проверить текст ("proofread this")',
+        "generate_image": 'сгенерировать изображение ("нарисуй кота")',
+        "generate_card": 'создать карточку/трекер ("сделай трекер")',
+        "generate_program": 'написать программу ("напиши парсер")',
+        "modify_program": 'изменить программу ("измени программу")',
+        "convert_document": 'конвертировать файл ("конвертируй в PDF")',
+    },
+    "booking": {
+        "create_booking": 'записать клиента ("book John tomorrow 2pm")',
+        "list_bookings": 'расписание бронирований ("my bookings today")',
+        "cancel_booking": 'отменить ("cancel appointment")',
+        "reschedule_booking": 'перенести запись ("move John to Thursday")',
+        "add_contact": 'добавить контакт ("add client John 917-555-1234")',
+        "list_contacts": 'список контактов ("my contacts")',
+        "find_contact": 'найти контакт ("find John")',
+        "send_to_client": 'написать клиенту ("text John I\'m running late")',
+    },
+    "onboarding": {
+        "onboarding": "команда /start или просьба зарегистрироваться",
+        "general_chat": "приветствие, благодарность, общий разговор",
+    },
 }
 
+# Data extraction rules shared across all scoped prompts.
+# Kept compact — covers only universal fields; domain-specific fields
+# are extracted best-effort by the LLM.
+_SCOPED_DATA_RULES = """\
+Извлеки данные в поле "data":
+- amount: число или null
+- merchant: название или null
+- category: категория или null
+- date: "YYYY-MM-DD" или null (не подставляй сегодня)
+- description: описание или null
+- period: "today"/"week"/"month"/"year"/"prev_month"/"prev_week"/"custom" или null
+- date_from/date_to: "YYYY-MM-DD" для custom периода или null
+- task_title: название задачи или null
+- task_deadline: "YYYY-MM-DDTHH:MM:SS" или null
+- reminder_recurrence: "daily"/"weekly"/"monthly" или null
+- search_query/search_topic: текст поиска или null
+- Остальные поля: извлеки если релевантны
 
-@observe(name="classify_domain")
-async def _classify_domain(text: str, language: str = "ru") -> str:
-    """Stage 1: classify message into a domain using Gemini Pro."""
-    client = google_client()
-    prompt = f"{DOMAIN_CLASSIFICATION_PROMPT}\n\nЯзык: {language}\n\nСообщение: {text}"
-    try:
-        response = await client.aio.models.generate_content(
-            model="gemini-3-pro-preview",
-            contents=prompt,
-            config={"response_mime_type": "application/json"},
+Сегодня: {today}"""
+
+_SCOPED_PROMPT_TEMPLATE = """\
+Определи намерение пользователя из сообщения.
+Домен: {domain_name}
+
+Возможные интенты:
+{intent_list}
+- general_chat: общий разговор, если ни один интент не подходит
+
+{data_rules}
+
+Классификация intent_type:
+- "action" — пользователь хочет выполнить действие
+- "chat" — приветствие, благодарность, общий разговор
+- "clarify" — сообщение неоднозначно, confidence < 0.6
+
+Ответь ТОЛЬКО валидным JSON:
+{{"intent": "имя_интента", "confidence": 0.0-1.0, \
+"intent_type": "action"/"chat"/"clarify", \
+"clarify_candidates": [{{"intent": "...", "label": "описание", \
+"confidence": 0.0-1.0}}] или null, \
+"data": {{...}}, "response": "краткий ответ"}}"""
+
+
+def _build_scoped_prompt(domain: str, intents: list[str]) -> str:
+    """Build a compact intent detection prompt for a single domain.
+
+    Uses ~500-2K tokens instead of ~10K for the full prompt.
+    """
+    domain_defs = SCOPED_INTENT_DEFS.get(domain, {})
+    lines = []
+    for intent_name in intents:
+        desc = domain_defs.get(intent_name)
+        if desc:
+            lines.append(f"- {intent_name}: {desc}")
+        else:
+            lines.append(f"- {intent_name}")
+
+    return _SCOPED_PROMPT_TEMPLATE.format(
+        domain_name=domain,
+        intent_list="\n".join(lines),
+        data_rules=_SCOPED_DATA_RULES.format(today=date.today().isoformat()),
+    )
+
+
+@observe(name="detect_intent_scoped")
+async def detect_intent_scoped(
+    text: str,
+    domain: str,
+    intents: list[str],
+    categories: list[dict] | None = None,
+    language: str = "ru",
+    recent_context: str | None = None,
+) -> IntentDetectionResult:
+    """Scoped intent detection within a single domain.
+
+    Uses a compact prompt with only the domain's intents (~2K tokens).
+    """
+    # Fast-path rules still apply
+    delete_fast_path = _rule_based_delete_intent(text)
+    if delete_fast_path:
+        return delete_fast_path
+
+    relative_reminder = _rule_based_relative_reminder(text)
+    if relative_reminder:
+        return relative_reminder
+
+    bare_reminder = _rule_based_bare_reminder(text)
+    if bare_reminder:
+        return bare_reminder
+
+    modify_fast_path = _rule_based_modify_program(text)
+    if modify_fast_path:
+        return modify_fast_path
+
+    program_fast_path = _rule_based_generate_program(text)
+    if program_fast_path:
+        return program_fast_path
+
+    system_prompt = _build_scoped_prompt(domain, intents)
+
+    categories_str = ""
+    if categories:
+        categories_str = "\n".join(
+            f"- {c.get('name', '')} ({c.get('scope', '')})" for c in categories
         )
-        data = json.loads(response.text)
-        return data.get("domain", "general")
+
+    user_prompt = (
+        f"Категории пользователя:\n{categories_str}\n\nСообщение: {text}"
+        if categories_str
+        else f"Сообщение: {text}"
+    )
+
+    if recent_context:
+        user_prompt = f"Недавний контекст диалога:\n{recent_context}\n\n{user_prompt}"
+
+    # Primary: Gemini Pro (same as full detection)
+    try:
+        result = await _detect_with_gemini(system_prompt, user_prompt, language)
+        if result.data:
+            result.data.domain = domain
+        return result
     except Exception as e:
-        logger.warning("Domain classification failed: %s, defaulting to general", e)
-        return "general"
+        logger.warning("Scoped Gemini detection failed: %s, falling back to Claude", e)
+
+    # Fallback: Claude Haiku
+    try:
+        result = await _detect_with_claude(system_prompt, user_prompt, language)
+        if result.data:
+            result.data.domain = domain
+        return result
+    except Exception as e:
+        logger.error("Scoped Claude detection also failed: %s", e)
+        return IntentDetectionResult(
+            intent="general_chat",
+            confidence=0.3,
+            intent_type="chat",
+        )
 
 
 async def detect_intent_v2(
     text: str,
     categories: list[dict] | None = None,
     language: str = "ru",
+    recent_context: str | None = None,
 ) -> IntentDetectionResult:
-    """Two-stage intent detection for >25 intents.
+    """Two-stage intent detection using supervisor + scoped prompts.
 
-    Stage 1: classify domain (fast, cheap).
-    Stage 2: classify intent within domain (focused prompt).
-
-    Not yet active — will be enabled when intent count exceeds STAGE2_THRESHOLD.
-    Currently falls through to single-stage detect_intent().
+    Stage 1: keyword-based domain resolution (zero LLM cost).
+    Stage 2: scoped intent detection within domain (~2K tokens).
+    Fallback: full INTENT_DETECTION_PROMPT if domain not resolved (~10K tokens).
     """
-    # Stage 1: classify domain
-    domain = await _classify_domain(text, language)
+    from src.core.supervisor import resolve_domain_and_skills
 
-    # Stage 2: for now, fall back to single-stage detection
-    # In Phase 2+, each domain will have its own focused prompt
-    result = await detect_intent(text=text, categories=categories, language=language)
+    # Stage 1: resolve domain via keyword triggers (no LLM call)
+    domain, skills = resolve_domain_and_skills(text)
 
-    # Attach domain to result data
-    if result.data:
-        result.data.domain = domain
+    if domain and skills:
+        logger.info(
+            "Supervisor resolved domain=%s (%d skills) for: %.60s",
+            domain, len(skills), text,
+        )
+        # Stage 2: scoped intent detection
+        result = await detect_intent_scoped(
+            text=text,
+            domain=domain,
+            intents=skills,
+            categories=categories,
+            language=language,
+            recent_context=recent_context,
+        )
+        # Verify the detected intent is in the expected skill set
+        if result.intent not in skills and result.intent != "general_chat":
+            logger.warning(
+                "Scoped detection returned intent=%s outside domain=%s, "
+                "falling back to full detection",
+                result.intent,
+                domain,
+            )
+            # Detected intent doesn't match domain — fall back to full detection
+            result = await detect_intent(
+                text=text,
+                categories=categories,
+                language=language,
+                recent_context=recent_context,
+            )
+        return result
 
-    return result
+    # Fallback: full detection when supervisor can't resolve domain
+    logger.debug("Supervisor could not resolve domain, using full detection for: %.60s", text)
+    return await detect_intent(
+        text=text,
+        categories=categories,
+        language=language,
+        recent_context=recent_context,
+    )
