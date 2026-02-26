@@ -515,12 +515,31 @@ def _profile_display_name(business_type: str, lang: str) -> str:
 
 
 async def detect_language(text: str) -> tuple[str, str]:
-    """Detect language from user input. Returns (iso_code, language_name)."""
+    """Detect which language the user wants from their input.
+
+    The user is answering "choose your language" — they may type:
+    - A language name in English ("Kyrgyz", "French")
+    - A language name in that language ("кыргызча", "français")
+    - Text in their preferred language ("привет" → Russian)
+
+    Returns (iso_code, language_name).
+    """
+    # Quick match: if user typed a known language name directly
+    text_lower = text.strip().lower()
+    for code, name in LANGUAGE_NAMES.items():
+        if text_lower == name.lower() or text_lower == code:
+            return code, name
+
     try:
         raw = await generate_text(
             "claude-haiku-4-5",
             (
-                "Detect the language of the text. "
+                "The user was asked to choose their preferred language. "
+                "They responded with the text below. "
+                "Determine WHICH LANGUAGE they want to use.\n\n"
+                "If they typed a language name (e.g. 'Kyrgyz', 'français', "
+                "'кыргызча'), return that language.\n"
+                "If they typed a phrase, detect the language of the phrase.\n\n"
                 "Return ONLY JSON: "
                 '{"code": "xx", "name": "Language Name"}\n'
                 "Use ISO 639-1 two-letter codes. "
