@@ -112,8 +112,16 @@ def _compile_brief_graph():
     return builder.compile()
 
 
-# Compiled graph (singleton)
-_brief_graph = _compile_brief_graph()
+# Lazy-compiled graph (singleton)
+_brief_graph = None
+
+
+def _get_brief_graph():
+    """Lazy-init the brief graph on first use."""
+    global _brief_graph
+    if _brief_graph is None:
+        _brief_graph = _compile_brief_graph()
+    return _brief_graph
 
 
 class BriefOrchestrator:
@@ -160,7 +168,7 @@ class BriefOrchestrator:
             config = {"configurable": {"thread_id": thread_id}}
 
         try:
-            result = await _brief_graph.ainvoke(initial_state, config or None)
+            result = await _get_brief_graph().ainvoke(initial_state, config or None)
             text = result.get("response_text", "")
             if text:
                 return SkillResult(response_text=text)

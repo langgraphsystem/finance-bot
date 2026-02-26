@@ -78,8 +78,16 @@ def _compile_email_graph():
     return builder.compile()
 
 
-# Compiled graph (singleton)
-_email_graph = _compile_email_graph()
+# Lazy-compiled graph (singleton)
+_email_graph = None
+
+
+def _get_email_graph():
+    """Lazy-init the email graph on first use."""
+    global _email_graph
+    if _email_graph is None:
+        _email_graph = _compile_email_graph()
+    return _email_graph
 
 
 class EmailOrchestrator:
@@ -134,7 +142,7 @@ class EmailOrchestrator:
                         "configurable": {"thread_id": thread_id}
                     }
 
-                result = await _email_graph.ainvoke(
+                result = await _get_email_graph().ainvoke(
                     initial_state, config or None
                 )
 
@@ -200,7 +208,7 @@ class EmailOrchestrator:
 
         config = {"configurable": {"thread_id": thread_id}}
         try:
-            result = await _email_graph.ainvoke(
+            result = await _get_email_graph().ainvoke(
                 Command(resume=answer), config
             )
             text = result.get("response_text", "")

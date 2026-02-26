@@ -35,18 +35,25 @@ def test_get_checkpointer_singleton():
 
 
 def test_get_checkpointer_production_uses_postgres():
-    """In production mode, get_checkpointer attempts PostgreSQL saver."""
+    """In production mode, get_checkpointer creates AsyncPostgresSaver with pool."""
     from unittest.mock import MagicMock
 
-    fake_saver = MagicMock(spec_set=["setup"])
-    fake_module = MagicMock()
-    fake_module.AsyncPostgresSaver.from_conn_string.return_value = fake_saver
+    fake_saver = MagicMock(spec_set=["setup", "conn"])
+    fake_pg_module = MagicMock()
+    fake_pg_module.AsyncPostgresSaver.return_value = fake_saver
+
+    fake_pool_module = MagicMock()
+    fake_pool = MagicMock()
+    fake_pool_module.AsyncConnectionPool.return_value = fake_pool
 
     with (
         patch("src.orchestrators.checkpointer.settings") as mock_settings,
         patch.dict(
             "sys.modules",
-            {"langgraph.checkpoint.postgres.aio": fake_module},
+            {
+                "langgraph.checkpoint.postgres.aio": fake_pg_module,
+                "psycopg_pool": fake_pool_module,
+            },
         ),
     ):
         mock_settings.app_env = "production"
@@ -59,6 +66,7 @@ def test_get_checkpointer_production_uses_postgres():
         cp = mod.get_checkpointer()
         assert not isinstance(cp, MemorySaver)
         assert cp is fake_saver
-        fake_module.AsyncPostgresSaver.from_conn_string.assert_called_once()
+        fake_pool_module.AsyncConnectionPool.assert_called_once()
+        fake_pg_module.AsyncPostgresSaver.assert_called_once_with(conn=fake_pool)
 
         mod._checkpointer = None

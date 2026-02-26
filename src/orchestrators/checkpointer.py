@@ -16,6 +16,15 @@ logger = logging.getLogger(__name__)
 _checkpointer: BaseCheckpointSaver | None = None
 
 
+def _get_conninfo() -> str:
+    """Normalise DATABASE_URL to a plain postgresql:// URI for psycopg."""
+    conninfo = settings.database_url
+    if conninfo.startswith("postgres://"):
+        conninfo = conninfo.replace("postgres://", "postgresql://", 1)
+    conninfo = conninfo.replace("postgresql+asyncpg://", "postgresql://")
+    return conninfo
+
+
 def get_checkpointer() -> BaseCheckpointSaver:
     """Return a shared checkpointer instance.
 
@@ -32,16 +41,11 @@ def get_checkpointer() -> BaseCheckpointSaver:
 
     try:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from psycopg_pool import AsyncConnectionPool
 
-        # Use the same connection string as SQLAlchemy but with raw asyncpg
-        conninfo = settings.database_url
-        # asyncpg wants postgresql:// not postgres://
-        if conninfo.startswith("postgres://"):
-            conninfo = conninfo.replace("postgres://", "postgresql://", 1)
-        # Strip +asyncpg driver suffix if present — asyncpg uses plain URI
-        conninfo = conninfo.replace("postgresql+asyncpg://", "postgresql://")
-
-        _checkpointer = AsyncPostgresSaver.from_conn_string(conninfo)
+        conninfo = _get_conninfo()
+        pool = AsyncConnectionPool(conninfo=conninfo, open=False)
+        _checkpointer = AsyncPostgresSaver(conn=pool)
         logger.info("LangGraph checkpointer: AsyncPostgresSaver (PostgreSQL)")
     except Exception:
         logger.warning(
@@ -54,11 +58,20 @@ def get_checkpointer() -> BaseCheckpointSaver:
 
 
 async def setup_checkpointer() -> None:
-    """Create checkpoint tables if using PostgreSQL saver.
+    """Open the connection pool and create checkpoint tables if using PostgreSQL.
 
     Call once at app startup (e.g. in ``lifespan``).
     """
     cp = get_checkpointer()
+
+    # Open the connection pool if it has one
+    if hasattr(cp, "conn") and hasattr(cp.conn, "open"):
+        try:
+            await cp.conn.open()
+            logger.info("Checkpointer connection pool opened")
+        except Exception:
+            logger.warning("Failed to open checkpointer pool", exc_info=True)
+
     if hasattr(cp, "setup"):
         try:
             await cp.setup()
