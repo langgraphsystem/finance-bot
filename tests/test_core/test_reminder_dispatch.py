@@ -29,7 +29,7 @@ async def test_dispatch_sends_due_reminders():
 
     with (
         patch(f"{MODULE}.async_session", return_value=mock_session),
-        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.send_telegram_message", new_callable=AsyncMock) as mock_send,
     ):
         from src.core.tasks.reminder_tasks import dispatch_due_reminders
 
@@ -56,7 +56,7 @@ async def test_dispatch_no_due_reminders():
 
     with (
         patch(f"{MODULE}.async_session", return_value=mock_session),
-        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.send_telegram_message", new_callable=AsyncMock) as mock_send,
     ):
         from src.core.tasks.reminder_tasks import dispatch_due_reminders
 
@@ -86,7 +86,7 @@ async def test_dispatch_includes_description():
 
     with (
         patch(f"{MODULE}.async_session", return_value=mock_session),
-        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.send_telegram_message", new_callable=AsyncMock) as mock_send,
     ):
         from src.core.tasks.reminder_tasks import dispatch_due_reminders
 
@@ -117,7 +117,7 @@ async def test_dispatch_normalizes_language_code():
 
     with (
         patch(f"{MODULE}.async_session", return_value=mock_session),
-        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.send_telegram_message", new_callable=AsyncMock) as mock_send,
     ):
         from src.core.tasks.reminder_tasks import dispatch_due_reminders
 
@@ -159,7 +159,7 @@ async def test_dispatch_prefers_users_language_when_profile_desynced():
 
     with (
         patch(f"{MODULE}.async_session", return_value=mock_session),
-        patch(f"{MODULE}._send_telegram_message", new_callable=AsyncMock) as mock_send,
+        patch(f"{MODULE}.send_telegram_message", new_callable=AsyncMock) as mock_send,
         patch(f"{MODULE}.settings.ff_locale_v2_read", False),
     ):
         from src.core.tasks.reminder_tasks import dispatch_due_reminders

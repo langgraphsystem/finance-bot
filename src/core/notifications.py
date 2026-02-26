@@ -12,13 +12,14 @@ from src.core.models.budget import Budget
 from src.core.models.category import Category
 from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
+from src.core.notifications_pkg.templates import get_financial_text
 from src.core.observability import observe
 
 logger = logging.getLogger(__name__)
 
 
 @observe(name="check_anomalies")
-async def check_anomalies(family_id: str) -> list[str]:
+async def check_anomalies(family_id: str, language: str = "en") -> list[str]:
     """Detect spending anomalies using z-score > 2.
 
     Compares today's spending per category against the 30-day daily average.
@@ -27,6 +28,7 @@ async def check_anomalies(family_id: str) -> list[str]:
     """
     alerts: list[str] = []
     today = date.today()
+    t = get_financial_text(language)
 
     async with async_session() as session:
         # Get today's spending by category
@@ -69,16 +71,18 @@ async def check_anomalies(family_id: str) -> list[str]:
                 ratio = float(amount) / float(avg)
                 if ratio > 2.5:
                     alerts.append(
-                        f"⚠️ Необычно: {category} "
-                        f"${float(amount):.2f} "
-                        f"(обычно ~${float(avg):.2f}"
-                        f"/день, x{ratio:.1f})"
+                        t["anomaly"].format(
+                            category=category,
+                            amount=float(amount),
+                            avg=float(avg),
+                            ratio=ratio,
+                        )
                     )
     return alerts
 
 
 @observe(name="check_budgets")
-async def check_budgets(family_id: str) -> list[str]:
+async def check_budgets(family_id: str, language: str = "en") -> list[str]:
     """Check budget thresholds (80% and 100%).
 
     Iterates over all active budgets for the family and compares current
@@ -86,6 +90,7 @@ async def check_budgets(family_id: str) -> list[str]:
     """
     alerts: list[str] = []
     today = date.today()
+    t = get_financial_text(language)
 
     async with async_session() as session:
         # Get active budgets
@@ -123,39 +128,35 @@ async def check_budgets(family_id: str) -> list[str]:
             if budget.amount > 0:
                 ratio = float(spent) / float(budget.amount)
                 # Get category name
-                cat_name = "\u041e\u0431\u0449\u0438\u0439"
+                cat_name = t["total"]
                 if budget.category_id:
                     cat_result = await session.execute(
                         select(Category.name).where(Category.id == budget.category_id)
                     )
-                    cat_name = (
-                        cat_result.scalar()
-                        or "\u041a\u0430\u0442\u0435\u0433\u043e\u0440\u0438\u044f"
-                    )
+                    cat_name = cat_result.scalar() or t["category_fallback"]
 
                 if ratio >= 1.0:
                     alerts.append(
-                        f"\U0001f534 \u0411\u044e\u0434\u0436\u0435\u0442 "
-                        f"\u00ab{cat_name}\u00bb "
-                        f"\u043f\u0440\u0435\u0432\u044b\u0448\u0435\u043d: "
-                        f"${float(spent):.2f} / "
-                        f"${float(budget.amount):.2f}"
+                        t["budget_exceeded"].format(
+                            category=cat_name,
+                            spent=float(spent),
+                            budget=float(budget.amount),
+                        )
                     )
                 elif ratio >= float(budget.alert_at):
                     pct = int(ratio * 100)
                     alerts.append(
-                        f"\U0001f7e1 {pct}% "
-                        f"\u0431\u044e\u0434\u0436\u0435\u0442\u0430 "
-                        f"\u00ab{cat_name}\u00bb "
-                        f"\u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u043d\u043e:"
-                        f" "
-                        f"${float(spent):.2f} / "
-                        f"${float(budget.amount):.2f}"
+                        t["budget_warning"].format(
+                            pct=pct,
+                            category=cat_name,
+                            spent=float(spent),
+                            budget=float(budget.amount),
+                        )
                     )
     return alerts
 
 
-async def collect_alerts(family_id: str) -> list[str]:
+async def collect_alerts(family_id: str, language: str = "en") -> list[str]:
     """Collect all alerts for a family.
 
     Runs anomaly detection and budget checks, combining results.
@@ -164,7 +165,7 @@ async def collect_alerts(family_id: str) -> list[str]:
     """
     alerts: list[str] = []
     try:
-        anomalies = await check_anomalies(family_id)
+        anomalies = await check_anomalies(family_id, language=language)
         alerts.extend(anomalies)
     except Exception as e:
         logger.warning(
@@ -174,7 +175,7 @@ async def collect_alerts(family_id: str) -> list[str]:
         )
 
     try:
-        budget_alerts = await check_budgets(family_id)
+        budget_alerts = await check_budgets(family_id, language=language)
         alerts.extend(budget_alerts)
     except Exception as e:
         logger.warning(
@@ -186,16 +187,12 @@ async def collect_alerts(family_id: str) -> list[str]:
     return alerts
 
 
-async def format_notification(alerts: list[str]) -> str:
+async def format_notification(alerts: list[str], language: str = "en") -> str:
     """Format alerts into a user-friendly notification message.
 
     Returns empty string when there are no alerts.
     """
     if not alerts:
         return ""
-    header = (
-        "\U0001f4ca "
-        "\u0424\u0438\u043d\u0430\u043d\u0441\u043e\u0432\u044b\u0435 "
-        "\u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f:\n\n"
-    )
-    return header + "\n".join(alerts)
+    t = get_financial_text(language)
+    return t["header"] + "\n".join(alerts)

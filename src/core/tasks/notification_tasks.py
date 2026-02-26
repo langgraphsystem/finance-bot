@@ -6,12 +6,15 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from src.core.config import settings
 from src.core.db import async_session, rls_session
+from src.core.locale_resolution import resolve_notification_locale
 from src.core.models.enums import PaymentFrequency, Scope, TransactionType
 from src.core.models.family import Family
 from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.transaction import Transaction
 from src.core.models.user import User
+from src.core.models.user_profile import UserProfile
 from src.core.notifications import collect_alerts, format_notification
 from src.core.request_context import reset_family_context, set_family_context
 from src.core.tasks.broker import broker
@@ -31,31 +34,46 @@ async def daily_notifications():
         family_id = str(family.id)
         token = set_family_context(family_id)
         try:
-            alerts = await collect_alerts(family_id)
-            if alerts:
-                await format_notification(alerts)
-
-                # Get family owner to send notification
-                async with rls_session(family_id) as session:
-                    user_result = await session.execute(
-                        select(User)
-                        .where(
-                            User.family_id == family.id,
-                        )
-                        .limit(1)
+            # Resolve language for the family owner
+            language = "en"
+            async with rls_session(family_id) as session:
+                user_result = await session.execute(
+                    select(
+                        User,
+                        UserProfile.preferred_language,
+                        UserProfile.notification_language,
+                        UserProfile.timezone,
+                        UserProfile.timezone_source,
                     )
-                    user = user_result.scalar_one_or_none()
-                    if user:
-                        logger.info(
-                            "Notification for family %s (user %s): %d alerts",
-                            family.id,
-                            user.telegram_id,
-                            len(alerts),
-                        )
-                        # Note: actual sending happens via gateway
-                        # which is not available in worker context.
-                        # Store notification for delivery on next user interaction
-                        # or use direct Telegram Bot API call.
+                    .outerjoin(UserProfile, UserProfile.user_id == User.id)
+                    .where(User.family_id == family.id)
+                    .limit(1)
+                )
+                row = user_result.one_or_none()
+                user = row[0] if row else None
+                if user and row:
+                    resolved = resolve_notification_locale(
+                        user_language=user.language,
+                        preferred_language=row[1],
+                        notification_language=row[2],
+                        timezone=row[3],
+                        timezone_source=row[4],
+                        use_v2_read=settings.ff_locale_v2_read,
+                    )
+                    language = resolved.language
+
+            alerts = await collect_alerts(family_id, language=language)
+            if alerts:
+                await format_notification(alerts, language=language)
+
+                if user:
+                    logger.info(
+                        "Notification for family %s (user %s): %d alerts language=%s",
+                        family.id,
+                        user.telegram_id,
+                        len(alerts),
+                        language,
+                    )
         except Exception as e:
             logger.error("Notification failed for family %s: %s", family.id, e)
         finally:

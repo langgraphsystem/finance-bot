@@ -176,9 +176,31 @@ async def test_check_budgets_exceeded():
         alerts = await check_budgets(FAMILY_ID)
 
     assert len(alerts) == 1
-    assert "\u043f\u0440\u0435\u0432\u044b\u0448\u0435\u043d" in alerts[0]
+    assert "exceeded" in alerts[0]
     assert "$520.00" in alerts[0]
     assert "$500.00" in alerts[0]
+
+
+@pytest.mark.asyncio
+async def test_check_budgets_exceeded_russian():
+    """Alert in Russian when language='ru'."""
+    cat_id = uuid.uuid4()
+    _, effects = _make_budget(500, 520, alert_at=0.8, category_id=cat_id, cat_name="Groceries")
+
+    session_mock = AsyncMock()
+    session_mock.execute = AsyncMock(side_effect=effects)
+
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=session_mock)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+
+    with patch("src.core.notifications.async_session", return_value=ctx):
+        from src.core.notifications import check_budgets
+
+        alerts = await check_budgets(FAMILY_ID, language="ru")
+
+    assert len(alerts) == 1
+    assert "превышен" in alerts[0]
 
 
 @pytest.mark.asyncio
@@ -220,7 +242,7 @@ async def test_check_budgets_no_category():
         alerts = await check_budgets(FAMILY_ID)
 
     assert len(alerts) == 1
-    assert "\u041e\u0431\u0449\u0438\u0439" in alerts[0]
+    assert "Total" in alerts[0]
 
 
 # ---------------------------------------------------------------------------
@@ -314,9 +336,18 @@ async def test_format_notification_with_alerts():
     from src.core.notifications import format_notification
 
     result = await format_notification(["alert1", "alert2"])
-    assert "Финансовые уведомления" in result
+    assert "Financial notifications" in result
     assert "alert1" in result
     assert "alert2" in result
+
+
+@pytest.mark.asyncio
+async def test_format_notification_with_alerts_russian():
+    """Russian alerts formatted with Russian header."""
+    from src.core.notifications import format_notification
+
+    result = await format_notification(["alert1"], language="ru")
+    assert "Финансовые уведомления" in result
 
 
 @pytest.mark.asyncio

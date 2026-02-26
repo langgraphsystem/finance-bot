@@ -17,6 +17,8 @@ from src.core.models.enums import ReminderRecurrence, TaskStatus
 from src.core.models.task import Task
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
+from src.core.notifications_pkg.dispatch import send_telegram_message
+from src.core.notifications_pkg.templates import get_reminder_label
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -27,23 +29,6 @@ _RECURRENCE_LABELS = {
     ReminderRecurrence.monthly: "monthly",
 }
 
-
-async def _send_telegram_message(telegram_id: int, text: str) -> None:
-    """Send a message via Telegram Bot API."""
-    from src.core.config import settings
-
-    try:
-        from aiogram import Bot
-
-        bot = Bot(token=settings.telegram_bot_token)
-        await bot.send_message(
-            chat_id=telegram_id,
-            text=text,
-            parse_mode="HTML",
-        )
-        await bot.session.close()
-    except Exception as e:
-        logger.error("Failed to send reminder to %s: %s", telegram_id, e)
 
 
 def _compute_next_reminder(task: Task, now: datetime) -> datetime | None:
@@ -133,13 +118,6 @@ async def dispatch_due_reminders() -> None:
         if not due_tasks:
             return
 
-        _reminder_label = {
-            "en": "Reminder",
-            "es": "Recordatorio",
-            "zh": "提醒",
-            "ru": "Напоминание",
-        }
-
         sent_ids: list[tuple] = []  # (task, telegram_id)
         language_stats: dict[str, int] = {}
         for row in due_tasks:
@@ -165,9 +143,7 @@ async def dispatch_due_reminders() -> None:
                 timezone = resolved.timezone
                 timezone_source = resolved.timezone_source
 
-                label = _reminder_label.get(
-                    language, "Reminder",
-                )
+                label = get_reminder_label(language)
                 text = f"\U0001f514 <b>{label}</b>\n\n{task.title}"
                 if task.description:
                     text += f"\n\n{task.description}"
@@ -178,7 +154,7 @@ async def dispatch_due_reminders() -> None:
                     label = _RECURRENCE_LABELS.get(task.recurrence, task.recurrence.value)
                     text += f"\n\n<i>🔁 Repeats {label}</i>"
 
-                await _send_telegram_message(telegram_id, text)
+                await send_telegram_message(telegram_id, text)
                 sent_ids.append((task, telegram_id))
                 language_stats[language] = language_stats.get(language, 0) + 1
                 logger.info(

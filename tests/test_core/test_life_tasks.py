@@ -7,6 +7,11 @@ import pytest
 
 from src.core.models.enums import LifeEventType
 
+# Shared mock paths after dispatch refactor
+_SEND = "src.core.tasks.life_tasks.send_telegram_message"
+_WINDOW = "src.core.tasks.life_tasks.is_send_window"
+_DAILY = "src.core.tasks.life_tasks.mark_daily_once"
+
 # --- weekly_life_digest ---
 
 
@@ -28,10 +33,7 @@ async def test_weekly_digest_skips_users_with_no_events():
             new_callable=AsyncMock,
             return_value=[],
         ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await weekly_life_digest()
 
@@ -61,10 +63,7 @@ async def test_weekly_digest_sends_to_users_with_events():
             new_callable=AsyncMock,
             return_value=[mock_event],
         ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
         patch(
             "src.core.tasks.life_tasks._generate_digest_analysis",
             new_callable=AsyncMock,
@@ -109,14 +108,8 @@ async def test_morning_reminder_skips_silent_users():
             new_callable=AsyncMock,
             return_value="silent",
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await morning_plan_reminder()
 
@@ -143,14 +136,8 @@ async def test_morning_reminder_skips_users_with_plan():
             new_callable=AsyncMock,
             return_value=[mock_task],  # already has plan
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await morning_plan_reminder()
 
@@ -180,19 +167,9 @@ async def test_morning_reminder_sends_to_eligible_users():
             new_callable=AsyncMock,
             return_value="receipt",
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._mark_daily_once",
-            new_callable=AsyncMock,
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_DAILY, new_callable=AsyncMock, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await morning_plan_reminder()
 
@@ -225,19 +202,9 @@ async def test_morning_reminder_normalizes_regional_language_code():
             new_callable=AsyncMock,
             return_value="receipt",
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._mark_daily_once",
-            new_callable=AsyncMock,
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_DAILY, new_callable=AsyncMock, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await morning_plan_reminder()
 
@@ -268,14 +235,8 @@ async def test_evening_reflection_skips_users_with_reflection():
             new_callable=AsyncMock,
             return_value=[mock_reflection],
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await evening_reflection_prompt()
 
@@ -312,14 +273,8 @@ async def test_evening_reflection_skips_silent_users():
             new_callable=AsyncMock,
             return_value="silent",
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await evening_reflection_prompt()
 
@@ -351,19 +306,9 @@ async def test_evening_reflection_sends_prompt():
             new_callable=AsyncMock,
             return_value="receipt",
         ),
-        patch(
-            "src.core.tasks.life_tasks._is_send_window",
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._mark_daily_once",
-            new_callable=AsyncMock,
-            return_value=True,
-        ),
-        patch(
-            "src.core.tasks.life_tasks._send_telegram_message",
-            new_callable=AsyncMock,
-        ) as mock_send,
+        patch(_WINDOW, return_value=True),
+        patch(_DAILY, new_callable=AsyncMock, return_value=True),
+        patch(_SEND, new_callable=AsyncMock) as mock_send,
     ):
         await evening_reflection_prompt()
 

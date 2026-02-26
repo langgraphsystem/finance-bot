@@ -5,6 +5,7 @@ import logging
 import os
 import uuid as _uuid
 from contextlib import asynccontextmanager
+from datetime import UTC
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,7 +63,12 @@ LANGUAGE_TIMEZONE_MAP = {
 
 
 async def _maybe_set_timezone_from_language(user_id: str, language_code: str) -> None:
-    """Update user timezone based on Telegram language_code (runs once per day)."""
+    """Update user timezone based on Telegram language_code (runs once per day).
+
+    When ``ff_locale_v2_write`` is enabled the function also records
+    ``timezone_source='channel_hint'`` and ``timezone_confidence=30`` and
+    refuses to overwrite timezones already set by a higher-confidence source.
+    """
     if not language_code or language_code == "en":
         return
 
@@ -81,20 +87,40 @@ async def _maybe_set_timezone_from_language(user_id: str, language_code: str) ->
         return
 
     try:
+        from datetime import datetime
+
         from sqlalchemy import update
 
         async with async_session() as session:
-            # Only update if timezone is still the default
-            result = await session.execute(
-                update(UserProfile)
-                .where(UserProfile.user_id == _uuid.UUID(user_id))
-                .where(UserProfile.timezone == "America/New_York")
-                .values(timezone=tz)
-            )
+            if settings.ff_locale_v2_write:
+                # v2: only overwrite if timezone_source is 'default' (low confidence)
+                result = await session.execute(
+                    update(UserProfile)
+                    .where(UserProfile.user_id == _uuid.UUID(user_id))
+                    .where(UserProfile.timezone_source == "default")
+                    .values(
+                        timezone=tz,
+                        timezone_source="channel_hint",
+                        timezone_confidence=30,
+                        locale_updated_at=datetime.now(UTC),
+                    )
+                )
+            else:
+                # Legacy: only update if timezone is still the default value
+                result = await session.execute(
+                    update(UserProfile)
+                    .where(UserProfile.user_id == _uuid.UUID(user_id))
+                    .where(UserProfile.timezone == "America/New_York")
+                    .values(timezone=tz)
+                )
             if result.rowcount > 0:
                 await session.commit()
                 logger.info(
-                    "Auto-set timezone %s for user %s (lang=%s)", tz, user_id, language_code
+                    "Auto-set timezone %s for user %s (lang=%s, v2=%s)",
+                    tz,
+                    user_id,
+                    language_code,
+                    settings.ff_locale_v2_write,
                 )
             else:
                 await session.rollback()

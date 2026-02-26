@@ -9,8 +9,8 @@ from src.core.db import async_session
 from src.core.locale_resolution import resolve_notification_locale
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
+from src.core.notifications_pkg.dispatch import send_telegram_message
 from src.core.tasks.broker import broker
-from src.core.tasks.life_tasks import _send_telegram_message
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ async def evaluate_proactive_triggers():
             )
 
             for msg in messages:
-                await _send_telegram_message(telegram_id, msg["message"])
+                await send_telegram_message(telegram_id, msg["message"])
                 sent_count += 1
                 language_stats[resolved.language] = language_stats.get(resolved.language, 0) + 1
                 logger.info(

@@ -17,7 +17,7 @@ class User(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(ENUM(UserRole, name="user_role", create_type=False))
     business_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    language: Mapped[str] = mapped_column(String(5), default="ru")
+    language: Mapped[str] = mapped_column(String(5), default="en")
     onboarded: Mapped[bool] = mapped_column(Boolean, default=False)
 
     family = relationship("Family", back_populates="users")

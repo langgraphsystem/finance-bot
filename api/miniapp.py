@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc, func, select
 
 from api.webapp_auth import validate_webapp_data
+from src.core.config import settings
 from src.core.db import async_session
 from src.core.models.budget import Budget
 from src.core.models.category import Category
@@ -1365,6 +1366,11 @@ async def update_settings(
             db_user.language = data.language
             if profile:
                 profile.preferred_language = data.language
+                if settings.ff_locale_v2_write:
+                    profile.notification_language = data.language
+                    from datetime import datetime
+
+                    profile.locale_updated_at = datetime.now(UTC)
         if data.currency and fam:
             fam.currency = data.currency
 
@@ -1454,8 +1460,15 @@ async def detect_geo_from_ip(
             if not profile.city:
                 profile.city = city
                 changed = True
-            if timezone and profile.timezone == "America/New_York":
+            # Only overwrite timezone from geo if current source is lower confidence
+            _upgradeable = {"default", "channel_hint", "", None}
+            if timezone and profile.timezone_source in _upgradeable:
                 profile.timezone = timezone
+                profile.timezone_source = "geo_ip"
+                profile.timezone_confidence = 70
+                from datetime import datetime
+
+                profile.locale_updated_at = datetime.now(UTC)
                 changed = True
             if changed:
                 await session.commit()
@@ -1465,6 +1478,8 @@ async def detect_geo_from_ip(
                 family_id=user.family_id,
                 display_name=user.name,
                 timezone=timezone or "America/New_York",
+                timezone_source="geo_ip" if timezone else "default",
+                timezone_confidence=70 if timezone else 0,
                 city=city,
                 preferred_language=user.language,
             )

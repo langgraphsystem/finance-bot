@@ -1,7 +1,7 @@
 # Finance Bot: Architecture Audit (As-Is) + vNext Plan
 
 Date: 2026-02-25
-Updated: 2026-02-25
+Updated: 2026-02-26
 Scope: Full project architecture snapshot + target architecture and rollout plan for `language + timezone + reminder dispatch` without breaking the current flow.
 
 ## Progress Tracker
@@ -10,10 +10,10 @@ Scope: Full project architecture snapshot + target architecture and rollout plan
 |-------|--------|---------|
 | Phase 0: Safety and Observability | **DONE** | `a7bd9c8`, `3a5d43c` |
 | Phase 1: Data Preparation | **DONE** | `fa9bb40` (migration + backfill) |
-| Phase 2: Central Resolver | **PARTIAL** | `57c6260`, `57222cf`, `2fa5594` (read path for reminders/life, not proactivity) |
-| Phase 3: Write Path Normalization | NOT STARTED | |
-| Phase 4: Dispatch Unification | NOT STARTED | |
-| Phase 5: Hardening and Cleanup | NOT STARTED | |
+| Phase 2: Central Resolver | **DONE** | `57c6260`, `57222cf`, `2fa5594` (read path for reminders/life/proactivity) |
+| Phase 3: Write Path Normalization | **DONE** | timezone_source tracking in api/main.py, geo_ip confidence in miniapp.py, notification_language sync in settings |
+| Phase 4: Dispatch Unification | **DONE** | `src/core/notifications_pkg/` package, localized financial alerts, shared dispatch helpers |
+| Phase 5: Hardening and Cleanup | **DONE** | Feature flags enabled by default, User.language default changed to `en` |
 
 ## 1. Executive Summary
 
