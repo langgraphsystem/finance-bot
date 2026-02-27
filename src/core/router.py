@@ -1807,19 +1807,113 @@ async def _reverse_geocode_city(coords_text: str) -> str | None:
     return None
 
 
+async def _timezone_from_city(city: str) -> str | None:
+    """Resolve timezone from city name via geocoding + timezone API.
+
+    Uses Google Maps (if key available) or Nominatim + TimeAPI.
+    Returns IANA timezone string (e.g. 'America/Chicago') or None.
+    """
+    import httpx
+
+    from src.core.config import settings
+
+    lat, lng = None, None
+
+    # Step 1: Geocode city → lat/lng
+    if settings.google_maps_api_key:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    "https://maps.googleapis.com/maps/api/geocode/json",
+                    params={"address": city, "key": settings.google_maps_api_key},
+                )
+                resp.raise_for_status()
+                results = resp.json().get("results", [])
+                if results:
+                    loc = results[0]["geometry"]["location"]
+                    lat, lng = loc["lat"], loc["lng"]
+        except Exception as e:
+            logger.warning("Google geocode for city '%s' failed: %s", city, e)
+
+    if lat is None:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": city, "format": "json", "limit": 1},
+                    headers={"User-Agent": "FinanceBot/1.0"},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if data:
+                    lat, lng = float(data[0]["lat"]), float(data[0]["lon"])
+        except Exception as e:
+            logger.warning("Nominatim geocode for city '%s' failed: %s", city, e)
+
+    if lat is None or lng is None:
+        return None
+
+    # Step 2: Google Time Zone API (if key available)
+    if settings.google_maps_api_key:
+        try:
+            import time as _time
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(
+                    "https://maps.googleapis.com/maps/api/timezone/json",
+                    params={
+                        "location": f"{lat},{lng}",
+                        "timestamp": str(int(_time.time())),
+                        "key": settings.google_maps_api_key,
+                    },
+                )
+                resp.raise_for_status()
+                tz_data = resp.json()
+                if tz_data.get("status") == "OK":
+                    return tz_data["timeZoneId"]
+        except Exception as e:
+            logger.warning("Google timezone API failed: %s", e)
+
+    # Fallback: TimeAPI.io (free, no key)
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                "https://timeapi.io/api/timezone/coordinate",
+                params={"latitude": lat, "longitude": lng},
+            )
+            resp.raise_for_status()
+            tz_data = resp.json()
+            tz_name = tz_data.get("timeZone")
+            if tz_name:
+                return tz_name
+    except Exception as e:
+        logger.warning("TimeAPI timezone lookup failed: %s", e)
+
+    return None
+
+
 async def _save_user_city(user_id: str, city: str) -> None:
-    """Persist city to the user's profile. Creates profile if missing."""
+    """Persist city to the user's profile and update timezone from city."""
     try:
         from sqlalchemy import update
 
         from src.core.models.user import User
         from src.core.models.user_profile import UserProfile
 
+        # Resolve timezone from city
+        tz_name = await _timezone_from_city(city)
+        values: dict[str, Any] = {"city": city}
+        if tz_name:
+            values["timezone"] = tz_name
+            values["timezone_source"] = "city_geocode"
+            values["timezone_confidence"] = 80
+            logger.info("Resolved timezone for '%s': %s", city, tz_name)
+
         async with async_session() as session:
             result = await session.execute(
                 update(UserProfile)
                 .where(UserProfile.user_id == uuid.UUID(user_id))
-                .values(city=city)
+                .values(**values)
             )
             if result.rowcount == 0:
                 # Profile missing — create one
@@ -1834,6 +1928,10 @@ async def _save_user_city(user_id: str, city: str) -> None:
                         city=city,
                         preferred_language=user.language,
                     )
+                    if tz_name:
+                        profile.timezone = tz_name
+                        profile.timezone_source = "city_geocode"
+                        profile.timezone_confidence = 80
                     session.add(profile)
                 else:
                     logger.warning("No user found for user_id %s to save city", user_id)
