@@ -166,6 +166,60 @@ class WhatsAppGateway:
                 raw=msg,
             )
 
+        # -- Interactive message (button clicks / list selections) --
+        if msg_type == "interactive":
+            interactive = msg.get("interactive", {})
+            itype = interactive.get("type", "")
+            if itype == "button_reply":
+                reply = interactive.get("button_reply", {})
+                return IncomingMessage(
+                    id=msg_id,
+                    user_id=sender,
+                    chat_id=sender,
+                    type=MessageType.callback,
+                    callback_data=reply.get("id", ""),
+                    text=reply.get("title", ""),
+                    channel="whatsapp",
+                    channel_user_id=sender,
+                    raw=msg,
+                )
+            if itype == "list_reply":
+                reply = interactive.get("list_reply", {})
+                return IncomingMessage(
+                    id=msg_id,
+                    user_id=sender,
+                    chat_id=sender,
+                    type=MessageType.callback,
+                    callback_data=reply.get("id", ""),
+                    text=reply.get("title", ""),
+                    channel="whatsapp",
+                    channel_user_id=sender,
+                    raw=msg,
+                )
+
+        # -- Location message --
+        if msg_type == "location":
+            loc = msg.get("location", {})
+            lat = loc.get("latitude", "")
+            lon = loc.get("longitude", "")
+            loc_name = loc.get("name", "")
+            loc_addr = loc.get("address", "")
+            loc_text = f"{lat},{lon}"
+            if loc_name:
+                loc_text = f"{loc_name}: {loc_text}"
+            if loc_addr:
+                loc_text = f"{loc_text} ({loc_addr})"
+            return IncomingMessage(
+                id=msg_id,
+                user_id=sender,
+                chat_id=sender,
+                type=MessageType.location,
+                text=loc_text,
+                channel="whatsapp",
+                channel_user_id=sender,
+                raw=msg,
+            )
+
         # -- Unsupported type --
         return IncomingMessage(
             id=msg_id,

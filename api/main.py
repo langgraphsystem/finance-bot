@@ -438,29 +438,54 @@ async def _handle_channel_onboarding(incoming, gw):
     from src.core.models.enums import ConversationState
     from src.core.router import (
         _clear_onboarding_state,
+        _get_onboarding_language,
         _get_onboarding_state,
+        _set_onboarding_language,
         _set_onboarding_state,
         get_registry,
     )
+    from src.skills.onboarding.handler import ONBOARDING_TEXTS, get_onboarding_texts
 
-    # Use channel_user_id as the state key (e.g. Slack "U123ABC")
+    # Use channel_user_id as the state key (e.g. Slack "U123ABC", WhatsApp "+1234567890")
     state_key = incoming.channel_user_id or incoming.user_id
 
-    # Handle callback buttons (onboard:new / onboard:join)
+    # Handle callback buttons (onboard:lang:XX / onboard:new / onboard:join)
     if incoming.type == MessageType.callback and incoming.callback_data:
         parts = incoming.callback_data.split(":")
         if len(parts) >= 2 and parts[0] == "onboard":
+            # Language selection via button
+            if parts[1] == "lang" and len(parts) >= 3:
+                chosen_lang = parts[2]
+                if chosen_lang not in ONBOARDING_TEXTS:
+                    chosen_lang = "en"
+                await _set_onboarding_language(state_key, chosen_lang)
+                await _set_onboarding_state(
+                    state_key, ConversationState.onboarding_awaiting_choice
+                )
+                t = await get_onboarding_texts(chosen_lang)
+                await gw.send(
+                    OutgoingMessage(
+                        text=t["welcome"],
+                        chat_id=incoming.chat_id,
+                        buttons=[
+                            {"text": t["new_account"], "callback": "onboard:new"},
+                            {"text": t["join_family"], "callback": "onboard:join"},
+                        ],
+                        channel=incoming.channel,
+                    )
+                )
+                return
+
+            lang = await _get_onboarding_language(state_key) or "en"
+            t = await get_onboarding_texts(lang)
+
             if parts[1] == "new":
                 await _set_onboarding_state(
                     state_key, ConversationState.onboarding_awaiting_activity
                 )
                 await gw.send(
                     OutgoingMessage(
-                        text=(
-                            "Tell me about your activity — what do you do?\n\n"
-                            "For example: 'I'm a taxi driver', 'I have a truck', "
-                            "'just want to track expenses'"
-                        ),
+                        text=t["ask_activity"],
                         chat_id=incoming.chat_id,
                         channel=incoming.channel,
                     )
@@ -472,7 +497,7 @@ async def _handle_channel_onboarding(incoming, gw):
                 )
                 await gw.send(
                     OutgoingMessage(
-                        text="Enter the invite code that the account owner shared with you:",
+                        text=t["ask_invite"],
                         chat_id=incoming.chat_id,
                         channel=incoming.channel,
                     )
@@ -597,6 +622,18 @@ async def landing_index():
 async def miniapp_index():
     """Serve the Telegram Mini App SPA."""
     return FileResponse("static/miniapp/index.html")
+
+
+@app.get("/privacy", include_in_schema=False)
+async def privacy_policy():
+    """Serve the Privacy Policy page."""
+    return FileResponse("static/privacy.html")
+
+
+@app.get("/terms", include_in_schema=False)
+async def terms_of_service():
+    """Serve the Terms of Service page."""
+    return FileResponse("static/terms.html")
 
 
 # Mount static files (CSS, JS, assets) — after all API routes

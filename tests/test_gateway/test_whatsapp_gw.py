@@ -171,6 +171,173 @@ async def test_parse_webhook_document_message(gw):
     assert msg.document_mime_type == "application/pdf"
 
 
+async def test_parse_webhook_interactive_button_reply(gw):
+    """Button click arrives as interactive message with button_reply."""
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "msg-btn-1",
+                                    "from": "+1234567890",
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "button_reply",
+                                        "button_reply": {
+                                            "id": "onboard:lang:en",
+                                            "title": "English",
+                                        },
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    msg = await gw.parse_webhook(payload)
+    assert msg is not None
+    assert msg.type == MessageType.callback
+    assert msg.callback_data == "onboard:lang:en"
+    assert msg.text == "English"
+    assert msg.channel == "whatsapp"
+    assert msg.channel_user_id == "+1234567890"
+
+
+async def test_parse_webhook_interactive_list_reply(gw):
+    """List selection arrives as interactive message with list_reply."""
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "msg-list-1",
+                                    "from": "+1234567890",
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "list_reply",
+                                        "list_reply": {
+                                            "id": "category:food",
+                                            "title": "Food",
+                                        },
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    msg = await gw.parse_webhook(payload)
+    assert msg is not None
+    assert msg.type == MessageType.callback
+    assert msg.callback_data == "category:food"
+    assert msg.text == "Food"
+
+
+async def test_parse_webhook_location_message(gw):
+    """Location message with coordinates and name."""
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "msg-loc-1",
+                                    "from": "+1234567890",
+                                    "type": "location",
+                                    "location": {
+                                        "latitude": 40.7128,
+                                        "longitude": -74.0060,
+                                        "name": "New York City",
+                                        "address": "NY, USA",
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    msg = await gw.parse_webhook(payload)
+    assert msg is not None
+    assert msg.type == MessageType.location
+    assert "40.7128" in msg.text
+    assert "-74.006" in msg.text
+    assert "New York City" in msg.text
+    assert "NY, USA" in msg.text
+
+
+async def test_parse_webhook_location_no_name(gw):
+    """Location message with only coordinates."""
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "msg-loc-2",
+                                    "from": "+1234567890",
+                                    "type": "location",
+                                    "location": {
+                                        "latitude": 40.7128,
+                                        "longitude": -74.0060,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    msg = await gw.parse_webhook(payload)
+    assert msg is not None
+    assert msg.type == MessageType.location
+    assert msg.text == "40.7128,-74.006"
+
+
+async def test_parse_webhook_unsupported_type(gw):
+    """Unknown message type falls through to unsupported handler."""
+    payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "msg-u-1",
+                                    "from": "+1234567890",
+                                    "type": "contacts",
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    msg = await gw.parse_webhook(payload)
+    assert msg is not None
+    assert msg.type == MessageType.text
+    assert "contacts" in msg.text
+    assert "not supported" in msg.text
+
+
 def test_strip_html(gw):
     assert gw._strip_html("<b>bold</b> and <i>italic</i>") == "bold and italic"
     assert gw._strip_html("no tags") == "no tags"
