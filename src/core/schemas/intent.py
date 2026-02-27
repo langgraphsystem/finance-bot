@@ -134,6 +134,9 @@ class IntentData(BaseModel):
     # Receptionist fields
     receptionist_topic: str | None = None  # "services", "hours", "faq", "general"
 
+    # Memory Vault fields
+    memory_query: str | None = None  # search/delete/save content for memory_vault
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

@@ -128,6 +128,29 @@ async def _maybe_set_timezone_from_language(user_id: str, language_code: str) ->
         logger.debug("Failed to auto-set timezone: %s", e)
 
 
+def _build_user_profile(prof_row) -> dict:
+    """Build user_profile dict from a UserProfile SELECT row.
+
+    Row columns: timezone, city, tone_preference, response_length, occupation, learned_patterns.
+    """
+    if not prof_row:
+        return {}
+    profile: dict = {}
+    city = prof_row[1]
+    if city:
+        profile["city"] = city
+    profile["tone_preference"] = prof_row[2] or "friendly"
+    profile["response_length"] = prof_row[3] or "concise"
+    occupation = prof_row[4]
+    if occupation:
+        profile["occupation"] = occupation
+    learned = prof_row[5] or {}
+    personality = learned.get("personality")
+    if personality:
+        profile["personality"] = personality
+    return profile
+
+
 async def build_session_context(telegram_id: str) -> SessionContext | None:
     """Build SessionContext from database for a telegram user."""
     async with async_session() as session:
@@ -164,15 +187,21 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
-        # Load user profile for timezone + city
+        # Load user profile for timezone, city, and personality
         prof_result = await session.execute(
-            select(UserProfile.timezone, UserProfile.city)
+            select(
+                UserProfile.timezone,
+                UserProfile.city,
+                UserProfile.tone_preference,
+                UserProfile.response_length,
+                UserProfile.occupation,
+                UserProfile.learned_patterns,
+            )
             .where(UserProfile.user_id == user.id)
             .limit(1)
         )
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
-        user_city = prof_row[1] if prof_row else None
 
         return SessionContext(
             user_id=str(user.id),
@@ -185,7 +214,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             merchant_mappings=mappings,
             profile_config=profile,
             timezone=user_timezone,
-            user_profile={"city": user_city} if user_city else {},
+            user_profile=_build_user_profile(prof_row),
         )
 
 
@@ -229,13 +258,19 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
         prof_result = await session.execute(
-            select(UserProfile.timezone, UserProfile.city)
+            select(
+                UserProfile.timezone,
+                UserProfile.city,
+                UserProfile.tone_preference,
+                UserProfile.response_length,
+                UserProfile.occupation,
+                UserProfile.learned_patterns,
+            )
             .where(UserProfile.user_id == user.id)
             .limit(1)
         )
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
-        user_city = prof_row[1] if prof_row else None
 
         return SessionContext(
             user_id=str(user.id),
@@ -248,7 +283,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             merchant_mappings=mappings,
             profile_config=profile,
             timezone=user_timezone,
-            user_profile={"city": user_city} if user_city else {},
+            user_profile=_build_user_profile(prof_row),
         )
 
 

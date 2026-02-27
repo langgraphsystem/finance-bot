@@ -36,6 +36,7 @@ from src.skills.list_events.handler import skill as list_events_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
+from src.skills.memory_vault.handler import skill as memory_vault_skill
 from src.skills.modify_program.handler import skill as modify_program_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
@@ -156,6 +157,8 @@ def create_registry() -> SkillRegistry:
     registry.register(browser_action_skill)
     # Document conversion
     registry.register(convert_document_skill)
+    # Memory Vault
+    registry.register(memory_vault_skill)
     # Wave 1 Financial Specialists
     registry.register(financial_summary_skill)
     registry.register(generate_invoice_skill)

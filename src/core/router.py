@@ -385,6 +385,53 @@ async def _dispatch_message(
             if detected_city != context.user_profile.get("city"):
                 asyncio.create_task(_save_user_city(context.user_id, detected_city))
 
+    # REVERSE PROMPTING gate: complex requests get a plan proposal
+    from src.core.config import settings as _rp_settings
+
+    if (
+        _rp_settings.ff_reverse_prompting
+        and message.text
+        and message.type == MessageType.text
+    ):
+        from src.core.reverse_prompt import should_reverse_prompt
+
+        if should_reverse_prompt(message.text, intent_name, result.confidence):
+            try:
+                from src.core.reverse_prompt import (
+                    generate_plan_proposal,
+                    store_pending_plan,
+                )
+
+                plan_text = await generate_plan_proposal(
+                    message.text, intent_name, context,
+                )
+                await store_pending_plan(
+                    context.user_id, intent_name, message.text,
+                    intent_data, plan_text,
+                )
+                lang = context.language or "en"
+                header = "Here's my plan:" if lang == "en" else "Вот мой план:"
+                return OutgoingMessage(
+                    text=f"<b>{header}</b>\n\n{plan_text}",
+                    chat_id=message.chat_id,
+                    buttons=[
+                        {
+                            "text": "Execute" if lang == "en" else "Выполнить",
+                            "callback": "plan:execute",
+                        },
+                        {
+                            "text": "Adjust" if lang == "en" else "Изменить",
+                            "callback": "plan:adjust",
+                        },
+                        {
+                            "text": "Cancel" if lang == "en" else "Отмена",
+                            "callback": "plan:cancel",
+                        },
+                    ],
+                )
+            except Exception:
+                logger.warning("Reverse prompt failed, executing normally", exc_info=True)
+
     # If LLM detected convert_document from a text message, inject cached file
     if intent_name == "convert_document" and message.type not in (
         MessageType.photo,
@@ -462,6 +509,53 @@ async def _dispatch_message(
                 asyncio.create_task(result)
         except Exception as e:
             logger.warning("Background task failed: %s", e)
+
+    # Undo window: store undo payload and append button for quick-action skills
+    try:
+        from src.core.undo import UNDO_INTENTS, store_undo
+
+        record_id = intent_data.get("_record_id")
+        record_table = intent_data.get("_record_table")
+        if intent_name in UNDO_INTENTS and record_id and record_table:
+            asyncio.create_task(
+                store_undo(context.user_id, intent_name, record_id, record_table)
+            )
+            undo_btn = {"text": "\u21a9 Undo", "callback": "undo:last"}
+            existing_buttons = skill_result.buttons or []
+            skill_result = SkillResult(
+                response_text=skill_result.response_text,
+                buttons=existing_buttons + [undo_btn],
+                document=skill_result.document,
+                document_name=skill_result.document_name,
+                photo_url=skill_result.photo_url,
+                photo_bytes=skill_result.photo_bytes,
+                chart_url=skill_result.chart_url,
+                background_tasks=[],
+                reply_keyboard=skill_result.reply_keyboard,
+            )
+    except Exception as e:
+        logger.warning("Undo window injection failed: %s", e)
+
+    # Smart suggestions: non-intrusive reply keyboard buttons
+    if not skill_result.reply_keyboard:
+        try:
+            from src.core.suggestions import get_suggestions
+
+            suggestions = await get_suggestions(intent_name, context.user_id)
+            if suggestions:
+                skill_result = SkillResult(
+                    response_text=skill_result.response_text,
+                    buttons=skill_result.buttons,
+                    document=skill_result.document,
+                    document_name=skill_result.document_name,
+                    photo_url=skill_result.photo_url,
+                    photo_bytes=skill_result.photo_bytes,
+                    chart_url=skill_result.chart_url,
+                    background_tasks=[],
+                    reply_keyboard=[{"text": s["text"]} for s in suggestions],
+                )
+        except Exception as e:
+            logger.warning("Suggestions injection failed: %s", e)
 
     return OutgoingMessage(
         text=skill_result.response_text,
@@ -784,6 +878,81 @@ async def _resolve_clarify(
         photo_bytes=skill_result.photo_bytes,
         chart_url=skill_result.chart_url,
     )
+
+
+async def _handle_plan_callback(
+    sub_action: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Handle reverse prompt plan callbacks: execute, adjust, cancel."""
+    from src.core.reverse_prompt import delete_pending_plan, get_pending_plan
+
+    pending = await get_pending_plan(context.user_id)
+    if not pending:
+        return OutgoingMessage(
+            text="Plan expired. Please send your request again.",
+            chat_id=message.chat_id,
+        )
+
+    if sub_action == "cancel":
+        await delete_pending_plan(context.user_id)
+        return OutgoingMessage(text="Cancelled.", chat_id=message.chat_id)
+
+    if sub_action == "adjust":
+        await delete_pending_plan(context.user_id)
+        return OutgoingMessage(
+            text="Got it — rephrase your request and I'll try again.",
+            chat_id=message.chat_id,
+        )
+
+    if sub_action == "execute":
+        await delete_pending_plan(context.user_id)
+        intent = pending["intent"]
+        original_text = pending["original_text"]
+        plan_intent_data = pending.get("intent_data", {})
+
+        synthetic = IncomingMessage(
+            id=message.id,
+            user_id=message.user_id,
+            chat_id=message.chat_id,
+            type=MessageType.text,
+            text=original_text,
+            raw=message.raw,
+        )
+
+        domain_router = get_domain_router()
+        try:
+            skill_result = await domain_router.route(
+                intent, synthetic, context, plan_intent_data,
+            )
+        except Exception as e:
+            logger.error("Plan execution failed for %s: %s", intent, e)
+            return OutgoingMessage(
+                text="Execution failed. Please try again.",
+                chat_id=message.chat_id,
+            )
+
+        if original_text:
+            await sliding_window.add_message(
+                context.user_id, "user", original_text, intent,
+            )
+        if skill_result.response_text:
+            await sliding_window.add_message(
+                context.user_id, "assistant", skill_result.response_text,
+            )
+
+        return OutgoingMessage(
+            text=skill_result.response_text,
+            chat_id=message.chat_id,
+            buttons=skill_result.buttons,
+            document=skill_result.document,
+            document_name=skill_result.document_name,
+            photo_bytes=skill_result.photo_bytes,
+            chart_url=skill_result.chart_url,
+        )
+
+    return OutgoingMessage(text="Unknown action.", chat_id=message.chat_id)
 
 
 async def _resume_graph(
@@ -1136,6 +1305,54 @@ async def _handle_callback(
         chosen_intent = parts[1] if len(parts) > 1 else ""
         return await _resolve_clarify(chosen_intent, message, context)
 
+    elif action == "plan":
+        sub_action = parts[1] if len(parts) > 1 else ""
+        return await _handle_plan_callback(sub_action, message, context)
+
+    elif action == "undo":
+        from src.core.undo import execute_undo
+
+        result_text = await execute_undo(context.user_id, context.family_id)
+        return OutgoingMessage(text=result_text, chat_id=message.chat_id)
+
+    elif action == "memory":
+        # Memory Vault callback (clear_all)
+        sub_action = parts[1] if len(parts) > 1 else ""
+        if sub_action == "clear_all":
+            from src.core.memory.mem0_client import delete_all_memories
+
+            await delete_all_memories(context.user_id)
+            return OutgoingMessage(text="All memories cleared.", chat_id=message.chat_id)
+        return OutgoingMessage(text="Memory action handled.", chat_id=message.chat_id)
+
+    elif action == "suggest":
+        # Smart suggestions — re-route as new intent
+        suggested_intent = parts[1] if len(parts) > 1 else ""
+        extra = parts[2] if len(parts) > 2 else None
+        if suggested_intent:
+            registry = get_registry()
+            skill = registry.get(suggested_intent)
+            if skill:
+                suggest_msg = IncomingMessage(
+                    id=message.id,
+                    chat_id=message.chat_id,
+                    text=extra or "",
+                    user_id=message.user_id,
+                )
+                intent_data: dict[str, Any] = {}
+                if extra:
+                    intent_data["period"] = extra
+                    intent_data["query"] = extra
+                skill_result = await skill.execute(suggest_msg, context, intent_data)
+                return OutgoingMessage(
+                    text=skill_result.response_text,
+                    chat_id=message.chat_id,
+                    buttons=skill_result.buttons,
+                    chart_url=skill_result.chart_url,
+                    reply_keyboard=skill_result.reply_keyboard,
+                )
+        return OutgoingMessage(text="Suggestion handled.", chat_id=message.chat_id)
+
     elif action == "confirm_action":
         pending_id = parts[1] if len(parts) > 1 else ""
         return await _execute_pending_action(pending_id, message, context)
@@ -1354,7 +1571,7 @@ async def _save_scanned_document(
     mime_type = pending["mime_type"]
     fallback_used = pending["fallback_used"]
 
-    ocr_model = "claude-haiku-4-5" if fallback_used else "gemini-3-flash-preview"
+    ocr_model = "claude-haiku-4-5" if fallback_used else "gemini-3.1-flash-preview"
 
     doc_type_enum_map = {
         "receipt": DocumentType.receipt,

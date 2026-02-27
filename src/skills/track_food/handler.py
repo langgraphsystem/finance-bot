@@ -69,13 +69,15 @@ class TrackFoodSkill:
 
         data = {"food_item": food_item, "meal_type": meal_type}
 
-        await save_life_event(
+        event = await save_life_event(
             family_id=context.family_id,
             user_id=context.user_id,
             event_type=LifeEventType.food,
             text=f"{meal_type}: {food_item}",
             data=data,
         )
+        intent_data["_record_id"] = str(event.id)
+        intent_data["_record_table"] = "life_events"
 
         mode = await get_communication_mode(context.user_id)
         response = format_save_response(

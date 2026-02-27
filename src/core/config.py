@@ -113,6 +113,7 @@ class Settings(BaseSettings):
     ff_langgraph_email_hitl: bool = True
     ff_langgraph_booking: bool = False
     ff_supervisor_routing: bool = False
+    ff_reverse_prompting: bool = False
 
     @property
     def is_production(self) -> bool:

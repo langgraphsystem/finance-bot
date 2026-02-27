@@ -86,6 +86,9 @@ class AddIncomeSkill:
             await session.commit()
             tx_id = str(tx.id)
 
+        intent_data["_record_id"] = tx_id
+        intent_data["_record_table"] = "transactions"
+
         response = f"Доход записан: ${amount}"
         if description:
             response += f" ({description})"

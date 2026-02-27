@@ -84,6 +84,48 @@ class AgentRouter:
         return system_prompt
 
     @staticmethod
+    def _add_personality_instruction(
+        system_prompt: str, context: SessionContext
+    ) -> str:
+        """Append user-specific personality cues (2-4 sentences max)."""
+        profile = context.user_profile
+        if not profile:
+            return system_prompt
+
+        personality = profile.get("personality")
+        if not personality:
+            return system_prompt
+
+        cues: list[str] = []
+
+        verbosity = personality.get("verbosity", "concise")
+        if verbosity == "detailed":
+            cues.append("This user prefers detailed explanations.")
+        elif verbosity == "concise":
+            cues.append("Keep responses brief and to-the-point.")
+
+        formality = personality.get("formality", "neutral")
+        if formality == "formal":
+            cues.append("Use a professional tone.")
+        elif formality == "casual":
+            cues.append("Keep a casual, friendly tone.")
+
+        emoji_usage = personality.get("emoji_usage", "light")
+        if emoji_usage == "none":
+            cues.append("Avoid using emoji.")
+        elif emoji_usage == "heavy":
+            cues.append("Feel free to use emoji.")
+
+        occupation = profile.get("occupation")
+        if occupation:
+            cues.append(f"User's occupation: {occupation}.")
+
+        if not cues:
+            return system_prompt
+
+        return system_prompt + "\n\nUser personality: " + " ".join(cues)
+
+    @staticmethod
     def _add_language_instruction(system_prompt: str, context: SessionContext) -> str:
         """Append a language instruction to the system prompt."""
         lang = context.language or "en"
@@ -139,6 +181,7 @@ class AgentRouter:
         # Build system prompt with data tools context
         prompt = agent.system_prompt if agent else ""
         prompt = self._add_specialist_knowledge(prompt, context)
+        prompt = self._add_personality_instruction(prompt, context)
         prompt = self._add_language_instruction(prompt, context)
         prompt = self._add_date_instruction(prompt, context)
         prompt += (
@@ -236,6 +279,7 @@ class AgentRouter:
             # Assemble context with agent-specific system prompt
             try:
                 prompt = self._add_specialist_knowledge(agent.system_prompt, context)
+                prompt = self._add_personality_instruction(prompt, context)
                 prompt = self._add_language_instruction(prompt, context)
                 prompt = self._add_date_instruction(prompt, context)
                 assembled = await assemble_context(
@@ -290,6 +334,7 @@ class AgentRouter:
         if skill:
             try:
                 system_prompt = skill.get_system_prompt(context)
+                system_prompt = self._add_personality_instruction(system_prompt, context)
                 system_prompt = self._add_language_instruction(system_prompt, context)
                 system_prompt = self._add_date_instruction(system_prompt, context)
                 assembled = await assemble_context(

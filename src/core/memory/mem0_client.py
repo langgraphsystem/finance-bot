@@ -152,6 +152,16 @@ async def get_all_memories(user_id: str) -> list[dict]:
         return []
 
 
+async def delete_memory(memory_id: str, user_id: str) -> None:
+    """Delete a single memory by its ID."""
+    try:
+        memory = get_memory()
+        memory.delete(memory_id=memory_id)
+    except Exception as e:
+        logger.warning("Mem0 delete_memory(%s) failed: %s", memory_id, e)
+        _reset_memory()
+
+
 async def delete_all_memories(user_id: str) -> None:
     """Delete all memories for a user (GDPR)."""
     try:

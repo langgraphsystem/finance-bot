@@ -102,13 +102,15 @@ class TrackDrinkSkill:
 
         data = {"item": item, "volume_ml": volume_ml, "count": count}
 
-        await save_life_event(
+        event = await save_life_event(
             family_id=context.family_id,
             user_id=context.user_id,
             event_type=LifeEventType.drink,
             text=f"{item} x{count}",
             data=data,
         )
+        intent_data["_record_id"] = str(event.id)
+        intent_data["_record_table"] = "life_events"
 
         mode = await get_communication_mode(context.user_id)
         response = format_save_response(

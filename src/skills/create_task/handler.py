@@ -104,6 +104,8 @@ class CreateTaskSkill:
         )
 
         await save_task(task)
+        intent_data["_record_id"] = str(task.id)
+        intent_data["_record_table"] = "tasks"
 
         parts = [f"Added: {title}"]
         if priority != TaskPriority.medium:

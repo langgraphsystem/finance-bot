@@ -8,6 +8,7 @@ Updates ``user_profiles.learned_patterns`` with inferred preferences:
 """
 
 import logging
+import re
 from collections import Counter
 from datetime import UTC, datetime, timedelta
 
@@ -81,12 +82,16 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
     }
     active_topics = [t for t, active in topic_signals.items() if active]
 
+    # Analyze personality traits
+    personality = _analyze_personality(messages)
+
     # Build learned_patterns
     patterns = {
         "active_hours": {"start": active_start, "end": active_end},
         "active_topics": active_topics,
         "message_count_7d": len(messages),
         "last_analyzed": datetime.now(UTC).isoformat(),
+        "personality": personality,
     }
 
     # Update user profile
@@ -108,3 +113,83 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
             logger.info("Updated learned_patterns for user %s", user_id)
         else:
             logger.debug("No user profile for user %s, skipping learning", user_id)
+
+
+def _analyze_personality(messages: list) -> dict:
+    """Analyze user messages to infer communication style.
+
+    Returns a dict for ``learned_patterns["personality"]``.
+    """
+    if not messages:
+        return {}
+
+    texts = [m.content or "" for m in messages]
+
+    # --- Verbosity: average word count per message ---
+    word_counts = [len(t.split()) for t in texts]
+    avg_words = sum(word_counts) / len(word_counts) if word_counts else 0
+
+    if avg_words > 25:
+        verbosity = "detailed"
+    elif avg_words < 8:
+        verbosity = "concise"
+    else:
+        verbosity = "moderate"
+
+    # --- Formality: formal vs casual markers ---
+    all_text = " ".join(texts).lower()
+    formal_markers = [
+        "please", "could you", "would you", "kindly",
+        "пожалуйста", "будьте добры", "не могли бы", "уважаем",
+        "por favor", "podria",
+    ]
+    casual_markers = [
+        "ok", "ок", "ладно", "норм", "давай", "го",
+        "lol", "хах", "ахах", "круто", "щас", "ну",
+    ]
+    formal_count = sum(1 for m in formal_markers if m in all_text)
+    casual_count = sum(1 for m in casual_markers if m in all_text)
+
+    if formal_count > casual_count + 2:
+        formality = "formal"
+    elif casual_count > formal_count + 2:
+        formality = "casual"
+    else:
+        formality = "neutral"
+
+    # --- Emoji usage ---
+    emoji_re = re.compile(
+        r"[\U0001f600-\U0001f64f\U0001f300-\U0001f5ff"
+        r"\U0001f680-\U0001f6ff\U0001f900-\U0001f9ff"
+        r"\U00002702-\U000027b0\U0001fa00-\U0001fa6f]"
+    )
+    emoji_msgs = sum(1 for t in texts if emoji_re.search(t))
+    emoji_ratio = emoji_msgs / len(texts) if texts else 0
+
+    if emoji_ratio > 0.5:
+        emoji_usage = "heavy"
+    elif emoji_ratio > 0.15:
+        emoji_usage = "moderate"
+    elif emoji_ratio > 0:
+        emoji_usage = "light"
+    else:
+        emoji_usage = "none"
+
+    # --- Language mixing (Latin + Cyrillic in same message) ---
+    mixed_count = 0
+    for t in texts:
+        has_latin = bool(re.search(r"[a-zA-Z]{2,}", t))
+        has_cyrillic = bool(re.search(r"[а-яА-ЯёЁ]{2,}", t))
+        if has_latin and has_cyrillic:
+            mixed_count += 1
+
+    language_mixing = "mixed" if mixed_count > len(texts) * 0.2 else None
+
+    return {
+        "verbosity": verbosity,
+        "formality": formality,
+        "emoji_usage": emoji_usage,
+        "language_mixing": language_mixing,
+        "avg_message_length": round(avg_words, 1),
+        "analyzed_at": datetime.now(UTC).isoformat(),
+    }

@@ -125,6 +125,13 @@ domains:
       - напит
       - настроен
       - план
+      - memory
+      - forget
+      - remember
+      - память
+      - забыть
+      - запомни
+      - воспоминан
     agent: life
     skills:
       - quick_capture
@@ -138,6 +145,9 @@ domains:
       - evening_recap
       - price_alert
       - news_monitor
+      - memory_show
+      - memory_forget
+      - memory_save
 
   email:
     description: "Read inbox, send email, draft reply, follow up, summarize threads"
