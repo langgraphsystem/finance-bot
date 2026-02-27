@@ -272,7 +272,7 @@ async def auto_tag(text: str) -> list[str]:
 
         client = google_client()
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=f"""Извлеки 1-3 тега из текста. Верни ТОЛЬКО теги через запятую, без #.
 Пример: "идея: сделать лендинг для финбота" -> finbot, идея, лендинг
 Пример: "запомнить: купить молоко" -> покупки

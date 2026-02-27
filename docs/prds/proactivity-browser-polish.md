@@ -147,7 +147,7 @@ Found: Ridgid 18" Aluminum Pipe Wrench — $42.97. Want me to add it to your sup
 | **Skills** | 4 new: web_action, price_check, price_alert, news_monitor |
 | **Approval** | `src/core/approval.py` — inline keyboard confirmation for side-effect actions |
 | **Auto-learning** | `src/core/tasks/profile_tasks.py` — nightly Taskiq cron |
-| **Models** | `claude-sonnet-4-6` for browser, `claude-haiku-4-5` for monitors, `gemini-3-flash-preview` for profile learning |
+| **Models** | `claude-sonnet-4-6` for browser, `claude-haiku-4-5` for monitors, `gemini-3.1-flash-preview` for profile learning |
 | **Database** | Existing: `monitors`, `user_profiles.learned_patterns`. No new tables |
 
 ### Edge Cases

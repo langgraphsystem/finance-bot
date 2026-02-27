@@ -2,7 +2,7 @@
 
 Uses Google Gemini Image models to generate images from text prompts.
 Primary: gemini-3.1-flash-image-preview (latest, fast)
-Fallback: gemini-3.1-pro-preview (multimodal with image output)
+Fallback: gemini-3-pro-image-preview (high quality)
 """
 
 import logging
@@ -18,7 +18,7 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-_MODELS = ("gemini-3.1-flash-image-preview", "gemini-3.1-pro-preview")
+_MODELS = ("gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview")
 
 
 async def _generate(prompt: str, model: str) -> bytes | None:

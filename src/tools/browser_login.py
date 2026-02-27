@@ -529,7 +529,7 @@ async def _analyze_login_result(screenshot: bytes) -> str:
         b64 = base64.b64encode(screenshot).decode()
 
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=[
                 types.Content(
                     parts=[

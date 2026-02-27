@@ -28,7 +28,7 @@ You are working on a Python 3.12+ AI Life Assistant project (Telegram bot).
 
 ## Model IDs (use ONLY these)
 - claude-sonnet-4-6, claude-haiku-4-5, gpt-5.2
-- gemini-3-flash-preview, gemini-3.1-pro-preview
+- gemini-3.1-flash-preview, gemini-3.1-pro-preview
 - NEVER use dated suffixes like claude-haiku-4-5-20251001
 
 ## Test pattern

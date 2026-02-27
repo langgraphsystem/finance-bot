@@ -85,7 +85,7 @@ FALLBACK_NOTE = (
 class YouTubeSearchSkill:
     name = "youtube_search"
     intents = ["youtube_search"]
-    model = "gemini-3-flash-preview"
+    model = "gemini-3.1-flash-preview"
 
     @observe(name="youtube_search")
     async def execute(
@@ -140,7 +140,7 @@ async def search_youtube_grounding(query: str, language: str) -> str:
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -155,7 +155,7 @@ async def search_youtube_grounding(query: str, language: str) -> str:
     # Fallback: Gemini without grounding
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=prompt,
         )
         text = response.text or ""
@@ -191,7 +191,7 @@ async def analyze_youtube_url(url: str, user_text: str, language: str) -> str:
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -302,7 +302,7 @@ async def _summarize_with_gemini(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-preview",
             contents=prompt,
         )
         return response.text or _html_fallback(videos)

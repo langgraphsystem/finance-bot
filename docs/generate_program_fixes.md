@@ -28,7 +28,7 @@ out = html_mod.escape(_truncate(exec_result.stdout, 1000))
 
 ## 3. Gemini loses conversation history
 
-**Problem:** `generate_text()` passed only `messages[-1]["content"]` to Gemini, discarding all prior messages. Multi-turn context was silently lost for JS/TS/HTML tasks routed to `gemini-3-flash-preview`.
+**Problem:** `generate_text()` passed only `messages[-1]["content"]` to Gemini, discarding all prior messages. Multi-turn context was silently lost for JS/TS/HTML tasks routed to `gemini-3.1-flash-preview`.
 
 **Location:** `src/core/llm/clients.py`, line 102
 

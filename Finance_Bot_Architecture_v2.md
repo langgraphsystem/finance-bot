@@ -68,7 +68,7 @@ Finance Bot — это чат-бот в Telegram с AI-ядром, которы�
 | **Anthropic** | Claude Haiku 4.5 | `claude-haiku-4-5` | $1.00 | $5.00 | 200K | да |
 | **OpenAI** | GPT-5.2 | `gpt-5.2` | $1.75 | $14.00 | 400K | да |
 | **Google** | Gemini 3.1 Pro | `gemini-3.1-pro-preview` | $2.00 | $12.00 | 1M | да |
-| **Google** | Gemini 3 Flash | `gemini-3-flash-preview` | $0.50 | $3.00 | 1M | да |
+| **Google** | Gemini 3 Flash | `gemini-3.1-flash-preview` | $0.50 | $3.00 | 1M | да |
 
 ### 2.2 Распределение моделей по задачам
 
@@ -821,7 +821,7 @@ AGENTS = [
         name="receipt",
         system_prompt_template=RECEIPT_AGENT_PROMPT,  # 3K токенов
         skills=["scan_receipt", "scan_document"],
-        default_model="gemini-3-flash-preview",
+        default_model="gemini-3.1-flash-preview",
         context_config={"mem": "mappings", "hist": 2, "sql": False, "sum": False}
     ),
     AgentConfig(
@@ -3173,7 +3173,7 @@ from google import genai
 
 # Создание кэша для длинных контекстов (финансовые правила, примеры)
 cache = genai.caches.create(
-    model="gemini-3-flash-preview",
+    model="gemini-3.1-flash-preview",
     contents=[{
         "role": "user",
         "parts": [{"text": long_system_prompt_with_examples}]
@@ -3407,7 +3407,7 @@ class PromptAdapter:
     def for_gemini(system: str, messages: list) -> dict:
         """Gemini 3: system_instruction, response_mime_type."""
         return {
-            "model": "gemini-3-flash-preview",
+            "model": "gemini-3.1-flash-preview",
             "system_instruction": system,
             "contents": messages,
             "generation_config": {
