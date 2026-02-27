@@ -67,7 +67,7 @@ Finance Bot — это чат-бот в Telegram с AI-ядром, которы�
 | **Anthropic** | Claude Sonnet 4.6 | `claude-sonnet-4-6` | $3.00 | $15.00 | 200K (1M beta) | да |
 | **Anthropic** | Claude Haiku 4.5 | `claude-haiku-4-5` | $1.00 | $5.00 | 200K | да |
 | **OpenAI** | GPT-5.2 | `gpt-5.2` | $1.75 | $14.00 | 400K | да |
-| **Google** | Gemini 3 Pro | `gemini-3-pro-preview` | $2.00 | $12.00 | 1M | да |
+| **Google** | Gemini 3.1 Pro | `gemini-3.1-pro-preview` | $2.00 | $12.00 | 1M | да |
 | **Google** | Gemini 3 Flash | `gemini-3-flash-preview` | $0.50 | $3.00 | 1M | да |
 
 ### 2.2 Распределение моделей по задачам
@@ -202,7 +202,7 @@ from google import genai
 
 client = genai.Client()
 response = await client.aio.models.generate_content(
-    model="gemini-3-pro-preview",
+    model="gemini-3.1-pro-preview",
     contents="Проанализируй финансовые данные...",
     config=genai.types.GenerateContentConfig(
         thinking_config=genai.types.ThinkingConfig(

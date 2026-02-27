@@ -85,7 +85,7 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 | Claude Haiku 4.5 | `claude-haiku-4-5` | Guardrails, intent fallback |
 | GPT-5.2 | `gpt-5.2` | Chat, tasks, calendar, life, booking agents |
 | Gemini 3 Flash | `gemini-3-flash-preview` | OCR, research, summarization |
-| Gemini 3 Pro | `gemini-3-pro-preview` | Intent detection (primary), deep reasoning |
+| Gemini 3.1 Pro | `gemini-3.1-pro-preview` | Intent detection (primary), deep reasoning |
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
 

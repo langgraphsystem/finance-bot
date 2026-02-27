@@ -79,7 +79,7 @@ All previously identified gaps from Phases 0–3 have been addressed:
 | Claude Haiku 4.5 | `claude-haiku-4-5` | Chat, skills, calendar, tasks, fallback |
 | GPT-5.2 | `gpt-5.2` | Fallback (analytics, OCR, complex) |
 | Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection, OCR, summarization, web search grounding |
-| Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
+| Gemini 3.1 Pro | `gemini-3.1-pro-preview` | Deep reasoning, complex analysis |
 
 ### Current Skills (74)
 
