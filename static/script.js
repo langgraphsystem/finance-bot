@@ -25,28 +25,8 @@ const translations = {
         f2_title: "Голосовой ввод",
         f2_desc: "За рулем? Просто скажите: \"Я купил материалы на две тысячи\". Идеально распознает и структурирует любой язык в реальном времени.",
 
-        f3_title: "Life & Calendar",
-        f3_desc: "Трекайте настроение, задачи и встречи в Google Calendar. Получайте проактивные утренние сводки через Telegram.",
-
         f4_title: "Мульти-агентная аналитика",
         f4_desc: "Запрашивайте сложные отчеты: \"Покажи мои траты на авто за полгода по месяцам\". Claude 4.6 Sonnet генерирует точные графики прямо в чат.",
-
-        uc_badge: "USE CASES",
-        uc_title: "Создан под <span class='gradient-text'>вашу</span> жизнь",
-
-        uc1_title: "Для малого бизнеса и фриланса",
-        uc1_desc: "Бот запоминает категории ваших расходов (Материалы, Реклама, Подрядчики). Фотографируйте накладные, чтобы ничего не забыть для налоговой, и ведите CRM-контакты клиентов.",
-        tag_invoice: "Инвойсы",
-        tag_taxes: "Налоги",
-
-        uc2_title: "Совместный семейный бюджет",
-        uc2_desc: "Подключите супругов к одному семейному аккаунту в Telegram. Каждый вносит свои траты, а владелец видит полную картину с разделением доступов.",
-        tag_sync: "Синхронизация",
-        tag_list: "Списки покупок",
-
-        uc3_title: "Для таксистов и дальнобойщиков",
-        uc3_desc: "Записывайте топливо, ремонт и сборы на ходу с помощью голосовых команд. Получайте сводки для IFTA-отчетов без отрыва от руля.",
-        tag_voice: "Голос",
 
         pricing_title: "Готовы делегировать хаос <span class='gradient-text'>ИИ</span>?",
         pricing_subtitle: "Стройте свои финансы как код. Без скачивания лишних приложений.",
@@ -64,11 +44,27 @@ const translations = {
         footer_priv: "Политика конфиденциальности",
         footer_terms: "Условия использования",
 
-        term_input: "\"Заправил трак на 150 баксов\"",
-        term_processing: "Processing with Finance AI...",
-        term_cat: "Транспорт / Топливо",
-        term_note: "Note: Записано в расходы. Это 15% от бюджета на месяц.",
-        code_query: "\"Авто за полгода\""
+        code_query: "\"Авто за полгода\"",
+
+        stat_agents: "ИИ-Агентов",
+        stat_skills: "Навыков",
+        stat_channels: "Каналов связи",
+
+        f_email_title: "Email Оркестратор",
+        f_email_desc: "Авто-чтение входящих писем, составление драфтов ответов и фоллоу-апов силами Claude Sonnet с подтверждением от пользователя.",
+        f_cal_title: "Calendar & Утренняя сводка",
+        f_cal_desc: "Синхронизация с Google Calendar. Получайте проактивные утренние сводки и планируйте день прямо в чате.",
+        f_res_title: "Исследования & Поиск",
+        f_res_desc: "Глубокий анализ информации через Google Search Grounding. Поиск по картам, сводки видео с YouTube и мониторинг новостей.",
+        f_book_title: "Booking & CRM",
+        f_book_desc: "Встроенная CRM для бизнеса: запись клиентов, отмены, автоматические напоминания и отправка уведомлений.",
+
+        agents_badge: "ЭКОСИСТЕМА",
+        agents_title: "Ваша команда из <span class='gradient-text'>12 ИИ-агентов</span>",
+        agents_subtitle: "Каждый агент специализируется на своей задаче и работает в единой многоуровневой памяти.",
+
+        nav_features: "Возможности",
+        nav_agents: "Агенты"
     },
     en: {
         nav_rube: "RUBE(MCP)",
@@ -96,28 +92,8 @@ const translations = {
         f2_title: "Voice Input",
         f2_desc: "Driving? Just say: \"I bought materials for two thousand.\" Perfectly recognizes and structures any language in real time.",
 
-        f3_title: "Life & Calendar",
-        f3_desc: "Track mood, tasks, and meetings in Google Calendar. Get proactive morning summaries via Telegram.",
-
         f4_title: "Multi-agent Analytics",
         f4_desc: "Request complex reports: \"Show my car expenses for half a year by months.\" Claude 4.6 Sonnet generates accurate charts right in the chat.",
-
-        uc_badge: "USE CASES",
-        uc_title: "Built for <span class='gradient-text'>your</span> life",
-
-        uc1_title: "For small business and freelancers",
-        uc1_desc: "The bot remembers your expense categories (Materials, Ads, Contractors). Snap invoices so you don't forget anything for taxes, and keep CRM client contacts.",
-        tag_invoice: "Invoices",
-        tag_taxes: "Taxes",
-
-        uc2_title: "Shared Family Budget",
-        uc2_desc: "Connect spouses to one family account in Telegram. Everyone enters their spending, and the owner sees the full picture with separated access.",
-        tag_sync: "Sync",
-        tag_list: "Shopping lists",
-
-        uc3_title: "For truckers and drivers",
-        uc3_desc: "Record fuel, repairs, and tolls on the go using voice commands. Get summaries for IFTA reports without taking your hands off the wheel.",
-        tag_voice: "Voice",
 
         pricing_title: "Ready to delegate chaos to <span class='gradient-text'>AI</span>?",
         pricing_subtitle: "Build your finances like code. Without downloading unnecessary apps.",
@@ -135,11 +111,27 @@ const translations = {
         footer_priv: "Privacy Policy",
         footer_terms: "Terms of Service",
 
-        term_input: "\"Refueled the truck for 150 bucks\"",
-        term_processing: "Processing with Finance AI...",
-        term_cat: "Transport / Fuel",
-        term_note: "Note: Recorded as expense. This is 15% of your monthly budget.",
-        code_query: "\"Auto for half a year\""
+        code_query: "\"Auto for half a year\"",
+
+        stat_agents: "AI Agents",
+        stat_skills: "Skills",
+        stat_channels: "Channels",
+
+        f_email_title: "Email Orchestrator",
+        f_email_desc: "Auto-read incoming emails, draft replies and follow-ups powered by Claude Sonnet with human-in-the-loop approval.",
+        f_cal_title: "Calendar & Morning Brief",
+        f_cal_desc: "Sync with Google Calendar. Get proactive morning briefings and plan your day right in the chat.",
+        f_res_title: "Research & Search",
+        f_res_desc: "Deep analysis via Google Search Grounding. Maps search, YouTube video summaries, and news monitoring.",
+        f_book_title: "Booking & CRM",
+        f_book_desc: "Built-in CRM for business: client appointments, cancellations, automatic reminders, and notifications.",
+
+        agents_badge: "ECOSYSTEM",
+        agents_title: "Your team of <span class='gradient-text'>12 AI agents</span>",
+        agents_subtitle: "Each agent specializes in its domain and works within a unified multi-layer memory system.",
+
+        nav_features: "Features",
+        nav_agents: "Agents"
     },
     es: {
         nav_rube: "RUBE(MCP)",
@@ -152,7 +144,7 @@ const translations = {
 
         hero_title: "Habilidades que <span class='gradient-text type-effect'>evolucionan</span> con <br>tus Agentes",
         hero_subtitle: "Más que solo integraciones, más de 10,000 herramientas que pueden adaptarse — convirtiendo la automatización en intuición.",
-        hero_btn_start: "EMPEZA GRATIS",
+        hero_btn_start: "EMPIEZA GRATIS",
         hero_btn_docs: "EXPLORAR DOCS",
 
         integrations_label: "SE INTEGRA CON TUS HERRAMIENTAS FAVORITAS",
@@ -167,28 +159,8 @@ const translations = {
         f2_title: "Entrada de Voz",
         f2_desc: "¿Conduciendo? Simplemente di: \"Compré materiales por dos mil\". Reconoce y estructura perfectamente cualquier idioma en tiempo real.",
 
-        f3_title: "Vida y Calendario",
-        f3_desc: "Haz un seguimiento del estado de ánimo, las tareas y las reuniones en Google Calendar. Recibe resúmenes matutinos proactivos a través de Telegram.",
-
         f4_title: "Analítica Multi-agente",
         f4_desc: "Solicita informes complejos: \"Muestra los gastos de mi coche durante medio año por meses\". Claude 4.6 Sonnet genera gráficos precisos en el chat.",
-
-        uc_badge: "CASOS DE USO",
-        uc_title: "Creado para <span class='gradient-text'>tu</span> vida",
-
-        uc1_title: "Para pequeñas empresas y autónomos",
-        uc1_desc: "El bot recuerda tus categorías de gastos. Toma fotos de facturas para no olvidar nada para los impuestos y mantén los contactos de clientes del CRM.",
-        tag_invoice: "Facturas",
-        tag_taxes: "Impuestos",
-
-        uc2_title: "Presupuesto Familiar Compartido",
-        uc2_desc: "Conecta a los cónyuges a una cuenta familiar en Telegram. Todos introducen sus gastos y el propietario ve el panorama completo con acceso separado.",
-        tag_sync: "Sincronización",
-        tag_list: "Listas de compras",
-
-        uc3_title: "Para camioneros y conductores",
-        uc3_desc: "Registra combustible, reparaciones y peajes sobre la marcha mediante comandos de voz. Obtén resúmenes para informes IFTA sin quitar las manos del volante.",
-        tag_voice: "Voz",
 
         pricing_title: "¿Listo para delegar el caos a <span class='gradient-text'>la IA</span>?",
         pricing_subtitle: "Construye tus finanzas como código. Sin descargar aplicaciones innecesarias.",
@@ -206,11 +178,27 @@ const translations = {
         footer_priv: "Política de Privacidad",
         footer_terms: "Términos de Servicio",
 
-        term_input: "\"Reposté el camión por 150 dólares\"",
-        term_processing: "Procesando con Finance AI...",
-        term_cat: "Transporte / Combustible",
-        term_note: "Nota: Registrado como gasto. Esto es un 15% de tu presupuesto mensual.",
-        code_query: "\"Auto de medio año\""
+        code_query: "\"Auto de medio año\"",
+
+        stat_agents: "Agentes IA",
+        stat_skills: "Habilidades",
+        stat_channels: "Canales",
+
+        f_email_title: "Orquestador de Email",
+        f_email_desc: "Lectura automática de correos entrantes, redacción de borradores de respuestas y seguimientos con Claude Sonnet.",
+        f_cal_title: "Calendario & Resumen Matutino",
+        f_cal_desc: "Sincronización con Google Calendar. Recibe resúmenes matutinos proactivos y planifica tu día en el chat.",
+        f_res_title: "Investigación & Búsqueda",
+        f_res_desc: "Análisis profundo vía Google Search Grounding. Búsqueda en mapas, resúmenes de videos de YouTube y monitoreo de noticias.",
+        f_book_title: "Reservas & CRM",
+        f_book_desc: "CRM integrado para negocios: citas de clientes, cancelaciones, recordatorios automáticos y notificaciones.",
+
+        agents_badge: "ECOSISTEMA",
+        agents_title: "Tu equipo de <span class='gradient-text'>12 agentes IA</span>",
+        agents_subtitle: "Cada agente se especializa en su dominio y trabaja dentro de un sistema de memoria unificado.",
+
+        nav_features: "Funciones",
+        nav_agents: "Agentes"
     }
 };
 
@@ -222,20 +210,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function setLanguage(lang) {
         document.documentElement.lang = lang;
         const elementsInfo = document.querySelectorAll('[data-i18n]');
-        const elementsId = ['term_input', 'term_processing', 'term_cat', 'term_note', 'code_query'];
+        const elementsId = ['code_query'];
 
         // Update tags
         elementsInfo.forEach(el => {
             const key = el.getAttribute('data-i18n');
-            if (translations[lang][key]) {
+            if (translations[lang] && translations[lang][key]) {
                 el.innerHTML = translations[lang][key];
             }
         });
 
-        // Update Terminal Elements
+        // Update elements by ID
         elementsId.forEach(id => {
             const el = document.getElementById(id);
-            if (el && translations[lang][id]) {
+            if (el && translations[lang] && translations[lang][id]) {
                 el.innerText = translations[lang][id];
             }
         });
@@ -344,25 +332,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* --- Terminal Sequence Animation --- */
-    function runTerminalDemo() {
-        const cmdResp1 = document.getElementById('cmd-resp-1');
-        const cmdResp2 = document.getElementById('cmd-resp-2');
-
-        if (!cmdResp1 || !cmdResp2) return;
-
-        // Sequence timing
-        setTimeout(() => {
-            cmdResp1.classList.remove('hidden');
-        }, 1200);
-
-        setTimeout(() => {
-            const currentLang = languageSelect ? languageSelect.value : 'ru';
-            cmdResp1.querySelector('.clr-dim').textContent = (currentLang === 'en' ? "Processing ✓" : (currentLang === 'es' ? "Procesando ✓" : "Обработка ✓"));
-            cmdResp2.classList.remove('hidden');
-        }, 3000);
-    }
-
     /* --- Typewriter Effect for Hero --- */
     let typewriterTimeout;
     function triggerTypewriter() {
@@ -370,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeTextList.length > 0) {
             const typeText = typeTextList[0];
             const textToType = typeText.textContent;
+            typeText.style.borderRight = '2px solid var(--accent-purple)';
             typeText.textContent = '';
             let i = 0;
             clearTimeout(typewriterTimeout);
@@ -378,14 +348,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (i < textToType.length) {
                     typeText.textContent += textToType.charAt(i);
                     i++;
-                    typewriterTimeout = setTimeout(typeWriter, 30);
+                    typewriterTimeout = setTimeout(typeWriter, 60);
                 } else {
-                    runTerminalDemo();
+                    // Remove cursor after typing
+                    setTimeout(() => { typeText.style.borderRight = 'none'; }, 1000);
                 }
             }
-            typeWriter();
-        } else {
-            runTerminalDemo();
+            setTimeout(typeWriter, 300);
         }
     }
 
@@ -415,7 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /* --- Animated Counters --- */
     const counters = document.querySelectorAll('.counter');
     const counterOptions = {
-        threshold: 0.5,
+        threshold: 0.1,
         rootMargin: "0px"
     };
 

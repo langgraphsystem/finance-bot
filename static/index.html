@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | ИИ-ассистент для жизни и бизнеса</title>
+    <title>Finance Bot | AI-powered Life & Business Assistant</title>
+    <meta name="description" content="Finance Bot — AI assistant with 12 agents, 74+ skills, receipt OCR, budgets, email, calendar, CRM, and life tracking. Telegram, WhatsApp, Slack, SMS.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -78,18 +79,18 @@
         <div class="stats-grid">
             <div class="stat-card hover-glow" data-glow-color="rgba(147, 51, 234, 0.15)">
                 <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="11">0</span></div>
-                <div class="stat-label" data-i18n="stat_agents">AI Агентов</div>
+                <div class="stat-value"><span class="counter" data-target="12">0</span></div>
+                <div class="stat-label" data-i18n="stat_agents">AI Agents</div>
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
                 <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="7">0</span></div>
-                <div class="stat-label" data-i18n="stat_skills">Навыков</div>
+                <div class="stat-value"><span class="counter" data-target="74">0</span></div>
+                <div class="stat-label" data-i18n="stat_skills">Skills</div>
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(22, 163, 74, 0.15)">
                 <div class="glow-mouse"></div>
                 <div class="stat-value"><span class="counter" data-target="4">0</span></div>
-                <div class="stat-label" data-i18n="stat_channels">Канала связи</div>
+                <div class="stat-label" data-i18n="stat_channels">Channels</div>
             </div>
             <div class="stat-card hover-glow" data-glow-color="rgba(219, 39, 119, 0.15)">
                 <div class="glow-mouse"></div>
@@ -105,15 +106,14 @@
                     </svg>
                     <i class="fa-brands fa-google" style="font-size: 26px;"></i>
                 </div>
-                <div class="stat-label" data-i18n="stat_models">Модели ИИ</div>
+                <div class="stat-label" data-i18n="stat_models">AI Models</div>
             </div>
         </div>
     </section>
 
     <!-- Integrations Logos -->
     <section class="integrations reveal">
-        <p class="section-label text-center" data-i18n="integrations_label">ИНТЕГРИРУЕТСЯ С ВАШИМИ ЛЮБИМЫМИ
-            ИНСТРУМЕНТАМИ</p>
+        <p class="section-label text-center" data-i18n="integrations_label">INTEGRATES WITH YOUR FAVORITE TOOLS</p>
         <div class="marquee-wrapper">
             <div class="marquee-content" style="display: flex;">
                 <div class="integration-logo"><i class="fab fa-telegram"></i> Telegram</div>
@@ -133,10 +133,9 @@
     <!-- Bento Box Features -->
     <section id="features" class="features section-padding">
         <div class="section-header reveal">
-            <h2 class="section-title" data-i18n="features_title">Всё, что вам нужно. <br>В <span
-                    class="gradient-text">одном</span> месте.</h2>
-            <p class="section-subtitle" data-i18n="features_subtitle">Мощная LangGraph-архитектура сама распределяет
-                задачи между агентами. Забудьте о десятках приложений.</p>
+            <h2 class="section-title" data-i18n="features_title">Everything you need. <br>In <span
+                    class="gradient-text">one</span> chat.</h2>
+            <p class="section-subtitle" data-i18n="features_subtitle">Forget complex spreadsheets and dozens of apps. Just send a command or a photo.</p>
         </div>
 
         <div class="bento-grid">
@@ -145,9 +144,8 @@
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
-                    <h3 data-i18n="f1_title">Smart OCR чеков</h3>
-                    <p class="clr-dim" data-i18n="f1_desc">Отправьте фото скомканного чека. AI мгновенно распознает
-                        мерчанта, товары, налоги и раскидает по категориям через Gemini 3 Flash.</p>
+                    <h3 data-i18n="f1_title">Smart Receipt OCR</h3>
+                    <p class="clr-dim" data-i18n="f1_desc">Send a photo of a crumpled receipt. AI instantly recognizes merchant, items, taxes, and categorizes them using Gemini Flash 3.</p>
 
                     <div class="code-preview mt-4">
                         <div class="code-header">receipt_parser.py</div>
@@ -165,9 +163,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-envelope-open-text"></i></div>
-                    <h3 data-i18n="f_email_title">Email Оркестратор</h3>
-                    <p class="clr-dim" data-i18n="f_email_desc">Авто-чтение входящих писем, составление драфтов ответов
-                        и фоллоу-апов силами Claude Sonnet.</p>
+                    <h3 data-i18n="f_email_title">Email Orchestrator</h3>
+                    <p class="clr-dim" data-i18n="f_email_desc">Auto-read incoming emails, draft replies and follow-ups powered by Claude Sonnet with human-in-the-loop approval.</p>
                 </div>
             </div>
 
@@ -176,9 +173,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
-                    <h3 data-i18n="f_cal_title">Calendar & Утро</h3>
-                    <p class="clr-dim" data-i18n="f_cal_desc">Синхронизация с Google Calendar. Получайте проактивные
-                        утренние сводки и планируйте день прямо в чате.</p>
+                    <h3 data-i18n="f_cal_title">Calendar & Morning Brief</h3>
+                    <p class="clr-dim" data-i18n="f_cal_desc">Sync with Google Calendar. Get proactive morning briefings and plan your day right in the chat.</p>
                 </div>
             </div>
 
@@ -187,9 +183,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
-                    <h3 data-i18n="f4_title">Мульти-агентная аналитика</h3>
-                    <p class="clr-dim" data-i18n="f4_desc">Запрашивайте сложные отчеты: "Покажи мои траты на авто за
-                        полгода по месяцам". Генерация точных графиков прямо в чат.</p>
+                    <h3 data-i18n="f4_title">Multi-agent Analytics</h3>
+                    <p class="clr-dim" data-i18n="f4_desc">Request complex reports: "Show my car expenses for 6 months by month." Generates accurate charts directly in the chat.</p>
                 </div>
                 <div class="bento-visual">
                     <div class="chart-demo-code">
@@ -209,10 +204,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
-                    <h3 data-i18n="f_res_title">Research & Поиск</h3>
-                    <p class="clr-dim" data-i18n="f_res_desc">Глубокий анализ информации через Google Search Grounding.
-                        Поиск по картам, парсинг ссылок, сводки видео с YouTube (Youtube Data API) и мониторинг
-                        новостей.</p>
+                    <h3 data-i18n="f_res_title">Research & Search</h3>
+                    <p class="clr-dim" data-i18n="f_res_desc">Deep analysis via Google Search Grounding. Maps search, link parsing, YouTube video summaries, and news monitoring.</p>
                 </div>
             </div>
 
@@ -221,9 +214,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
-                    <h3 data-i18n="f2_title">Голосовой ввод</h3>
-                    <p class="clr-dim" data-i18n="f2_desc">Идеально распознает и структурирует любой язык в реальном
-                        времени. Просто надиктуйте ваши доходы и расходы.</p>
+                    <h3 data-i18n="f2_title">Voice Input</h3>
+                    <p class="clr-dim" data-i18n="f2_desc">Perfectly recognizes and structures any language in real time. Just dictate your income and expenses on the go.</p>
                 </div>
             </div>
 
@@ -233,8 +225,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-address-book"></i></div>
                     <h3 data-i18n="f_book_title">Booking & CRM</h3>
-                    <p class="clr-dim" data-i18n="f_book_desc">Встроенная CRM для бизнеса: запись клиентов, отмены,
-                        автоматические напоминания и отправка уведомлений.</p>
+                    <p class="clr-dim" data-i18n="f_book_desc">Built-in CRM for business: client appointments, cancellations, automatic reminders, and notifications.</p>
                 </div>
             </div>
         </div>
@@ -245,13 +236,12 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
-                    <span class="badge-text" data-i18n="agents_badge">ЭКОСИСТЕМА</span>
+                    <span class="badge-text" data-i18n="agents_badge">ECOSYSTEM</span>
                 </div>
             </div>
-            <h2 class="section-title" data-i18n="agents_title">Ваша команда из <span class="gradient-text">11
-                    ИИ-агентов</span></h2>
-            <p class="section-subtitle" data-i18n="agents_subtitle">Каждый агент специализируется на своей задаче и
-                работает в единой многоуровневой памяти.</p>
+            <h2 class="section-title" data-i18n="agents_title">Your team of <span class="gradient-text">12
+                    AI agents</span></h2>
+            <p class="section-subtitle" data-i18n="agents_subtitle">Each agent specializes in its domain and works within a unified multi-layer memory system.</p>
         </div>
 
         <div class="agents-grid reveal">
@@ -302,8 +292,8 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
             <div class="agent-card hover-glow">
                 <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-microphone-lines"></i></div>
-                <div class="agent-name">Voice</div>
+                <div class="agent-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <div class="agent-name">Finance Pro</div>
             </div>
             <div class="agent-card hover-glow">
                 <div class="glow-mouse"></div>
@@ -317,10 +307,9 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
     <section id="pricing" class="cta-section section-padding reveal">
         <div class="glow-bg glow-bottom"></div>
         <div class="cta-box">
-            <h2 class="section-title" data-i18n="pricing_title">Готовы делегировать хаос <span
-                    class="gradient-text">ИИ</span>?</h2>
-            <p class="clr-dim" data-i18n="pricing_subtitle">Стройте свои финансы и дела как код. Без скачивания лишних
-                приложений.</p>
+            <h2 class="section-title" data-i18n="pricing_title">Ready to delegate chaos to <span
+                    class="gradient-text">AI</span>?</h2>
+            <p class="clr-dim" data-i18n="pricing_subtitle">Build your finances like code. Without downloading unnecessary apps.</p>
 
             <div class="pricing-card">
                 <div class="price">
@@ -328,9 +317,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     <span class="amount">49</span>
                     <span class="period" data-i18n="pricing_period">/месяц</span>
                 </div>
-                <p class="pricing-sub" data-i18n="pricing_desc">Полный доступ ко всем модулям AI, 11 агентам,
-                    распознаванию чеков,
-                    интеграции с календарем и почтой. Поддержка мультиарендности для бизнеса и семьи.</p>
+                <p class="pricing-sub" data-i18n="pricing_desc">Full access to all AI modules, 12 agents, receipt OCR, calendar and email integration. Multi-tenant support for business and family.</p>
                 <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full"><span
                         data-i18n="pricing_btn">Перейти в Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
             </div>
@@ -352,27 +339,27 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     </svg>
                     <span>Finance AI</span>
                 </div>
-                <p class="clr-dim mt-2" data-i18n="footer_copy">© 2026 Finance Bot. Все права защищены.</p>
+                <p class="clr-dim mt-2" data-i18n="footer_copy">© 2026 Finance Bot. All rights reserved.</p>
             </div>
             <div class="footer-links">
                 <div class="link-group">
-                    <h4 data-i18n="footer_prod">Продукт</h4>
-                    <a href="#features" data-i18n="nav_features">Возможности</a>
-                    <a href="#agents" data-i18n="nav_agents">Агенты</a>
-                    <a href="#pricing" data-i18n="nav_pricing">Тарифы</a>
+                    <h4 data-i18n="footer_prod">Product</h4>
+                    <a href="#features" data-i18n="nav_features">Features</a>
+                    <a href="#agents" data-i18n="nav_agents">Agents</a>
+                    <a href="#pricing" data-i18n="nav_pricing">Pricing</a>
                     <a href="#">Changelog</a>
                 </div>
                 <div class="link-group">
-                    <h4 data-i18n="footer_res">Ресурсы</h4>
-                    <a href="#" data-i18n="nav_docs">Документация</a>
-                    <a href="#" data-i18n="nav_blog">Блог</a>
-                    <a href="#" data-i18n="footer_sup">Поддержка</a>
+                    <h4 data-i18n="footer_res">Resources</h4>
+                    <a href="#" data-i18n="nav_docs">Docs</a>
+                    <a href="#" data-i18n="nav_blog">Blog</a>
+                    <a href="#" data-i18n="footer_sup">Support</a>
                 </div>
                 <div class="link-group">
-                    <h4 data-i18n="footer_comp">Компания</h4>
-                    <a href="#" data-i18n="footer_about">О нас</a>
-                    <a href="/privacy" data-i18n="footer_priv">Политика конфиденциальности</a>
-                    <a href="/terms" data-i18n="footer_terms">Условия использования</a>
+                    <h4 data-i18n="footer_comp">Company</h4>
+                    <a href="#" data-i18n="footer_about">About Us</a>
+                    <a href="/privacy" data-i18n="footer_priv">Privacy Policy</a>
+                    <a href="/terms" data-i18n="footer_terms">Terms of Service</a>
                 </div>
             </div>
         </div>
