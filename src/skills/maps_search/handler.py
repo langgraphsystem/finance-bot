@@ -54,7 +54,7 @@ FALLBACK_NOTE = (
 class MapsSearchSkill:
     name = "maps_search"
     intents = ["maps_search"]
-    model = "gemini-3.1-flash-preview"
+    model = "gemini-3-flash-preview"
 
     @observe(name="maps_search")
     async def execute(
@@ -227,7 +227,7 @@ async def search_places_grounding(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -242,7 +242,7 @@ async def search_places_grounding(
     # Fallback: Gemini without grounding
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=prompt,
         )
         text = response.text or ""
@@ -377,7 +377,7 @@ async def _format_with_gemini(places_text: str, query: str, language: str) -> st
     )
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=prompt,
         )
         return response.text or _html_fallback(places_text)

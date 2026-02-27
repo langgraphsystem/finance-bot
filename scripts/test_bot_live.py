@@ -314,7 +314,7 @@ async def score_response(
         )
 
         resp = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",

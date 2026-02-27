@@ -107,7 +107,7 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
 
             client = google_client()
             response = await client.aio.models.generate_content(
-                model="gemini-3.1-flash-preview",
+                model="gemini-3-flash-preview",
                 contents=prompt,
             )
             summary_text = response.text

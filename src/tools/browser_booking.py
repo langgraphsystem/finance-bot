@@ -304,7 +304,7 @@ async def parse_booking_request(
             task=task, language=language, today=date.today().isoformat()
         )
         raw = await generate_text(
-            "gemini-3.1-flash-preview",
+            "gemini-3-flash-preview",
             (
                 "You extract structured data from multilingual text. "
                 "The user message may be in any language. "
@@ -439,7 +439,7 @@ async def _get_price_preview(
         client = google_client()
         prompt = _PREVIEW_PROMPT.format(task=task, language=language)
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -1877,7 +1877,7 @@ async def _gemini_parse_fallback(
             "distance, amenities (array), cancellation, description"
         )
         result = await generate_text(
-            "gemini-3.1-flash-preview",
+            "gemini-3-flash-preview",
             "You extract structured hotel data from text. Return only valid JSON.",
             max_tokens=1024,
             prompt=prompt,

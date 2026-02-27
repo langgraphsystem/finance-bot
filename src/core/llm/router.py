@@ -19,7 +19,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "ocr": ModelConfig(
         provider="google",
-        model_id="gemini-3.1-flash-preview",
+        model_id="gemini-3-flash-preview",
         fallback_provider="openai",
         fallback_model_id="gpt-5.2",
     ),
@@ -27,7 +27,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="openai",
         model_id="gpt-5.2",
         fallback_provider="google",
-        fallback_model_id="gemini-3.1-flash-preview",
+        fallback_model_id="gemini-3-flash-preview",
     ),
     "analytics": ModelConfig(
         provider="anthropic",
@@ -43,7 +43,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "summarization": ModelConfig(
         provider="google",
-        model_id="gemini-3.1-flash-preview",
+        model_id="gemini-3-flash-preview",
         fallback_provider="anthropic",
         fallback_model_id="claude-haiku-4-5",
     ),

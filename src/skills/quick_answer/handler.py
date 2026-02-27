@@ -29,7 +29,7 @@ User's preferred language: {language}."""
 class QuickAnswerSkill:
     name = "quick_answer"
     intents = ["quick_answer"]
-    model = "gemini-3.1-flash-preview"
+    model = "gemini-3-flash-preview"
 
     @observe(name="quick_answer")
     async def execute(
@@ -64,7 +64,7 @@ async def generate_answer(
 
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3.1-flash-preview",
+            model="gemini-3-flash-preview",
             contents=f"{system}\n\nUser's original message: {user_msg}\nQuestion: {query}",
         )
         return response.text or "I couldn't find an answer. Try rephrasing?"

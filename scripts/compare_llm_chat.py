@@ -59,7 +59,7 @@ async def ask_gemini(question: str) -> tuple[str, float]:
     client = google_client()
     start = time.time()
     resp = await client.aio.models.generate_content(
-        model="gemini-3.1-flash-preview",
+        model="gemini-3-flash-preview",
         contents=f"{SYSTEM_PROMPT}\n\nПользователь: {question}",
     )
     elapsed = time.time() - start

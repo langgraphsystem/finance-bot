@@ -281,8 +281,8 @@
 
 | Задача | Архитектура (секция 2.1) | Код | Файл |
 |--------|--------------------------|-----|------|
-| Intent Detection | `gemini-3.1-flash-preview` | `gemini-2.0-flash` | `intent.py:72`, `router.py:16` |
-| OCR | `gemini-3.1-flash-preview` | `gemini-2.0-flash` | `scan_receipt/handler.py:39,93` |
+| Intent Detection | `gemini-3-flash-preview` | `gemini-2.0-flash` | `intent.py:72`, `router.py:16` |
+| OCR | `gemini-3-flash-preview` | `gemini-2.0-flash` | `scan_receipt/handler.py:39,93` |
 | Chat | `claude-haiku-4-5` | `claude-haiku-4-5-20251001` | multiple files |
 | Analytics | `claude-sonnet-4-6` | `claude-sonnet-4-6-20250929` | `query_stats/handler.py:31` |
 | Complex | `claude-opus-4-6` | `claude-opus-4-6` | `router.py:40` (только в конфиге, не используется) |
@@ -404,7 +404,7 @@ for task_fn in skill_result.background_tasks:
 ## Раздел E: Отклонения от архитектуры
 
 ### E1. Модели LLM (критическое отклонение)
-Код использует `gemini-2.0-flash` вместо `gemini-3.1-flash-preview`, `gpt-4o` вместо `gpt-5.2`, `claude-haiku-4-5-20251001` вместо `claude-haiku-4-5`. Это может быть вызвано недоступностью моделей на момент написания кода. См. таблицу в C11.
+Код использует `gemini-2.0-flash` вместо `gemini-3-flash-preview`, `gpt-4o` вместо `gpt-5.2`, `claude-haiku-4-5-20251001` вместо `claude-haiku-4-5`. Это может быть вызвано недоступностью моделей на момент написания кода. См. таблицу в C11.
 
 ### E2. ReceiptData schema
 Архитектура (строки 1873-1938) описывает полноценную ReceiptData с:
