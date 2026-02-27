@@ -308,7 +308,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }, revealOptions);
 
+    // Mark elements as ready (hides them), then observe for reveal
     revealElements.forEach(el => {
+        el.classList.add('ready');
         revealOnScroll.observe(el);
     });
 
