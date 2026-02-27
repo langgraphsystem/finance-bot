@@ -49,6 +49,7 @@ COPY --from=builder /app/config /app/config
 COPY --from=builder /app/alembic /app/alembic
 COPY --from=builder /app/alembic.ini /app/alembic.ini
 COPY --from=builder /app/scripts /app/scripts
+COPY --from=builder /app/static /app/static
 
 RUN chmod +x /app/scripts/entrypoint.sh
 
