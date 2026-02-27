@@ -1,7 +1,9 @@
 """Quick answer skill — factual Q&A using LLM knowledge."""
 
 import logging
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
 from src.core.llm.clients import google_client
@@ -47,7 +49,9 @@ class QuickAnswerSkill:
             return SkillResult(response_text="What would you like to know?")
 
         original_text = message.text or query
-        answer = await generate_answer(query, context.language or "en", original_text)
+        answer = await generate_answer(
+            query, context.language or "en", original_text, context.timezone,
+        )
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -55,11 +59,29 @@ class QuickAnswerSkill:
 
 
 async def generate_answer(
-    query: str, language: str, original_message: str = ""
+    query: str,
+    language: str,
+    original_message: str = "",
+    timezone: str = "America/New_York",
 ) -> str:
     """Generate a factual answer using Gemini Flash."""
     client = google_client()
     system = QUICK_ANSWER_SYSTEM_PROMPT.format(language=language)
+
+    try:
+        tz = ZoneInfo(timezone)
+    except Exception:
+        tz = ZoneInfo("America/New_York")
+    now = datetime.now(tz)
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    time_block = (
+        f"\n\nCurrent date/time: {now.strftime('%Y-%m-%d %H:%M')} ({timezone}). "
+        f"Today: {now.strftime('%Y-%m-%d')}. "
+        f"Tomorrow: {(now + timedelta(days=1)).strftime('%Y-%m-%d')}. "
+        f"Day of week: {days[now.weekday()]}."
+    )
+    system += time_block
+
     user_msg = original_message or query
 
     try:
