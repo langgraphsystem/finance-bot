@@ -212,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const elementsInfo = document.querySelectorAll('[data-i18n]');
         const elementsId = ['code_query'];
 
-        // Update tags
         elementsInfo.forEach(el => {
             const key = el.getAttribute('data-i18n');
             if (translations[lang] && translations[lang][key]) {
@@ -220,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Update elements by ID
         elementsId.forEach(id => {
             const el = document.getElementById(id);
             if (el && translations[lang] && translations[lang][id]) {
@@ -228,12 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Retrigger typewriter if needed (reset hero title)
         triggerTypewriter();
     }
 
     if (languageSelect) {
-        // Set language on load
         languageSelect.value = 'en';
         setLanguage('en');
 
@@ -279,40 +275,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    /* --- Scroll Reveal Animations --- */
-    const revealElements = document.querySelectorAll('.reveal');
+    /* --- Scroll Reveal Animations (staggered, multi-directional) --- */
+    const revealSelectors = '.reveal, .reveal-left, .reveal-right, .reveal-scale';
+    const revealElements = document.querySelectorAll(revealSelectors);
 
-    const revealOptions = {
-        threshold: 0.05,
-        rootMargin: "0px 0px -20px 0px"
-    };
-
-    const revealOnScroll = new IntersectionObserver(function (entries, observer) {
+    const revealObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 entry.target.classList.add('active');
                 observer.unobserve(entry.target);
             }
         });
-    }, revealOptions);
-
-    // Mark elements as ready (hides them), then observe for reveal
-    revealElements.forEach(el => {
-        el.classList.add('ready');
-        revealOnScroll.observe(el);
+    }, {
+        threshold: 0.08,
+        rootMargin: "0px 0px -40px 0px"
     });
 
-    // Trigger for elements already in viewport
-    setTimeout(() => {
+    revealElements.forEach(el => {
+        el.classList.add('ready');
+        revealObserver.observe(el);
+    });
+
+    // Trigger for elements already in viewport on load
+    requestAnimationFrame(() => {
         revealElements.forEach(el => {
             const rect = el.getBoundingClientRect();
             if (rect.top < window.innerHeight && rect.bottom > 0) {
                 el.classList.add('active');
             }
         });
-    }, 100);
+    });
 
-    /* --- Composio-style Mouse Hover Glow --- */
+    /* --- Mouse Hover Glow + Subtle 3D Tilt --- */
     const cards = document.querySelectorAll('.hover-glow');
 
     document.addEventListener('mousemove', e => {
@@ -324,12 +318,32 @@ document.addEventListener('DOMContentLoaded', () => {
             card.style.setProperty('--mouse-x', `${x}px`);
             card.style.setProperty('--mouse-y', `${y}px`);
 
-            // Set custom glow color if data attribute exists
             const glowColor = card.getAttribute('data-glow-color');
             if (glowColor) {
                 card.style.setProperty('--mouse-color', glowColor);
             }
+
+            // Subtle 3D tilt effect (only for bento and stat cards)
+            if (card.classList.contains('bento-card') || card.classList.contains('stat-card')) {
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                const rotateX = ((y - centerY) / centerY) * -2;
+                const rotateY = ((x - centerX) / centerX) * 2;
+
+                if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                    card.style.transform = `perspective(800px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                }
+            }
         }
+    });
+
+    // Reset tilt on mouse leave
+    cards.forEach(card => {
+        card.addEventListener('mouseleave', () => {
+            if (card.classList.contains('bento-card') || card.classList.contains('stat-card')) {
+                card.style.transform = '';
+            }
+        });
     });
 
     /* --- Typewriter Effect for Hero --- */
@@ -339,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeTextList.length > 0) {
             const typeText = typeTextList[0];
             const textToType = typeText.textContent;
-            typeText.style.borderRight = '2px solid var(--accent-purple)';
+            typeText.style.borderRight = '2px solid var(--accent-green)';
             typeText.textContent = '';
             let i = 0;
             clearTimeout(typewriterTimeout);
@@ -348,70 +362,104 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (i < textToType.length) {
                     typeText.textContent += textToType.charAt(i);
                     i++;
-                    typewriterTimeout = setTimeout(typeWriter, 60);
+                    typewriterTimeout = setTimeout(typeWriter, 70);
                 } else {
-                    // Remove cursor after typing
-                    setTimeout(() => { typeText.style.borderRight = 'none'; }, 1000);
+                    setTimeout(() => { typeText.style.borderRight = 'none'; }, 1200);
                 }
             }
-            setTimeout(typeWriter, 300);
+            setTimeout(typeWriter, 400);
         }
     }
 
     triggerTypewriter();
 
-    /* --- Infinite Marquee Cloning --- */
+    /* --- Infinite Marquee --- */
     const marqueeContent = document.querySelector('.marquee-content');
     if (marqueeContent && !marqueeContent.classList.contains('cloned')) {
-        // Clone items for smooth infinite scroll
         const clone = marqueeContent.innerHTML;
         marqueeContent.innerHTML += clone + clone;
         marqueeContent.classList.add('cloned');
 
-        // Simple GSAP-less marquee animation using Web Animations API
         const scrollWidth = marqueeContent.scrollWidth / 3;
 
         marqueeContent.animate([
             { transform: 'translateX(0)' },
             { transform: `translateX(-${scrollWidth}px)` }
         ], {
-            duration: 20000,
+            duration: 25000,
             iterations: Infinity,
             easing: 'linear'
         });
     }
 
-    /* --- Animated Counters --- */
+    /* --- Animated Counters with easing --- */
     const counters = document.querySelectorAll('.counter');
-    const counterOptions = {
-        threshold: 0.1,
-        rootMargin: "0px"
-    };
 
-    const counterObserver = new IntersectionObserver(function (entries, observer) {
+    function easeOutExpo(t) {
+        return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+    }
+
+    const counterObserver = new IntersectionObserver((entries, observer) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
                 const target = entry.target;
-                const updateCount = () => {
-                    const targetValue = +target.getAttribute('data-target');
-                    const current = +target.innerText;
-                    const inc = targetValue / 50;
+                const targetValue = +target.getAttribute('data-target');
+                const duration = 1800;
+                const startTime = performance.now();
 
-                    if (current < targetValue) {
-                        target.innerText = Math.ceil(current + inc);
-                        setTimeout(updateCount, 20);
+                function animateCounter(now) {
+                    const elapsed = now - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = easeOutExpo(progress);
+                    const current = Math.round(eased * targetValue);
+
+                    target.textContent = current;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animateCounter);
                     } else {
-                        target.innerText = targetValue;
+                        target.textContent = targetValue;
                     }
-                };
-                updateCount();
+                }
+
+                requestAnimationFrame(animateCounter);
                 observer.unobserve(target);
             }
         });
-    }, counterOptions);
+    }, {
+        threshold: 0.2
+    });
 
     counters.forEach(counter => {
         counterObserver.observe(counter);
+    });
+
+    /* --- Parallax on scroll (floating orbs + hero) --- */
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                const scrollY = window.scrollY;
+                const orbs = document.querySelectorAll('.floating-orb');
+                orbs.forEach((orb, i) => {
+                    const speed = 0.03 + (i * 0.015);
+                    orb.style.transform = `translateY(${scrollY * speed}px)`;
+                });
+                ticking = false;
+            });
+            ticking = true;
+        }
+    });
+
+    /* --- Smooth scroll for anchor links --- */
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                e.preventDefault();
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
     });
 
 });

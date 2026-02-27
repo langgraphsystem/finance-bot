@@ -9,13 +9,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 
 <body>
+
+    <!-- Subtle grain texture for premium feel -->
+    <div class="grain-overlay"></div>
+
+    <!-- Floating gradient orbs -->
+    <div class="floating-orb orb-1"></div>
+    <div class="floating-orb orb-2"></div>
+    <div class="floating-orb orb-3"></div>
 
     <!-- Radial Glow Backgrounds -->
     <div class="glow-bg glow-top"></div>
@@ -45,9 +53,9 @@
             <div class="nav-actions">
                 <div class="lang-selector">
                     <select id="language-select" class="btn-outline">
-                        <option value="ru">🇷🇺 RU</option>
-                        <option value="en" selected>🇺🇸 EN</option>
-                        <option value="es">🇪🇸 ES</option>
+                        <option value="ru">RU</option>
+                        <option value="en" selected>EN</option>
+                        <option value="es">ES</option>
                     </select>
                 </div>
                 <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn" data-i18n="nav_login">SIGN IN</a>
@@ -63,10 +71,10 @@
         <div class="hero-content reveal mx-auto" style="max-width: 800px;">
             <h1 class="hero-title" data-i18n="hero_title">Skills that <span
                     class="gradient-text type-effect">evolve</span> with <br>your Agents</h1>
-            <p class="hero-subtitle mx-auto" data-i18n="hero_subtitle" style="margin: 0 auto 40px; font-size: 1.25rem;">
+            <p class="hero-subtitle mx-auto" data-i18n="hero_subtitle" style="margin: 0 auto 48px;">
                 More than just integrations, 10,000+ tools that can adapt — turning automation into intuition.</p>
             <div class="hero-cta justify-center mt-4" style="justify-content: center;">
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large" data-i18n="hero_btn_start"
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large btn-glow" data-i18n="hero_btn_start"
                     style="text-transform: uppercase;">GET STARTED FOR FREE</a>
                 <a href="#docs" class="btn btn-outline btn-large" data-i18n="hero_btn_docs"
                     style="text-transform: uppercase;"><i class="fa-solid fa-arrow-right"></i> EXPLORE DOCS</a>
@@ -77,34 +85,33 @@
     <!-- Stats Section -->
     <section class="stats-section section-padding reveal">
         <div class="stats-grid">
-            <div class="stat-card hover-glow" data-glow-color="rgba(147, 51, 234, 0.15)">
+            <div class="stat-card hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="stat-value"><span class="counter" data-target="12">0</span></div>
                 <div class="stat-label" data-i18n="stat_agents">AI Agents</div>
             </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
+            <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="stat-value"><span class="counter" data-target="74">0</span></div>
                 <div class="stat-label" data-i18n="stat_skills">Skills</div>
             </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(22, 163, 74, 0.15)">
+            <div class="stat-card hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="stat-value"><span class="counter" data-target="4">0</span></div>
                 <div class="stat-label" data-i18n="stat_channels">Channels</div>
             </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(219, 39, 119, 0.15)">
+            <div class="stat-card hover-glow" data-glow-color="rgba(217, 119, 6, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="stat-value"
-                    style="display: flex; justify-content: center; gap: 16px; align-items: center; min-height: 53px;">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                    style="display: flex; justify-content: center; gap: 14px; align-items: center; min-height: 48px;">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
                         <path
-                            d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.022 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7378-7.0968zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.8956zm16.0993 3.8558L12.5973 8.3829a.0804.0804 0 0 1 .0332-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6806 4.66l-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0l-5.8428 3.3685v-2.3324zm-.1896-7.8596a4.4755 4.4755 0 0 1 2.8764 1.0408l-.1419.0804-4.7783 2.7582a.7948.7948 0 0 0-.3927.6813v6.7369l-2.02-1.1686a.071.071 0 0 1-.038-.052V4.4536a4.504 4.504 0 0 1 4.4945-4.4944zM8.5878 17.5878v-5.6791l-2.02-1.1686a.0757.0757 0 0 1 .071 0l4.8303 2.7865a4.4992 4.4992 0 0 1-5.2443 6.034zM12 14.4l-3.5685-2.064L12 10.272l3.5684 2.064L12 14.4z" />
+                            d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.022 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7378-7.0968z" />
                     </svg>
-                    <!-- Anthropic logo SVG based on star -->
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M17.373 21h4.15l-8.62-18h-4.32l8.79 18zm-8.31 0H4.91L1.24 13.5l1.83-3.8 6 11.3z" />
                     </svg>
-                    <i class="fa-brands fa-google" style="font-size: 26px;"></i>
+                    <i class="fa-brands fa-google" style="font-size: 24px;"></i>
                 </div>
                 <div class="stat-label" data-i18n="stat_models">AI Models</div>
             </div>
@@ -131,7 +138,7 @@
     </section>
 
     <!-- Bento Box Features -->
-    <section id="features" class="features section-padding">
+    <section id="features" class="features section-padding section-fade-top">
         <div class="section-header reveal">
             <h2 class="section-title" data-i18n="features_title">Everything you need. <br>In <span
                     class="gradient-text">one</span> chat.</h2>
@@ -140,7 +147,7 @@
 
         <div class="bento-grid">
             <!-- Feature 1: OCR -->
-            <div class="bento-card card-large reveal hover-glow" data-glow-color="rgba(34, 197, 94, 0.15)">
+            <div class="bento-card card-large reveal hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
@@ -159,7 +166,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 2: Email -->
-            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(147, 51, 234, 0.15)">
+            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-envelope-open-text"></i></div>
@@ -169,7 +176,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 3: Calendar -->
-            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(245, 158, 11, 0.15)">
+            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(217, 119, 6, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
@@ -179,7 +186,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 4: Analytics -->
-            <div class="bento-card card-wide reveal hover-glow" data-glow-color="rgba(236, 72, 153, 0.15)">
+            <div class="bento-card card-wide reveal delay-1 hover-glow" data-glow-color="rgba(219, 39, 119, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
@@ -189,7 +196,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="bento-visual">
                     <div class="chart-demo-code">
                         <pre><code><span class="clr-pink">{</span>
-  <span class="clr-green">"query"</span>: <span class="clr-blue" id="code_query">"Авто за полгода"</span>,
+  <span class="clr-green">"query"</span>: <span class="clr-blue" id="code_query">"Auto for half a year"</span>,
   <span class="clr-green">"result"</span>: <span class="clr-pink">{</span>
     <span class="clr-green">"Jul"</span>: 120, <span class="clr-green">"Aug"</span>: 150, <span class="clr-green">"Sep"</span>: 300,
     <span class="clr-green">"Oct"</span>: 110, <span class="clr-green">"Nov"</span>: 180, <span class="clr-green">"Dec"</span>: 90
@@ -200,7 +207,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 5: Research -->
-            <div class="bento-card card-wide reveal hover-glow" data-glow-color="rgba(37, 99, 235, 0.15)">
+            <div class="bento-card card-wide reveal delay-2 hover-glow" data-glow-color="rgba(37, 99, 235, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
@@ -210,7 +217,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 6: Voice -->
-            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(168, 85, 247, 0.15)">
+            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
@@ -220,7 +227,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
             </div>
 
             <!-- Feature 7: Booking -->
-            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(16, 185, 129, 0.15)">
+            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
                 <div class="glow-mouse"></div>
                 <div class="bento-content">
                     <div class="icon-box"><i class="fa-solid fa-address-book"></i></div>
@@ -236,6 +243,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
         <div class="section-header reveal">
             <div class="badge-wrap">
                 <div class="badge">
+                    <div class="badge-dot"></div>
                     <span class="badge-text" data-i18n="agents_badge">ECOSYSTEM</span>
                 </div>
             </div>
@@ -304,7 +312,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
     </section>
 
     <!-- Pricing / Bottom CTA -->
-    <section id="pricing" class="cta-section section-padding reveal">
+    <section id="pricing" class="cta-section section-padding reveal-scale reveal">
         <div class="glow-bg glow-bottom"></div>
         <div class="cta-box">
             <h2 class="section-title" data-i18n="pricing_title">Ready to delegate chaos to <span
@@ -315,11 +323,11 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                 <div class="price">
                     <span class="currency">$</span>
                     <span class="amount">49</span>
-                    <span class="period" data-i18n="pricing_period">/месяц</span>
+                    <span class="period" data-i18n="pricing_period">/month</span>
                 </div>
                 <p class="pricing-sub" data-i18n="pricing_desc">Full access to all AI modules, 12 agents, receipt OCR, calendar and email integration. Multi-tenant support for business and family.</p>
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large w-full"><span
-                        data-i18n="pricing_btn">Перейти в Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
+                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large btn-glow w-full"><span
+                        data-i18n="pricing_btn">Go to Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
             </div>
         </div>
     </section>
@@ -339,7 +347,7 @@ receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
                     </svg>
                     <span>Finance AI</span>
                 </div>
-                <p class="clr-dim mt-2" data-i18n="footer_copy">© 2026 Finance Bot. All rights reserved.</p>
+                <p class="clr-dim mt-2" style="margin-top: 12px;" data-i18n="footer_copy">© 2026 Finance Bot. All rights reserved.</p>
             </div>
             <div class="footer-links">
                 <div class="link-group">
