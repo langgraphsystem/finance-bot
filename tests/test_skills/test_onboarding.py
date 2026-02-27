@@ -672,3 +672,88 @@ class TestSkillAttributes:
 
     def test_has_get_system_prompt_method(self, onboarding_skill):
         assert hasattr(onboarding_skill, "get_system_prompt")
+
+
+# ---- Timezone location step --------------------------------------------------
+
+
+class TestTimezoneLocationStep:
+    """Tests for the timezone location request added after onboarding."""
+
+    def test_tz_text_keys_present_in_all_languages(self):
+        """All 4 language dicts must contain the new tz_ keys."""
+        required_keys = [
+            "tz_location_prompt",
+            "tz_skip_hint",
+            "tz_skip_btn",
+            "tz_location_confirmed",
+            "tz_skip_confirmed",
+        ]
+        for lang in ("en", "es", "zh", "ru"):
+            for key in required_keys:
+                assert key in ONBOARDING_TEXTS[lang], (
+                    f"Missing key '{key}' in ONBOARDING_TEXTS['{lang}']"
+                )
+
+    def test_tz_location_confirmed_has_placeholders(self):
+        for lang in ("en", "es", "zh", "ru"):
+            text = ONBOARDING_TEXTS[lang]["tz_location_confirmed"]
+            assert "{city}" in text, f"Missing {{city}} placeholder in '{lang}'"
+            assert "{tz}" in text, f"Missing {{tz}} placeholder in '{lang}'"
+
+    @pytest.mark.asyncio
+    async def test_create_owner_no_reply_keyboard(
+        self, onboarding_skill, trucker_message, empty_context
+    ):
+        """Completion SkillResult should have no reply_keyboard (moved to api/main.py)."""
+        intent_data = {
+            "onboarding_state": ConversationState.onboarding_awaiting_activity.value,
+        }
+        mock_family = MagicMock()
+        mock_family.invite_code = "TESTCODE"
+        mock_user = MagicMock()
+
+        with patch("src.skills.onboarding.handler.async_session") as mock_session_ctx:
+            mock_session = AsyncMock()
+            mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch(
+                "src.skills.onboarding.handler.create_family",
+                new_callable=AsyncMock,
+                return_value=(mock_family, mock_user),
+            ):
+                result = await onboarding_skill.execute(
+                    trucker_message, empty_context, intent_data,
+                )
+
+        assert result.reply_keyboard is None
+        assert "share_location" not in (result.response_text or "").lower()
+
+    @pytest.mark.asyncio
+    async def test_join_family_no_reply_keyboard(
+        self, onboarding_skill, invite_code_message, empty_context
+    ):
+        """Join-family completion should also have no reply_keyboard."""
+        intent_data = {
+            "onboarding_state": ConversationState.onboarding_awaiting_invite_code.value,
+        }
+        mock_family = MagicMock()
+        mock_family.name = "Test Family"
+        mock_user = MagicMock()
+
+        with patch("src.skills.onboarding.handler.async_session") as mock_session_ctx:
+            mock_session = AsyncMock()
+            mock_session_ctx.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_ctx.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            with patch(
+                "src.skills.onboarding.handler.join_family",
+                new_callable=AsyncMock,
+                return_value=(mock_family, mock_user),
+            ):
+                result = await onboarding_skill.execute(
+                    invite_code_message, empty_context, intent_data,
+                )
+
+        assert result.reply_keyboard is None

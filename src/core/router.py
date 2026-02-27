@@ -219,18 +219,29 @@ async def _dispatch_message(
     if message.type == MessageType.callback:
         return await _handle_callback(message, context)
 
-    # Handle location pins: reverse-geocode and save as user's city
+    # Handle location pins: reverse-geocode and save as user's city + timezone
     if message.type == MessageType.location and message.text:
         city = await _reverse_geocode_city(message.text)
         if city:
-            await _save_user_city(context.user_id, city)
+            tz_name = await _save_user_city(context.user_id, city)
             # Auto-execute pending maps search if one was stored
             result = await _execute_pending_maps_search(context.user_id, city, message)
             if result:
                 return result
+            # Localized confirmation with city + timezone
+            from src.skills.onboarding.handler import get_onboarding_texts
+
+            t = await get_onboarding_texts(context.language or "en")
+            confirm_text = t.get("tz_location_confirmed", "").format(
+                city=city, tz=tz_name or "UTC",
+            )
+            if not confirm_text:
+                confirm_text = (
+                    f"Got it — your city is <b>{city}</b>"
+                    f" ({tz_name or 'UTC'})."
+                )
             return OutgoingMessage(
-                text=f"Got it — your location is set to <b>{city}</b>. "
-                "Now try your search again!",
+                text=confirm_text,
                 chat_id=message.chat_id,
                 remove_reply_keyboard=True,
             )
@@ -1309,6 +1320,16 @@ async def _handle_callback(
         sub_action = parts[1] if len(parts) > 1 else ""
         return await _handle_plan_callback(sub_action, message, context)
 
+    elif action == "tz_skip":
+        from src.skills.onboarding.handler import get_onboarding_texts
+
+        t = await get_onboarding_texts(context.language or "en")
+        return OutgoingMessage(
+            text=t["tz_skip_confirmed"],
+            chat_id=message.chat_id,
+            remove_reply_keyboard=True,
+        )
+
     elif action == "undo":
         from src.core.undo import execute_undo
 
@@ -1892,8 +1913,12 @@ async def _timezone_from_city(city: str) -> str | None:
     return None
 
 
-async def _save_user_city(user_id: str, city: str) -> None:
-    """Persist city to the user's profile and update timezone from city."""
+async def _save_user_city(user_id: str, city: str) -> str | None:
+    """Persist city to the user's profile and update timezone from city.
+
+    Returns resolved IANA timezone string or None.
+    """
+    tz_name: str | None = None
     try:
         from sqlalchemy import update
 
@@ -1938,6 +1963,7 @@ async def _save_user_city(user_id: str, city: str) -> None:
             await session.commit()
     except Exception as e:
         logger.error("Failed to save user city: %s", e)
+    return tz_name
 
 
 async def _execute_pending_maps_search(

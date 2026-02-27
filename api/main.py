@@ -411,18 +411,45 @@ async def on_message(incoming):
                 ConversationState.onboarding_awaiting_language,
             )
 
-        # If onboarding completed (no buttons = done), clear state
-        if not result.buttons:
+        # Detect onboarding completion (no buttons = done)
+        onboarding_completed = not result.buttons and onboarding_state is not None
+        if onboarding_completed:
             await _clear_onboarding_state(incoming.user_id)
 
+        # Send main response
         await gateway.send(
             OutgoingMessage(
                 text=result.response_text,
                 chat_id=incoming.chat_id,
                 buttons=result.buttons,
-                reply_keyboard=getattr(result, "reply_keyboard", None),
             )
         )
+
+        # After onboarding completion: send timezone location request
+        if onboarding_completed:
+            lang = chosen_lang or incoming.language or "en"
+            t = await get_onboarding_texts(lang)
+            # Message 1: location request with reply keyboard
+            await gateway.send(
+                OutgoingMessage(
+                    text=t["tz_location_prompt"],
+                    chat_id=incoming.chat_id,
+                    reply_keyboard=[
+                        {"text": t["share_location_btn"], "request_location": True},
+                    ],
+                )
+            )
+            # Message 2: skip option (inline button)
+            await gateway.send(
+                OutgoingMessage(
+                    text=t["tz_skip_hint"],
+                    chat_id=incoming.chat_id,
+                    buttons=[
+                        {"text": t["tz_skip_btn"], "callback": "tz_skip"},
+                    ],
+                )
+            )
+
         return
 
     # Background: auto-set timezone from Telegram language_code

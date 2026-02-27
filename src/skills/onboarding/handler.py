@@ -188,6 +188,26 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
             "for nearby searches."
         ),
         "share_location_btn": "\U0001f4cd Share location",
+        "tz_location_prompt": (
+            "\U0001f30d <b>One last thing</b> \u2014 share your location "
+            "so I get your <b>timezone</b> right.\n\n"
+            "This means accurate:\n"
+            "\u2022 Morning & evening briefs\n"
+            "\u2022 Reminders & notifications\n"
+            "\u2022 Greetings & time references\n\n"
+            "Tap the button below to share."
+        ),
+        "tz_skip_hint": "Or skip this step:",
+        "tz_skip_btn": "Skip for now",
+        "tz_location_confirmed": (
+            "\u2705 Got it! Your city is <b>{city}</b> "
+            "and timezone is <b>{tz}</b>.\n\n"
+            "You're all set \u2014 just start typing!"
+        ),
+        "tz_skip_confirmed": (
+            "No problem! I'll use a default timezone for now.\n"
+            "You can share your location anytime."
+        ),
         "joined_family": "You joined the family '{name}'!",
         "invite_short": "Invite code is too short. Try again:",
         "invite_invalid": (
@@ -290,6 +310,26 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
             "y buscar lugares cercanos."
         ),
         "share_location_btn": "\U0001f4cd Compartir ubicaci\u00f3n",
+        "tz_location_prompt": (
+            "\U0001f30d <b>\u00daltimo paso</b> \u2014 comparte tu ubicaci\u00f3n "
+            "para configurar tu <b>zona horaria</b>.\n\n"
+            "Esto permite:\n"
+            "\u2022 Res\u00famenes de ma\u00f1ana y noche precisos\n"
+            "\u2022 Recordatorios a la hora correcta\n"
+            "\u2022 Saludos y referencias horarias exactas\n\n"
+            "Toca el bot\u00f3n de abajo."
+        ),
+        "tz_skip_hint": "O puedes omitir este paso:",
+        "tz_skip_btn": "Omitir por ahora",
+        "tz_location_confirmed": (
+            "\u2705 \u00a1Listo! Tu ciudad es <b>{city}</b> "
+            "y tu zona horaria es <b>{tz}</b>.\n\n"
+            "\u00a1Ya puedes empezar a escribir!"
+        ),
+        "tz_skip_confirmed": (
+            "\u00a1Sin problema! Usar\u00e9 una zona horaria predeterminada.\n"
+            "Puedes compartir tu ubicaci\u00f3n en cualquier momento."
+        ),
         "joined_family": "\u00a1Te uniste a la familia '{name}'!",
         "invite_short": (
             "El c\u00f3digo es muy corto. Int\u00e9ntalo de nuevo:"
@@ -384,6 +424,26 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
             "我可以检测你的城市以便搜索附近地点。"
         ),
         "share_location_btn": "\U0001f4cd 分享位置",
+        "tz_location_prompt": (
+            "\U0001f30d <b>最后一步</b> \u2014 分享你的位置，"
+            "以便我正确设置<b>时区</b>。\n\n"
+            "这样可以确保：\n"
+            "\u2022 早晚简报时间准确\n"
+            "\u2022 提醒和通知准时到达\n"
+            "\u2022 问候和时间引用正确\n\n"
+            "点击下方按钮分享。"
+        ),
+        "tz_skip_hint": "或者跳过这一步：",
+        "tz_skip_btn": "暂时跳过",
+        "tz_location_confirmed": (
+            "\u2705 好的！你的城市是<b>{city}</b>，"
+            "时区是<b>{tz}</b>。\n\n"
+            "一切准备就绪 \u2014 开始使用吧！"
+        ),
+        "tz_skip_confirmed": (
+            "没问题！我会使用默认时区。\n"
+            "你可以随时分享位置来更新。"
+        ),
         "joined_family": "你已加入家庭'{name}'！",
         "invite_short": "邀请码太短。请再试一次：",
         "invite_invalid": "邀请码无效或你已经注册。\n请检查并重试：",
@@ -479,6 +539,26 @@ ONBOARDING_TEXTS: dict[str, dict[str, str]] = {
             "для поиска мест рядом."
         ),
         "share_location_btn": "\U0001f4cd Поделиться геолокацией",
+        "tz_location_prompt": (
+            "\U0001f30d <b>Последний шаг</b> \u2014 поделитесь геолокацией, "
+            "чтобы я правильно определил ваш <b>часовой пояс</b>.\n\n"
+            "Это нужно для:\n"
+            "\u2022 Утренних и вечерних брифингов вовремя\n"
+            "\u2022 Напоминаний в правильное время\n"
+            "\u2022 Корректных приветствий\n\n"
+            "Нажмите кнопку ниже."
+        ),
+        "tz_skip_hint": "Или пропустите этот шаг:",
+        "tz_skip_btn": "Пропустить",
+        "tz_location_confirmed": (
+            "\u2705 Отлично! Ваш город \u2014 <b>{city}</b>, "
+            "часовой пояс \u2014 <b>{tz}</b>.\n\n"
+            "Всё готово \u2014 просто начните писать!"
+        ),
+        "tz_skip_confirmed": (
+            "Без проблем! Буду использовать часовой пояс по умолчанию.\n"
+            "Вы можете поделиться геолокацией в любой момент."
+        ),
         "joined_family": "Вы присоединились к семье «{name}»!",
         "invite_short": (
             "Код приглашения слишком короткий. "
@@ -1046,12 +1126,8 @@ class OnboardingSkill:
                 response_text=(
                     f"{t['setup_done'].format(profile=display_name)}\n"
                     f"{cat_line}\n"
-                    f"{t['quick_start']}\n\n"
-                    f"{t['share_location_prompt']}"
+                    f"{t['quick_start']}"
                 ),
-                reply_keyboard=[
-                    {"text": t["share_location_btn"], "request_location": True},
-                ],
             )
         except Exception as e:
             logger.exception(
@@ -1103,12 +1179,8 @@ class OnboardingSkill:
                 return SkillResult(
                     response_text=(
                         f"{t['joined_family'].format(name=family.name)}\n\n"
-                        f"{t['quick_start']}\n\n"
-                        f"{t['share_location_prompt']}"
+                        f"{t['quick_start']}"
                     ),
-                    reply_keyboard=[
-                        {"text": t["share_location_btn"], "request_location": True},
-                    ],
                 )
             else:
                 return SkillResult(response_text=t["invite_invalid"])
