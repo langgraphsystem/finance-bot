@@ -10,7 +10,7 @@ def test_generate_image_skill_attributes():
     skill = GenerateImageSkill()
     assert skill.name == "generate_image"
     assert "generate_image" in skill.intents
-    assert skill.model == "gemini-3-pro-image-preview"
+    assert skill.model == "gemini-3.1-flash-image-preview"
 
 
 def test_generate_image_system_prompt(sample_context):
@@ -59,7 +59,7 @@ async def test_generate_image_success(sample_context):
     assert result.response_text == ""
     mock_client.aio.models.generate_content.assert_called_once()
     call_kwargs = mock_client.aio.models.generate_content.call_args
-    assert call_kwargs[1]["model"] == "gemini-3-pro-image-preview"
+    assert call_kwargs[1]["model"] == "gemini-3.1-flash-image-preview"
 
 
 async def test_generate_image_primary_fails_fallback_succeeds(sample_context):

@@ -1,8 +1,8 @@
-"""Image generation skill — Gemini Nano Banana (Pro + Flash fallback).
+"""Image generation skill — Gemini native image generation.
 
 Uses Google Gemini Image models to generate images from text prompts.
-Primary: gemini-3-pro-image-preview (Nano Banana Pro — high quality)
-Fallback: gemini-2.5-flash-image (Nano Banana — fast, cheaper)
+Primary: gemini-3.1-flash-image-preview (latest, fast)
+Fallback: gemini-3.1-pro-preview (multimodal with image output)
 """
 
 import logging
@@ -18,7 +18,7 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-_MODELS = ("gemini-3-pro-image-preview", "gemini-2.5-flash-image")
+_MODELS = ("gemini-3.1-flash-image-preview", "gemini-3.1-pro-preview")
 
 
 async def _generate(prompt: str, model: str) -> bytes | None:
@@ -48,7 +48,7 @@ async def _generate(prompt: str, model: str) -> bytes | None:
 class GenerateImageSkill:
     name = "generate_image"
     intents = ["generate_image"]
-    model = "gemini-3-pro-image-preview"
+    model = "gemini-3.1-flash-image-preview"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return (
