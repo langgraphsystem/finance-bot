@@ -52,10 +52,78 @@ _RU_GREETING_WORDS = frozenset({
 })
 _ES_GREETING_WORDS = frozenset({"hola", "ола"})
 
+# Fast-path: affirmations / acknowledgments answered without LLM
+_AFFIRMATION_WORDS = frozenset({
+    "да", "ок", "ok", "okay", "yes", "yep", "yeah", "yea", "sure",
+    "готов", "готова", "ладно", "хорошо", "понял", "поняла", "понятно",
+    "ясно", "cool", "nice", "great", "awesome", "got it", "si", "bueno",
+    "спасибо", "thanks", "thank you", "спс", "thx", "gracias",
+    "круто", "класс", "отлично", "супер", "норм",
+})
+
+_AFFIRMATION_EMOJI = frozenset({
+    "👍", "👌", "🙌", "✅", "🤝", "💪", "👏", "🔥", "❤️", "😊",
+    "😉", "🫡", "✌️", "🫶", "💯",
+})
+
+_AFFIRMATION_REPLIES = {
+    "en": ["Got it!", "Okay! What's next?", "Sure thing!"],
+    "ru": ["Принято!", "Окей! Что дальше?", "Понял!"],
+    "es": ["Entendido!", "Ok! Que sigue?", "Listo!"],
+}
+_THANKS_REPLIES = {
+    "en": ["You're welcome!", "Happy to help!", "Anytime!"],
+    "ru": ["Пожалуйста!", "Рад помочь!", "Обращайся!"],
+    "es": ["De nada!", "Con gusto!", "Cuando quieras!"],
+}
+_RU_THANKS = frozenset({"спасибо", "спс"})
+_EN_THANKS = frozenset({"thanks", "thank you", "thx"})
+_ES_THANKS = frozenset({"gracias"})
+
 
 def _is_greeting(text: str) -> bool:
     """Check if the message is a simple greeting."""
     return text.lower().strip().rstrip("!.?  ") in _GREETING_WORDS
+
+
+def _is_affirmation(text: str) -> bool:
+    """Check if the message is a short affirmation/acknowledgment."""
+    cleaned = text.lower().strip().rstrip("!.?  ")
+    if cleaned in _AFFIRMATION_WORDS:
+        return True
+    # Pure emoji messages (1-3 emoji, no other text)
+    stripped = text.strip()
+    if stripped and all(c in _AFFIRMATION_EMOJI or c in " " for c in stripped):
+        return True
+    return False
+
+
+def _is_thanks(text: str) -> bool:
+    """Check if the message is a thank-you."""
+    cleaned = text.lower().strip().rstrip("!.?  ")
+    return cleaned in (_RU_THANKS | _EN_THANKS | _ES_THANKS)
+
+
+def _affirmation_reply(text: str, context_lang: str | None) -> str:
+    """Return a short reply for affirmation or thanks."""
+    lang = "en"
+    if context_lang and context_lang.startswith("ru"):
+        lang = "ru"
+    elif context_lang and context_lang.startswith("es"):
+        lang = "es"
+    # Detect language from text itself
+    cleaned = text.lower().strip().rstrip("!.?  ")
+    if cleaned in _RU_THANKS or cleaned in {"да", "ок", "готов", "готова", "ладно",
+                                              "хорошо", "понял", "поняла", "понятно",
+                                              "ясно", "круто", "класс", "отлично",
+                                              "супер", "норм"}:
+        lang = "ru"
+    elif cleaned in _ES_THANKS or cleaned in {"si", "bueno"}:
+        lang = "es"
+
+    if _is_thanks(text):
+        return random.choice(_THANKS_REPLIES.get(lang, _THANKS_REPLIES["en"]))
+    return random.choice(_AFFIRMATION_REPLIES.get(lang, _AFFIRMATION_REPLIES["en"]))
 
 
 def _detect_greeting_lang(text: str, context_lang: str | None) -> str:
@@ -107,9 +175,15 @@ You also have built-in features (mention if the request matches):
 • Search: questions, web, comparisons, maps, YouTube
 • Writing: messages, posts, translation, proofreading
 • Clients: bookings, contacts
+• Family: shared tracking with family members via invite code
+
+If user asks about adding family members or invite codes, tell them to type \
+"show invite code" or "мой код приглашения" to see their code. \
+Family members join by pressing /start and choosing "Join family".
 
 Principles:
 - Keep it short — the user is in a messenger (3-6 sentences max)
+- For short messages (emoji, "ok", "thanks", single words) — respond in 1 sentence max
 - If you need data you don't have — say exactly what you need
 - Don't pretend you can do things you can't
 - For greetings — say hi briefly and ask how you can help (1-2 sentences)
@@ -147,6 +221,10 @@ class GeneralChatSkill:
             lang = _detect_greeting_lang(text_raw, context.language)
             return SkillResult(response_text=_time_greeting(context.timezone, lang))
 
+        # Fast-path: affirmations/emoji/thanks — no LLM needed
+        if text_raw and _is_affirmation(text_raw):
+            return SkillResult(response_text=_affirmation_reply(text_raw, context.language))
+
         from src.core.memory import sliding_window
 
         # Log if this is a redirect from low-confidence intent
@@ -180,7 +258,9 @@ class GeneralChatSkill:
             sys = system_prompt
             msgs = [{"role": "user", "content": message.text or "Hi"}]
 
-        text = await generate_text(self.model, sys, msgs, max_tokens=1024)
+        # Dynamic max_tokens: short inputs get shorter responses
+        max_tok = 256 if len(text_raw) < 20 else 1024
+        text = await generate_text(self.model, sys, msgs, max_tokens=max_tok)
         return SkillResult(response_text=text)
 
     def get_system_prompt(self, context: SessionContext) -> str:

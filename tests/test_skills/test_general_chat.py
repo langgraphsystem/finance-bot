@@ -9,7 +9,9 @@ from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.general_chat.handler import (
     GeneralChatSkill,
+    _affirmation_reply,
     _detect_greeting_lang,
+    _is_affirmation,
     _is_greeting,
     _time_greeting,
 )
@@ -273,3 +275,74 @@ async def test_english_greeting_returns_english(skill):
         word in result.response_text
         for word in ["Hi", "Hey", "Good", "Morning", "help", "need", "sleep"]
     )
+
+
+# --- Affirmation fast-path tests ---
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["да", "ок", "ok", "yes", "готов", "спасибо", "thanks", "👍", "👌", "🙌", "круто", "норм"],
+)
+def test_is_affirmation_positive(text):
+    """Various affirmations should be recognized."""
+    assert _is_affirmation(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["да, конечно, но мне нужна помощь", "расскажи подробнее", "кофе 150", ""],
+)
+def test_is_affirmation_negative(text):
+    """Multi-word messages and non-affirmations should not match."""
+    assert not _is_affirmation(text)
+
+
+def test_affirmation_reply_russian():
+    reply = _affirmation_reply("да", "ru")
+    assert isinstance(reply, str)
+    assert len(reply) > 0
+
+
+def test_affirmation_reply_thanks():
+    reply = _affirmation_reply("спасибо", "ru")
+    assert any(w in reply for w in ["Пожалуйста", "Рад помочь", "Обращайся"])
+
+
+def test_affirmation_reply_english_thanks():
+    reply = _affirmation_reply("thanks", "en")
+    assert any(w in reply for w in ["welcome", "Happy", "Anytime"])
+
+
+@pytest.mark.asyncio
+async def test_affirmation_fast_path_no_llm(skill, ctx):
+    """Simple affirmation returns immediate response without calling LLM."""
+    result = await skill.execute(_msg("👍"), ctx, {})
+    assert len(result.response_text) < 50
+
+
+@pytest.mark.asyncio
+async def test_emoji_fast_path(skill, ctx):
+    """Pure emoji message returns short acknowledgment."""
+    result = await skill.execute(_msg("🙌"), ctx, {})
+    assert result.response_text
+    assert len(result.response_text) < 50
+
+
+@pytest.mark.asyncio
+async def test_short_input_uses_lower_max_tokens(skill, ctx):
+    """Short non-greeting/non-affirmation input uses max_tokens=256."""
+    mock_generate = AsyncMock(return_value="Short reply")
+
+    with (
+        patch(
+            "src.core.memory.sliding_window.count_recent_intents",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+        patch("src.skills.general_chat.handler.generate_text", mock_generate),
+    ):
+        await skill.execute(_msg("что это?"), ctx, {})
+
+    call_kwargs = mock_generate.call_args.kwargs
+    assert call_kwargs.get("max_tokens", 1024) == 256

@@ -107,3 +107,31 @@ def test_real_llm_response():
     assert "**" not in result
     assert "<b>" in result
     assert "•" in result
+
+
+def test_horizontal_rule_removed():
+    result = md_to_telegram_html("Above\n---\nBelow")
+    assert "---" not in result
+    assert "Above" in result
+    assert "Below" in result
+
+
+def test_horizontal_rule_stars():
+    result = md_to_telegram_html("Above\n***\nBelow")
+    assert "***" not in result
+
+
+def test_markdown_table_converted():
+    text = "| Category | Amount |\n|----------|--------|\n| Food | $50 |\n| Gas | $30 |"
+    result = md_to_telegram_html(text)
+    assert "|" not in result
+    assert "Food" in result
+    assert "$50" in result
+    assert "•" in result
+
+
+def test_markdown_table_single_row():
+    text = "| Name | Value |\n|------|-------|\n| Test | 100 |"
+    result = md_to_telegram_html(text)
+    assert "|" not in result
+    assert "Test" in result

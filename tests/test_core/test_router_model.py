@@ -38,16 +38,16 @@ def test_fallback_model():
     assert fallback.provider == "anthropic"
 
 
-def test_tasks_uses_grok():
+def test_tasks_uses_gpt():
     router = ModelRouter()
     model = router.get_model("tasks")
-    assert model.provider == "xai"
-    assert model.model_id == "grok-4-1-fast-reasoning"
+    assert model.provider == "openai"
+    assert model.model_id == "gpt-5.2"
 
 
-def test_tasks_fallback_to_gpt():
+def test_tasks_fallback_to_gemini():
     router = ModelRouter()
     fallback = router.get_fallback("tasks")
     assert fallback is not None
-    assert fallback.provider == "openai"
-    assert fallback.model_id == "gpt-5.2"
+    assert fallback.provider == "google"
+    assert fallback.model_id == "gemini-3-flash-preview"

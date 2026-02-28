@@ -45,7 +45,58 @@ def md_to_telegram_html(text: str) -> str:
     # Headers (### text, ## text, # text) → <b>text</b> + newline
     text = re.sub(r"^#{1,3}\s+(.+)$", r"<b>\1</b>", text, flags=re.MULTILINE)
 
+    # Horizontal rules (---, ***, ___) → empty line
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+
+    # Markdown tables → clean text
+    text = _convert_tables(text)
+
     return text.strip()
+
+
+def _convert_tables(text: str) -> str:
+    """Convert Markdown pipe-delimited tables to clean text.
+
+    Turns:
+        | Name | Amount |
+        |------|--------|
+        | Food | $50    |
+
+    Into:
+        • Name: Amount
+        • Food: $50
+    """
+    lines = text.split("\n")
+    result: list[str] = []
+    headers: list[str] = []
+    in_table = False
+
+    for line in lines:
+        stripped = line.strip()
+        # Detect table row: starts and ends with |
+        if stripped.startswith("|") and stripped.endswith("|"):
+            cells = [c.strip() for c in stripped.strip("|").split("|")]
+            # Skip separator rows (|---|---|)
+            if all(re.match(r"^[-:]+$", c) for c in cells):
+                continue
+            if not in_table:
+                # First row = headers
+                headers = cells
+                in_table = True
+            else:
+                # Data row: pair with headers
+                if headers and len(headers) >= 2 and len(cells) >= 2:
+                    parts = [f"{cells[0]}: {', '.join(cells[1:])}"]
+                    result.append(f"• {parts[0]}")
+                else:
+                    result.append(f"• {', '.join(cells)}")
+        else:
+            if in_table and headers:
+                in_table = False
+                headers = []
+            result.append(line)
+
+    return "\n".join(result)
 
 
 def _escape_html(text: str) -> str:

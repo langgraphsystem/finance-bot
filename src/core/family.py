@@ -20,6 +20,14 @@ def generate_invite_code() -> str:
     return secrets.token_urlsafe(6)[:8].upper()
 
 
+async def get_invite_code(session: AsyncSession, family_id: str) -> str | None:
+    """Retrieve the invite code for a family by its ID."""
+    result = await session.execute(
+        select(Family.invite_code).where(Family.id == uuid.UUID(family_id))
+    )
+    return result.scalar_one_or_none()
+
+
 async def create_family(
     session: AsyncSession,
     owner_telegram_id: int,

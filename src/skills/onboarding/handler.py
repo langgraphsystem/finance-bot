@@ -18,6 +18,7 @@ from src.core.db import async_session, redis
 from src.core.family import (
     create_family,
     create_family_for_channel,
+    get_invite_code,
     join_family,
     join_family_for_channel,
 )
@@ -918,6 +919,21 @@ def _format_categories_text(
     return display
 
 
+_INVITE_KEYWORDS = frozenset({
+    "invite", "invite code", "код приглашения", "пригласить",
+    "add family", "добавить семью", "family member", "член семьи",
+    "добавить члена", "invite member", "пригласить члена",
+    "show invite", "показать код", "мой код", "my code",
+    "family code", "код семьи", "share code", "поделиться кодом",
+})
+
+
+def _is_invite_request(text: str) -> bool:
+    """Check if the message is asking about invite code / adding family member."""
+    lower = text.lower().strip()
+    return any(kw in lower for kw in _INVITE_KEYWORDS)
+
+
 # ---- main skill ------------------------------------------------------------
 
 
@@ -953,6 +969,9 @@ class OnboardingSkill:
 
         # If user is already registered, don't re-onboard
         if context.family_id and text != "/start":
+            # Check if asking for invite code / family member
+            if _is_invite_request(text):
+                return await self._show_invite_code(context, lang)
             return SkillResult(response_text=t["already_registered"])
 
         # Determine current onboarding sub-state from intent_data
@@ -1075,6 +1094,44 @@ class OnboardingSkill:
             channel_user_id=channel_user_id,
         )
 
+    async def _show_invite_code(
+        self,
+        context: SessionContext,
+        lang: str,
+    ) -> SkillResult:
+        """Show the user's family invite code."""
+        t = await get_onboarding_texts(lang)
+        try:
+            async with async_session() as session:
+                code = await get_invite_code(session, context.family_id)
+            if code:
+                msg = {
+                    "en": (
+                        f"\U0001f465 Your family invite code: <code>{code}</code>\n\n"
+                        "Share it with family members. They can join by "
+                        "pressing /start and choosing \"Join family\"."
+                    ),
+                    "ru": (
+                        f"\U0001f465 Код приглашения: <code>{code}</code>\n\n"
+                        "Отправьте его близким. Они смогут присоединиться, "
+                        "нажав /start и выбрав \"Присоединиться к семье\"."
+                    ),
+                    "es": (
+                        f"\U0001f465 Codigo de invitacion: <code>{code}</code>\n\n"
+                        "Compartelo con tu familia. Pueden unirse "
+                        "presionando /start y eligiendo \"Unirse a familia\"."
+                    ),
+                }
+                return SkillResult(response_text=msg.get(lang, msg["en"]))
+            return SkillResult(
+                response_text=t.get("already_registered", "You're already registered!")
+            )
+        except Exception as e:
+            logger.exception("Failed to get invite code: %s", e)
+            return SkillResult(
+                response_text=t.get("already_registered", "You're already registered!")
+            )
+
     async def _create_owner_account(
         self,
         message: IncomingMessage,
@@ -1122,10 +1179,19 @@ class OnboardingSkill:
                 else "\n"
             )
 
+            invite_line = ""
+            if family.invite_code:
+                invite_line = (
+                    f"\n\U0001f465 <b>{t['invite_code_label']}:</b> "
+                    f"<code>{family.invite_code}</code>\n"
+                    f"{t['invite_code_hint']}\n"
+                )
+
             return SkillResult(
                 response_text=(
                     f"{t['setup_done'].format(profile=display_name)}\n"
-                    f"{cat_line}\n"
+                    f"{cat_line}"
+                    f"{invite_line}\n"
                     f"{t['quick_start']}"
                 ),
             )

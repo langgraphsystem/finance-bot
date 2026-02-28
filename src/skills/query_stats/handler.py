@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 STATS_SYSTEM_PROMPT = """Ты формируешь ответ о финансовой статистике.
 Тебе передаются ГОТОВЫЕ числа из SQL. НИКОГДА не считай сам.
 Оформи данные красиво и кратко (2-4 предложения).
-Добавь сравнения и проценты, если данные позволяют."""
+Добавь сравнения и проценты, если данные позволяют.
+Используй HTML теги для Telegram (<b>жирный</b>). НЕ используй Markdown. Без таблиц."""
 
 
 def _parse_date(value: str | None) -> date | None:
@@ -229,51 +230,60 @@ class QueryStatsSkill:
 
         # Use assembled SQL stats for current month, own query for other periods
         total_income = Decimal("0")
-        if period == "month" and assembled and assembled.sql_stats:
-            sql_stats = assembled.sql_stats
-            total = Decimal(str(sql_stats["total_expense"]))
-            total_income = Decimal(str(sql_stats.get("total_income", 0)))
-            stats = [(cat["name"], Decimal(str(cat["total"]))) for cat in sql_stats["by_category"]]
-        else:
-            # SQL query — LLM NEVER calculates
-            async with async_session() as session:
-                result = await session.execute(
-                    select(
-                        Category.name,
-                        func.sum(Transaction.amount).label("total"),
+        try:
+            if period == "month" and assembled and assembled.sql_stats:
+                sql_stats = assembled.sql_stats
+                total = Decimal(str(sql_stats["total_expense"]))
+                total_income = Decimal(str(sql_stats.get("total_income", 0)))
+                stats = [
+                    (cat["name"], Decimal(str(cat["total"])))
+                    for cat in sql_stats["by_category"]
+                ]
+            else:
+                # SQL query — LLM NEVER calculates
+                async with async_session() as session:
+                    result = await session.execute(
+                        select(
+                            Category.name,
+                            func.sum(Transaction.amount).label("total"),
+                        )
+                        .join(Category, Transaction.category_id == Category.id)
+                        .where(
+                            Transaction.family_id == uuid.UUID(context.family_id),
+                            Transaction.date >= start_date,
+                            Transaction.date < end_date,
+                            Transaction.type == TransactionType.expense,
+                        )
+                        .group_by(Category.name)
+                        .order_by(func.sum(Transaction.amount).desc())
                     )
-                    .join(Category, Transaction.category_id == Category.id)
-                    .where(
-                        Transaction.family_id == uuid.UUID(context.family_id),
-                        Transaction.date >= start_date,
-                        Transaction.date < end_date,
-                        Transaction.type == TransactionType.expense,
-                    )
-                    .group_by(Category.name)
-                    .order_by(func.sum(Transaction.amount).desc())
-                )
-                stats = result.all()
+                    stats = result.all()
 
-                total_result = await session.execute(
-                    select(func.sum(Transaction.amount)).where(
-                        Transaction.family_id == uuid.UUID(context.family_id),
-                        Transaction.date >= start_date,
-                        Transaction.date < end_date,
-                        Transaction.type == TransactionType.expense,
+                    total_result = await session.execute(
+                        select(func.sum(Transaction.amount)).where(
+                            Transaction.family_id == uuid.UUID(context.family_id),
+                            Transaction.date >= start_date,
+                            Transaction.date < end_date,
+                            Transaction.type == TransactionType.expense,
+                        )
                     )
-                )
-                total = total_result.scalar() or Decimal("0")
+                    total = total_result.scalar() or Decimal("0")
 
-                # Income query
-                income_result = await session.execute(
-                    select(func.sum(Transaction.amount)).where(
-                        Transaction.family_id == uuid.UUID(context.family_id),
-                        Transaction.date >= start_date,
-                        Transaction.date < end_date,
-                        Transaction.type == TransactionType.income,
+                    # Income query
+                    income_result = await session.execute(
+                        select(func.sum(Transaction.amount)).where(
+                            Transaction.family_id == uuid.UUID(context.family_id),
+                            Transaction.date >= start_date,
+                            Transaction.date < end_date,
+                            Transaction.type == TransactionType.income,
+                        )
                     )
-                )
-                total_income = income_result.scalar() or Decimal("0")
+                    total_income = income_result.scalar() or Decimal("0")
+        except Exception as e:
+            logger.exception("query_stats SQL error for family_id=%s: %s", context.family_id, e)
+            return SkillResult(
+                response_text=f"No data found for {period_label}. Try again later."
+            )
 
         if not stats and total_income == 0:
             return SkillResult(response_text=f"За {period_label} данных не найдено.")
