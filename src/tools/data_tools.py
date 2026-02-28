@@ -29,6 +29,7 @@ from src.core.models import (
     Task,
     Transaction,
 )
+from src.core.models.document import Document
 from src.core.observability import observe
 from src.core.pending_actions import store_pending_action
 
@@ -48,6 +49,7 @@ ALLOWED_TABLES: dict[str, type] = {
     "monitors": Monitor,
     "shopping_lists": ShoppingList,
     "shopping_list_items": ShoppingListItem,
+    "documents": Document,
 }
 
 # Tables the LLM cannot create/update/delete

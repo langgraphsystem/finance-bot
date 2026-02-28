@@ -6,6 +6,9 @@ import logging
 import uuid
 from typing import Any
 
+import instructor
+from pydantic import BaseModel
+
 from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.llm.clients import anthropic_client, google_client
@@ -15,10 +18,14 @@ from src.core.schemas.load import LoadData
 from src.core.schemas.receipt import ReceiptData
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.tools.document_reader import extract_pages_as_images
 
 logger = logging.getLogger(__name__)
 
 PENDING_DOC_TTL = 3600  # 1 hour
+
+# Maximum pages to send to the LLM in a single request (avoids context overflow)
+MAX_PDF_PAGES = 10
 
 CLASSIFY_PROMPT = """Определи тип документа на фото. Ответь ТОЛЬКО одним словом:
 - receipt (чек, кассовый чек, товарный чек)
@@ -89,6 +96,24 @@ PROMPT_MAP = {
     "other": GENERIC_OCR_PROMPT,
 }
 
+# Maps doc_type to the Pydantic model used for Instructor structured extraction
+SCHEMA_MAP: dict[str, type[BaseModel]] = {
+    "receipt": ReceiptData,
+    "fuel_receipt": ReceiptData,
+    "invoice": InvoiceData,
+    "rate_confirmation": LoadData,
+    "other": GenericDocumentData,
+}
+
+
+def _is_pdf(mime_type: str | None, filename: str | None) -> bool:
+    """Return True if the document is a PDF."""
+    if mime_type and "pdf" in mime_type.lower():
+        return True
+    if filename and filename.lower().endswith(".pdf"):
+        return True
+    return False
+
 
 async def store_pending_doc(
     pending_id: str,
@@ -144,22 +169,54 @@ class ScanDocumentSkill:
             return SkillResult(response_text="Отправьте фото или документ для распознавания.")
 
         mime_type = message.document_mime_type or "image/jpeg"
+        filename = message.document_file_name or ""
         fallback_used = False
 
+        # --- Multi-page PDF handling ---
+        # Extract all pages as PNG images when the input is a PDF.
+        # The page images are used for both classification and OCR so the LLM
+        # sees the full document rather than only the first page.
+        pdf_page_images: list[bytes] = []
+        if _is_pdf(mime_type, filename):
+            try:
+                all_pages = await extract_pages_as_images(image_bytes, filename or "doc.pdf")
+                if all_pages:
+                    pdf_page_images = all_pages[:MAX_PDF_PAGES]
+                    logger.info(
+                        "PDF split into %d page(s) (total %d)",
+                        len(pdf_page_images),
+                        len(all_pages),
+                    )
+            except Exception as e:
+                logger.warning("PDF page extraction failed: %s, falling back to raw bytes", e)
+
         # Step 1: Classify document type
+        # Use first page image for classification (covers the document header).
+        classify_bytes = pdf_page_images[0] if pdf_page_images else image_bytes
+        classify_mime = "image/png" if pdf_page_images else mime_type
         try:
-            doc_type = await self._classify(image_bytes, mime_type)
+            doc_type = await self._classify(classify_bytes, classify_mime)
         except Exception as e:
             logger.warning("Document classification failed: %s, defaulting to 'other'", e)
             doc_type = "other"
 
-        # Step 2: Extract data based on type
+        # Step 2: Extract data — pass all PDF pages in one request when available
         try:
-            raw_data = await self._extract(image_bytes, mime_type, doc_type)
+            raw_data = await self._extract(
+                image_bytes=image_bytes,
+                mime_type=mime_type,
+                doc_type=doc_type,
+                pdf_pages=pdf_page_images,
+            )
         except Exception as e:
             logger.warning("Gemini extraction failed: %s, trying Claude fallback", e)
             try:
-                raw_data = await self._extract_claude(image_bytes, mime_type, doc_type)
+                raw_data = await self._extract_claude(
+                    image_bytes=image_bytes,
+                    mime_type=mime_type,
+                    doc_type=doc_type,
+                    pdf_pages=pdf_page_images,
+                )
                 fallback_used = True
             except Exception as e2:
                 logger.error("All OCR models failed: %s", e2)
@@ -193,7 +250,7 @@ class ScanDocumentSkill:
 
     @observe(name="doc_classify")
     async def _classify(self, image_bytes: bytes, mime_type: str) -> str:
-        """Classify document type using Gemini 3 Flash."""
+        """Classify document type using Gemini 3 Flash (first page image)."""
         client = google_client()
         parts = [
             CLASSIFY_PROMPT,
@@ -215,19 +272,45 @@ class ScanDocumentSkill:
         return "other"
 
     @observe(name="doc_extract_gemini")
-    async def _extract(self, image_bytes: bytes, mime_type: str, doc_type: str) -> dict:
-        """Extract structured data using Gemini 3 Flash."""
+    async def _extract(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        doc_type: str,
+        pdf_pages: list[bytes],
+    ) -> dict:
+        """Extract structured data using Gemini 3 Flash.
+
+        When ``pdf_pages`` is provided, all page images are sent in a single
+        request so multi-page documents (e.g. multi-page invoices) are processed
+        in full rather than just the first page.
+        """
         client = google_client()
         prompt = PROMPT_MAP.get(doc_type, GENERIC_OCR_PROMPT)
-        parts = [
-            prompt,
-            {
-                "inline_data": {
-                    "mime_type": mime_type,
-                    "data": base64.b64encode(image_bytes).decode(),
-                }
-            },
-        ]
+
+        if pdf_pages:
+            # Build a multi-image request: one inline_data block per PDF page
+            parts: list = [prompt]
+            for page_bytes in pdf_pages:
+                parts.append(
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": base64.b64encode(page_bytes).decode(),
+                        }
+                    }
+                )
+        else:
+            parts = [
+                prompt,
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": base64.b64encode(image_bytes).decode(),
+                    }
+                },
+            ]
+
         response = await client.aio.models.generate_content(
             model="gemini-3-flash-preview",
             contents=parts,
@@ -236,30 +319,61 @@ class ScanDocumentSkill:
         return json.loads(response.text)
 
     @observe(name="doc_extract_claude")
-    async def _extract_claude(self, image_bytes: bytes, mime_type: str, doc_type: str) -> dict:
-        """Fallback extraction using Claude Haiku."""
-        client = anthropic_client()
+    async def _extract_claude(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+        doc_type: str,
+        pdf_pages: list[bytes],
+    ) -> dict:
+        """Fallback extraction using Claude Sonnet via Instructor for typed output.
+
+        When ``pdf_pages`` is provided, all page images are included in a single
+        request.  The Instructor library handles structured extraction and
+        validates the response against the appropriate Pydantic model, so manual
+        JSON slicing is no longer required.
+        """
+        response_model: type[BaseModel] = SCHEMA_MAP.get(doc_type, GenericDocumentData)
         prompt = PROMPT_MAP.get(doc_type, GENERIC_OCR_PROMPT)
-        content = [
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": mime_type,
-                    "data": base64.b64encode(image_bytes).decode(),
-                },
-            },
-            {"type": "text", "text": prompt},
-        ]
-        response = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=1024,
+
+        # Build the content blocks: images first, then the text prompt
+        content: list[dict] = []
+
+        if pdf_pages:
+            for page_bytes in pdf_pages:
+                content.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": base64.b64encode(page_bytes).decode(),
+                        },
+                    }
+                )
+        else:
+            content.append(
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime_type,
+                        "data": base64.b64encode(image_bytes).decode(),
+                    },
+                }
+            )
+
+        content.append({"type": "text", "text": prompt})
+
+        # Instructor wraps AsyncAnthropic and returns a validated Pydantic instance
+        ic = instructor.from_anthropic(anthropic_client())
+        result: BaseModel = await ic.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
             messages=[{"role": "user", "content": content}],
+            response_model=response_model,
         )
-        text = response.content[0].text
-        start = text.find("{")
-        end = text.rfind("}") + 1
-        return json.loads(text[start:end])
+        return result.model_dump(mode="json")
 
     def _format_receipt(self, data: dict, doc_type: str, pending_id: str) -> SkillResult:
         """Format receipt/fuel receipt response."""
@@ -282,7 +396,8 @@ class ScanDocumentSkill:
             response += f"\U0001f4c5 <b>Дата:</b> {receipt.date}\n"
         if receipt.gallons:
             response += (
-                f"\u26fd <b>Топливо:</b> {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
+                f"\u26fd <b>Топливо:</b> {receipt.gallons} gal"
+                f" @ ${receipt.price_per_gallon}/gal\n"
             )
         if receipt.state:
             response += f"\U0001f4cd <b>Штат:</b> {receipt.state}\n"

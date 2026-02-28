@@ -17,6 +17,7 @@ from src.core.observability import observe
 from src.core.schemas.receipt import ReceiptData, ReceiptItem
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.tools.storage import upload_document
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +103,12 @@ class ScanReceiptSkill:
         confidence = Decimal("0.9")
         if confidence > Decimal("0.95"):
             try:
-                tx_id = await self._save_receipt_to_db(receipt, context)
+                tx_id = await self._save_receipt_to_db(
+                    receipt,
+                    context,
+                    image_bytes=message.photo_bytes,
+                    mime_type="image/jpeg",
+                )
                 response += f"\n\nАвтоматически сохранено (ID: {tx_id})"
                 return SkillResult(response_text=response)
             except Exception as e:
@@ -125,15 +131,32 @@ class ScanReceiptSkill:
             ],
         )
 
-    async def _save_receipt_to_db(self, receipt: ReceiptData, context: SessionContext) -> str:
+    async def _save_receipt_to_db(
+        self,
+        receipt: ReceiptData,
+        context: SessionContext,
+        image_bytes: bytes | None = None,
+        mime_type: str = "image/jpeg",
+    ) -> str:
         """Save receipt as Transaction + Document. Returns transaction ID."""
+        # Upload image to Supabase Storage before opening the DB session
+        storage_path = "pending"
+        if image_bytes:
+            storage_path = await upload_document(
+                file_bytes=image_bytes,
+                family_id=context.family_id,
+                filename=f"receipt_{uuid.uuid4().hex[:8]}.jpg",
+                mime_type=mime_type,
+                bucket="documents",
+            )
+
         async with async_session() as session:
             # 1. Create Document record
             doc = Document(
                 family_id=uuid.UUID(context.family_id),
                 user_id=uuid.UUID(context.user_id),
                 type=DocumentType.receipt,
-                storage_path="pending",  # TODO: Supabase upload
+                storage_path=storage_path,
                 ocr_model="gemini-3-flash-preview",
                 ocr_parsed=receipt.model_dump(mode="json"),
                 ocr_confidence=Decimal("0.9"),

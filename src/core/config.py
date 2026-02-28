@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     google_ai_api_key: str = ""
+    xai_api_key: str = ""
 
     # Langfuse
     langfuse_secret_key: str = ""
@@ -115,6 +116,7 @@ class Settings(BaseSettings):
     ff_supervisor_routing: bool = False
     ff_reverse_prompting: bool = False
     ff_extended_context: bool = False
+    ff_langgraph_document: bool = False
 
     @property
     def is_production(self) -> bool:

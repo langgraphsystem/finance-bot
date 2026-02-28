@@ -1,6 +1,7 @@
 """Message router — main orchestration: message → intent → skill → response."""
 
 import asyncio
+import base64
 import logging
 import uuid
 from datetime import date
@@ -36,6 +37,7 @@ from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills import create_registry
 from src.skills.base import SkillRegistry, SkillResult
+from src.tools.storage import upload_document
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,13 @@ def get_domain_router() -> DomainRouter:
 
             _domain_router.register_orchestrator(
                 Domain.booking, BookingOrchestrator(agent_router=get_agent_router())
+            )
+
+        if _settings.ff_langgraph_document:
+            from src.orchestrators.document.graph import DocumentOrchestrator
+
+            _domain_router.register_orchestrator(
+                Domain.document, DocumentOrchestrator(agent_router=get_agent_router())
             )
     return _domain_router
 
@@ -172,8 +181,12 @@ async def _pop_cached_file(user_id: str) -> dict | None:
             return None
         await redis.delete(key_data, key_meta)
         meta = json.loads(meta_raw)
-        return {"bytes": data, "mime": meta.get("mime"), "name": meta.get("name"),
-                "is_photo": meta.get("is_photo", False)}
+        return {
+            "bytes": data,
+            "mime": meta.get("mime"),
+            "name": meta.get("name"),
+            "is_photo": meta.get("is_photo", False),
+        }
     except Exception as e:
         logger.warning("Failed to pop cached file: %s", e)
         return None
@@ -233,21 +246,18 @@ async def _dispatch_message(
 
             t = await get_onboarding_texts(context.language or "en")
             confirm_text = t.get("tz_location_confirmed", "").format(
-                city=city, tz=tz_name or "UTC",
+                city=city,
+                tz=tz_name or "UTC",
             )
             if not confirm_text:
-                confirm_text = (
-                    f"Got it — your city is <b>{city}</b>"
-                    f" ({tz_name or 'UTC'})."
-                )
+                confirm_text = f"Got it — your city is <b>{city}</b> ({tz_name or 'UTC'})."
             return OutgoingMessage(
                 text=confirm_text,
                 chat_id=message.chat_id,
                 remove_reply_keyboard=True,
             )
         return OutgoingMessage(
-            text="Could not determine your city from the pin. "
-            "Please type your city name instead.",
+            text="Could not determine your city from the pin. Please type your city name instead.",
             chat_id=message.chat_id,
             remove_reply_keyboard=True,
         )
@@ -399,11 +409,7 @@ async def _dispatch_message(
     # REVERSE PROMPTING gate: complex requests get a plan proposal
     from src.core.config import settings as _rp_settings
 
-    if (
-        _rp_settings.ff_reverse_prompting
-        and message.text
-        and message.type == MessageType.text
-    ):
+    if _rp_settings.ff_reverse_prompting and message.text and message.type == MessageType.text:
         from src.core.reverse_prompt import should_reverse_prompt
 
         if should_reverse_prompt(message.text, intent_name, result.confidence):
@@ -414,11 +420,16 @@ async def _dispatch_message(
                 )
 
                 plan_text = await generate_plan_proposal(
-                    message.text, intent_name, context,
+                    message.text,
+                    intent_name,
+                    context,
                 )
                 await store_pending_plan(
-                    context.user_id, intent_name, message.text,
-                    intent_data, plan_text,
+                    context.user_id,
+                    intent_name,
+                    message.text,
+                    intent_data,
+                    plan_text,
                 )
                 lang = context.language or "en"
                 header = "Here's my plan:" if lang == "en" else "Вот мой план:"
@@ -528,9 +539,7 @@ async def _dispatch_message(
         record_id = intent_data.get("_record_id")
         record_table = intent_data.get("_record_table")
         if intent_name in UNDO_INTENTS and record_id and record_table:
-            asyncio.create_task(
-                store_undo(context.user_id, intent_name, record_id, record_table)
-            )
+            asyncio.create_task(store_undo(context.user_id, intent_name, record_id, record_table))
             undo_btn = {"text": "\u21a9 Undo", "callback": "undo:last"}
             existing_buttons = skill_result.buttons or []
             skill_result = SkillResult(
@@ -935,7 +944,10 @@ async def _handle_plan_callback(
         domain_router = get_domain_router()
         try:
             skill_result = await domain_router.route(
-                intent, synthetic, context, plan_intent_data,
+                intent,
+                synthetic,
+                context,
+                plan_intent_data,
             )
         except Exception as e:
             logger.error("Plan execution failed for %s: %s", intent, e)
@@ -946,11 +958,16 @@ async def _handle_plan_callback(
 
         if original_text:
             await sliding_window.add_message(
-                context.user_id, "user", original_text, intent,
+                context.user_id,
+                "user",
+                original_text,
+                intent,
             )
         if skill_result.response_text:
             await sliding_window.add_message(
-                context.user_id, "assistant", skill_result.response_text,
+                context.user_id,
+                "assistant",
+                skill_result.response_text,
             )
 
         return OutgoingMessage(
@@ -1119,9 +1136,7 @@ async def _handle_callback(
             try:
                 tx_uuid = uuid.UUID(tx_id)
             except ValueError:
-                return OutgoingMessage(
-                    text="Неверный формат транзакции.", chat_id=message.chat_id
-                )
+                return OutgoingMessage(text="Неверный формат транзакции.", chat_id=message.chat_id)
             try:
                 async with async_session() as session:
                     # Verify the transaction belongs to this user's family
@@ -1136,9 +1151,7 @@ async def _handle_callback(
                         return OutgoingMessage(
                             text="Транзакция не найдена.", chat_id=message.chat_id
                         )
-                    await session.execute(
-                        delete(Transaction).where(Transaction.id == tx_uuid)
-                    )
+                    await session.execute(delete(Transaction).where(Transaction.id == tx_uuid))
                     await session.commit()
                 logger.info("Transaction %s deleted by user %s", tx_id, context.user_id)
             except Exception as e:
@@ -1602,6 +1615,19 @@ async def _save_scanned_document(
         "other": DocumentType.other,
     }
 
+    # Upload image to Supabase Storage before opening the DB session
+    image_bytes = base64.b64decode(image_b64) if image_b64 else None
+    storage_path = "pending"
+    if image_bytes:
+        ext = mime_type.split("/")[-1] if "/" in mime_type else "bin"
+        storage_path = await upload_document(
+            file_bytes=image_bytes,
+            family_id=context.family_id,
+            filename=f"scan_{uuid.uuid4().hex[:8]}.{ext}",
+            mime_type=mime_type,
+            bucket="documents",
+        )
+
     try:
         async with async_session() as session:
             from src.core.models.category import Category
@@ -1611,7 +1637,7 @@ async def _save_scanned_document(
                 family_id=uuid.UUID(context.family_id),
                 user_id=uuid.UUID(context.user_id),
                 type=doc_type_enum_map.get(doc_type, DocumentType.other),
-                storage_path=f"inline:{mime_type}",
+                storage_path=storage_path,
                 ocr_model=ocr_model,
                 ocr_raw={"image_b64": image_b64, "mime_type": mime_type},
                 ocr_parsed=ocr_data,
@@ -1942,9 +1968,7 @@ async def _save_user_city(user_id: str, city: str) -> str | None:
             )
             if result.rowcount == 0:
                 # Profile missing — create one
-                user = await session.scalar(
-                    select(User).where(User.id == uuid.UUID(user_id))
-                )
+                user = await session.scalar(select(User).where(User.id == uuid.UUID(user_id)))
                 if user:
                     profile = UserProfile(
                         user_id=user.id,
@@ -2034,8 +2058,7 @@ async def _execute_pending_maps_search(
     except Exception as e:
         logger.error("Pending maps search failed: %s", e)
         return OutgoingMessage(
-            text=f"Got it — your location is set to <b>{city}</b>. "
-            "Now try your search again!",
+            text=f"Got it — your location is set to <b>{city}</b>. Now try your search again!",
             chat_id=message.chat_id,
             remove_reply_keyboard=True,
         )
@@ -2081,9 +2104,7 @@ async def _check_browser_login_flow(
         booking_state = await browser_booking.get_booking_state(context.user_id)
         if booking_state and booking_state.get("step") == "awaiting_login":
             # Resume hotel booking flow — search with fresh cookies
-            booking_result = await browser_booking.check_auth_and_search(
-                context.user_id
-            )
+            booking_result = await browser_booking.check_auth_and_search(context.user_id)
             booking_text = booking_result.get("text", "")
             return OutgoingMessage(
                 text=f"{text}\n\n{booking_text}",
@@ -2101,8 +2122,10 @@ async def _check_browser_login_flow(
                 site=site,
                 task=task,
             )
-            task_text = browser_result["result"] if browser_result["success"] else (
-                f"Login successful but task failed: {browser_result['result']}"
+            task_text = (
+                browser_result["result"]
+                if browser_result["success"]
+                else (f"Login successful but task failed: {browser_result['result']}")
             )
             return OutgoingMessage(
                 text=f"{text}\n\n{task_text}",
@@ -2142,9 +2165,7 @@ async def _check_browser_booking_flow(
     if step not in ("awaiting_selection", "awaiting_login", "confirming"):
         return None
 
-    result = await browser_booking.handle_text_input(
-        context.user_id, message.text or ""
-    )
+    result = await browser_booking.handle_text_input(context.user_id, message.text or "")
     if not result:
         return None
 

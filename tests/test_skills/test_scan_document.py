@@ -7,7 +7,7 @@ import pytest
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.scan_document.handler import ScanDocumentSkill
+from src.skills.scan_document.handler import ScanDocumentSkill, _is_pdf
 
 
 @pytest.fixture
@@ -68,6 +68,30 @@ def mock_redis():
         mock_r.get = AsyncMock(return_value=None)
         mock_r.delete = AsyncMock()
         yield mock_r
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _is_pdf helper
+# ---------------------------------------------------------------------------
+
+
+def test_is_pdf_by_mime():
+    assert _is_pdf("application/pdf", None) is True
+
+
+def test_is_pdf_by_extension():
+    assert _is_pdf(None, "invoice.pdf") is True
+    assert _is_pdf("image/jpeg", "invoice.PDF") is True  # case-insensitive
+
+
+def test_is_pdf_false_for_image():
+    assert _is_pdf("image/jpeg", "photo.jpg") is False
+    assert _is_pdf(None, None) is False
+
+
+# ---------------------------------------------------------------------------
+# Integration flow tests
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
@@ -270,7 +294,9 @@ async def test_execute_generic_document(skill, context, photo_message, mock_redi
 
 @pytest.mark.asyncio
 async def test_claude_fallback_on_gemini_failure(skill, context, photo_message, mock_redis):
-    """When Gemini extraction fails, Claude fallback is used."""
+    """When Gemini extraction fails, Claude Sonnet fallback via Instructor is used."""
+    from src.core.schemas.receipt import ReceiptData
+
     classify_resp = MagicMock()
     classify_resp.text = "receipt"
 
@@ -279,14 +305,14 @@ async def test_claude_fallback_on_gemini_failure(skill, context, photo_message, 
         side_effect=[classify_resp, RuntimeError("Gemini down")]
     )
 
-    claude_response = MagicMock()
-    claude_response.content = [MagicMock(text=json.dumps({"merchant": "Target", "total": 25.00}))]
-    mock_anthropic = MagicMock()
-    mock_anthropic.messages.create = AsyncMock(return_value=claude_response)
+    # Instructor's AsyncInstructor.messages.create returns a Pydantic model directly
+    receipt_result = ReceiptData(merchant="Target", total=25.00)
+    mock_ic = MagicMock()
+    mock_ic.messages.create = AsyncMock(return_value=receipt_result)
 
     with (
         patch("src.skills.scan_document.handler.google_client", return_value=mock_google),
-        patch("src.skills.scan_document.handler.anthropic_client", return_value=mock_anthropic),
+        patch("src.skills.scan_document.handler.instructor.from_anthropic", return_value=mock_ic),
     ):
         result = await skill.execute(photo_message, context, {})
 
@@ -307,12 +333,12 @@ async def test_all_ocr_fails(skill, context, photo_message, mock_redis):
         side_effect=[classify_resp, RuntimeError("Gemini down")]
     )
 
-    mock_anthropic = MagicMock()
-    mock_anthropic.messages.create = AsyncMock(side_effect=RuntimeError("Claude down"))
+    mock_ic = MagicMock()
+    mock_ic.messages.create = AsyncMock(side_effect=RuntimeError("Claude down"))
 
     with (
         patch("src.skills.scan_document.handler.google_client", return_value=mock_google),
-        patch("src.skills.scan_document.handler.anthropic_client", return_value=mock_anthropic),
+        patch("src.skills.scan_document.handler.instructor.from_anthropic", return_value=mock_ic),
     ):
         result = await skill.execute(photo_message, context, {})
 
@@ -323,7 +349,7 @@ async def test_all_ocr_fails(skill, context, photo_message, mock_redis):
 
 @pytest.mark.asyncio
 async def test_document_message_with_bytes(skill, context, document_message, mock_redis):
-    """Document messages (PDF) are handled via document_bytes."""
+    """PDF document messages trigger page extraction then Gemini OCR."""
     classify_resp = MagicMock()
     classify_resp.text = "invoice"
 
@@ -339,7 +365,17 @@ async def test_document_message_with_bytes(skill, context, document_message, moc
     mock_client = MagicMock()
     mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
 
-    with patch("src.skills.scan_document.handler.google_client", return_value=mock_client):
+    # PDF page extraction returns one fake PNG page
+    fake_page = b"fake_png_page_1"
+
+    with (
+        patch("src.skills.scan_document.handler.google_client", return_value=mock_client),
+        patch(
+            "src.skills.scan_document.handler.extract_pages_as_images",
+            new_callable=AsyncMock,
+            return_value=[fake_page],
+        ),
+    ):
         result = await skill.execute(document_message, context, {})
 
     assert "Google Cloud" in result.response_text
@@ -347,6 +383,68 @@ async def test_document_message_with_bytes(skill, context, document_message, moc
     # Verify mime_type from document is stored
     stored_data = json.loads(mock_redis.set.call_args[0][1])
     assert stored_data["mime_type"] == "application/pdf"
+
+
+@pytest.mark.asyncio
+async def test_pdf_multi_page_sends_all_pages_to_gemini(skill, context, document_message,
+                                                         mock_redis):
+    """All extracted PDF pages are included in the Gemini extraction request."""
+    classify_resp = MagicMock()
+    classify_resp.text = "invoice"
+
+    extract_resp = MagicMock()
+    extract_resp.text = json.dumps({"vendor": "ACME Corp", "total": 999.00})
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
+
+    # Three pages returned by the PDF renderer
+    fake_pages = [b"page1_png", b"page2_png", b"page3_png"]
+
+    with (
+        patch("src.skills.scan_document.handler.google_client", return_value=mock_client),
+        patch(
+            "src.skills.scan_document.handler.extract_pages_as_images",
+            new_callable=AsyncMock,
+            return_value=fake_pages,
+        ),
+    ):
+        await skill.execute(document_message, context, {})
+
+    # Second generate_content call (extraction) should carry 3 inline_data parts + prompt
+    extract_call_args = mock_client.aio.models.generate_content.call_args_list[1]
+    contents = extract_call_args.kwargs.get("contents") or extract_call_args.args[0]
+    # contents is a list: [prompt_str, page1_part, page2_part, page3_part]
+    image_parts = [p for p in contents if isinstance(p, dict) and "inline_data" in p]
+    assert len(image_parts) == 3
+
+
+@pytest.mark.asyncio
+async def test_pdf_extraction_failure_falls_back_to_raw_bytes(skill, context, document_message,
+                                                               mock_redis):
+    """If PDF page extraction fails, raw document bytes are used without crashing."""
+    classify_resp = MagicMock()
+    classify_resp.text = "other"
+
+    extract_resp = MagicMock()
+    extract_resp.text = json.dumps({"summary": "Some doc", "extracted_text": "text"})
+
+    mock_client = MagicMock()
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[classify_resp, extract_resp])
+
+    with (
+        patch("src.skills.scan_document.handler.google_client", return_value=mock_client),
+        patch(
+            "src.skills.scan_document.handler.extract_pages_as_images",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("pypdfium2 not available"),
+        ),
+    ):
+        result = await skill.execute(document_message, context, {})
+
+    # Should still produce a result using raw bytes
+    assert result.response_text
+    assert "Не удалось" not in result.response_text
 
 
 @pytest.mark.asyncio

@@ -6,29 +6,15 @@ from datetime import date, timedelta
 from sqlalchemy import and_, cast, delete, select
 from sqlalchemy.dialects.postgresql import DATE
 
-from src.core.config import settings
 from src.core.db import async_session, rls_session
 from src.core.models.document import Document
 from src.core.models.enums import DocumentType
 from src.core.models.family import Family
 from src.core.request_context import reset_family_context, set_family_context
 from src.core.tasks.broker import broker
+from src.tools.storage import delete_document
 
 logger = logging.getLogger(__name__)
-
-
-async def _delete_storage_file(path: str) -> None:
-    """Delete file from Supabase Storage (best-effort)."""
-    try:
-        if not settings.supabase_url or not settings.supabase_service_key:
-            return
-        from supabase import create_client
-
-        client = create_client(settings.supabase_url, settings.supabase_service_key)
-        bucket, _, file_path = path.partition("/")
-        client.storage.from_(bucket).remove([file_path])
-    except Exception as e:
-        logger.warning("Storage cleanup failed for %s: %s", path, e)
 
 
 @broker.task(schedule=[{"cron": "0 3 * * *"}])  # Daily at 03:00 UTC
@@ -72,7 +58,7 @@ async def cleanup_old_documents() -> None:
 
             # Best-effort storage cleanup — outside the DB session
             for path in storage_paths:
-                await _delete_storage_file(path)
+                await delete_document(path)
 
             logger.info(
                 "Cleaned up %d document(s) for family %s (cutoff %s)",

@@ -21,7 +21,7 @@ def test_suggestion_map_values_have_text_and_callback():
         for s in suggestions:
             assert "text" in s, f"Missing 'text' in {intent} suggestion"
             assert "callback" in s, f"Missing 'callback' in {intent} suggestion"
-            assert s["callback"].startswith("suggest:"), f"Callback must start with suggest:"
+            assert s["callback"].startswith("suggest:"), "Callback must start with suggest:"
 
 
 def test_cooldown_value():

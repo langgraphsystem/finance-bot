@@ -39,6 +39,22 @@ def get_instructor_openai():
 _anthropic: AsyncAnthropic | None = None
 _openai: AsyncOpenAI | None = None
 _google: genai.Client | None = None
+_xai: AsyncOpenAI | None = None
+
+
+def get_xai_client() -> AsyncOpenAI:
+    """xAI Grok client — OpenAI-compatible API."""
+    return AsyncOpenAI(
+        api_key=settings.xai_api_key,
+        base_url="https://api.x.ai/v1",
+    )
+
+
+def xai_client() -> AsyncOpenAI:
+    global _xai
+    if _xai is None:
+        _xai = get_xai_client()
+    return _xai
 
 
 def anthropic_client() -> AsyncAnthropic:
@@ -84,8 +100,8 @@ async def generate_text(
 
     from src.core.llm.prompts import PromptAdapter
 
-    if model.startswith("gpt-"):
-        client = openai_client()
+    if model.startswith(("gpt-", "grok-")):
+        client = xai_client() if model.startswith("grok-") else openai_client()
         resp = await client.chat.completions.create(
             model=model,
             max_completion_tokens=max_tokens,
@@ -184,8 +200,8 @@ async def generate_text_with_tools(
     tool_call_log: list[dict] = []
 
     for round_num in range(max_tool_rounds + 1):
-        if model.startswith("gpt-"):
-            client = openai_client()
+        if model.startswith(("gpt-", "grok-")):
+            client = xai_client() if model.startswith("grok-") else openai_client()
             resp = await client.chat.completions.create(
                 model=model,
                 max_completion_tokens=max_tokens,

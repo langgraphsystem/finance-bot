@@ -7,7 +7,6 @@ from unittest.mock import MagicMock
 from src.agents.base import AgentRouter
 from src.core.tasks.profile_tasks import _analyze_personality
 
-
 # --- Helper: minimal SessionContext mock ---
 
 
@@ -61,7 +60,9 @@ def test_personality_detailed_formal():
 def test_personality_heavy_emoji():
     ctx = _MockContext(
         user_profile={
-            "personality": {"verbosity": "moderate", "formality": "neutral", "emoji_usage": "heavy"},
+            "personality": {
+                "verbosity": "moderate", "formality": "neutral", "emoji_usage": "heavy",
+            },
         }
     )
     result = AgentRouter._add_personality_instruction("Base prompt.", ctx)

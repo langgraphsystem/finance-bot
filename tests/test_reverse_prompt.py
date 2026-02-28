@@ -6,14 +6,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.core.reverse_prompt import (
-    BYPASS_KEYWORDS,
     SKIP_REVERSE_INTENTS,
     delete_pending_plan,
     get_pending_plan,
     should_reverse_prompt,
     store_pending_plan,
 )
-
 
 # --- should_reverse_prompt tests ---
 
@@ -99,7 +97,9 @@ async def test_store_and_get_plan(mock_redis):
     }
     mock_redis.get = AsyncMock(return_value=json.dumps(payload))
 
-    await store_pending_plan("user1", "write_post", "write a blog post about AI", {"topic": "AI"}, "1. Research")
+    await store_pending_plan(
+        "user1", "write_post", "write a blog post about AI", {"topic": "AI"}, "1. Research"
+    )
     mock_redis.set.assert_called_once()
 
     result = await get_pending_plan("user1")
