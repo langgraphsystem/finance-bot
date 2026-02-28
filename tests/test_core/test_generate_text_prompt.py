@@ -65,3 +65,27 @@ async def test_no_prompt_no_messages_raises():
             model="claude-sonnet-4-6",
             system="test",
         )
+
+
+@pytest.mark.asyncio
+async def test_grok_model_routes_to_xai_client():
+    """generate_text() with grok- prefix uses xai_client."""
+    with patch("src.core.llm.clients.xai_client") as mock_factory:
+        mock_client = AsyncMock()
+        mock_factory.return_value = mock_client
+        mock_resp = AsyncMock()
+        mock_resp.choices = [AsyncMock(message=AsyncMock(content="grok result"))]
+        mock_client.chat.completions.create.return_value = mock_resp
+
+        from src.core.llm.clients import generate_text
+
+        result = await generate_text(
+            model="grok-4-1-fast-reasoning",
+            system="You are helpful.",
+            prompt="Hello",
+        )
+
+        assert result == "grok result"
+        mock_factory.assert_called_once()
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["model"] == "grok-4-1-fast-reasoning"

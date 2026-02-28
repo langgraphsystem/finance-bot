@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    provider: str  # "anthropic", "openai", "google"
+    provider: str  # "anthropic", "openai", "google", "xai"
     model_id: str
     fallback_provider: str | None = None
     fallback_model_id: str | None = None
@@ -50,6 +50,12 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     "onboarding": ModelConfig(
         provider="anthropic",
         model_id="claude-sonnet-4-6",
+    ),
+    "tasks": ModelConfig(
+        provider="xai",
+        model_id="grok-4-1-fast-reasoning",
+        fallback_provider="openai",
+        fallback_model_id="gpt-5.2",
     ),
 }
 

@@ -25,3 +25,12 @@ def test_estimate_cost_unknown_model():
 def test_estimate_cost_zero_tokens():
     cost = _estimate_cost("claude-haiku-4-5", tokens_in=0, tokens_out=0)
     assert cost == Decimal("0")
+
+
+def test_estimate_cost_grok():
+    cost = _estimate_cost("grok-4-1-fast-reasoning", tokens_in=1000, tokens_out=500)
+    assert isinstance(cost, Decimal)
+    assert cost > 0
+    # Grok is much cheaper than GPT
+    gpt_cost = _estimate_cost("gpt-5.2", tokens_in=1000, tokens_out=500)
+    assert cost < gpt_cost

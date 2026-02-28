@@ -21,6 +21,7 @@ _COST_PER_1K: dict[str, tuple[float, float]] = {
     "gemini-3.1-pro-preview": (0.00125, 0.005),
     "gemini-3.1-flash-image-preview": (0.0001, 0.0004),
     "gemini-3-pro-image-preview": (0.00125, 0.005),
+    "grok-4-1-fast-reasoning": (0.0002, 0.0005),
 }
 
 

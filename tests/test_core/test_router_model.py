@@ -36,3 +36,18 @@ def test_fallback_model():
     fallback = router.get_fallback("intent_detection")
     assert fallback is not None
     assert fallback.provider == "anthropic"
+
+
+def test_tasks_uses_grok():
+    router = ModelRouter()
+    model = router.get_model("tasks")
+    assert model.provider == "xai"
+    assert model.model_id == "grok-4-1-fast-reasoning"
+
+
+def test_tasks_fallback_to_gpt():
+    router = ModelRouter()
+    fallback = router.get_fallback("tasks")
+    assert fallback is not None
+    assert fallback.provider == "openai"
+    assert fallback.model_id == "gpt-5.2"

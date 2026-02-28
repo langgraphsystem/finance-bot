@@ -172,7 +172,7 @@ AGENTS: list[AgentConfig] = [
             "shopping_list_remove",
             "shopping_list_clear",
         ],
-        default_model="gpt-5.2",
+        default_model="grok-4-1-fast-reasoning",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
         data_tools_enabled=True,
     ),
