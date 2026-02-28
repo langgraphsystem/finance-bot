@@ -52,10 +52,10 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         model_id="claude-sonnet-4-6",
     ),
     "tasks": ModelConfig(
-        provider="xai",
-        model_id="grok-4-1-fast-reasoning",
-        fallback_provider="openai",
-        fallback_model_id="gpt-5.2",
+        provider="openai",
+        model_id="gpt-5.2",
+        fallback_provider="google",
+        fallback_model_id="gemini-3-flash-preview",
     ),
 }
 
