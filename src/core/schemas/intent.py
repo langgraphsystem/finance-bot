@@ -119,6 +119,14 @@ class IntentData(BaseModel):
     # Document fields
     target_format: str | None = None  # "pdf", "docx", "xlsx", "epub", etc.
     document_type: str | None = None  # filter for list_documents
+    template_name: str | None = None  # for fill_template
+    output_format: str | None = None  # "pdf", "docx", "xlsx"
+    analysis_question: str | None = None  # for analyze_document
+    document_description: str | None = None  # for generate_document
+    pdf_operation: str | None = None  # split, rotate, encrypt, decrypt, watermark, extract_pages
+    pdf_pages: str | None = None  # "3-7", "1,3,5", "all"
+    pdf_password: str | None = None  # for encrypt/decrypt
+    presentation_topic: str | None = None  # for generate_presentation
 
     # Browser action fields
     browser_target_site: str | None = None  # "booking.com", "amazon.com"

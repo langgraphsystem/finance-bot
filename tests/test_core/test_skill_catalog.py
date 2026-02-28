@@ -22,7 +22,7 @@ def test_all_skills_mapped():
     """Every skill should map to a domain."""
     catalog = load_catalog.__wrapped__()
     total_skills = sum(len(g.skills) for g in catalog.domains.values())
-    assert total_skills >= 68
+    assert total_skills >= 78
 
 
 def test_resolve_domain_finance():

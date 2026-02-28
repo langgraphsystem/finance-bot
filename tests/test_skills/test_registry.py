@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 77
+    assert len(skills) == 89
 
 
 def test_registry_routes_intents(skill_registry):
@@ -87,11 +87,25 @@ def test_registry_routes_intents(skill_registry):
         "search_documents",
         "extract_table",
         "generate_invoice_pdf",
+        "fill_template",
+        "fill_pdf_form",
+        "analyze_document",
+        "merge_documents",
+        "pdf_operations",
+        "generate_spreadsheet",
+        "compare_documents",
+        "summarize_document",
+        "generate_document",
+        "generate_presentation",
         # Wave 1 Financial Specialists
         "financial_summary",
         "generate_invoice",
         "tax_estimate",
         "cash_flow_forecast",
+        # Memory Vault
+        "memory_show",
+        "memory_forget",
+        "memory_save",
         # Universal Receptionist
         "receptionist",
     ]

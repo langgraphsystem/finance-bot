@@ -61,12 +61,22 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "quick_answer": Domain.research,
     "web_search": Domain.research,
     "compare_options": Domain.research,
-    # Document (6 intents)
+    # Document (16 intents)
     "convert_document": Domain.document,
     "list_documents": Domain.document,
     "search_documents": Domain.document,
     "extract_table": Domain.document,
     "generate_invoice_pdf": Domain.document,
+    "fill_template": Domain.document,
+    "fill_pdf_form": Domain.document,
+    "analyze_document": Domain.document,
+    "merge_documents": Domain.document,
+    "pdf_operations": Domain.document,
+    "generate_spreadsheet": Domain.document,
+    "compare_documents": Domain.document,
+    "summarize_document": Domain.document,
+    "generate_document": Domain.document,
+    "generate_presentation": Domain.document,
     # Writing Assistance (4 intents)
     "draft_message": Domain.writing,
     "translate_text": Domain.writing,

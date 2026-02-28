@@ -277,6 +277,35 @@ epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 - generate_invoice_pdf: создать PDF-инвойс ("сделай PDF инвойс", \
 "generate invoice PDF", "PDF счёт для клиента", "invoice PDF for Mike"). \
 Извлеки contact_name: имя клиента
+- fill_template: заполнить шаблон документа ("заполни шаблон", "fill template", \
+"заполни договор данными", "fill this template with my info"). \
+Извлеки template_name: название шаблона если упомянуто
+- fill_pdf_form: заполнить PDF-форму ("заполни PDF форму", "fill this PDF form", \
+"заполни W-9", "fill out this form")
+- analyze_document: проанализировать документ, задать вопрос по документу \
+("проанализируй этот документ", "analyze this document", "какие риски в контракте?", \
+"what's the payment term?", "вопрос по документу"). \
+Извлеки analysis_question: конкретный вопрос пользователя
+- merge_documents: объединить несколько PDF ("объедини PDF", "merge these PDFs", \
+"склей документы", "combine PDFs into one")
+- pdf_operations: операции с PDF — разделить, повернуть, зашифровать, расшифровать, \
+водяной знак, извлечь страницы ("раздели PDF", "split PDF", "повернуть страницу", \
+"rotate page", "зашифруй PDF", "encrypt PDF", "добавь водяной знак", "watermark", \
+"извлеки страницы 3-7", "extract pages"). \
+Извлеки pdf_operation: split/rotate/encrypt/decrypt/watermark/extract_pages, \
+pdf_pages: диапазон страниц, pdf_password: пароль если указан
+- generate_spreadsheet: создать Excel-таблицу ("сделай таблицу в Excel", \
+"create a spreadsheet", "generate Excel report", "таблица расходов за месяц")
+- compare_documents: сравнить документы ("сравни эти документы", "compare documents", \
+"что изменилось в контракте?", "разница между версиями")
+- summarize_document: резюме документа ("кратко перескажи", "summarize this document", \
+"резюме контракта", "summary of this PDF", "о чём этот документ?")
+- generate_document: создать документ с нуля ("создай NDA", "generate a contract", \
+"сделай прайс-лист", "create a price list", "напиши договор", "make a proposal"). \
+Извлеки document_description: описание документа, output_format: формат (pdf/docx)
+- generate_presentation: создать презентацию ("сделай презентацию", \
+"create a presentation about", "generate PPTX", "презентация расходов за квартал"). \
+Извлеки presentation_topic: тема презентации
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 

@@ -83,7 +83,7 @@ domains:
       - scan_receipt
 
   document:
-    description: "Scan documents, convert formats, extract tables, generate invoices/spreadsheets, analyze and compare documents"
+    description: "Scan, convert, extract tables, fill templates, generate invoices/spreadsheets/presentations, analyze, compare, summarize, merge, PDF ops"
     triggers:
       - document
       - pdf
@@ -102,8 +102,30 @@ domains:
       - spreadsheet
       - docx
       - xlsx
+      - pptx
       - фото
       - photo
+      - merge
+      - объедин
+      - split
+      - раздели
+      - analyze
+      - анализ
+      - compare
+      - сравни
+      - summarize
+      - резюме
+      - презентац
+      - presentation
+      - encrypt
+      - decrypt
+      - пароль
+      - watermark
+      - rotate
+      - форма
+      - form
+      - w-9
+      - заполни
     agent: document
     skills:
       - scan_document
@@ -112,6 +134,16 @@ domains:
       - search_documents
       - extract_table
       - generate_invoice_pdf
+      - fill_template
+      - fill_pdf_form
+      - analyze_document
+      - merge_documents
+      - pdf_operations
+      - generate_spreadsheet
+      - compare_documents
+      - summarize_document
+      - generate_document
+      - generate_presentation
 
   tasks:
     description: "Create tasks, reminders, to-do lists, shopping lists"

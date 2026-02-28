@@ -86,6 +86,16 @@ def test_document_intents_map_correctly():
         "search_documents",
         "extract_table",
         "generate_invoice_pdf",
+        "fill_template",
+        "fill_pdf_form",
+        "analyze_document",
+        "merge_documents",
+        "pdf_operations",
+        "generate_spreadsheet",
+        "compare_documents",
+        "summarize_document",
+        "generate_document",
+        "generate_presentation",
     ]
     for intent in document_intents:
         assert INTENT_DOMAIN_MAP[intent] == Domain.document, (

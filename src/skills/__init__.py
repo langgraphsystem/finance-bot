@@ -2,10 +2,12 @@ from src.skills.add_contact.handler import skill as add_contact_skill
 from src.skills.add_expense.handler import skill as add_expense_skill
 from src.skills.add_income.handler import skill as add_income_skill
 from src.skills.add_recurring.handler import skill as add_recurring_skill
+from src.skills.analyze_document.handler import skill as analyze_document_skill
 from src.skills.base import SkillRegistry
 from src.skills.browser_action.handler import skill as browser_action_skill
 from src.skills.cancel_booking.handler import skill as cancel_booking_skill
 from src.skills.cash_flow_forecast.handler import skill as cash_flow_forecast_skill
+from src.skills.compare_documents.handler import skill as compare_documents_skill
 from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
@@ -21,16 +23,21 @@ from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
 from src.skills.extract_table.handler import skill as extract_table_skill
+from src.skills.fill_pdf_form.handler import skill as fill_pdf_form_skill
+from src.skills.fill_template.handler import skill as fill_template_skill
 from src.skills.financial_summary.handler import skill as financial_summary_skill
 from src.skills.find_contact.handler import skill as find_contact_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
 from src.skills.follow_up_email.handler import skill as follow_up_email_skill
 from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.generate_card.handler import skill as generate_card_skill
+from src.skills.generate_document.handler import skill as generate_document_skill
 from src.skills.generate_image.handler import skill as generate_image_skill
 from src.skills.generate_invoice.handler import skill as generate_invoice_skill
 from src.skills.generate_invoice_pdf.handler import skill as generate_invoice_pdf_skill
+from src.skills.generate_presentation.handler import skill as generate_presentation_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
+from src.skills.generate_spreadsheet.handler import skill as generate_spreadsheet_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
@@ -40,11 +47,13 @@ from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.memory_vault.handler import skill as memory_vault_skill
+from src.skills.merge_documents.handler import skill as merge_documents_skill
 from src.skills.modify_program.handler import skill as modify_program_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
 from src.skills.news_monitor.handler import skill as news_monitor_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
+from src.skills.pdf_operations.handler import skill as pdf_operations_skill
 from src.skills.price_alert.handler import skill as price_alert_skill
 from src.skills.price_check.handler import skill as price_check_skill
 from src.skills.proofread.handler import skill as proofread_skill
@@ -70,6 +79,7 @@ from src.skills.shopping_list.handler import (
     shopping_list_remove_skill,
     shopping_list_view_skill,
 )
+from src.skills.summarize_document.handler import skill as summarize_document_skill
 from src.skills.summarize_thread.handler import skill as summarize_thread_skill
 from src.skills.tax_estimate.handler import skill as tax_estimate_skill
 from src.skills.track_drink.handler import skill as track_drink_skill
@@ -165,6 +175,16 @@ def create_registry() -> SkillRegistry:
     registry.register(search_documents_skill)
     registry.register(extract_table_skill)
     registry.register(generate_invoice_pdf_skill)
+    registry.register(fill_template_skill)
+    registry.register(fill_pdf_form_skill)
+    registry.register(analyze_document_skill)
+    registry.register(merge_documents_skill)
+    registry.register(pdf_operations_skill)
+    registry.register(generate_spreadsheet_skill)
+    registry.register(compare_documents_skill)
+    registry.register(summarize_document_skill)
+    registry.register(generate_document_skill)
+    registry.register(generate_presentation_skill)
     # Memory Vault
     registry.register(memory_vault_skill)
     # Wave 1 Financial Specialists
