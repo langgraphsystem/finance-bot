@@ -1,6 +1,7 @@
 """Search documents skill — full-text search across stored documents."""
 
 import logging
+import uuid
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -37,7 +38,7 @@ class SearchDocumentsSkill:
         async with async_session() as session:
             stmt = (
                 select(Document)
-                .where(Document.family_id == context.family_id)
+                .where(Document.family_id == uuid.UUID(context.family_id))
                 .where(
                     or_(
                         Document.extracted_text.ilike(search_pattern),

@@ -1,8 +1,15 @@
 """Tests for generate_invoice_pdf skill."""
 
-from unittest.mock import AsyncMock, patch
+import sys
+import types
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.skills.generate_invoice_pdf.handler import skill
+# Pre-inject a fake weasyprint module so the real one (needing GTK) is never loaded
+_fake_weasyprint = types.ModuleType("weasyprint")
+_fake_weasyprint.HTML = MagicMock()
+sys.modules.setdefault("weasyprint", _fake_weasyprint)
+
+from src.skills.generate_invoice_pdf.handler import skill  # noqa: E402
 
 
 async def test_generate_invoice_no_family(sample_context, text_message):
@@ -67,11 +74,10 @@ async def test_generate_invoice_success(sample_context, text_message):
             new_callable=AsyncMock,
             return_value=transactions,
         ),
-        patch(
-            "weasyprint.HTML"
-        ) as mock_html_cls,
     ):
-        mock_html_cls.return_value.write_pdf.return_value = b"%PDF-fake"
+        mock_html = MagicMock()
+        mock_html.return_value.write_pdf.return_value = b"%PDF-fake"
+        sys.modules["weasyprint"].HTML = mock_html
 
         result = await skill.execute(
             text_message, sample_context, {"contact_name": "Mike"}

@@ -147,8 +147,10 @@ class GenerateInvoicePdfSkill:
                 f'Add them first: "add contact {contact_name}"'
             )
 
-        # Get recent income transactions as line items
-        transactions = await self._get_recent_transactions(family_id, days=30)
+        # Get recent income transactions for this contact
+        transactions = await self._get_recent_transactions(
+            family_id, contact_name=contact["name"], days=30
+        )
         if not transactions:
             return SkillResult(
                 response_text="No recent transactions found to include in the invoice. "
@@ -239,21 +241,39 @@ class GenerateInvoicePdfSkill:
 
     @staticmethod
     async def _get_recent_transactions(
-        family_id: str, days: int = 30
+        family_id: str, contact_name: str, days: int = 30
     ) -> list[dict[str, Any]]:
         cutoff = date.today() - timedelta(days=days)
+        fid = uuid.UUID(family_id)
         async with async_session() as session:
+            # Try matching by merchant name first
             stmt = (
                 select(Transaction)
                 .where(
-                    Transaction.family_id == uuid.UUID(family_id),
+                    Transaction.family_id == fid,
                     Transaction.type == TransactionType.income,
                     Transaction.date >= cutoff,
+                    Transaction.merchant.ilike(f"%{contact_name}%"),
                 )
                 .order_by(Transaction.date.desc())
                 .limit(20)
             )
             rows = (await session.scalars(stmt)).all()
+
+            if not rows:
+                # Fallback: all recent income if no merchant match
+                stmt_all = (
+                    select(Transaction)
+                    .where(
+                        Transaction.family_id == fid,
+                        Transaction.type == TransactionType.income,
+                        Transaction.date >= cutoff,
+                    )
+                    .order_by(Transaction.date.desc())
+                    .limit(20)
+                )
+                rows = (await session.scalars(stmt_all)).all()
+
             return [
                 {
                     "date": r.date.isoformat(),

@@ -61,3 +61,4 @@ scripts/booking_cookies.json
 scripts/test_telegram.session
 *.session
 *.session-journal
+.vercel

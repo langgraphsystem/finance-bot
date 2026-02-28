@@ -59,8 +59,21 @@ def upgrade() -> None:
         "CREATE INDEX IF NOT EXISTS ix_documents_content_hash ON documents (content_hash)"
     )
 
+    # Enable pg_trgm for fast ILIKE search on extracted_text and title
+    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_documents_extracted_text_trgm "
+        "ON documents USING gin (extracted_text gin_trgm_ops)"
+    )
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_documents_title_trgm "
+        "ON documents USING gin (title gin_trgm_ops)"
+    )
+
 
 def downgrade() -> None:
+    op.execute("DROP INDEX IF EXISTS ix_documents_title_trgm")
+    op.execute("DROP INDEX IF EXISTS ix_documents_extracted_text_trgm")
     op.execute("DROP INDEX IF EXISTS ix_documents_content_hash")
     op.execute("DROP INDEX IF EXISTS ix_documents_type")
     op.execute("DROP INDEX IF EXISTS ix_documents_family_id")

@@ -1,6 +1,7 @@
 """List documents skill — show user's stored documents."""
 
 import logging
+import uuid
 from typing import Any
 
 from sqlalchemy import select
@@ -47,7 +48,7 @@ class ListDocumentsSkill:
         async with async_session() as session:
             stmt = (
                 select(Document)
-                .where(Document.family_id == context.family_id)
+                .where(Document.family_id == uuid.UUID(context.family_id))
                 .order_by(Document.created_at.desc())
                 .limit(limit)
             )
