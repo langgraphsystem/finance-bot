@@ -118,7 +118,11 @@ class AnalyzeDocumentSkill:
         mime_type = message.document_mime_type or ""
 
         if not file_bytes:
-            return SkillResult(response_text="Please upload a document to analyze.")
+            return SkillResult(
+                response_text="Send me a document — photo, PDF, Word, or Excel."
+                if context.language == "en"
+                else "Отправьте документ — фото, PDF, Word или Excel."
+            )
 
         question = intent_data.get("search_query") or intent_data.get("query")
 

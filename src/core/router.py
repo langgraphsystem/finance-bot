@@ -324,9 +324,22 @@ async def _dispatch_message(
             intent_data = result.data.model_dump() if result.data else {}
             intent_data["confidence"] = result.confidence
         else:
-            # No caption → OCR/scan as default
+            # No caption → check recent conversation for a document-related intent
             intent_name = "scan_document"
             intent_data: dict[str, Any] = {}
+            try:
+                recent = await sliding_window.get_recent_messages(context.user_id, limit=3)
+                doc_intents = {
+                    "analyze_document", "extract_table", "fill_template",
+                    "fill_pdf_form", "summarize_document", "compare_documents",
+                    "merge_documents", "convert_document",
+                }
+                for msg in reversed(recent):
+                    if msg.get("role") == "user" and msg.get("intent") in doc_intents:
+                        intent_name = msg["intent"]
+                        break
+            except Exception:
+                pass  # fallback to scan_document
     else:
         # --- Guardrails check BEFORE intent detection ---
         if message.text:
@@ -454,8 +467,13 @@ async def _dispatch_message(
             except Exception:
                 logger.warning("Reverse prompt failed, executing normally", exc_info=True)
 
-    # If LLM detected convert_document from a text message, inject cached file
-    if intent_name == "convert_document" and message.type not in (
+    # If LLM detected a file-requiring intent from a text message, inject cached file
+    file_required_intents = {
+        "convert_document", "analyze_document", "extract_table",
+        "fill_template", "fill_pdf_form", "summarize_document",
+        "compare_documents", "merge_documents",
+    }
+    if intent_name in file_required_intents and message.type not in (
         MessageType.photo,
         MessageType.document,
     ):

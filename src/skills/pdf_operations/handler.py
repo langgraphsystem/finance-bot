@@ -151,7 +151,11 @@ class PdfOperationsSkill:
         filename = message.document_file_name or ""
 
         if not file_bytes:
-            return SkillResult(response_text="Please upload a <b>PDF</b> file.")
+            return SkillResult(
+                response_text="Upload a <b>PDF</b> file."
+                if context.language == "en"
+                else "Отправьте <b>PDF</b> файл."
+            )
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         mime = message.document_mime_type or ""

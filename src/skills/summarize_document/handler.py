@@ -50,7 +50,11 @@ class SummarizeDocumentSkill:
 
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
-            return SkillResult(response_text="Please upload a document to summarize.")
+            return SkillResult(
+                response_text="Send me a document to summarize — PDF, Word, or image."
+                if context.language == "en"
+                else "Отправьте документ для резюме — PDF, Word или фото."
+            )
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "application/octet-stream"
