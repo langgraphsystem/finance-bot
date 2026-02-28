@@ -130,7 +130,7 @@ async def delete_pending_doc(pending_id: str) -> None:
 
 class ScanDocumentSkill:
     name = "scan_document"
-    intents = ["scan_document", "scan_receipt"]
+    intents = ["scan_document"]
     model = "gemini-3-flash-preview"
 
     async def execute(

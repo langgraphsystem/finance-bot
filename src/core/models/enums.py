@@ -22,6 +22,12 @@ class DocumentType(enum.StrEnum):
     invoice = "invoice"
     rate_confirmation = "rate_confirmation"
     fuel_receipt = "fuel_receipt"
+    contract = "contract"
+    form = "form"
+    report = "report"
+    template = "template"
+    spreadsheet = "spreadsheet"
+    presentation = "presentation"
     other = "other"
 
 

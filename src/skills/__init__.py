@@ -20,6 +20,7 @@ from src.skills.delete_data.handler import skill as delete_data_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
+from src.skills.extract_table.handler import skill as extract_table_skill
 from src.skills.financial_summary.handler import skill as financial_summary_skill
 from src.skills.find_contact.handler import skill as find_contact_skill
 from src.skills.find_free_slots.handler import skill as find_free_slots_skill
@@ -28,10 +29,12 @@ from src.skills.general_chat.handler import skill as general_chat_skill
 from src.skills.generate_card.handler import skill as generate_card_skill
 from src.skills.generate_image.handler import skill as generate_image_skill
 from src.skills.generate_invoice.handler import skill as generate_invoice_skill
+from src.skills.generate_invoice_pdf.handler import skill as generate_invoice_pdf_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
+from src.skills.list_documents.handler import skill as list_documents_skill
 from src.skills.list_events.handler import skill as list_events_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
@@ -55,6 +58,7 @@ from src.skills.reschedule_booking.handler import skill as reschedule_booking_sk
 from src.skills.reschedule_event.handler import skill as reschedule_event_skill
 from src.skills.scan_document.handler import skill as scan_document_skill
 from src.skills.scan_receipt.handler import skill as scan_receipt_skill
+from src.skills.search_documents.handler import skill as search_documents_skill
 from src.skills.send_email.handler import skill as send_email_skill
 from src.skills.send_to_client.handler import skill as send_to_client_skill
 from src.skills.set_budget.handler import skill as set_budget_skill
@@ -155,8 +159,12 @@ def create_registry() -> SkillRegistry:
     registry.register(modify_program_skill)
     # Browser action (authenticated sessions)
     registry.register(browser_action_skill)
-    # Document conversion
+    # Document agent
     registry.register(convert_document_skill)
+    registry.register(list_documents_skill)
+    registry.register(search_documents_skill)
+    registry.register(extract_table_skill)
+    registry.register(generate_invoice_pdf_skill)
     # Memory Vault
     registry.register(memory_vault_skill)
     # Wave 1 Financial Specialists

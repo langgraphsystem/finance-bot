@@ -73,20 +73,45 @@ domains:
       - cash_flow_forecast
 
   receipt:
-    description: "Scan receipts and documents from photos"
+    description: "Scan receipts from photos"
     triggers:
       - receipt
-      - scan
-      - photo
-      - document
       - чек
-      - скан
-      - фото
-      - документ
+      - фото чека
     agent: receipt
     skills:
       - scan_receipt
+
+  document:
+    description: "Scan documents, convert formats, extract tables, generate invoices/spreadsheets, analyze and compare documents"
+    triggers:
+      - document
+      - pdf
+      - word
+      - excel
+      - scan
+      - скан
+      - документ
+      - таблиц
+      - шаблон
+      - template
+      - convert
+      - конверт
+      - extract
+      - извлечь
+      - spreadsheet
+      - docx
+      - xlsx
+      - фото
+      - photo
+    agent: document
+    skills:
       - scan_document
+      - convert_document
+      - list_documents
+      - search_documents
+      - extract_table
+      - generate_invoice_pdf
 
   tasks:
     description: "Create tasks, reminders, to-do lists, shopping lists"
@@ -237,7 +262,6 @@ domains:
       - generate_card
       - generate_program
       - modify_program
-      - convert_document
 
   booking:
     description: "Manage appointments, clients, contacts, business info, receptionist"

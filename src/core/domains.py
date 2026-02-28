@@ -11,6 +11,7 @@ from enum import StrEnum
 class Domain(StrEnum):
     finance = "finance"
     finance_specialist = "finance_specialist"
+    document = "document"
     email = "email"
     calendar = "calendar"
     brief = "brief"
@@ -33,7 +34,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "add_expense": Domain.finance,
     "add_income": Domain.finance,
     "scan_receipt": Domain.finance,
-    "scan_document": Domain.finance,
+    "scan_document": Domain.document,
     "query_stats": Domain.finance,
     "query_report": Domain.finance,
     "correct_category": Domain.finance,
@@ -60,6 +61,12 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "quick_answer": Domain.research,
     "web_search": Domain.research,
     "compare_options": Domain.research,
+    # Document (6 intents)
+    "convert_document": Domain.document,
+    "list_documents": Domain.document,
+    "search_documents": Domain.document,
+    "extract_table": Domain.document,
+    "generate_invoice_pdf": Domain.document,
     # Writing Assistance (4 intents)
     "draft_message": Domain.writing,
     "translate_text": Domain.writing,

@@ -374,10 +374,9 @@ async def test_callback_contains_pending_id(skill, context, photo_message, mock_
 
 
 def test_skill_intents():
-    """Skill handles both scan_document and scan_receipt intents."""
+    """Skill handles scan_document intent (scan_receipt is separate skill)."""
     skill = ScanDocumentSkill()
     assert "scan_document" in skill.intents
-    assert "scan_receipt" in skill.intents
 
 
 def test_skill_name():

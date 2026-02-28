@@ -17,6 +17,7 @@ _TABLE_NAMES = [
     "monitors",
     "shopping_lists",
     "shopping_list_items",
+    "documents",
 ]
 
 _WRITABLE_TABLES = [t for t in _TABLE_NAMES if t != "categories"]

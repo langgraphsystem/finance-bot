@@ -263,6 +263,12 @@ class TestAgentConfigCompleteness:
         "day_reflection",
         "life_search",
         "set_comm_mode",
+        "scan_document",
+        "convert_document",
+        "list_documents",
+        "search_documents",
+        "extract_table",
+        "generate_invoice_pdf",
     ]
 
     def test_all_intents_have_agents(self, agent_router):
@@ -270,9 +276,9 @@ class TestAgentConfigCompleteness:
             agent = agent_router.get_agent(intent)
             assert agent is not None, f"Intent '{intent}' has no agent"
 
-    def test_twelve_agents_defined(self, agent_router):
+    def test_thirteen_agents_defined(self, agent_router):
         agents = agent_router.list_agents()
-        assert len(agents) == 12
+        assert len(agents) == 13
 
     def test_agent_names(self, agent_router):
         names = {a.name for a in agent_router.list_agents()}
@@ -289,6 +295,7 @@ class TestAgentConfigCompleteness:
             "calendar",
             "booking",
             "finance_specialist",
+            "document",
         }
 
     def test_each_agent_has_system_prompt(self, agent_router):

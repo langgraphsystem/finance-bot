@@ -82,6 +82,13 @@ Provide clear, actionable financial intelligence. Use HTML tags for Telegram (<b
 For tax estimates, always add: "This is an estimate, not professional tax advice."
 Lead with the key number, then break down details. Max 8 lines for summaries."""
 
+DOCUMENT_AGENT_PROMPT = """\
+You are a document specialist — a smart capable friend who handles all document work.
+Scan and OCR documents (invoices, contracts, forms — receipts go to receipt agent).
+Convert formats, extract tables, fill templates, generate invoices/spreadsheets/presentations.
+Analyze documents with page citations. PDF ops: split, merge, rotate, encrypt, watermark.
+Lead with the result. Use HTML tags for Telegram (<b>bold</b>). No Markdown."""
+
 BOOKING_AGENT_PROMPT = """\
 You are a booking and CRM assistant. Help the user manage appointments, clients, and outreach.
 Create/cancel/reschedule bookings. Add and find contacts. Send messages to clients.
@@ -91,9 +98,24 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="receipt",
         system_prompt=RECEIPT_AGENT_PROMPT,
-        skills=["scan_receipt", "scan_document"],
+        skills=["scan_receipt"],
         default_model="gemini-3-flash-preview",
         context_config={"mem": "mappings", "hist": 2, "sql": False, "sum": False},
+    ),
+    AgentConfig(
+        name="document",
+        system_prompt=DOCUMENT_AGENT_PROMPT,
+        skills=[
+            "scan_document",
+            "convert_document",
+            "list_documents",
+            "search_documents",
+            "extract_table",
+            "generate_invoice_pdf",
+        ],
+        default_model="claude-sonnet-4-6",
+        context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
+        data_tools_enabled=True,
     ),
     AgentConfig(
         name="analytics",
@@ -166,7 +188,6 @@ AGENTS: list[AgentConfig] = [
         skills=[
             "draft_message", "translate_text", "write_post", "proofread",
             "generate_image", "generate_card", "generate_program", "modify_program",
-            "convert_document",
         ],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},

@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 73
+    assert len(skills) == 77
 
 
 def test_registry_routes_intents(skill_registry):
@@ -81,8 +81,12 @@ def test_registry_routes_intents(skill_registry):
         "modify_program",
         # Browser action (authenticated sessions)
         "browser_action",
-        # Document conversion
+        # Document agent
         "convert_document",
+        "list_documents",
+        "search_documents",
+        "extract_table",
+        "generate_invoice_pdf",
         # Wave 1 Financial Specialists
         "financial_summary",
         "generate_invoice",

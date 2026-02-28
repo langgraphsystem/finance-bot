@@ -267,6 +267,16 @@ program_id: ID программы если указан
 "переведи в формат xlsx", "конвертируй в epub"). \
 Извлеки target_format: целевой формат (pdf, docx, xlsx, txt, csv, html, md, \
 epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
+- list_documents: показать сохранённые документы ("мои документы", "my documents", \
+"покажи документы", "list documents", "все документы", "какие документы есть")
+- search_documents: поиск по содержимому документов ("найди в документах", \
+"search documents for", "найди контракт", "где тот инвойс", "поиск документов"). \
+Извлеки search_query: текст поиска
+- extract_table: извлечь таблицу из документа или фото ("извлечь таблицу", \
+"extract table", "данные из таблицы", "таблицу из PDF", "parse this table")
+- generate_invoice_pdf: создать PDF-инвойс ("сделай PDF инвойс", \
+"generate invoice PDF", "PDF счёт для клиента", "invoice PDF for Mike"). \
+Извлеки contact_name: имя клиента
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -980,7 +990,6 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
     },
     "receipt": {
         "scan_receipt": "фото чека — распознать расход",
-        "scan_document": "фото документа, инвойса, rate confirmation",
     },
     "tasks": {
         "create_task": 'создать задачу ("add task: ...", "задача: ...")',
@@ -1041,7 +1050,14 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "generate_card": 'создать карточку/трекер ("сделай трекер")',
         "generate_program": 'написать программу ("напиши парсер")',
         "modify_program": 'изменить программу ("измени программу")',
+    },
+    "document": {
+        "scan_document": "фото документа, инвойса, rate confirmation",
         "convert_document": 'конвертировать файл ("конвертируй в PDF")',
+        "list_documents": 'список документов ("мои документы", "покажи файлы")',
+        "search_documents": 'поиск в документах ("найди в документах", "search invoices")',
+        "extract_table": 'извлечь таблицу из документа ("вытащи таблицу")',
+        "generate_invoice_pdf": 'создать PDF инвойс ("invoice PDF for Mike")',
     },
     "booking": {
         "create_booking": 'записать клиента ("book John tomorrow 2pm")',

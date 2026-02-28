@@ -20,6 +20,7 @@ def test_domain_enum_has_all_domains():
         "monitor",
         "general",
         "onboarding",
+        "document",
     }
     actual = {d.value for d in Domain}
     assert expected == actual
@@ -31,7 +32,6 @@ def test_all_finance_intents_map_to_finance():
         "add_expense",
         "add_income",
         "scan_receipt",
-        "scan_document",
         "query_stats",
         "query_report",
         "correct_category",
@@ -75,6 +75,22 @@ def test_booking_intents_map_correctly():
     assert INTENT_DOMAIN_MAP["list_contacts"] == Domain.contacts
     assert INTENT_DOMAIN_MAP["find_contact"] == Domain.contacts
     assert INTENT_DOMAIN_MAP["send_to_client"] == Domain.booking
+
+
+def test_document_intents_map_correctly():
+    """Document agent intents should map to document domain."""
+    document_intents = [
+        "scan_document",
+        "convert_document",
+        "list_documents",
+        "search_documents",
+        "extract_table",
+        "generate_invoice_pdf",
+    ]
+    for intent in document_intents:
+        assert INTENT_DOMAIN_MAP[intent] == Domain.document, (
+            f"{intent} not in document"
+        )
 
 
 def test_finance_specialist_intents_map_correctly():
@@ -124,6 +140,11 @@ def test_all_current_intents_are_mapped():
         "list_contacts",
         "find_contact",
         "send_to_client",
+        "convert_document",
+        "list_documents",
+        "search_documents",
+        "extract_table",
+        "generate_invoice_pdf",
     }
     for intent in current_intents:
         assert intent in INTENT_DOMAIN_MAP, f"{intent} missing from INTENT_DOMAIN_MAP"
