@@ -35,6 +35,12 @@ class Document(Base, TimestampMixin):
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_extra: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # Document versioning
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    parent_document_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
+    )
+
     __table_args__ = (
         Index("ix_documents_family_id", "family_id"),
         Index("ix_documents_type", "type"),

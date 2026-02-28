@@ -33,7 +33,7 @@ alembic upgrade head
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # Task queue worker (full command with all task modules)
-TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks"
+TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks"
 python -m taskiq worker src.core.tasks.broker:broker $TASK_MODULES
 
 # Task queue scheduler (separate process, needed for cron tasks)
@@ -71,7 +71,7 @@ Telegram/Slack/WhatsApp/SMS webhook
 - **AgentConfig** (`src/agents/config.py`): 12 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
 - **BaseSkill** protocol (`src/skills/base.py`): `name`, `intents[]`, `model`, `execute(message, context, intent_data) → SkillResult`, `get_system_prompt(context)`.
 - **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `document_name`, `photo_url`, `photo_bytes`, `chart_url`, `reply_keyboard`, `background_tasks`.
-- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 74 skills registered.
+- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 89 skills registered.
 - **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email, brief, booking (if `ff_langgraph_booking`). Approval orchestrator invoked directly via `start_approval()`.
 
 ### Model Routing
@@ -89,7 +89,7 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
 
-### Agents (12)
+### Agents (13)
 
 | Agent | Model | Skills |
 |-------|-------|--------|
@@ -99,11 +99,12 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 | onboarding | claude-sonnet-4-6 | onboarding, general_chat |
 | tasks | gpt-5.2 | create_task, list_tasks, set_reminder, complete_task, shopping_list_add, shopping_list_view, shopping_list_remove, shopping_list_clear |
 | research | gemini-3-flash-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action, browser_action |
-| writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread, generate_image, generate_card, generate_program, modify_program, convert_document |
+| writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread, generate_image, generate_card, generate_program, modify_program |
 | email | claude-sonnet-4-6 | read_inbox, send_email, draft_reply, follow_up_email, summarize_thread |
 | calendar | gpt-5.2 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
 | life | gpt-5.2 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor |
 | booking | gpt-5.2 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client, receptionist |
+| document | claude-sonnet-4-6 | scan_document, convert_document, list_documents, search_documents, extract_table, generate_invoice_pdf, fill_template, fill_pdf_form, analyze_document, merge_documents, pdf_operations, generate_spreadsheet, compare_documents, summarize_document, generate_document, generate_presentation |
 | finance_specialist | claude-sonnet-4-6 | financial_summary, generate_invoice, tax_estimate, cash_flow_forecast |
 
 ### Context Assembly & Token Budget
@@ -112,7 +113,7 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 
 ### Database
 
-SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 13 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
+SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 15 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
 
 ### LangGraph Orchestrators
 
@@ -123,7 +124,7 @@ SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 13 Alembic migrations. Mod
 
 ### Background Tasks
 
-Taskiq + Redis (`src/core/tasks/broker.py`). 11 cron tasks across 7 task modules: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning. Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
+Taskiq + Redis (`src/core/tasks/broker.py`). 13 cron tasks across 8 task modules: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning, document cleanup (daily 03:00), recurring document generation (daily 09:00). Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
 
 ### Multi-Channel Gateways
 
@@ -139,11 +140,15 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 ### Supervisor Routing & Skill Catalog
 
-`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 12 domains, 74 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
+`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 13 domains, 89 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
 
 ### Specialist Config Engine
 
 `src/core/specialist.py` — YAML-driven business-specific configuration that adapts the booking agent into a specialized receptionist. Pydantic models: `SpecialistConfig`, `SpecialistService`, `SpecialistStaff`, `WorkingHours`. Optional `specialist:` section in `config/profiles/*.yaml` defines services, staff, working hours, greetings, FAQ, capabilities, and extra system prompt. `ProfileConfig.specialist` loaded by `ProfileLoader`. `AgentRouter._add_specialist_knowledge()` injects specialist knowledge into system prompts. Currently configured: `manicure.yaml`, `flowers.yaml`, `construction.yaml`. Profiles without `specialist:` section work unchanged.
+
+### Document Agent
+
+13th agent (`src/agents/config.py`), model `claude-sonnet-4-6`, 16 skills spanning 4 phases. Skills: scan_document, convert_document (batch via Redis queue + zip), list_documents, search_documents (pg_trgm GIN indexes), extract_table, generate_invoice_pdf (WeasyPrint), fill_template (docxtpl/openpyxl + template library: save/list/delete), fill_pdf_form (pypdf), analyze_document (dual text/vision via Gemini), merge_documents (Redis multi-file queue), pdf_operations (split/rotate/encrypt/decrypt via pypdf), generate_spreadsheet (E2B + openpyxl fallback), compare_documents (text extraction + Claude diff), summarize_document, generate_document (contracts/NDAs via Claude + WeasyPrint), generate_presentation (E2B + python-pptx fallback). Document versioning via `version` + `parent_document_id` columns. Feature flag `ff_extended_context` gates 1M token context for heavy multi-doc analysis. Cron tasks: `cleanup_old_documents` (daily 03:00, 90-day retention, preserves templates/invoices), `generate_recurring_documents` (daily 09:00, metadata_extra scheduling).
 
 ### Browser Tools
 

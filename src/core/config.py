@@ -114,6 +114,7 @@ class Settings(BaseSettings):
     ff_langgraph_booking: bool = False
     ff_supervisor_routing: bool = False
     ff_reverse_prompting: bool = False
+    ff_extended_context: bool = False
 
     @property
     def is_production(self) -> bool:

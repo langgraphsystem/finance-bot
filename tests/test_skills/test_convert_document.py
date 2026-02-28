@@ -67,10 +67,21 @@ async def test_convert_no_file(skill, ctx):
 
 
 async def test_convert_no_target_format(skill, ctx):
-    """No target format specified → ask user."""
+    """No target format specified → file queued for batch conversion."""
     msg = _make_doc_message(text="convert this")
-    result = await skill.execute(msg, ctx, {})
-    assert "what format" in result.response_text.lower()
+    with (
+        patch(
+            "src.skills.convert_document.handler.redis.get",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+        patch(
+            "src.skills.convert_document.handler.redis.set",
+            new_callable=AsyncMock,
+        ),
+    ):
+        result = await skill.execute(msg, ctx, {})
+    assert "added" in result.response_text.lower() or "batch" in result.response_text.lower()
 
 
 async def test_convert_same_format(skill, ctx):
