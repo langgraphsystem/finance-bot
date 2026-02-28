@@ -150,6 +150,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "summarize_document": {"mem": False, "hist": 1, "sql": False, "sum": False},
     "generate_document": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "generate_presentation": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    # Google Sheets
+    "read_sheets": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "write_sheets": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "append_sheets": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "create_sheets": {"mem": "profile", "hist": 1, "sql": False, "sum": False},
     # Wave 1 Financial Specialists
     "financial_summary": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
     "generate_invoice": {"mem": "profile", "hist": 3, "sql": False, "sum": False},

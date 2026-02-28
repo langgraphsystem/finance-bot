@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 89
+    assert len(skills) == 93
 
 
 def test_registry_routes_intents(skill_registry):
@@ -102,6 +102,11 @@ def test_registry_routes_intents(skill_registry):
         "generate_invoice",
         "tax_estimate",
         "cash_flow_forecast",
+        # Google Sheets
+        "read_sheets",
+        "write_sheets",
+        "append_sheets",
+        "create_sheets",
         # Memory Vault
         "memory_show",
         "memory_forget",

@@ -58,10 +58,11 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_host: str = "http://localhost:3000"
 
-    # Composio (Gmail + Calendar integration)
+    # Composio (Gmail + Calendar + Sheets integration)
     composio_api_key: str = ""
     composio_gmail_auth_config_id: str = ""
     composio_calendar_auth_config_id: str = ""
+    composio_sheets_auth_config_id: str = ""
 
     # Google OAuth (legacy — replaced by Composio)
     google_client_id: str = ""

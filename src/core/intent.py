@@ -306,6 +306,17 @@ pdf_pages: диапазон страниц, pdf_password: пароль если 
 - generate_presentation: создать презентацию ("сделай презентацию", \
 "create a presentation about", "generate PPTX", "презентация расходов за квартал"). \
 Извлеки presentation_topic: тема презентации
+- read_sheets: прочитать данные из Google Sheets ("open my spreadsheet", \
+"покажи таблицу", "read sheets", "данные из Google Sheets", "show spreadsheet data"). \
+Извлеки sheet_url: URL или ID таблицы, sheet_range: диапазон (A1:D10)
+- write_sheets: записать/обновить ячейки в Google Sheets ("update cell A1", \
+"запиши в таблицу", "change value in sheets", "измени ячейку"). \
+Извлеки sheet_url, sheet_range, sheet_data: данные для записи
+- append_sheets: добавить строки в Google Sheets ("add row to spreadsheet", \
+"добавь строку в таблицу", "log to sheets", "запиши новую строку"). \
+Извлеки sheet_url, sheet_range, sheet_data
+- create_sheets: создать новую Google Sheets таблицу ("create spreadsheet", \
+"new sheet", "создай таблицу", "nueva hoja de cálculo")
 - general_chat: ТОЛЬКО приветствие, благодарность или разговор, \
 который НЕВОЗМОЖНО отнести ни к одному из интентов выше
 
@@ -1087,6 +1098,12 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "search_documents": 'поиск в документах ("найди в документах", "search invoices")',
         "extract_table": 'извлечь таблицу из документа ("вытащи таблицу")',
         "generate_invoice_pdf": 'создать PDF инвойс ("invoice PDF for Mike")',
+    },
+    "sheets": {
+        "read_sheets": 'прочитать Google Sheets ("покажи таблицу", "read sheets")',
+        "write_sheets": 'записать в Google Sheets ("запиши в таблицу", "update cell")',
+        "append_sheets": 'добавить строку ("add row to sheets", "добавь строку")',
+        "create_sheets": 'создать таблицу ("create spreadsheet", "создай таблицу")',
     },
     "booking": {
         "create_booking": 'записать клиента ("book John tomorrow 2pm")',

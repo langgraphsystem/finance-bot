@@ -1085,6 +1085,11 @@ async def _execute_pending_action(
             else:
                 result_text = f"Browser task failed: {result['result']}"
 
+        elif intent == "write_sheets":
+            from src.skills.write_sheets.handler import execute_write_sheets
+
+            result_text = await execute_write_sheets(action_data, context.user_id)
+
         elif intent == "data_tool_delete":
             from src.tools.data_tools import delete_record_confirmed
 

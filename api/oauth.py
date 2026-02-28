@@ -23,6 +23,7 @@ def _composio_client():
 _AUTH_CONFIG_IDS = {
     "gmail": lambda: settings.composio_gmail_auth_config_id,
     "calendar": lambda: settings.composio_calendar_auth_config_id,
+    "sheets": lambda: settings.composio_sheets_auth_config_id,
 }
 
 

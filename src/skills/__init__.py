@@ -3,6 +3,7 @@ from src.skills.add_expense.handler import skill as add_expense_skill
 from src.skills.add_income.handler import skill as add_income_skill
 from src.skills.add_recurring.handler import skill as add_recurring_skill
 from src.skills.analyze_document.handler import skill as analyze_document_skill
+from src.skills.append_sheets.handler import skill as append_sheets_skill
 from src.skills.base import SkillRegistry
 from src.skills.browser_action.handler import skill as browser_action_skill
 from src.skills.cancel_booking.handler import skill as cancel_booking_skill
@@ -15,6 +16,7 @@ from src.skills.convert_document.handler import skill as convert_document_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
 from src.skills.create_booking.handler import skill as create_booking_skill
 from src.skills.create_event.handler import skill as create_event_skill
+from src.skills.create_sheets.handler import skill as create_sheets_skill
 from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
@@ -62,6 +64,7 @@ from src.skills.query_stats.handler import skill as query_stats_skill
 from src.skills.quick_answer.handler import skill as quick_answer_skill
 from src.skills.quick_capture.handler import skill as quick_capture_skill
 from src.skills.read_inbox.handler import skill as read_inbox_skill
+from src.skills.read_sheets.handler import skill as read_sheets_skill
 from src.skills.receptionist.handler import skill as receptionist_skill
 from src.skills.reschedule_booking.handler import skill as reschedule_booking_skill
 from src.skills.reschedule_event.handler import skill as reschedule_event_skill
@@ -89,6 +92,7 @@ from src.skills.undo_last.handler import skill as undo_last_skill
 from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
+from src.skills.write_sheets.handler import skill as write_sheets_skill
 from src.skills.youtube_search.handler import skill as youtube_search_skill
 
 
@@ -185,6 +189,11 @@ def create_registry() -> SkillRegistry:
     registry.register(summarize_document_skill)
     registry.register(generate_document_skill)
     registry.register(generate_presentation_skill)
+    # Google Sheets
+    registry.register(read_sheets_skill)
+    registry.register(write_sheets_skill)
+    registry.register(append_sheets_skill)
+    registry.register(create_sheets_skill)
     # Memory Vault
     registry.register(memory_vault_skill)
     # Wave 1 Financial Specialists

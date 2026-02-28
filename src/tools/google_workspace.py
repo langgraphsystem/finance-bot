@@ -224,6 +224,100 @@ class GoogleWorkspaceClient:
             return data.get("calendars", {}).get("primary", {}).get("busy", [])
         return []
 
+    # ── Sheets ─────────────────────────────────────────────────────────
+
+    async def list_spreadsheets(self, query: str = "") -> list[dict]:
+        """Search for Google Sheets spreadsheets."""
+        args: dict = {}
+        if query:
+            args["query"] = query
+        result = await self._aexecute("GOOGLESHEETS_SEARCH_SPREADSHEETS", args)
+        data = result.get("data", result)
+        if isinstance(data, dict):
+            return data.get("files", data.get("spreadsheets", []))
+        if isinstance(data, list):
+            return data
+        return []
+
+    async def get_sheet_names(self, spreadsheet_id: str) -> list[str]:
+        """List all worksheet names in a spreadsheet."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_GET_SHEET_NAMES",
+            {"spreadsheet_id": spreadsheet_id},
+        )
+        data = result.get("data", result)
+        if isinstance(data, dict):
+            return data.get("sheets", data.get("names", []))
+        if isinstance(data, list):
+            return data
+        return []
+
+    async def read_values(
+        self, spreadsheet_id: str, range_: str = "Sheet1"
+    ) -> list[list[str]]:
+        """Read values from a spreadsheet range."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_VALUES_GET",
+            {"spreadsheet_id": spreadsheet_id, "range": range_},
+        )
+        data = result.get("data", result)
+        if isinstance(data, dict):
+            return data.get("values", [])
+        return []
+
+    async def write_values(
+        self,
+        spreadsheet_id: str,
+        range_: str,
+        values: list[list[str]],
+    ) -> dict:
+        """Write values to a spreadsheet range."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_VALUES_UPDATE",
+            {
+                "spreadsheet_id": spreadsheet_id,
+                "range": range_,
+                "values": values,
+                "value_input_option": "USER_ENTERED",
+            },
+        )
+        return result.get("data", result)
+
+    async def append_values(
+        self,
+        spreadsheet_id: str,
+        range_: str,
+        values: list[list[str]],
+    ) -> dict:
+        """Append rows to a spreadsheet."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_SPREADSHEETS_VALUES_APPEND",
+            {
+                "spreadsheet_id": spreadsheet_id,
+                "range": range_,
+                "values": values,
+                "value_input_option": "USER_ENTERED",
+                "insert_data_option": "INSERT_ROWS",
+            },
+        )
+        return result.get("data", result)
+
+    async def create_spreadsheet(self, title: str) -> dict:
+        """Create a new Google Sheets spreadsheet."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_CREATE_GOOGLE_SHEET1",
+            {"title": title},
+        )
+        return result.get("data", result)
+
+    async def add_sheet(self, spreadsheet_id: str, title: str) -> dict:
+        """Add a new worksheet to an existing spreadsheet."""
+        result = await self._aexecute(
+            "GOOGLESHEETS_ADD_SHEET",
+            {"spreadsheet_id": spreadsheet_id, "title": title},
+        )
+        return result.get("data", result)
+
     # ── Internal helpers ──────────────────────────────────────────────
 
     @staticmethod

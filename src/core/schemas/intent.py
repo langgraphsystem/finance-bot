@@ -128,6 +128,11 @@ class IntentData(BaseModel):
     pdf_password: str | None = None  # for encrypt/decrypt
     presentation_topic: str | None = None  # for generate_presentation
 
+    # Google Sheets fields
+    sheet_url: str | None = None  # spreadsheet URL or ID
+    sheet_range: str | None = None  # cell range like "A1:D10" or "Sheet1"
+    sheet_data: str | None = None  # data to write/append (free text, LLM parses)
+
     # Browser action fields
     browser_target_site: str | None = None  # "booking.com", "amazon.com"
     browser_task: str | None = None  # "book hotel in Barcelona for March 15-18"

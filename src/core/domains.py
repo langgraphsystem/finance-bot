@@ -22,6 +22,7 @@ class Domain(StrEnum):
     booking = "booking"
     web = "web"
     monitor = "monitor"
+    sheets = "sheets"
     general = "general"
     onboarding = "onboarding"
 
@@ -114,6 +115,11 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "memory_show": Domain.general,
     "memory_forget": Domain.general,
     "memory_save": Domain.general,
+    # Google Sheets
+    "read_sheets": Domain.sheets,
+    "write_sheets": Domain.sheets,
+    "append_sheets": Domain.sheets,
+    "create_sheets": Domain.sheets,
     # General
     "general_chat": Domain.general,
     "onboarding": Domain.onboarding,

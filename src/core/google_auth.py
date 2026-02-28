@@ -23,11 +23,13 @@ def _composio_client():
 _TOOLKIT_SLUGS = {
     "gmail": "GMAIL",
     "calendar": "GOOGLECALENDAR",
+    "sheets": "GOOGLESHEETS",
 }
 
 _SERVICE_LABELS = {
     "gmail": "Gmail",
     "calendar": "Google Calendar",
+    "sheets": "Google Sheets",
 }
 
 
@@ -82,12 +84,14 @@ async def require_google_or_prompt(
         )
 
 
-async def get_google_client(user_id: str) -> GoogleWorkspaceClient | None:
+async def get_google_client(
+    user_id: str, service: str = "gmail"
+) -> GoogleWorkspaceClient | None:
     """Return a Composio-backed GoogleWorkspaceClient for the user."""
     from src.tools.google_workspace import GoogleWorkspaceClient
 
     try:
-        if not await has_google_connection(user_id):
+        if not await has_google_connection(user_id, service=service):
             return None
         return GoogleWorkspaceClient(user_id)
     except Exception as e:

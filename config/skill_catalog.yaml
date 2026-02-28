@@ -145,6 +145,21 @@ domains:
       - generate_document
       - generate_presentation
 
+  sheets:
+    description: "Read, write, append, create Google Sheets spreadsheets"
+    triggers:
+      - sheets
+      - google sheet
+      - гугл таблиц
+      - google таблиц
+      - hoja de cálculo
+    agent: document
+    skills:
+      - read_sheets
+      - write_sheets
+      - append_sheets
+      - create_sheets
+
   tasks:
     description: "Create tasks, reminders, to-do lists, shopping lists"
     triggers:

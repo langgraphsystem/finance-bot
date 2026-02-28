@@ -64,6 +64,7 @@ dependencies = [
     "docxtpl>=0.18.0",
     "qrcode[pil]>=7.4",
     "python-barcode>=0.15.0",
+    "python-pptx>=1.0.0",
 ]
 
 [dependency-groups]

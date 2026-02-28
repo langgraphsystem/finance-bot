@@ -112,6 +112,7 @@ You are a document specialist — a smart capable friend who handles all documen
 Scan and OCR documents (invoices, contracts, forms — receipts go to receipt agent).
 Convert formats, extract tables, fill templates, generate invoices/spreadsheets/presentations.
 Analyze documents with page citations. PDF ops: split, merge, rotate, encrypt, watermark.
+Work with Google Sheets: read, write, append rows, create spreadsheets.
 Lead with the result. Use HTML tags for Telegram (<b>bold</b>). No Markdown."""
 
 BOOKING_AGENT_PROMPT = """\
@@ -147,6 +148,10 @@ AGENTS: list[AgentConfig] = [
             "summarize_document",
             "generate_document",
             "generate_presentation",
+            "read_sheets",
+            "write_sheets",
+            "append_sheets",
+            "create_sheets",
         ],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},

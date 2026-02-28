@@ -1,4 +1,4 @@
-"""Google connector — wraps Composio-managed connection for Gmail + Calendar."""
+"""Google connector — wraps Composio-managed connection for Gmail + Calendar + Sheets."""
 
 import logging
 
@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleConnector:
-    """Google Workspace connector (Gmail + Calendar) via Composio."""
+    """Google Workspace connector (Gmail + Calendar + Sheets) via Composio."""
 
     name: str = "google"
 
@@ -32,7 +32,7 @@ class GoogleConnector:
             composio = _composio_client()
 
             def _disconnect():
-                for toolkit in ("GMAIL", "GOOGLECALENDAR"):
+                for toolkit in ("GMAIL", "GOOGLECALENDAR", "GOOGLESHEETS"):
                     result = composio.connected_accounts.list(
                         user_ids=[user_id],
                         toolkit_slugs=[toolkit],

@@ -90,6 +90,11 @@ async def _dispatch(
             return result["result"]
         return f"Browser task failed: {result['result']}"
 
+    if intent == "write_sheets":
+        from src.skills.write_sheets.handler import execute_write_sheets
+
+        return await execute_write_sheets(action_data, user_id)
+
     if intent == "data_tool_delete":
         from src.tools.data_tools import delete_record_confirmed
 
