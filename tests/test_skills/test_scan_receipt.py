@@ -1,9 +1,22 @@
 """Tests for ScanReceiptSkill."""
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from src.core.schemas.receipt import ReceiptData
-from src.skills.scan_receipt.handler import skill
+from src.skills.scan_receipt.handler import ScanReceiptSkill, skill
+
+
+@pytest.fixture(autouse=True)
+def mock_redis():
+    """Mock Redis for pending receipt storage in all tests."""
+    with patch("src.skills.scan_receipt.handler.redis") as mock_r:
+        mock_r.set = AsyncMock()
+        mock_r.get = AsyncMock(return_value=None)
+        mock_r.delete = AsyncMock()
+        yield mock_r
 
 
 def _make_receipt(**overrides) -> ReceiptData:
@@ -104,3 +117,67 @@ async def test_fuel_receipt_detection(sample_context, photo_message):
         phrase in response_lower
         for phrase in ["заправ", "fuel", "галлон", "gallon", "дизель", "diesel", "топлив", "gal"]
     )
+
+
+def test_confidence_all_fields():
+    """Receipt with all fields → confidence 1.0 (> 0.95 threshold)."""
+    receipt = _make_receipt(
+        merchant="Walmart", total=50.0, date="2026-02-28",
+        items=[{"name": "Milk", "price": 3.50}],
+    )
+    confidence = ScanReceiptSkill._compute_confidence(receipt)
+    assert confidence == Decimal("1.00")
+
+
+def test_confidence_missing_items():
+    """Receipt without items → confidence 0.80."""
+    receipt = _make_receipt(merchant="Walmart", total=50.0, date="2026-02-28", items=[])
+    confidence = ScanReceiptSkill._compute_confidence(receipt)
+    assert confidence == Decimal("0.80")
+
+
+def test_confidence_missing_date_and_items():
+    """Receipt without date or items → confidence 0.60."""
+    receipt = _make_receipt(merchant="Walmart", total=50.0, date=None, items=[])
+    confidence = ScanReceiptSkill._compute_confidence(receipt)
+    assert confidence == Decimal("0.60")
+
+
+def test_confidence_merchant_only():
+    """Only merchant → confidence 0.30."""
+    receipt = _make_receipt(merchant="Shell", total=0, date=None, items=[])
+    confidence = ScanReceiptSkill._compute_confidence(receipt)
+    assert confidence == Decimal("0.30")
+
+
+async def test_auto_save_high_confidence(sample_context, photo_message):
+    """High-confidence receipt auto-saves without buttons."""
+    receipt = _make_receipt(
+        merchant="Walmart", total=42.50, date="2026-02-28",
+        items=[{"name": "Milk", "price": 3.50}],
+    )
+    with (
+        patch.object(skill, "_ocr_gemini", new_callable=AsyncMock, return_value=receipt),
+        patch.object(
+            skill, "_save_receipt_to_db", new_callable=AsyncMock, return_value="tx-123"
+        ),
+    ):
+        result = await skill.execute(photo_message, sample_context, {})
+
+    assert "Автоматически сохранено" in result.response_text
+    assert result.buttons is None
+
+
+async def test_pending_stored_in_redis(sample_context, photo_message, mock_redis):
+    """Low-confidence receipt stores pending data in Redis, not in-memory."""
+    receipt = _make_receipt(merchant="Shop", total=10.0, date=None, items=[])
+
+    with patch.object(skill, "_ocr_gemini", new_callable=AsyncMock, return_value=receipt):
+        result = await skill.execute(photo_message, sample_context, {})
+
+    # Should call Redis set
+    mock_redis.set.assert_awaited_once()
+    key = mock_redis.set.call_args[0][0]
+    assert key.startswith("pending_receipt:")
+    # Should have confirmation buttons
+    assert result.buttons is not None

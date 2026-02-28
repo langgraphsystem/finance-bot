@@ -1,5 +1,6 @@
 """Scan receipt skill — OCR photo → structured data → INSERT."""
 
+import base64
 import json
 import logging
 import uuid
@@ -8,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import async_session, redis
 from src.core.llm.clients import anthropic_client, google_client
 from src.core.models.document import Document
 from src.core.models.enums import DocumentType, Scope, TransactionType
@@ -20,6 +21,42 @@ from src.skills.base import SkillResult
 from src.tools.storage import upload_document
 
 logger = logging.getLogger(__name__)
+
+PENDING_RECEIPT_TTL = 3600  # 1 hour
+
+
+async def store_pending_receipt(
+    pending_id: str,
+    receipt: ReceiptData,
+    image_bytes: bytes | None,
+    mime_type: str,
+    user_id: str,
+    family_id: str,
+) -> None:
+    """Store pending receipt data in Redis for later save on user confirm."""
+    payload = {
+        "receipt": receipt.model_dump(mode="json"),
+        "image_b64": base64.b64encode(image_bytes).decode() if image_bytes else "",
+        "mime_type": mime_type,
+        "user_id": user_id,
+        "family_id": family_id,
+    }
+    await redis.set(f"pending_receipt:{pending_id}", json.dumps(payload, default=str),
+                    ex=PENDING_RECEIPT_TTL)
+
+
+async def get_pending_receipt(pending_id: str) -> dict | None:
+    """Retrieve pending receipt data from Redis."""
+    data = await redis.get(f"pending_receipt:{pending_id}")
+    if not data:
+        return None
+    return json.loads(data)
+
+
+async def delete_pending_receipt(pending_id: str) -> None:
+    """Delete pending receipt data from Redis."""
+    await redis.delete(f"pending_receipt:{pending_id}")
+
 
 OCR_PROMPT = """Проанализируй фото чека и извлеки данные в JSON:
 {
@@ -99,8 +136,10 @@ class ScanReceiptSkill:
                     line += f" — ${price}"
                 response += line + "\n"
 
+        # Compute real confidence from OCR completeness
+        confidence = self._compute_confidence(receipt)
+
         # High-confidence result — auto-save to DB
-        confidence = Decimal("0.9")
         if confidence > Decimal("0.95"):
             try:
                 tx_id = await self._save_receipt_to_db(
@@ -108,18 +147,23 @@ class ScanReceiptSkill:
                     context,
                     image_bytes=message.photo_bytes,
                     mime_type="image/jpeg",
+                    confidence=confidence,
                 )
-                response += f"\n\nАвтоматически сохранено (ID: {tx_id})"
+                response += f"\n\n✅ Автоматически сохранено (ID: {tx_id})"
                 return SkillResult(response_text=response)
             except Exception as e:
                 logger.error("Auto-save receipt failed: %s", e)
 
-        # Store pending receipt data for callback retrieval
+        # Store pending receipt data in Redis for callback retrieval
         pending_id = str(uuid.uuid4())[:8]
-        context_pending = getattr(context, "pending_confirmation", None)
-        if context_pending is None:
-            context.pending_confirmation = {}  # type: ignore[attr-defined]
-        context.pending_confirmation[pending_id] = receipt  # type: ignore[attr-defined]
+        await store_pending_receipt(
+            pending_id=pending_id,
+            receipt=receipt,
+            image_bytes=message.photo_bytes,
+            mime_type="image/jpeg",
+            user_id=context.user_id,
+            family_id=context.family_id,
+        )
 
         return SkillResult(
             response_text=response,
@@ -131,12 +175,31 @@ class ScanReceiptSkill:
             ],
         )
 
+    @staticmethod
+    def _compute_confidence(receipt: ReceiptData) -> Decimal:
+        """Compute OCR confidence from field completeness.
+
+        Scoring: merchant (0.30) + total (0.30) + date (0.20) + items (0.20).
+        All core fields present → 1.0.  Missing fields lower the score.
+        """
+        score = Decimal("0")
+        if receipt.merchant and receipt.merchant.strip():
+            score += Decimal("0.30")
+        if receipt.total and receipt.total > 0:
+            score += Decimal("0.30")
+        if receipt.date:
+            score += Decimal("0.20")
+        if receipt.items and len(receipt.items) > 0:
+            score += Decimal("0.20")
+        return score
+
     async def _save_receipt_to_db(
         self,
         receipt: ReceiptData,
         context: SessionContext,
         image_bytes: bytes | None = None,
         mime_type: str = "image/jpeg",
+        confidence: Decimal = Decimal("0.9"),
     ) -> str:
         """Save receipt as Transaction + Document. Returns transaction ID."""
         # Upload image to Supabase Storage before opening the DB session
@@ -159,7 +222,7 @@ class ScanReceiptSkill:
                 storage_path=storage_path,
                 ocr_model="gemini-3-flash-preview",
                 ocr_parsed=receipt.model_dump(mode="json"),
-                ocr_confidence=Decimal("0.9"),
+                ocr_confidence=confidence,
             )
             session.add(doc)
             await session.flush()
@@ -193,7 +256,7 @@ class ScanReceiptSkill:
                     else None
                 ),
                 document_id=doc.id,
-                ai_confidence=Decimal("0.9"),
+                ai_confidence=confidence,
             )
             session.add(tx)
             await session.commit()
@@ -216,8 +279,6 @@ class ScanReceiptSkill:
 
         parts = [OCR_PROMPT]
         if message.photo_bytes:
-            import base64
-
             parts.append(
                 {
                     "inline_data": {
@@ -241,8 +302,6 @@ class ScanReceiptSkill:
 
         content = [{"type": "text", "text": OCR_PROMPT}]
         if message.photo_bytes:
-            import base64
-
             content.insert(
                 0,
                 {
