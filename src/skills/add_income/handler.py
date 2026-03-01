@@ -12,6 +12,7 @@ from src.core.db import async_session
 from src.core.models.enums import Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,9 @@ INCOME_SYSTEM_PROMPT = """Ты записываешь доход пользов�
 
 Категории пользователя:
 {categories}"""
+
+
+register_strings("add_income", {"en": {}, "ru": {}, "es": {}})
 
 
 class AddIncomeSkill:

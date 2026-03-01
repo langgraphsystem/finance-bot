@@ -9,6 +9,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ to external websites. Present the full information directly.
 User's preferred language: {language}."""
 
 FALLBACK_DISCLAIMER = "\n\n<i>Based on my training data — may not reflect current info.</i>"
+
+
+register_strings("web_search", {"en": {}, "ru": {}, "es": {}})
 
 
 class WebSearchSkill:

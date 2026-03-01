@@ -37,7 +37,10 @@ async def test_browser_action_empty_message(sample_context):
     msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
     with _no_booking, _no_login:
         result = await skill.execute(msg, sample_context, {})
-    assert "what" in result.response_text.lower() or "website" in result.response_text.lower()
+    assert (
+        "what" in result.response_text.lower()
+        or "website" in result.response_text.lower()
+    )
 
 
 async def test_browser_action_vague_booking_asks_details(sample_context):
@@ -254,7 +257,7 @@ async def test_browser_action_vague_shopping_asks_product(sample_context):
     with _no_booking, _no_login:
         result = await skill.execute(msg, sample_context, intent_data)
     assert "amazon.com" in result.response_text
-    assert "what" in result.response_text.lower() or "find" in result.response_text.lower()
+    assert "find" in result.response_text.lower()
 
 
 async def test_browser_action_read_only_on_booking_site_skips_search(sample_context):

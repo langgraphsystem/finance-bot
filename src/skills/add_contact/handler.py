@@ -10,6 +10,7 @@ from src.core.models.contact import Contact
 from src.core.models.enums import ContactRole
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,9 @@ ADD_CONTACT_PROMPT = """\
 You help users add contacts and clients to their CRM.
 Extract: name (required), phone, email, role (client/vendor/partner/friend/family/doctor/other).
 ALWAYS respond in the same language as the user's message/query."""
+
+
+register_strings("add_contact", {"en": {}, "ru": {}, "es": {}})
 
 
 class AddContactSkill:

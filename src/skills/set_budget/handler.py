@@ -13,6 +13,7 @@ from src.core.models.budget import Budget
 from src.core.models.enums import BudgetPeriod, Scope
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,9 @@ logger = logging.getLogger(__name__)
 BUDGET_SYSTEM_PROMPT = """Ты помогаешь пользователю управлять бюджетами.
 Извлеки из сообщения: категорию, сумму, период (weekly/monthly).
 Если не указан период — по умолчанию monthly."""
+
+
+register_strings("set_budget", {"en": {}, "ru": {}, "es": {}})
 
 
 class SetBudgetSkill:

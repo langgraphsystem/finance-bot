@@ -10,6 +10,7 @@ from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ Respond with ONLY a JSON object:
 
 If info is missing, set the field to null.
 Dates and times must be in the user's local timezone."""
+
+
+register_strings("reschedule_event", {"en": {}, "ru": {}, "es": {}})
 
 
 class RescheduleEventSkill:

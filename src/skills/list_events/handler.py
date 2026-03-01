@@ -10,6 +10,7 @@ from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,9 @@ Rules:
 - If no events, say "Ваш календарь свободен."
 - End with an action offer: "Запланировать что-нибудь?"
 - Respond in: {language}."""
+
+
+register_strings("list_events", {"en": {}, "ru": {}, "es": {}})
 
 
 class ListEventsSkill:

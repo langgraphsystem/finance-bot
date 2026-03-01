@@ -13,6 +13,7 @@ from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -38,6 +39,9 @@ BARE_TRIGGERS = {
     "подвести итоги",
     "дневник",
 }
+
+
+register_strings("day_reflection", {"en": {}, "ru": {}, "es": {}})
 
 
 class DayReflectionSkill:

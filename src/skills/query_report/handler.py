@@ -8,6 +8,7 @@ from src.core.context import SessionContext
 from src.core.observability import observe
 from src.core.reports import generate_monthly_report
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,9 @@ def _parse_report_period(intent_data: dict[str, Any]) -> tuple[int, int]:
 
     # Default: current month
     return today.year, today.month
+
+
+register_strings("query_report", {"en": {}, "ru": {}, "es": {}})
 
 
 class QueryReportSkill:

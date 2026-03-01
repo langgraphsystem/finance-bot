@@ -8,6 +8,7 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,9 @@ Rules:
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
 - ALWAYS respond in the language of the user's ORIGINAL message. \
 User's preferred language: {language}."""
+
+
+register_strings("compare_options", {"en": {}, "ru": {}, "es": {}})
 
 
 class CompareOptionsSkill:

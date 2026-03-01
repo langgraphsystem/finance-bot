@@ -13,7 +13,7 @@ from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import fmt_time, t
+from src.skills._i18n import fmt_time, register_strings, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,15 @@ _STRINGS = {
         "header": "📋 <b>{label} — записи ({count}):</b>\n",
         "action": "\nЗабронировать ещё? Просто скажи.",
     },
+    "es": {
+        "today": "Hoy",
+        "week": "Esta semana",
+        "empty": "📋 {label} — sin reservas.",
+        "header": "📋 <b>{label} — reservas ({count}):</b>\n",
+        "action": "\n¿Reservar otra? Solo dime.",
+    },
 }
+register_strings("list_bookings", _STRINGS)
 
 LIST_BOOKINGS_PROMPT = """\
 You help users view their booking schedule.

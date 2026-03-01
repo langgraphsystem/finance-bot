@@ -10,6 +10,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text, google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.prompt_loader import load_prompt
 from src.tools.browser import browser_tool
@@ -39,6 +40,9 @@ Browser returned this raw data:
 Extract the key information and respond concisely in the same language as the user's query.
 Include: product name, price, store name/URL. Use Telegram HTML (<b>, <i>).
 If the data is not useful, say you couldn't find the price."""
+
+
+register_strings("price_check", {"en": {}, "ru": {}, "es": {}})
 
 
 class PriceCheckSkill:

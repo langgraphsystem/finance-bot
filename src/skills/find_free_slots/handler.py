@@ -9,9 +9,13 @@ from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+
+register_strings("find_free_slots", {"en": {}, "ru": {}, "es": {}})
 
 
 class FindFreeSlotsSkill:

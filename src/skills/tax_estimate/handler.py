@@ -19,6 +19,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,9 @@ def _quarter_date_range(quarter: int, year: int | None = None) -> tuple[date, da
     end_year = y + 1 if quarter == 4 else y
     end = date(end_year, end_months[quarter], 1)
     return start, end
+
+
+register_strings("tax_estimate", {"en": {}, "ru": {}, "es": {}})
 
 
 class TaxEstimateSkill:

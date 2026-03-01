@@ -142,6 +142,37 @@ def t_cached(
     return template.format(**kw) if kw else template
 
 
+LANG_NAMES: dict[str, str] = {
+    "ru": "Russian",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "pt": "Portuguese",
+    "it": "Italian",
+    "uk": "Ukrainian",
+    "pl": "Polish",
+    "tr": "Turkish",
+    "ar": "Arabic",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "hi": "Hindi",
+    "ky": "Kyrgyz",
+}
+
+
+def lang_instruction(lang: str) -> str:
+    """Return a language instruction directive for LLM system prompts.
+
+    Returns empty string for English (no directive needed).
+    For other languages, returns "IMPORTANT: Respond entirely in {Language}."
+    """
+    if lang == "en":
+        return ""
+    name = LANG_NAMES.get(lang, lang)
+    return f"IMPORTANT: Respond entirely in {name}."
+
+
 async def ensure_translations(
     namespace: str,
     strings: dict[str, dict[str, str]],

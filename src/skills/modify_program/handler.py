@@ -15,6 +15,7 @@ from src.core.memory.mem0_client import add_memory
 from src.core.observability import observe
 from src.core.sandbox import e2b_runner
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.generate_program.handler import (
     CODE_GEN_SYSTEM_PROMPT,
@@ -47,6 +48,9 @@ Rules:
 - Apply ONLY the requested changes.
 - Return the COMPLETE modified code, not just the changed parts.
 - Respond ONLY with code, no explanations outside the code."""
+
+
+register_strings("modify_program", {"en": {}, "ru": {}, "es": {}})
 
 
 class ModifyProgramSkill:

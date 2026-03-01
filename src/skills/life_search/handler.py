@@ -14,6 +14,7 @@ from src.core.memory.mem0_client import search_memories
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,9 @@ def _resolve_event_type(raw: str | None) -> LifeEventType | None:
         return LifeEventType(raw)
     except ValueError:
         return None
+
+
+register_strings("life_search", {"en": {}, "ru": {}, "es": {}})
 
 
 class LifeSearchSkill:

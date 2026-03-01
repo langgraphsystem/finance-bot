@@ -9,6 +9,7 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,9 @@ Rules:
 - Keep it concise — reply to the point, not the whole thread.
 - Output ONLY the reply text. No headers, no formatting.
 - Respond in: {language}."""
+
+
+register_strings("draft_reply", {"en": {}, "ru": {}, "es": {}})
 
 
 class DraftReplySkill:

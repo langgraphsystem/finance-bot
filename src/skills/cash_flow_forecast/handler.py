@@ -19,6 +19,7 @@ from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ Use <b>bold</b> for key amounts. Max 8 lines.
 If data is insufficient (<14 days), say so clearly."""
 
 MIN_HISTORY_DAYS = 14
+
+
+register_strings("cash_flow_forecast", {"en": {}, "ru": {}, "es": {}})
 
 
 class CashFlowForecastSkill:

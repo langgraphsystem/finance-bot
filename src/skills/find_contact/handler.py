@@ -11,6 +11,7 @@ from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,9 @@ FIND_CONTACT_PROMPT = """\
 You help users search for contacts in their CRM.
 Extract the search query (name, phone, or keyword).
 ALWAYS respond in the same language as the user's message/query."""
+
+
+register_strings("find_contact", {"en": {}, "ru": {}, "es": {}})
 
 
 class FindContactSkill:

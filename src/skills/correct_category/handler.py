@@ -13,9 +13,13 @@ from src.core.models.category import Category
 from src.core.models.transaction import Transaction
 from src.core.tasks.memory_tasks import async_update_merchant_mapping
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+
+register_strings("correct_category", {"en": {}, "ru": {}, "es": {}})
 
 
 class CorrectCategorySkill:

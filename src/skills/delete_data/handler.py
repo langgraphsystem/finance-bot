@@ -29,6 +29,7 @@ from src.core.observability import observe
 from src.core.pending_actions import store_pending_action
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -1033,6 +1034,9 @@ def _disambiguation_prompt() -> SkillResult:
             "Пример: «удали расходы за январь» или «очисти записи о еде за неделю»"
         ),
     )
+
+
+register_strings("delete_data", {"en": {}, "ru": {}, "es": {}})
 
 
 class DeleteDataSkill:

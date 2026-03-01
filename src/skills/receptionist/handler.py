@@ -14,6 +14,7 @@ from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.core.specialist import SpecialistConfig
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,9 @@ Rules:
 - For booking requests, suggest using the booking feature.
 - Use <b>bold</b> for key info (prices, hours). Telegram HTML format.
 - Be warm and professional — you're the front desk."""
+
+
+register_strings("receptionist", {"en": {}, "ru": {}, "es": {}})
 
 
 class ReceptionistSkill:

@@ -18,6 +18,7 @@ from src.core.tasks.memory_tasks import (
     async_update_merchant_mapping,
 )
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,9 @@ EXPENSE_SYSTEM_PROMPT = """Ты записываешь расход пользо
 
 Известные мерчанты:
 {mappings}"""
+
+
+register_strings("add_expense", {"en": {}, "ru": {}, "es": {}})
 
 
 class AddExpenseSkill:

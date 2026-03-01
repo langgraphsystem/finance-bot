@@ -12,12 +12,16 @@ from src.core.db import async_session
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
 UNDO_SYSTEM_PROMPT = """Ты помогаешь пользователю отменить последнюю операцию.
 Сообщи результат кратко и понятно."""
+
+
+register_strings("undo_last", {"en": {}, "ru": {}, "es": {}})
 
 
 class UndoLastSkill:

@@ -28,6 +28,7 @@ from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.core.plugin_loader import plugin_loader
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.prompt_loader import load_prompt
 
@@ -50,6 +51,9 @@ Rules:
 - Max 12 bullet points total across all sections.
 - Use HTML tags for Telegram (<b>, <i>). No Markdown.
 - Respond in: {language}."""
+
+
+register_strings("morning_brief", {"en": {}, "ru": {}, "es": {}})
 
 
 class MorningBriefSkill:

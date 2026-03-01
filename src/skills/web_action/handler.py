@@ -14,6 +14,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.prompt_loader import load_prompt
 from src.tools.browser import browser_tool
@@ -35,6 +36,9 @@ Browser returned this raw data:
 
 Extract the key information and respond concisely in the same language as the user's message.
 Use Telegram HTML (<b>, <i>). If the data is not useful, say what happened."""
+
+
+register_strings("web_action", {"en": {}, "ru": {}, "es": {}})
 
 
 class WebActionSkill:

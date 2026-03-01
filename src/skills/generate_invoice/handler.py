@@ -19,6 +19,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ You receive transaction data and contact info from SQL.
 Format the invoice as a clean HTML summary for the user to review before sending.
 Include: contact name, line items, amounts, total, suggested due date (net 30).
 Use <b>bold</b> for totals. Keep it scannable."""
+
+
+register_strings("generate_invoice", {"en": {}, "ru": {}, "es": {}})
 
 
 class GenerateInvoiceSkill:

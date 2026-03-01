@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from src.core.observability import observe
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ MEMORY_VAULT_SYSTEM_PROMPT = (
 )
 
 MAX_DISPLAY_MEMORIES = 20
+
+
+register_strings("memory_vault", {"en": {}, "ru": {}, "es": {}})
 
 
 class MemoryVaultSkill:

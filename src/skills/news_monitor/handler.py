@@ -15,6 +15,7 @@ from src.core.models.enums import MonitorType
 from src.core.models.monitor import Monitor
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.prompt_loader import load_prompt
 
@@ -24,6 +25,9 @@ _DEFAULT_SYSTEM_PROMPT = """\
 You help users set up news monitoring alerts.
 Confirm the topic and frequency. Be concise.
 Respond in: {language}."""
+
+
+register_strings("news_monitor", {"en": {}, "ru": {}, "es": {}})
 
 
 class NewsMonitorSkill:

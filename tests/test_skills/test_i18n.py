@@ -253,3 +253,45 @@ def test_registered_strings_have_en_ru_es():
     assert "en" in strings
     assert "ru" in strings
     assert "es" in strings
+
+
+# ── Phase 5: Registry validation tests ──────────────────────────────────────
+
+
+def test_all_skills_register_strings():
+    """After importing all skills, _STRING_REGISTRY should have >= 80 namespaces."""
+    import src.skills  # noqa: F401 — triggers all skill registrations
+
+    assert len(_STRING_REGISTRY) >= 80, (
+        f"Expected >= 80 registered namespaces, got {len(_STRING_REGISTRY)}: "
+        f"{sorted(_STRING_REGISTRY.keys())}"
+    )
+
+
+def test_all_registered_have_3_static_langs():
+    """Every registered namespace must have en, ru, and es keys."""
+    import src.skills  # noqa: F401
+
+    for ns, strings in _STRING_REGISTRY.items():
+        for lang in ("en", "ru", "es"):
+            assert lang in strings, f"Namespace '{ns}' missing static language '{lang}'"
+
+
+def test_registered_keys_match_across_langs():
+    """en/ru/es should have identical key sets per namespace (if non-empty)."""
+    import src.skills  # noqa: F401
+
+    for ns, strings in _STRING_REGISTRY.items():
+        en_keys = set(strings.get("en", {}).keys())
+        if not en_keys:
+            continue  # skip namespaces with empty strings (skeleton registrations)
+        ru_keys = set(strings.get("ru", {}).keys())
+        es_keys = set(strings.get("es", {}).keys())
+        if ru_keys:  # only check if ru has keys (non-skeleton)
+            assert en_keys == ru_keys, (
+                f"Namespace '{ns}': en keys {en_keys} != ru keys {ru_keys}"
+            )
+        if es_keys:
+            assert en_keys == es_keys, (
+                f"Namespace '{ns}': en keys {en_keys} != es keys {es_keys}"
+            )

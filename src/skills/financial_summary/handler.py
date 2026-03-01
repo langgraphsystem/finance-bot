@@ -20,6 +20,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,9 @@ def _resolve_period(intent_data: dict[str, Any]) -> tuple[date, date, str]:
     # Default: current month
     start = today.replace(day=1)
     return start, today + timedelta(days=1), "this month"
+
+
+register_strings("financial_summary", {"en": {}, "ru": {}, "es": {}})
 
 
 class FinancialSummarySkill:

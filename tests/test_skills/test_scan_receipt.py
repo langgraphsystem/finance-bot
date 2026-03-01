@@ -42,7 +42,7 @@ async def test_no_photo_returns_error(sample_context, text_message):
 
 
 async def test_gemini_ocr_success(sample_context, photo_message):
-    """Gemini OCR succeeds — response contains merchant and total."""
+    """Gemini OCR succeeds — business user sees scope selection buttons."""
     receipt = _make_receipt(merchant="Walmart", total=123.45)
 
     with patch.object(skill, "_ocr_gemini", new_callable=AsyncMock, return_value=receipt):
@@ -51,18 +51,14 @@ async def test_gemini_ocr_success(sample_context, photo_message):
     assert "Walmart" in result.response_text
     assert "123.45" in result.response_text
     assert result.buttons is not None
-    # Flatten buttons (may be nested rows)
-    flat = []
-    for item in result.buttons:
-        if isinstance(item, list):
-            flat.extend(item)
-        else:
-            flat.append(item)
+    # Business user gets scope selection buttons (not receipt_confirm)
     callback_values = [
-        b.get("callback", b.get("callback_data", "")) if isinstance(b, dict) else str(b)
-        for b in flat
+        b.get("callback", "") if isinstance(b, dict) else str(b)
+        for b in result.buttons
     ]
-    assert any("receipt_confirm" in str(v) for v in callback_values)
+    assert any("receipt_scope" in v for v in callback_values)
+    assert any("business" in v for v in callback_values)
+    assert any("family" in v for v in callback_values)
 
 
 async def test_gemini_fallback_to_claude(sample_context, photo_message):
@@ -150,8 +146,40 @@ def test_confidence_merchant_only():
     assert confidence == Decimal("0.30")
 
 
-async def test_auto_save_high_confidence(sample_context, photo_message):
-    """High-confidence receipt auto-saves without buttons."""
+async def test_business_user_always_gets_scope_buttons(sample_context, photo_message):
+    """Business user always sees scope buttons, even for high-confidence receipts."""
+    receipt = _make_receipt(
+        merchant="Walmart", total=42.50, date="2026-02-28",
+        items=[{"name": "Milk", "price": 3.50}],
+    )
+    with patch.object(skill, "_ocr_gemini", new_callable=AsyncMock, return_value=receipt):
+        result = await skill.execute(photo_message, sample_context, {})
+
+    # Business user never auto-saves — always shows scope selection
+    assert result.buttons is not None
+    callbacks = [b["callback"] for b in result.buttons]
+    assert any("receipt_scope" in c and "business" in c for c in callbacks)
+    assert any("receipt_scope" in c and "family" in c for c in callbacks)
+
+
+async def test_auto_save_high_confidence_non_business(photo_message):
+    """Non-business user auto-saves high-confidence receipts without buttons."""
+    import uuid
+
+    from src.core.context import SessionContext
+
+    non_biz_ctx = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="ru",
+        currency="USD",
+        business_type=None,
+        categories=[
+            {"id": str(uuid.uuid4()), "name": "Продукты", "scope": "family", "icon": "🛒"},
+        ],
+        merchant_mappings=[],
+    )
     receipt = _make_receipt(
         merchant="Walmart", total=42.50, date="2026-02-28",
         items=[{"name": "Milk", "price": 3.50}],
@@ -162,22 +190,24 @@ async def test_auto_save_high_confidence(sample_context, photo_message):
             skill, "_save_receipt_to_db", new_callable=AsyncMock, return_value="tx-123"
         ),
     ):
-        result = await skill.execute(photo_message, sample_context, {})
+        result = await skill.execute(photo_message, non_biz_ctx, {})
 
     assert "Автоматически сохранено" in result.response_text
     assert result.buttons is None
 
 
 async def test_pending_stored_in_redis(sample_context, photo_message, mock_redis):
-    """Low-confidence receipt stores pending data in Redis, not in-memory."""
+    """Business user receipt stores pending data in Redis for scope selection."""
     receipt = _make_receipt(merchant="Shop", total=10.0, date=None, items=[])
 
     with patch.object(skill, "_ocr_gemini", new_callable=AsyncMock, return_value=receipt):
         result = await skill.execute(photo_message, sample_context, {})
 
-    # Should call Redis set
+    # Should call Redis set (business user always stores pending)
     mock_redis.set.assert_awaited_once()
     key = mock_redis.set.call_args[0][0]
     assert key.startswith("pending_receipt:")
-    # Should have confirmation buttons
+    # Should have scope selection buttons
     assert result.buttons is not None
+    callbacks = [b["callback"] for b in result.buttons]
+    assert any("receipt_scope" in c for c in callbacks)

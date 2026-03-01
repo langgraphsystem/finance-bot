@@ -12,6 +12,7 @@ from src.core.models.enums import TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,9 @@ def _parse_deadline(intent_data: dict[str, Any], timezone: str) -> datetime | No
         return dt
     except (ValueError, KeyError):
         return None
+
+
+register_strings("create_task", {"en": {}, "ru": {}, "es": {}})
 
 
 class CreateTaskSkill:

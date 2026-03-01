@@ -16,12 +16,16 @@ from src.core.models.load import Load
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
 MARK_PAID_SYSTEM_PROMPT = """Ты помогаешь отслеживать оплату грузов.
 Помоги пользователю отметить груз как оплаченный."""
+
+
+register_strings("mark_paid", {"en": {}, "ru": {}, "es": {}})
 
 
 class MarkPaidSkill:

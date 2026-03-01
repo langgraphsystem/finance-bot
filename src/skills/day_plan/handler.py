@@ -9,6 +9,7 @@ from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,9 @@ COACHING_SYSTEM_PROMPT = """\
 Учитывай количество задач — если много, предложи отложить неважные.
 Будь реалистичен по времени. Краткий совет, 2-3 предложения.
 Используй HTML-теги для Telegram (<b>, <i>). Отвечай на языке пользователя."""
+
+
+register_strings("day_plan", {"en": {}, "ru": {}, "es": {}})
 
 
 class DayPlanSkill:

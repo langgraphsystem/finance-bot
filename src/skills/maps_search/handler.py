@@ -14,6 +14,7 @@ from src.core.db import redis
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,9 @@ MAPS_API_BASE = "https://maps.googleapis.com/maps/api"
 FALLBACK_NOTE = (
     "\n\n<i>Based on Google Search — for bulk place lists, configure GOOGLE_MAPS_API_KEY.</i>"
 )
+
+register_strings("maps_search", {"en": {}, "ru": {}, "es": {}})
+
 
 class MapsSearchSkill:
     name = "maps_search"

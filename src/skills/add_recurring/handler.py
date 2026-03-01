@@ -12,6 +12,7 @@ from src.core.db import async_session
 from src.core.models.enums import PaymentFrequency
 from src.core.models.recurring_payment import RecurringPayment
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -94,6 +95,9 @@ def _compute_next_date(from_date: date, frequency: PaymentFrequency) -> date:
     elif frequency == PaymentFrequency.yearly:
         return date(from_date.year + 1, from_date.month, from_date.day)
     return from_date + timedelta(days=30)
+
+
+register_strings("add_recurring", {"en": {}, "ru": {}, "es": {}})
 
 
 class AddRecurringSkill:

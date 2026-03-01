@@ -11,6 +11,7 @@ from src.core.google_auth import get_google_client, parse_email_headers, require
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,9 @@ def _detect_detail_request(user_text: str) -> int | None:
             if 1 <= idx <= 20:
                 return idx
     return None
+
+
+register_strings("read_inbox", {"en": {}, "ru": {}, "es": {}})
 
 
 class ReadInboxSkill:

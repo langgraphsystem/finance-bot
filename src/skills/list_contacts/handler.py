@@ -10,6 +10,7 @@ from src.core.db import async_session
 from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,9 @@ LIST_CONTACTS_PROMPT = """\
 You help users view their contact list.
 Format contacts clearly with name, phone, email, and role.
 ALWAYS respond in the same language as the user's message/query."""
+
+
+register_strings("list_contacts", {"en": {}, "ru": {}, "es": {}})
 
 
 class ListContactsSkill:

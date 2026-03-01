@@ -13,6 +13,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,9 @@ MAX_TRANSCRIPT_CHARS = 3000
 FALLBACK_NOTE = (
     "\n\n<i>Based on Google Search — for bulk video lists, configure YOUTUBE_API_KEY.</i>"
 )
+
+
+register_strings("youtube_search", {"en": {}, "ru": {}, "es": {}})
 
 
 class YouTubeSearchSkill:

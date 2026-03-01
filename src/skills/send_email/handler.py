@@ -9,6 +9,7 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ Rules:
 - Keep emails concise — 3-5 sentences for business, 1-3 for personal.
 - Output ONLY the email body text, no HTML tags, no formatting instructions.
 - Respond in: {language}."""
+
+
+register_strings("send_email", {"en": {}, "ru": {}, "es": {}})
 
 
 class SendEmailSkill:

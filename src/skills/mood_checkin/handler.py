@@ -15,6 +15,7 @@ from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ COACHING_SYSTEM_PROMPT = """\
 Дай краткий, эмпатичный совет. Не ставь диагнозов.
 Если тренд ухудшается — мягко предложи действие.
 2-3 предложения. Используй HTML-теги для Telegram (<b>, <i>). Отвечай на языке пользователя."""
+
+
+register_strings("mood_checkin", {"en": {}, "ru": {}, "es": {}})
 
 
 class MoodCheckinSkill:

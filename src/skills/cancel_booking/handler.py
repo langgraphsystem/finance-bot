@@ -14,6 +14,7 @@ from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ CANCEL_BOOKING_PROMPT = """\
 You help users cancel bookings.
 Identify which booking to cancel from the user's message.
 ALWAYS respond in the same language as the user's message/query."""
+
+
+register_strings("cancel_booking", {"en": {}, "ru": {}, "es": {}})
 
 
 class CancelBookingSkill:

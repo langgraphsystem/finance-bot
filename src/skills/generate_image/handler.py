@@ -14,6 +14,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ async def _generate(prompt: str, model: str) -> bytes | None:
             return part.inline_data.data
 
     return None
+
+
+register_strings("generate_image", {"en": {}, "ru": {}, "es": {}})
 
 
 class GenerateImageSkill:

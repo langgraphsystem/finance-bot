@@ -13,7 +13,7 @@ from src.core.models.enums import TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import t
+from src.skills._i18n import register_strings, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,13 @@ _STRINGS = {
         "not_found": 'Не нашёл открытую задачу «{query}». Проверить список?',
         "done": '✅ Выполнено: <b>{title}</b>. Осталось: {remaining}.',
     },
+    "es": {
+        "ask_which": "¿Qué tarea completaste?",
+        "not_found": 'No encontré una tarea abierta con "{query}". ¿Revisar la lista?',
+        "done": '✅ Listo: <b>{title}</b>. Quedan {remaining} tarea{s}.',
+    },
 }
+register_strings("complete_task", _STRINGS)
 
 COMPLETE_TASK_SYSTEM_PROMPT = """\
 You help users mark tasks as done.

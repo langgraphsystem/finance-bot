@@ -11,6 +11,7 @@ from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,9 @@ SEND_TO_CLIENT_PROMPT = """\
 You help business owners communicate with their clients.
 Extract: client name, message content, and channel preference (SMS/WhatsApp/call).
 ALWAYS respond in the same language as the user's message/query."""
+
+
+register_strings("send_to_client", {"en": {}, "ru": {}, "es": {}})
 
 
 class SendToClientSkill:

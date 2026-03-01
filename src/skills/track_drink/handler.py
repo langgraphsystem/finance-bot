@@ -13,6 +13,7 @@ from src.core.llm.clients import generate_text
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,9 @@ TRACK_DRINK_SYSTEM_PROMPT = """Ты помогаешь трекать напит
 Ответь ТОЛЬКО JSON: {"item": "coffee", "volume_ml": 250, "count": 1}
 Если объём не указан, используй стандартный: coffee=250, tea=200, water=330.
 Если количество не указано, count=1."""
+
+
+register_strings("track_drink", {"en": {}, "ru": {}, "es": {}})
 
 
 class TrackDrinkSkill:

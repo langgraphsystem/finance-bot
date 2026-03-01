@@ -8,7 +8,7 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import t
+from src.skills._i18n import register_strings, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,12 @@ _STRINGS = {
         "ask_topic": "О чём написать? Укажи тему и платформу.",
         "error": "Не удалось сгенерировать текст. Попробуй переформулировать?",
     },
+    "es": {
+        "ask_topic": "¿Sobre qué quieres que escriba? Dime el tema y la plataforma.",
+        "error": "No pude generar el contenido. ¿Intentas reformularlo?",
+    },
 }
+register_strings("write_post", _STRINGS)
 
 WRITE_POST_SYSTEM_PROMPT = """\
 You are a content writing assistant. The user wants to write a post, review response, \

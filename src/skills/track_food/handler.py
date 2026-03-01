@@ -12,6 +12,7 @@ from src.core.life_helpers import (
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ MEAL_TYPE_ALIASES: dict[str, str] = {
     "snack": "snack",
     "полдник": "snack",
 }
+
+
+register_strings("track_food", {"en": {}, "ru": {}, "es": {}})
 
 
 class TrackFoodSkill:

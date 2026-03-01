@@ -27,6 +27,7 @@ from src.core.models.enums import ConversationState
 from src.core.observability import observe
 from src.core.profiles import ProfileLoader
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -976,6 +977,9 @@ def _is_invite_request(text: str) -> bool:
 
 
 # ---- main skill ------------------------------------------------------------
+
+
+register_strings("onboarding", {"en": {}, "ru": {}, "es": {}})
 
 
 class OnboardingSkill:

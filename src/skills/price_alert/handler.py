@@ -16,6 +16,7 @@ from src.core.models.enums import MonitorType
 from src.core.models.monitor import Monitor
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 from src.skills.prompt_loader import load_prompt
 
@@ -33,6 +34,9 @@ Extract monitor details from the user message. Return JSON:
 direction is "below" (alert when price drops below target) or
 "above" (alert when price rises above).
 User message: {message}"""
+
+
+register_strings("price_alert", {"en": {}, "ru": {}, "es": {}})
 
 
 class PriceAlertSkill:

@@ -14,6 +14,7 @@ from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ def _parse_datetime(raw: str | None, tz: ZoneInfo) -> datetime | None:
         return dt
     except (ValueError, TypeError):
         return None
+
+
+register_strings("reschedule_booking", {"en": {}, "ru": {}, "es": {}})
 
 
 class RescheduleBookingSkill:

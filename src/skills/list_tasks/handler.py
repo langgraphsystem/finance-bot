@@ -12,7 +12,7 @@ from src.core.models.enums import TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import fmt_date
+from src.skills._i18n import fmt_date, register_strings
 from src.skills._i18n import t as tr
 from src.skills.base import SkillResult
 
@@ -41,7 +41,13 @@ _STRINGS = {
         "header": "✅ <b>Ваши задачи</b> ({count} открытых):",
         "action": "\nНапиши, чтобы отметить выполненное.",
     },
+    "es": {
+        "empty": "No hay tareas abiertas. Escríbeme para agregar una.",
+        "header": "✅ <b>Tus tareas</b> ({count} abiertas):",
+        "action": "\nEscríbeme para marcar una como completada.",
+    },
 }
+register_strings("list_tasks", _STRINGS)
 
 
 class ListTasksSkill:

@@ -8,6 +8,7 @@ from src.core.google_auth import get_google_client, parse_email_headers, require
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,9 @@ Rules:
 - End with "Ответить на какое-нибудь из них?"
 - Use HTML tags for Telegram (<b>bold</b>). No Markdown.
 - Respond in: {language}."""
+
+
+register_strings("follow_up_email", {"en": {}, "ru": {}, "es": {}})
 
 
 class FollowUpEmailSkill:

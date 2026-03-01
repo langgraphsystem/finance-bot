@@ -8,6 +8,7 @@ from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,9 @@ TRANSLATE_USER_TEMPLATE = """\
 Translate the following to {target_language}:
 
 {text}"""
+
+
+register_strings("translate_text", {"en": {}, "ru": {}, "es": {}})
 
 
 class TranslateTextSkill:

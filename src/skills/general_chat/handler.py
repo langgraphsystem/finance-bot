@@ -10,6 +10,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -197,6 +198,9 @@ Principles:
 
 Formatting: HTML tags for Telegram (<b>, <i>, <code>).
 Do NOT use Markdown. Use • (bullet) for lists."""
+
+
+register_strings("general_chat", {"en": {}, "ru": {}, "es": {}})
 
 
 class GeneralChatSkill:

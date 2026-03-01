@@ -8,11 +8,15 @@ from src.core.charts import create_pie_chart
 from src.core.context import SessionContext
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
 COMPLEX_QUERY_PROMPT = """Ты обрабатываешь сложные аналитические запросы."""
+
+
+register_strings("complex_query", {"en": {}, "ru": {}, "es": {}})
 
 
 class ComplexQuerySkill:

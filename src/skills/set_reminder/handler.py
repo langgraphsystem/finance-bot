@@ -17,6 +17,7 @@ from src.core.models.enums import ReminderRecurrence, TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -149,7 +150,24 @@ _STRINGS = {
         "with_time_recurring": "\U0001f514 {recurrence} напоминание на {time}: {title}",
         "multi_set": "\U0001f514 Напоминания установлены",
     },
+    "es": {
+        "empty": "¿De qué quieres que te recuerde?",
+        "ask_time": (
+            "Entendido — <b>{title}</b>\n\n"
+            "¿A qué hora te lo recuerdo?"
+        ),
+        "ask_both": (
+            "¡Quiero ayudar! Aclara:\n"
+            "• ¿De qué recordarte?\n"
+            "• ¿Cuándo?"
+        ),
+        "with_time": "\U0001f514 Recordatorio a las {time}: {title}",
+        "no_time": "\U0001f514 Recordatorio guardado: {title} (sin hora)",
+        "with_time_recurring": "\U0001f514 Recordatorio {recurrence} a las {time}: {title}",
+        "multi_set": "\U0001f514 Recordatorios configurados",
+    },
 }
+register_strings("set_reminder", _STRINGS)
 
 _RECURRENCE_LABELS = {
     "en": {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly"},

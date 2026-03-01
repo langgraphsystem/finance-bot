@@ -14,12 +14,16 @@ from src.core.memory.mem0_client import add_memory
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
 QUICK_CAPTURE_SYSTEM_PROMPT = """Ты помогаешь пользователю быстро записать мысль, заметку или идею.
 Сохрани текст как есть, добавь теги автоматически."""
+
+
+register_strings("quick_capture", {"en": {}, "ru": {}, "es": {}})
 
 
 class QuickCaptureSkill:

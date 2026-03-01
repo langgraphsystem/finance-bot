@@ -9,6 +9,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ provide ALL the data directly — do NOT summarize or redirect to websites.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
 - ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
 User's preferred language: {language}."""
+
+
+register_strings("quick_answer", {"en": {}, "ru": {}, "es": {}})
 
 
 class QuickAnswerSkill:

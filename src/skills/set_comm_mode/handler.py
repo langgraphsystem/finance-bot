@@ -7,6 +7,7 @@ from src.core.context import SessionContext
 from src.core.life_helpers import set_communication_mode
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ MODE_DESCRIPTIONS: dict[str, str] = {
     "receipt": "<b>Режим квитанции</b>\nКраткое подтверждение после каждой записи.",
     "coaching": "<b>Режим коучинга</b>\nПодтверждение + короткий инсайт или совет.",
 }
+
+
+register_strings("set_comm_mode", {"en": {}, "ru": {}, "es": {}})
 
 
 class SetCommModeSkill:

@@ -7,6 +7,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,9 @@ Rules:
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
 - ALWAYS respond in the same language as the user's message/query.
 - If no preference is set, match the language of the text being proofread."""
+
+
+register_strings("proofread", {"en": {}, "ru": {}, "es": {}})
 
 
 class ProofreadSkill:

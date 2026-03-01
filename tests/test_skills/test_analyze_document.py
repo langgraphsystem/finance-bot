@@ -160,7 +160,8 @@ async def test_analyze_scanned_pdf_vision(sample_context):
 
     # Header present (en or ru), filename, scanned indicator, analysis body
     assert "scan.pdf" in result.response_text
-    assert "scanned" in result.response_text.lower() or "сканированн" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "scanned" in text_lower or "сканированн" in text_lower
     assert "invoice" in result.response_text.lower() or "ACME" in result.response_text
 
 

@@ -24,6 +24,7 @@ from src.core.memory.mem0_client import add_memory
 from src.core.observability import observe
 from src.core.sandbox import e2b_runner
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -199,6 +200,9 @@ def _wrap_html_as_flask(html_code: str) -> str:
         "\n"
         "app.run(host='0.0.0.0', port=5000, debug=False)\n"
     )
+
+
+register_strings("generate_program", {"en": {}, "ru": {}, "es": {}})
 
 
 class GenerateProgramSkill:

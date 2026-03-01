@@ -12,7 +12,7 @@ from src.core.db import async_session
 from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import t
+from src.skills._i18n import register_strings, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -181,7 +181,32 @@ _STRINGS = {
         "clear_empty": "Список \u00ab{name}\u00bb уже пуст.",
         "clear_done": "\U0001f5d1 Список \u00ab{name}\u00bb очищен ({count} удалено).",
     },
+    "es": {
+        "add_ask": "¿Qué quieres agregar a tu lista?",
+        "add_already": "Ya está en tu lista: {items}.",
+        "add_one": "Agregado: <b>{item}</b> a la lista \u00ab{list_name}\u00bb.",
+        "add_many": "Agregados {count} artículos a la lista \u00ab{list_name}\u00bb.",
+        "add_already_short": "Ya en la lista: {items}.",
+        "add_total": "{total} artículos en total.",
+        "view_no_lists": "Aún no hay listas. Escríbeme para crear una.",
+        "view_empty": "Tu lista \u00ab{name}\u00bb está vacía. Escríbeme para agregar.",
+        "view_header": "\U0001f6d2 <b>Lista \u00ab{name}\u00bb</b> ({count} artículos):",
+        "view_checked": "\n<i>Comprado: {count}</i>",
+        "remove_no_lists": "No hay listas.",
+        "remove_empty": "Tu lista \u00ab{name}\u00bb ya está vacía.",
+        "remove_all_done": (
+            "¡Todo listo! Se marcaron {count} artículos de la lista \u00ab{name}\u00bb."
+        ),
+        "remove_ask": "¿Qué ya compraste?",
+        "remove_done": "\u2705 Comprado: {items}.",
+        "remove_remaining": " Quedan: {count}.",
+        "remove_not_found": "No encontré: {items}.",
+        "clear_no_lists": "No hay listas que limpiar.",
+        "clear_empty": "Tu lista \u00ab{name}\u00bb ya está vacía.",
+        "clear_done": "\U0001f5d1 Lista \u00ab{name}\u00bb limpiada ({count} eliminados).",
+    },
 }
+register_strings("shopping_list", _STRINGS)
 
 
 # ─── Add Items Skill ──────────────────────────────────────────────
