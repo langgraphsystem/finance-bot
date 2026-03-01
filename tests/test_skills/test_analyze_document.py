@@ -144,7 +144,7 @@ async def test_analyze_scanned_pdf_vision(sample_context):
             return_value=True,
         ),
         patch(
-            "src.skills.analyze_document.handler._analyze_scanned_pdf",
+            "src.skills.analyze_document.handler._analyze_via_vision",
             new_callable=AsyncMock,
             return_value="The scanned document contains an invoice from ACME Corp.",
         ),
@@ -162,7 +162,7 @@ async def test_analyze_scanned_pdf_vision(sample_context):
 
 
 async def test_analyze_photo_input(sample_context):
-    """Photo (no document) — treated as image for analysis."""
+    """Photo (no document) — treated as image, analyzed via vision."""
     msg = IncomingMessage(
         id="msg-1",
         user_id="tg_1",
@@ -177,17 +177,7 @@ async def test_analyze_photo_input(sample_context):
             return_value=False,
         ),
         patch(
-            "src.skills.analyze_document.handler.extract_text",
-            new_callable=AsyncMock,
-            return_value="Receipt from Store: Total $45.99",
-        ),
-        patch(
-            "src.skills.analyze_document.handler.get_page_count",
-            new_callable=AsyncMock,
-            return_value=1,
-        ),
-        patch(
-            "src.skills.analyze_document.handler.generate_text",
+            "src.skills.analyze_document.handler._analyze_via_vision",
             new_callable=AsyncMock,
             return_value="This is a store receipt for $45.99.",
         ),
@@ -195,3 +185,34 @@ async def test_analyze_photo_input(sample_context):
         result = await skill.execute(msg, sample_context, {})
 
     assert "Document Analysis" in result.response_text
+    assert "image" in result.response_text.lower()
+
+
+async def test_analyze_jpg_document(sample_context):
+    """JPG sent as document (not photo) — analyzed via vision, not rejected."""
+    msg = IncomingMessage(
+        id="msg-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.document,
+        document_bytes=b"fake jpg bytes",
+        document_file_name="scan.jpg",
+        document_mime_type="image/jpeg",
+    )
+    with (
+        patch(
+            "src.skills.analyze_document.handler.is_scanned_pdf",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "src.skills.analyze_document.handler._analyze_via_vision",
+            new_callable=AsyncMock,
+            return_value="Document contains a table with financial data.",
+        ),
+    ):
+        result = await skill.execute(msg, sample_context, {})
+
+    assert "Document Analysis" in result.response_text
+    assert "image" in result.response_text.lower()
+    assert "financial data" in result.response_text.lower()

@@ -74,19 +74,16 @@ Provide:
 Use HTML tags (<b>, <i>, <code>) for formatting. Be concise."""
 
 
-async def _analyze_scanned_pdf(file_bytes: bytes, filename: str, question: str | None) -> str:
-    """Analyze a scanned PDF using Gemini vision on page images."""
+async def _analyze_via_vision(
+    file_bytes: bytes,
+    filename: str,
+    question: str | None,
+    is_image: bool,
+) -> str:
+    """Analyze an image or scanned PDF using Gemini vision."""
     import base64
 
     from src.core.llm.clients import google_client
-    from src.tools.document_reader import extract_pages_as_images
-
-    images = await extract_pages_as_images(file_bytes, filename)
-    if not images:
-        return "Could not render PDF pages for analysis."
-
-    # Limit to first 5 pages to stay within token budget
-    images = images[:5]
 
     q_section = f"User question: {question}" if question else ""
     q_instruction = f"Focus your analysis on answering: {question}" if question else ""
@@ -97,15 +94,40 @@ async def _analyze_scanned_pdf(file_bytes: bytes, filename: str, question: str |
 
     client = google_client()
     parts: list = [prompt]
-    for img_bytes in images:
+
+    if is_image:
+        # Direct image — send as-is
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpeg"
+        mime_map = {
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "png": "image/png",
+            "gif": "image/gif",
+            "bmp": "image/bmp",
+            "webp": "image/webp",
+            "tiff": "image/tiff",
+            "heic": "image/heic",
+        }
+        mime = mime_map.get(ext, "image/jpeg")
         parts.append(
-            {
-                "inline_data": {
-                    "mime_type": "image/png",
-                    "data": base64.b64encode(img_bytes).decode(),
-                }
-            }
+            {"inline_data": {"mime_type": mime, "data": base64.b64encode(file_bytes).decode()}}
         )
+    else:
+        # Scanned PDF — render pages to images
+        from src.tools.document_reader import extract_pages_as_images
+
+        images = await extract_pages_as_images(file_bytes, filename)
+        if not images:
+            return "Could not render PDF pages for analysis."
+        for img_bytes in images[:5]:
+            parts.append(
+                {
+                    "inline_data": {
+                        "mime_type": "image/png",
+                        "data": base64.b64encode(img_bytes).decode(),
+                    }
+                }
+            )
 
     response = await client.aio.models.generate_content(
         model="gemini-3-flash-preview",
@@ -144,6 +166,7 @@ class AnalyzeDocumentSkill:
             mime_type = mime_type or "image/jpeg"
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        is_image = ext in ("jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff", "heic")
         file_size_kb = len(file_bytes) / 1024
         file_size = (
             f"{file_size_kb:.0f} KB" if file_size_kb < 1024 else f"{file_size_kb / 1024:.1f} MB"
@@ -154,14 +177,20 @@ class AnalyzeDocumentSkill:
         if ext == "pdf":
             is_scanned = await is_scanned_pdf(file_bytes)
 
-        if is_scanned:
-            logger.info("Scanned PDF detected, using vision analysis for %s", filename)
+        # Vision path: images, scanned PDFs, photos
+        use_vision = is_scanned or is_image
+
+        if use_vision:
+            logger.info(
+                "Using vision analysis for %s (image=%s, scanned=%s)",
+                filename, is_image, is_scanned,
+            )
             try:
-                analysis = await _analyze_scanned_pdf(file_bytes, filename, question)
+                analysis = await _analyze_via_vision(file_bytes, filename, question, is_image)
             except Exception as e:
                 logger.exception("Vision analysis failed: %s", e)
                 return SkillResult(
-                    response_text="Failed to analyze the scanned document. Try a clearer scan."
+                    response_text="Failed to analyze the document. Try a clearer image."
                 )
         else:
             # Text-based analysis via Claude Sonnet
@@ -231,7 +260,9 @@ class AnalyzeDocumentSkill:
         else:
             header += f"Size: {file_size}\n"
 
-        if is_scanned:
+        if is_image:
+            header += "<i>(image — analyzed via vision)</i>\n"
+        elif is_scanned:
             header += "<i>(scanned PDF — analyzed via vision)</i>\n"
         if "truncated" in dir() and truncated:
             header += "<i>(document truncated for analysis)</i>\n"
