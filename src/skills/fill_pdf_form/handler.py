@@ -8,6 +8,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,22 @@ SYSTEM_PROMPT = """\
 You fill interactive PDF forms. Upload a PDF with fillable fields \
 and I'll list them or fill them with your data.
 Be concise. Use HTML tags for Telegram."""
+
+_STRINGS = {
+    "en": {
+        "no_file": "Upload a <b>PDF form</b> to fill.",
+        "no_fields": "This PDF doesn't have fillable form fields.",
+    },
+    "ru": {
+        "no_file": "Отправьте <b>PDF-форму</b> для заполнения.",
+        "no_fields": "В этом PDF нет заполняемых полей.",
+    },
+    "es": {
+        "no_file": "Suba un <b>formulario PDF</b> para completar.",
+        "no_fields": "Este PDF no tiene campos rellenables.",
+    },
+}
+register_strings("fill_pdf_form", _STRINGS)
 
 
 def _read_form_fields(file_bytes: bytes) -> dict[str, str | None]:
@@ -70,13 +87,7 @@ class FillPdfFormSkill:
 
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте <b>PDF-форму</b> для заполнения."
-            elif lang == "es":
-                text = "Suba un <b>formulario PDF</b> para completar."
-            else:
-                text = "Upload a <b>PDF form</b> to fill."
-            return SkillResult(response_text=text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "fill_pdf_form"))
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         mime = message.document_mime_type or ""
@@ -95,7 +106,8 @@ class FillPdfFormSkill:
             )
 
         if not fields:
-            return SkillResult(response_text="This PDF doesn't have fillable form fields.")
+            lang = context.language or "en"
+            return SkillResult(response_text=t_cached(_STRINGS, "no_fields", lang, "fill_pdf_form"))
 
         # Check if user provided values to fill
         form_values = intent_data.get("form_values") or {}

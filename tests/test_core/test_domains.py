@@ -18,6 +18,7 @@ def test_domain_enum_has_all_domains():
         "booking",
         "web",
         "monitor",
+        "sheets",
         "general",
         "onboarding",
         "document",
@@ -98,9 +99,7 @@ def test_document_intents_map_correctly():
         "generate_presentation",
     ]
     for intent in document_intents:
-        assert INTENT_DOMAIN_MAP[intent] == Domain.document, (
-            f"{intent} not in document"
-        )
+        assert INTENT_DOMAIN_MAP[intent] == Domain.document, f"{intent} not in document"
 
 
 def test_finance_specialist_intents_map_correctly():

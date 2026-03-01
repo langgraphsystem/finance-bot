@@ -11,6 +11,7 @@ from src.core.db import async_session
 from src.core.models.document import Document
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,22 @@ DOC_TYPE_LABELS_I18N: dict[str, dict[str, str]] = {
 
 DOC_TYPE_LABELS = DOC_TYPE_LABELS_I18N["ru"]
 
+_STRINGS = {
+    "en": {
+        "no_docs": "No documents found.",
+        "header": "Documents",
+    },
+    "ru": {
+        "no_docs": "Документы не найдены.",
+        "header": "Документы",
+    },
+    "es": {
+        "no_docs": "No se encontraron documentos.",
+        "header": "Documentos",
+    },
+}
+register_strings("list_documents", _STRINGS)
+
 
 class ListDocumentsSkill:
     name = "list_documents"
@@ -89,20 +106,12 @@ class ListDocumentsSkill:
             docs = result.scalars().all()
 
         lang = context.language or "en"
+        ns = "list_documents"
         if not docs:
-            if lang == "ru":
-                return SkillResult(response_text="Документы не найдены.")
-            elif lang == "es":
-                return SkillResult(response_text="No se encontraron documentos.")
-            return SkillResult(response_text="No documents found.")
+            return SkillResult(response_text=t_cached(_STRINGS, "no_docs", lang, ns))
 
         type_labels = DOC_TYPE_LABELS_I18N.get(lang, DOC_TYPE_LABELS_I18N["en"])
-        if lang == "ru":
-            header = "Документы"
-        elif lang == "es":
-            header = "Documentos"
-        else:
-            header = "Documents"
+        header = t_cached(_STRINGS, "header", lang, ns)
         lines = [f"<b>{header} ({len(docs)})</b>\n"]
         for doc in docs:
             icon = _type_icon(doc.type)

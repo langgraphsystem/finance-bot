@@ -1,4 +1,4 @@
-"""Create Google Sheets skill — creates a new spreadsheet via Composio."""
+"""Create Google Sheets skill \u2014 creates a new spreadsheet via Composio."""
 
 import logging
 from typing import Any
@@ -7,9 +7,29 @@ from src.core.context import SessionContext
 from src.core.google_auth import get_google_client, require_google_or_prompt
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "conn_error": "Connection error. Try /connect",
+        "create_failed": "Failed to create spreadsheet. Try again.",
+        "created": ('\u2705 Created <b>{title}</b>\n<a href="{url}">Open in Google Sheets</a>'),
+    },
+    "ru": {
+        "conn_error": ("Ошибка подключения. Попробуйте /connect"),
+        "create_failed": ("Не удалось создать таблицу. Попробуйте снова."),
+        "created": ('\u2705 Создана <b>{title}</b>\n<a href="{url}">Открыть в Google Sheets</a>'),
+    },
+    "es": {
+        "conn_error": "Error de conexión. Intente /connect",
+        "create_failed": ("No se pudo crear la hoja. Inténtelo de nuevo."),
+        "created": ('\u2705 Creada <b>{title}</b>\n<a href="{url}">Abrir en Google Sheets</a>'),
+    },
+}
+register_strings("create_sheets", _STRINGS)
 
 CREATE_SHEETS_SYSTEM_PROMPT = """\
 You help create Google Sheets spreadsheets."""
@@ -27,16 +47,16 @@ class CreateSheetsSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        prompt_result = await require_google_or_prompt(
-            context.user_id, service="sheets"
-        )
+        prompt_result = await require_google_or_prompt(context.user_id, service="sheets")
         if prompt_result:
             return prompt_result
+
+        lang = context.language or "en"
 
         google = await get_google_client(context.user_id, service="sheets")
         if not google:
             return SkillResult(
-                response_text="Connection error. Try /connect"
+                response_text=t_cached(_STRINGS, "conn_error", lang, "create_sheets")
             )
 
         # Extract title from message
@@ -48,25 +68,23 @@ class CreateSheetsSkill:
         except Exception as e:
             logger.warning("create_spreadsheet failed: %s", e)
             return SkillResult(
-                response_text="Failed to create spreadsheet. Try again."
+                response_text=t_cached(_STRINGS, "create_failed", lang, "create_sheets")
             )
 
-        spreadsheet_id = (
-            result.get("spreadsheetId")
-            or result.get("id")
-            or ""
-        )
+        spreadsheet_id = result.get("spreadsheetId") or result.get("id") or ""
         url = result.get(
             "spreadsheetUrl",
-            f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
-            if spreadsheet_id
-            else "",
+            f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}" if spreadsheet_id else "",
         )
 
         return SkillResult(
-            response_text=(
-                f"\u2705 Created <b>{title}</b>\n"
-                f'<a href="{url}">Open in Google Sheets</a>'
+            response_text=t_cached(
+                _STRINGS,
+                "created",
+                lang,
+                "create_sheets",
+                title=title,
+                url=url,
             )
         )
 
@@ -90,11 +108,11 @@ def _extract_title(text: str) -> str:
         "nueva hoja",
     ):
         if lower.startswith(prefix):
-            rest = text[len(prefix):].strip().strip('"\'')
+            rest = text[len(prefix) :].strip().strip("\"'")
             if rest:
                 return rest
     # If nothing extracted, use the full text or default
-    cleaned = text.strip().strip('"\'')
+    cleaned = text.strip().strip("\"'")
     if len(cleaned) > 3:
         return cleaned
     return "New Spreadsheet"

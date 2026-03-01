@@ -1,4 +1,4 @@
-"""Generate documents from scratch — contracts, NDAs, proposals, price lists."""
+"""Generate documents from scratch \u2014 contracts, NDAs, proposals, price lists."""
 
 import asyncio
 import logging
@@ -9,9 +9,38 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_description": (
+            "What document should I create? For example:\n"
+            "- <i>NDA for my plumbing business</i>\n"
+            "- <i>price list for salon services</i>\n"
+            "- <i>service agreement template</i>"
+        ),
+    },
+    "ru": {
+        "no_description": (
+            "Какой документ создать? Например:\n"
+            "- <i>NDA для моего бизнеса</i>\n"
+            "- <i>прайс-лист для салона</i>\n"
+            "- <i>шаблон договора на услуги</i>"
+        ),
+    },
+    "es": {
+        "no_description": (
+            "Que documento debo crear? Por ejemplo:\n"
+            "- <i>NDA para mi negocio</i>\n"
+            "- <i>lista de precios para servicios</i>\n"
+            "- <i>plantilla de contrato de servicios</i>"
+        ),
+    },
+}
+register_strings("generate_document", _STRINGS)
 
 DOCUMENT_SYSTEM_PROMPT = """\
 You are a professional document generator. You create business documents in clean HTML
@@ -47,28 +76,9 @@ class GenerateDocumentSkill:
 
         if not description:
             lang = context.language or "en"
-            if lang == "ru":
-                prompt = (
-                    "Какой документ создать? Например:\n"
-                    "- <i>NDA для моего бизнеса</i>\n"
-                    "- <i>прайс-лист для салона</i>\n"
-                    "- <i>шаблон договора на услуги</i>"
-                )
-            elif lang == "es":
-                prompt = (
-                    "Que documento debo crear? Por ejemplo:\n"
-                    "- <i>NDA para mi negocio</i>\n"
-                    "- <i>lista de precios para servicios</i>\n"
-                    "- <i>plantilla de contrato de servicios</i>"
-                )
-            else:
-                prompt = (
-                    "What document should I create? For example:\n"
-                    "- <i>NDA for my plumbing business</i>\n"
-                    "- <i>price list for salon services</i>\n"
-                    "- <i>service agreement template</i>"
-                )
-            return SkillResult(response_text=prompt)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_description", lang, "generate_document")
+            )
 
         target_format = (intent_data.get("target_format") or "pdf").strip().lower()
 

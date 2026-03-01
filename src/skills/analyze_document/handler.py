@@ -7,6 +7,7 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 from src.tools.document_reader import (
     extract_text,
@@ -15,6 +16,19 @@ from src.tools.document_reader import (
 )
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_file": "Send me a document — photo, PDF, Word, or Excel.",
+    },
+    "ru": {
+        "no_file": ("Отправьте документ — фото, PDF, Word или Excel."),
+    },
+    "es": {
+        "no_file": "Envíe un documento — foto, PDF, Word o Excel.",
+    },
+}
+register_strings("analyze_document", _STRINGS)
 
 SYSTEM_PROMPT = """\
 You are a document analysis assistant. You analyze uploaded documents \
@@ -118,13 +132,9 @@ class AnalyzeDocumentSkill:
 
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте документ — фото, PDF, Word или Excel."
-            elif lang == "es":
-                text = "Envie un documento — foto, PDF, Word o Excel."
-            else:
-                text = "Send me a document — photo, PDF, Word, or Excel."
-            return SkillResult(response_text=text)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_file", lang, "analyze_document")
+            )
 
         question = intent_data.get("search_query") or intent_data.get("query")
 

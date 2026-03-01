@@ -12,6 +12,7 @@ from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 from src.tools.conversion_service import (
     MAX_INPUT_SIZE,
@@ -68,6 +69,28 @@ You are a document conversion assistant. You convert files between formats.
 Supported: PDF, DOCX, TXT, RTF, ODT, XLSX, CSV, ODS, XLS, PPTX, \
 EPUB, FB2, MOBI, DJVU, HTML, MD, JPG, PNG, TIFF.
 Be concise. Use HTML tags for Telegram."""
+
+_STRINGS = {
+    "en": {
+        "no_file": (
+            "Please send a file along with your conversion request.\n"
+            "Example: attach a DOCX and write <b>convert to PDF</b>"
+        ),
+    },
+    "ru": {
+        "no_file": (
+            "Отправьте файл вместе с запросом на конвертацию.\n"
+            "Пример: прикрепите DOCX и напишите <b>конвертируй в PDF</b>"
+        ),
+    },
+    "es": {
+        "no_file": (
+            "Envie un archivo junto con su solicitud de conversion.\n"
+            "Ejemplo: adjunte un DOCX y escriba <b>convertir a PDF</b>"
+        ),
+    },
+}
+register_strings("convert_document", _STRINGS)
 
 
 class ConvertDocumentSkill:
@@ -144,22 +167,7 @@ class ConvertDocumentSkill:
 
         # --- No file attached: ask user to send a file ---
         lang = context.language or "en"
-        if lang == "ru":
-            no_file = (
-                "Отправьте файл вместе с запросом на конвертацию.\n"
-                "Пример: прикрепите DOCX и напишите <b>конвертируй в PDF</b>"
-            )
-        elif lang == "es":
-            no_file = (
-                "Envie un archivo junto con su solicitud de conversion.\n"
-                "Ejemplo: adjunte un DOCX y escriba <b>convertir a PDF</b>"
-            )
-        else:
-            no_file = (
-                "Please send a file along with your conversion request.\n"
-                "Example: attach a DOCX and write <b>convert to PDF</b>"
-            )
-        return SkillResult(response_text=no_file)
+        return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "convert_document"))
 
     # ------------------------------------------------------------------
     # Single-file conversion (original behaviour, extracted to a method)

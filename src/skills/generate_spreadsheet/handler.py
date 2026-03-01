@@ -9,9 +9,27 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_description": (
+            "What kind of spreadsheet should I create? Describe the data and structure."
+        ),
+    },
+    "ru": {
+        "no_description": ("Какую таблицу создать? Опишите данные и структуру."),
+    },
+    "es": {
+        "no_description": (
+            "Que tipo de hoja de calculo debo crear? Describa los datos y la estructura."
+        ),
+    },
+}
+register_strings("generate_spreadsheet", _STRINGS)
 
 SPREADSHEET_SYSTEM_PROMPT = """\
 You are an Excel spreadsheet generator. You write Python code using openpyxl
@@ -132,17 +150,9 @@ class GenerateSpreadsheetSkill:
 
         if not description:
             lang = context.language or "en"
-            if lang == "ru":
-                prompt = "Какую таблицу создать? Опишите данные и структуру."
-            elif lang == "es":
-                prompt = (
-                    "Que tipo de hoja de calculo debo crear? Describa los datos y la estructura."
-                )
-            else:
-                prompt = (
-                    "What kind of spreadsheet should I create? Describe the data and structure."
-                )
-            return SkillResult(response_text=prompt)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_description", lang, "generate_spreadsheet")
+            )
 
         # Try E2B sandbox first
         try:

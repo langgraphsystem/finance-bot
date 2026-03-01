@@ -13,9 +13,9 @@ def test_load_catalog():
 
 
 def test_catalog_domain_count():
-    """Catalog should have all 13 domain groups."""
+    """Catalog should have all 14 domain groups."""
     catalog = load_catalog.__wrapped__()
-    assert len(catalog.domains) == 13
+    assert len(catalog.domains) == 14
 
 
 def test_all_skills_mapped():

@@ -330,9 +330,14 @@ async def _dispatch_message(
             try:
                 recent = await sliding_window.get_recent_messages(context.user_id, limit=3)
                 doc_intents = {
-                    "analyze_document", "extract_table", "fill_template",
-                    "fill_pdf_form", "summarize_document", "compare_documents",
-                    "merge_documents", "convert_document",
+                    "analyze_document",
+                    "extract_table",
+                    "fill_template",
+                    "fill_pdf_form",
+                    "summarize_document",
+                    "compare_documents",
+                    "merge_documents",
+                    "convert_document",
                 }
                 for msg in reversed(recent):
                     if msg.get("role") == "user" and msg.get("intent") in doc_intents:
@@ -469,9 +474,14 @@ async def _dispatch_message(
 
     # If LLM detected a file-requiring intent from a text message, inject cached file
     file_required_intents = {
-        "convert_document", "analyze_document", "extract_table",
-        "fill_template", "fill_pdf_form", "summarize_document",
-        "compare_documents", "merge_documents",
+        "convert_document",
+        "analyze_document",
+        "extract_table",
+        "fill_template",
+        "fill_pdf_form",
+        "summarize_document",
+        "compare_documents",
+        "merge_documents",
     }
     if intent_name in file_required_intents and message.type not in (
         MessageType.photo,
@@ -506,6 +516,15 @@ async def _dispatch_message(
                 intent_name,
             )
         )
+
+    # Pre-warm translations for non-static languages (en/ru/es are instant)
+    if context.language and context.language not in ("en", "ru", "es"):
+        try:
+            from src.skills._i18n import warm_translations
+
+            asyncio.create_task(warm_translations(context.language))
+        except Exception:
+            pass  # Translation warm-up is best-effort
 
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
     domain_router = get_domain_router()

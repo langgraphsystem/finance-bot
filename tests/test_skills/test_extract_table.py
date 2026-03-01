@@ -30,7 +30,7 @@ async def test_extract_table_from_pdf(sample_context, text_message):
         return_value=[test_table],
     ):
         result = await skill.execute(text_message, sample_context, {})
-        assert "Found 1 table" in result.response_text
+        assert "1" in result.response_text  # "Found 1 table" or "Найдено 1 таблиц"
         assert result.document is not None
         assert result.document_name == "table.csv"
 

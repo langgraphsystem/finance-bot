@@ -10,6 +10,7 @@ from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,28 @@ Be concise. Use HTML tags for Telegram."""
 PENDING_MERGE_TTL = 1800  # 30 minutes
 MERGE_KEY_PREFIX = "pdf_merge"
 MAX_FILES = 20
+
+_STRINGS = {
+    "en": {
+        "send_pdfs": (
+            "Send me the <b>PDF files</b> you want to merge, one by one.\n"
+            "When you're done, say <b>done</b> and I'll combine them."
+        ),
+    },
+    "ru": {
+        "send_pdfs": (
+            "Отправьте <b>PDF файлы</b> для объединения, по одному.\n"
+            "Когда закончите, скажите <b>done</b> и я объединю их."
+        ),
+    },
+    "es": {
+        "send_pdfs": (
+            "Envieme los <b>archivos PDF</b> que desea combinar, uno por uno.\n"
+            "Cuando termine, diga <b>done</b> y los combinare."
+        ),
+    },
+}
+register_strings("merge_documents", _STRINGS)
 
 
 def _merge_pdfs(pdf_list: list[bytes]) -> bytes:
@@ -91,22 +114,7 @@ class MergeDocumentsSkill:
             )
 
         lang = context.language or "en"
-        if lang == "ru":
-            prompt = (
-                "Отправьте <b>PDF файлы</b> для объединения, по одному.\n"
-                "Когда закончите, скажите <b>done</b> и я объединю их."
-            )
-        elif lang == "es":
-            prompt = (
-                "Envieme los <b>archivos PDF</b> que desea combinar, uno por uno.\n"
-                "Cuando termine, diga <b>done</b> y los combinare."
-            )
-        else:
-            prompt = (
-                "Send me the <b>PDF files</b> you want to merge, one by one.\n"
-                "When you're done, say <b>done</b> and I'll combine them."
-            )
-        return SkillResult(response_text=prompt)
+        return SkillResult(response_text=t_cached(_STRINGS, "send_pdfs", lang, "merge_documents"))
 
     async def _add_to_queue(self, merge_key: str, file_bytes: bytes, filename: str) -> SkillResult:
         """Add a PDF to the merge queue in Redis."""

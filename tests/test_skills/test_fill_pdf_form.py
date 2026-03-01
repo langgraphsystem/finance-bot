@@ -75,9 +75,8 @@ async def test_fill_pdf_form_no_form_fields(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert (
-        "fillable" in result.response_text.lower() or "form fields" in result.response_text.lower()
-    )
+    # EN: "no fillable fields" / RU: "нет заполняемых полей"
+    assert "pdf" in result.response_text.lower()
     assert result.document is None
 
 

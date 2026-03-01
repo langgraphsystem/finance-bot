@@ -1,4 +1,4 @@
-"""Compare documents and find differences — semantic and structural."""
+"""Compare documents and find differences \u2014 semantic and structural."""
 
 import logging
 from typing import Any
@@ -7,9 +7,23 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_file": "Upload the documents you want to compare.",
+    },
+    "ru": {
+        "no_file": "Отправьте документы для сравнения.",
+    },
+    "es": {
+        "no_file": "Suba los documentos que desea comparar.",
+    },
+}
+register_strings("compare_documents", _STRINGS)
 
 COMPARE_SYSTEM_PROMPT = """\
 You are a document comparison specialist. You receive extracted text from one or
@@ -43,13 +57,9 @@ class CompareDocumentsSkill:
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте документы для сравнения."
-            elif lang == "es":
-                text = "Suba los documentos que desea comparar."
-            else:
-                text = "Upload the documents you want to compare."
-            return SkillResult(response_text=text)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_file", lang, "compare_documents")
+            )
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "application/octet-stream"

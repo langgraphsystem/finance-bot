@@ -11,9 +11,29 @@ from src.core.db import async_session
 from src.core.models.document import Document
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "empty_query": "What should I search for in your documents?",
+        "not_found": 'No documents found matching "<b>{query}</b>".',
+        "header": '<b>Found {count} document(s) for "{query}"</b>\n',
+    },
+    "ru": {
+        "empty_query": "Что искать в ваших документах?",
+        "not_found": 'Документы по запросу "<b>{query}</b>" не найдены.',
+        "header": '<b>Найдено {count} документ(ов) по запросу "{query}"</b>\n',
+    },
+    "es": {
+        "empty_query": "Que debo buscar en sus documentos?",
+        "not_found": 'No se encontraron documentos para "<b>{query}</b>".',
+        "header": '<b>Se encontraron {count} documento(s) para "{query}"</b>\n',
+    },
+}
+register_strings("search_documents", _STRINGS)
 
 
 class SearchDocumentsSkill:
@@ -32,13 +52,9 @@ class SearchDocumentsSkill:
         query = query.strip()
         if not query:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Что искать в ваших документах?"
-            elif lang == "es":
-                text = "Que debo buscar en sus documentos?"
-            else:
-                text = "What should I search for in your documents?"
-            return SkillResult(response_text=text)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "empty_query", lang, "search_documents")
+            )
 
         search_pattern = f"%{query}%"
 
@@ -60,23 +76,11 @@ class SearchDocumentsSkill:
             docs = result.scalars().all()
 
         lang = context.language or "en"
+        ns = "search_documents"
         if not docs:
-            if lang == "ru":
-                return SkillResult(
-                    response_text=f'Документы по запросу "<b>{query}</b>" не найдены.'
-                )
-            elif lang == "es":
-                return SkillResult(
-                    response_text=f'No se encontraron documentos para "<b>{query}</b>".'
-                )
-            return SkillResult(response_text=f'No documents found matching "<b>{query}</b>".')
+            return SkillResult(response_text=t_cached(_STRINGS, "not_found", lang, ns, query=query))
 
-        if lang == "ru":
-            header = f'<b>Найдено {len(docs)} документ(ов) по запросу "{query}"</b>\n'
-        elif lang == "es":
-            header = f'<b>Se encontraron {len(docs)} documento(s) para "{query}"</b>\n'
-        else:
-            header = f'<b>Found {len(docs)} document(s) for "{query}"</b>\n'
+        header = t_cached(_STRINGS, "header", lang, ns, count=len(docs), query=query)
         lines = [header]
         for doc in docs:
             title = doc.title or doc.file_name or doc.type

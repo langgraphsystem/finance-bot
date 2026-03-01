@@ -11,10 +11,30 @@ from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 from src.tools.document_reader import extract_tables
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_file": "Send a document or image to extract tables from.",
+        "no_tables": "No tables found in this document.",
+        "header": "Found {count} table(s)",
+    },
+    "ru": {
+        "no_file": "Отправьте документ или изображение для извлечения таблиц.",
+        "no_tables": "В этом документе таблицы не найдены.",
+        "header": "Найдено {count} таблиц(ы)",
+    },
+    "es": {
+        "no_file": "Envie un documento o imagen para extraer tablas.",
+        "no_tables": "No se encontraron tablas en este documento.",
+        "header": "Se encontraron {count} tabla(s)",
+    },
+}
+register_strings("extract_table", _STRINGS)
 
 VISION_TABLE_PROMPT = """Extract ALL tables from this image/document.
 Return JSON array of tables:
@@ -41,13 +61,7 @@ class ExtractTableSkill:
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте документ или изображение для извлечения таблиц."
-            elif lang == "es":
-                text = "Envie un documento o imagen para extraer tablas."
-            else:
-                text = "Send a document or image to extract tables from."
-            return SkillResult(response_text=text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "extract_table"))
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "image/jpeg"
@@ -67,16 +81,12 @@ class ExtractTableSkill:
 
         if not tables_data:
             lang = context.language or "en"
-            if lang == "ru":
-                msg = "В этом документе таблицы не найдены."
-            elif lang == "es":
-                msg = "No se encontraron tablas en este documento."
-            else:
-                msg = "No tables found in this document."
-            return SkillResult(response_text=msg)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_tables", lang, "extract_table"))
 
         # Format response
-        parts = [f"<b>Found {len(tables_data)} table(s)</b>\n"]
+        lang = context.language or "en"
+        hdr = t_cached(_STRINGS, "header", lang, "extract_table", count=len(tables_data))
+        parts = [f"<b>{hdr}</b>\n"]
         csv_parts = []
         for i, table in enumerate(tables_data):
             headers = table.get("headers", [])

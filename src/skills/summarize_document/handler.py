@@ -7,9 +7,23 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_file": "Send me a document to summarize — PDF, Word, or image.",
+    },
+    "ru": {
+        "no_file": ("Отправьте документ для резюме — PDF, Word или фото."),
+    },
+    "es": {
+        "no_file": "Envíe un documento para resumir — PDF, Word o imagen.",
+    },
+}
+register_strings("summarize_document", _STRINGS)
 
 SUMMARIZE_SYSTEM_PROMPT = """\
 You are a document summarization specialist. You produce clear, actionable summaries
@@ -51,13 +65,9 @@ class SummarizeDocumentSkill:
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте документ для резюме — PDF, Word или фото."
-            elif lang == "es":
-                text = "Envie un documento para resumir — PDF, Word o imagen."
-            else:
-                text = "Send me a document to summarize — PDF, Word, or image."
-            return SkillResult(response_text=text)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_file", lang, "summarize_document")
+            )
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "application/octet-stream"

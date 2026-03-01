@@ -16,6 +16,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,23 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
 </html>"""
 
 
+_STRINGS = {
+    "en": {
+        "no_account": "Set up your account first to generate invoices.",
+        "no_contact": 'Who should I invoice? Try: "generate invoice PDF for Mike Chen"',
+    },
+    "ru": {
+        "no_account": "Сначала настройте аккаунт для создания инвойсов.",
+        "no_contact": 'Кому выставить инвойс? Пример: "сделай PDF инвойс для Mike Chen"',
+    },
+    "es": {
+        "no_account": "Configure su cuenta primero para generar facturas.",
+        "no_contact": 'A quien debo facturar? Ejemplo: "generar factura PDF para Mike Chen"',
+    },
+}
+register_strings("generate_invoice_pdf", _STRINGS)
+
+
 class GenerateInvoicePdfSkill:
     name = "generate_invoice_pdf"
     intents = ["generate_invoice_pdf"]
@@ -129,24 +147,13 @@ class GenerateInvoicePdfSkill:
     ) -> SkillResult:
         family_id = context.family_id
         lang = context.language or "en"
+        ns = "generate_invoice_pdf"
         if not family_id:
-            if lang == "ru":
-                text = "Сначала настройте аккаунт для создания инвойсов."
-            elif lang == "es":
-                text = "Configure su cuenta primero para generar facturas."
-            else:
-                text = "Set up your account first to generate invoices."
-            return SkillResult(response_text=text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_account", lang, ns))
 
         contact_name = intent_data.get("contact_name")
         if not contact_name:
-            if lang == "ru":
-                text = 'Кому выставить инвойс? Пример: "сделай PDF инвойс для Mike Chen"'
-            elif lang == "es":
-                text = 'A quien debo facturar? Ejemplo: "generar factura PDF para Mike Chen"'
-            else:
-                text = 'Who should I invoice? Try: "generate invoice PDF for Mike Chen"'
-            return SkillResult(response_text=text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_contact", lang, ns))
 
         # Find contact
         contact = await self._find_contact(family_id, contact_name)

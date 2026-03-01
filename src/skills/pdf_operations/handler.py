@@ -11,6 +11,7 @@ from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,19 @@ SUPPORTED_OPS = {
     "decrypt": "Remove password protection",
     "split": "Split into multiple parts",
 }
+
+_STRINGS = {
+    "en": {
+        "no_file": "Upload a <b>PDF</b> file.",
+    },
+    "ru": {
+        "no_file": "Отправьте <b>PDF</b> файл.",
+    },
+    "es": {
+        "no_file": "Suba un archivo <b>PDF</b>.",
+    },
+}
+register_strings("pdf_operations", _STRINGS)
 
 
 def _parse_page_range(page_str: str, total_pages: int) -> list[int]:
@@ -154,13 +168,7 @@ class PdfOperationsSkill:
 
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                text = "Отправьте <b>PDF</b> файл."
-            elif lang == "es":
-                text = "Suba un archivo <b>PDF</b>."
-            else:
-                text = "Upload a <b>PDF</b> file."
-            return SkillResult(response_text=text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "pdf_operations"))
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         mime = message.document_mime_type or ""

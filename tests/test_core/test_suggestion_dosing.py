@@ -58,7 +58,7 @@ def test_dosing_suppresses_after_threshold():
     skill = GeneralChatSkill()
     prompt_suppressed = skill._get_dosing_prompt(suppress=True)
 
-    assert "НЕ добавляй подсказки" in prompt_suppressed
+    assert "do NOT suggest features" in prompt_suppressed
 
 
 def test_dosing_allows_when_under_threshold():
@@ -68,4 +68,4 @@ def test_dosing_allows_when_under_threshold():
     skill = GeneralChatSkill()
     prompt_normal = skill._get_dosing_prompt(suppress=False)
 
-    assert "мягко" in prompt_normal or "подсказать" in prompt_normal
+    assert "gently suggest" in prompt_normal

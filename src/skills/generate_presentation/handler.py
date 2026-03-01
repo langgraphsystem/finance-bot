@@ -10,9 +10,23 @@ from src.core.context import SessionContext
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_topic": "What should the presentation be about?",
+    },
+    "ru": {
+        "no_topic": "О чём должна быть презентация?",
+    },
+    "es": {
+        "no_topic": "Sobre que debe ser la presentacion?",
+    },
+}
+register_strings("generate_presentation", _STRINGS)
 
 PPTX_SYSTEM_PROMPT = """\
 You are a presentation generator. You write Python code using python-pptx
@@ -142,13 +156,9 @@ class GeneratePresentationSkill:
 
         if not topic:
             lang = context.language or "en"
-            if lang == "ru":
-                prompt = "О чём должна быть презентация?"
-            elif lang == "es":
-                prompt = "Sobre que debe ser la presentacion?"
-            else:
-                prompt = "What should the presentation be about?"
-            return SkillResult(response_text=prompt)
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "no_topic", lang, "generate_presentation")
+            )
 
         # Try E2B sandbox first
         try:

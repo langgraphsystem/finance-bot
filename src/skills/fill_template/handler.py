@@ -15,6 +15,7 @@ from src.core.models.document import Document
 from src.core.models.enums import DocumentType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 from src.tools.storage import upload_document
 
@@ -27,6 +28,31 @@ Be concise. Use HTML tags for Telegram."""
 
 # Regex to find Jinja2-style placeholders: {{ variable_name }}
 PLACEHOLDER_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+
+_STRINGS = {
+    "en": {
+        "no_file": (
+            "Please upload a <b>DOCX</b> or <b>XLSX</b> template file.\n"
+            "Use placeholders like <code>{{name}}</code>, <code>{{date}}</code>, "
+            "<code>{{amount}}</code> in your template."
+        ),
+    },
+    "ru": {
+        "no_file": (
+            "Загрузите файл-шаблон <b>DOCX</b> или <b>XLSX</b>.\n"
+            "Используйте заполнители вроде <code>{{name}}</code>, <code>{{date}}</code>, "
+            "<code>{{amount}}</code> в шаблоне."
+        ),
+    },
+    "es": {
+        "no_file": (
+            "Suba un archivo de plantilla <b>DOCX</b> o <b>XLSX</b>.\n"
+            "Use marcadores como <code>{{name}}</code>, <code>{{date}}</code>, "
+            "<code>{{amount}}</code> en su plantilla."
+        ),
+    },
+}
+register_strings("fill_template", _STRINGS)
 
 
 def _extract_template_name(text: str, action: str) -> str:
@@ -177,25 +203,7 @@ class FillTemplateSkill:
 
         if not file_bytes:
             lang = context.language or "en"
-            if lang == "ru":
-                no_file_text = (
-                    "Загрузите файл-шаблон <b>DOCX</b> или <b>XLSX</b>.\n"
-                    "Используйте заполнители вроде <code>{{name}}</code>, <code>{{date}}</code>, "
-                    "<code>{{amount}}</code> в шаблоне."
-                )
-            elif lang == "es":
-                no_file_text = (
-                    "Suba un archivo de plantilla <b>DOCX</b> o <b>XLSX</b>.\n"
-                    "Use marcadores como <code>{{name}}</code>, <code>{{date}}</code>, "
-                    "<code>{{amount}}</code> en su plantilla."
-                )
-            else:
-                no_file_text = (
-                    "Please upload a <b>DOCX</b> or <b>XLSX</b> template file.\n"
-                    "Use placeholders like <code>{{name}}</code>, <code>{{date}}</code>, "
-                    "<code>{{amount}}</code> in your template."
-                )
-            return SkillResult(response_text=no_file_text)
+            return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "fill_template"))
 
         if ext not in ("docx", "xlsx"):
             return SkillResult(
