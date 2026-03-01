@@ -125,15 +125,38 @@ CODE_MODEL_MAP: dict[str, str] = {
 }
 
 _INFRA_KEYWORDS = {
-    "bash", "shell", "docker", "dockerfile", "nginx",
-    "deploy", "ci/cd", "ci-cd", "github actions", "cron",
-    "backup", "migration", "devops", "ansible", "terraform",
+    "bash",
+    "shell",
+    "docker",
+    "dockerfile",
+    "nginx",
+    "deploy",
+    "ci/cd",
+    "ci-cd",
+    "github actions",
+    "cron",
+    "backup",
+    "migration",
+    "devops",
+    "ansible",
+    "terraform",
 }
 
 _FRONTEND_KEYWORDS = {
-    "html", "css", "react", "frontend", "ui", "webpage",
-    "website", "landing", "page", "web page", "svg",
-    "animation", "tailwind", "component",
+    "html",
+    "css",
+    "react",
+    "frontend",
+    "ui",
+    "webpage",
+    "website",
+    "landing",
+    "page",
+    "web page",
+    "svg",
+    "animation",
+    "tailwind",
+    "component",
 }
 
 
@@ -213,29 +236,41 @@ class GenerateProgramSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        description = (
-            intent_data.get("program_description")
-            or message.text
-            or ""
-        ).strip()
+        description = (intent_data.get("program_description") or message.text or "").strip()
 
         if not description:
             return SkillResult(
-                response_text=(
-                    "What program do you need? "
-                    "Describe it and I'll generate the code."
-                )
+                response_text=("What program do you need? Describe it and I'll generate the code.")
             )
 
-        language = (
-            intent_data.get("program_language") or ""
-        ).strip().lower()
+        language = (intent_data.get("program_language") or "").strip().lower()
+
+        # Deep agent path for complex requests (feature-flagged)
+        from src.core.config import settings
+
+        if settings.ff_deep_agents:
+            from src.core.deep_agent.classifier import (
+                ComplexityLevel,
+                classify_program_complexity,
+            )
+
+            complexity = classify_program_complexity(description)
+            if complexity == ComplexityLevel.complex:
+                logger.info("generate_program: routing to deep agent (complex)")
+                return await self._execute_deep(
+                    description,
+                    language,
+                    context,
+                    intent_data,
+                )
 
         # Select model based on language / description
         model = _select_model(language, description)
         logger.info(
             "generate_program: model=%s lang=%s desc=%.60s",
-            model, language or "auto", description,
+            model,
+            language or "auto",
+            description,
         )
 
         # Build prompt
@@ -259,11 +294,15 @@ class GenerateProgramSkill:
         prog_id = str(uuid.uuid4())[:8]
         code_payload = f"{filename}\n---\n{code}"
         await redis.setex(
-            f"program:{prog_id}", CODE_TTL_S, code_payload,
+            f"program:{prog_id}",
+            CODE_TTL_S,
+            code_payload,
         )
         # Save pointer for modify_program lookups
         await redis.setex(
-            f"user_last_program:{context.user_id}", CODE_TTL_S, prog_id,
+            f"user_last_program:{context.user_id}",
+            CODE_TTL_S,
+            prog_id,
         )
 
         # Extract description from generated code
@@ -303,7 +342,9 @@ class GenerateProgramSkill:
             timeout = 60 if is_web else 30
 
             exec_result = await e2b_runner.execute_code(
-                run_code, language=e2b_lang, timeout=timeout,
+                run_code,
+                language=e2b_lang,
+                timeout=timeout,
             )
 
             # Auto-retry loop on error (up to MAX_FIX_ATTEMPTS)
@@ -312,10 +353,12 @@ class GenerateProgramSkill:
                     break
                 logger.info(
                     "Auto-retry %d/%d: fixing code after error",
-                    attempt + 1, MAX_FIX_ATTEMPTS,
+                    attempt + 1,
+                    MAX_FIX_ATTEMPTS,
                 )
                 fix_prompt = FIX_CODE_PROMPT.format(
-                    error=exec_result.error, code=code,
+                    error=exec_result.error,
+                    code=code,
                 )
                 fixed_code = await generate_text(
                     model=model,
@@ -327,7 +370,9 @@ class GenerateProgramSkill:
 
                 run_fixed = _wrap_html_as_flask(fixed_code) if is_html else fixed_code
                 exec_result = await e2b_runner.execute_code(
-                    run_fixed, language=e2b_lang, timeout=timeout,
+                    run_fixed,
+                    language=e2b_lang,
+                    timeout=timeout,
                 )
 
                 if not exec_result.error:
@@ -342,7 +387,10 @@ class GenerateProgramSkill:
 
             # Build response based on execution result
             result = _build_code_response(
-                filename, code_desc, exec_result, buttons,
+                filename,
+                code_desc,
+                exec_result,
+                buttons,
             )
             result.background_tasks = [_mem0_task]
             return result
@@ -354,6 +402,52 @@ class GenerateProgramSkill:
             document_name=filename,
             background_tasks=[_mem0_task],
         )
+
+    async def _execute_deep(
+        self,
+        description: str,
+        language: str,
+        context: SessionContext,
+        intent_data: dict[str, Any],
+    ) -> SkillResult:
+        """Route complex requests to the deep agent orchestrator."""
+        from src.orchestrators.deep_agent.graph import DeepAgentOrchestrator
+
+        model = _select_model(language, description)
+
+        # Pre-detect extension and filename for the orchestrator
+        ext = LANG_EXTENSIONS.get(language, ".py")
+        filename = _make_filename(description, ext)
+
+        orchestrator = DeepAgentOrchestrator()
+        result = await orchestrator.run(
+            task_description=description,
+            skill_type="generate_program",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            language=context.language or "en",
+            model=model,
+            ext=ext,
+            filename=filename,
+            program_language=language,
+        )
+
+        # Add Mem0 background task
+        async def _mem0_task():
+            try:
+                mem_text = f"Generated complex program: {description}"
+                if language:
+                    mem_text += f" (language: {language})"
+                await add_memory(
+                    content=mem_text,
+                    user_id=context.user_id,
+                    metadata={"type": "program_deep", "language": language or "auto"},
+                )
+            except Exception as e:
+                logger.warning("Mem0 storage for deep program failed: %s", e)
+
+        result.background_tasks = [_mem0_task]
+        return result
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return CODE_GEN_SYSTEM_PROMPT
@@ -376,9 +470,7 @@ def _build_code_response(
         if description:
             parts.append(f"\n{description}")
         parts.append(
-            f'\n\U0001f310 <a href="{exec_result.url}">'
-            f"Open app</a>"
-            f"\n<i>(active ~5 min)</i>"
+            f'\n\U0001f310 <a href="{exec_result.url}">Open app</a>\n<i>(active ~5 min)</i>'
         )
     elif exec_result.error:
         err = html_mod.escape(_truncate(exec_result.error, 500))
@@ -449,13 +541,28 @@ def _detect_extension(code: str, language: str) -> str:
 
 
 _STRIP_PREFIXES = (
-    "напиши программу ", "напиши скрипт ", "напиши код ",
-    "создай программу ", "создай скрипт ", "создай код ",
-    "сделай программу ", "сделай скрипт ", "сделай ",
-    "сгенерируй ", "напиши ", "создай ", "generate ", "build ",
-    "write a program ", "write a script ", "write a ",
-    "create a program ", "create a script ", "create a ",
-    "make a ", "code a ",
+    "напиши программу ",
+    "напиши скрипт ",
+    "напиши код ",
+    "создай программу ",
+    "создай скрипт ",
+    "создай код ",
+    "сделай программу ",
+    "сделай скрипт ",
+    "сделай ",
+    "сгенерируй ",
+    "напиши ",
+    "создай ",
+    "generate ",
+    "build ",
+    "write a program ",
+    "write a script ",
+    "write a ",
+    "create a program ",
+    "create a script ",
+    "create a ",
+    "make a ",
+    "code a ",
 )
 
 
@@ -464,17 +571,43 @@ def _make_filename(description: str, ext: str) -> str:
     text = description.lower().strip()
     for prefix in _STRIP_PREFIXES:
         if text.startswith(prefix):
-            text = text[len(prefix):]
+            text = text[len(prefix) :]
             break
     text = text[:60]
     translit = {
-        "а": "a", "б": "b", "в": "v", "г": "g", "д": "d",
-        "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i",
-        "й": "y", "к": "k", "л": "l", "м": "m", "н": "n",
-        "о": "o", "п": "p", "р": "r", "с": "s", "т": "t",
-        "у": "u", "ф": "f", "х": "kh", "ц": "ts", "ч": "ch",
-        "ш": "sh", "щ": "sch", "ъ": "", "ы": "y", "ь": "",
-        "э": "e", "ю": "yu", "я": "ya",
+        "а": "a",
+        "б": "b",
+        "в": "v",
+        "г": "g",
+        "д": "d",
+        "е": "e",
+        "ё": "yo",
+        "ж": "zh",
+        "з": "z",
+        "и": "i",
+        "й": "y",
+        "к": "k",
+        "л": "l",
+        "м": "m",
+        "н": "n",
+        "о": "o",
+        "п": "p",
+        "р": "r",
+        "с": "s",
+        "т": "t",
+        "у": "u",
+        "ф": "f",
+        "х": "kh",
+        "ц": "ts",
+        "ч": "ch",
+        "ш": "sh",
+        "щ": "sch",
+        "ъ": "",
+        "ы": "y",
+        "ь": "",
+        "э": "e",
+        "ю": "yu",
+        "я": "ya",
     }
     slug = ""
     for ch in text:

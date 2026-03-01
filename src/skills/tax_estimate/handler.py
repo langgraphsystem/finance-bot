@@ -75,9 +75,22 @@ class TaxEstimateSkill:
     ) -> SkillResult:
         family_id = context.family_id
         if not family_id:
-            return SkillResult(
-                response_text="Set up your account first to get tax estimates."
+            return SkillResult(response_text="Set up your account first to get tax estimates.")
+
+        # Deep agent path for complex tax requests (feature-flagged)
+        from src.core.config import settings
+
+        if settings.ff_deep_agents:
+            from src.core.deep_agent.classifier import (
+                ComplexityLevel,
+                classify_tax_complexity,
             )
+
+            user_text = message.text or ""
+            complexity = classify_tax_complexity(user_text)
+            if complexity == ComplexityLevel.complex:
+                logger.info("tax_estimate: routing to deep agent (complex)")
+                return await self._execute_deep(message, context, intent_data)
 
         quarter = _current_quarter()
         year = date.today().year
@@ -97,9 +110,7 @@ class TaxEstimateSkill:
         # Fetch data
         gross_income = await self._get_total(family_id, start, end, "income")
         total_expenses = await self._get_total(family_id, start, end, "expense")
-        expense_breakdown = await self._get_expense_categories(
-            family_id, start, end
-        )
+        expense_breakdown = await self._get_expense_categories(family_id, start, end)
 
         if gross_income == 0 and total_expenses == 0:
             return SkillResult(
@@ -160,7 +171,10 @@ class TaxEstimateSkill:
 
     @staticmethod
     async def _get_total(
-        family_id: str, start: date, end: date, tx_type: str,
+        family_id: str,
+        start: date,
+        end: date,
+        tx_type: str,
     ) -> float:
         """Get total income or expenses for a period."""
         tt = TransactionType.income if tx_type == "income" else TransactionType.expense
@@ -176,7 +190,9 @@ class TaxEstimateSkill:
 
     @staticmethod
     async def _get_expense_categories(
-        family_id: str, start: date, end: date,
+        family_id: str,
+        start: date,
+        end: date,
     ) -> list[dict[str, Any]]:
         """Get expense breakdown by category."""
         async with async_session() as session:
@@ -196,10 +212,7 @@ class TaxEstimateSkill:
                 .order_by(func.sum(Transaction.amount).desc())
             )
             rows = (await session.execute(stmt)).all()
-            return [
-                {"category": r.category, "amount": float(r.total or 0)}
-                for r in rows
-            ]
+            return [{"category": r.category, "amount": float(r.total or 0)} for r in rows]
 
     @staticmethod
     def _estimate_income_tax(annual_income: float) -> float:
@@ -226,6 +239,65 @@ class TaxEstimateSkill:
             if remaining <= 0:
                 break
         return tax
+
+    async def _execute_deep(
+        self,
+        message: IncomingMessage,
+        context: SessionContext,
+        intent_data: dict[str, Any],
+    ) -> SkillResult:
+        """Route complex tax requests to the deep agent orchestrator."""
+        from src.orchestrators.deep_agent.graph import DeepAgentOrchestrator
+
+        family_id = context.family_id
+        year = date.today().year
+
+        # Collect financial data for all quarters
+        financial_data: dict[str, Any] = {
+            "year": year,
+            "currency": context.currency,
+            "business_type": context.business_type or "personal",
+            "quarters": {},
+        }
+
+        for q in range(1, 5):
+            start, end = _quarter_date_range(q, year)
+            income = await self._get_total(family_id, start, end, "income")
+            expenses = await self._get_total(family_id, start, end, "expense")
+            cats = await self._get_expense_categories(family_id, start, end)
+            financial_data["quarters"][f"Q{q}"] = {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "gross_income": income,
+                "total_expenses": expenses,
+                "net_profit": income - expenses,
+                "expense_categories": cats[:10],
+            }
+
+        # Annual totals
+        annual_income = sum(q["gross_income"] for q in financial_data["quarters"].values())
+        annual_expenses = sum(q["total_expenses"] for q in financial_data["quarters"].values())
+        financial_data["annual"] = {
+            "gross_income": annual_income,
+            "total_expenses": annual_expenses,
+            "net_profit": annual_income - annual_expenses,
+            "estimated_tax": self._estimate_income_tax(annual_income - annual_expenses),
+        }
+
+        if context.business_type and (annual_income - annual_expenses) > 0:
+            se_base = (annual_income - annual_expenses) * 0.9235
+            financial_data["annual"]["self_employment_tax"] = se_base * 0.153
+
+        orchestrator = DeepAgentOrchestrator()
+        return await orchestrator.run(
+            task_description=message.text or "Generate detailed annual tax report",
+            skill_type="tax_report",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            language=context.language or "en",
+            model=self.model,
+            financial_data=financial_data,
+        )
 
 
 skill = TaxEstimateSkill()
