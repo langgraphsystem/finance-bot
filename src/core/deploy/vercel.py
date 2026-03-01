@@ -30,6 +30,7 @@ class DeployResult:
     url: str | None = None
     error: str | None = None
     deployment_id: str | None = None
+    project_name: str | None = None
 
 
 def is_configured() -> bool:
@@ -104,7 +105,13 @@ def _build_flask_files(code: str) -> list[dict]:
     ]
 
 
-async def deploy(code: str, filename: str, ext: str, project_suffix: str) -> DeployResult:
+async def deploy(
+    code: str,
+    filename: str,
+    ext: str,
+    project_suffix: str,
+    project_name: str | None = None,
+) -> DeployResult:
     """Deploy code to Vercel and return a permanent URL.
 
     Args:
@@ -112,6 +119,7 @@ async def deploy(code: str, filename: str, ext: str, project_suffix: str) -> Dep
         filename: Original filename (e.g. "todo_app.py").
         ext: File extension (e.g. ".py", ".html").
         project_suffix: Unique suffix for the project name (e.g. prog_id).
+        project_name: Reuse existing Vercel project (stable URL on redeploy).
 
     Returns:
         DeployResult with permanent URL or error.
@@ -128,10 +136,10 @@ async def deploy(code: str, filename: str, ext: str, project_suffix: str) -> Dep
     else:
         return DeployResult(error=f"Deployment not supported for {ext} files")
 
-    project_name = f"app-{project_suffix}"
+    effective_project = project_name or f"app-{project_suffix}"
 
     body: dict = {
-        "name": project_name,
+        "name": effective_project,
         "files": files,
         "projectSettings": {"framework": None},
         "target": "production",
@@ -163,6 +171,7 @@ async def deploy(code: str, filename: str, ext: str, project_suffix: str) -> Dep
             return DeployResult(
                 url=url,
                 deployment_id=data.get("id"),
+                project_name=effective_project,
             )
 
         error_data = (

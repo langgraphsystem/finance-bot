@@ -298,3 +298,69 @@ async def test_deploy_url_gets_https_prefix():
         result = await deploy("<h1>Hi</h1>", "page.html", ".html", "abc")
 
     assert result.url == "https://my-app-123.vercel.app"
+
+
+# --- Stable URL redeployment ---
+
+
+async def test_deploy_with_project_name_reuses_project():
+    """Passing project_name deploys to the same Vercel project (stable URL)."""
+    mock_response = _make_mock_response(
+        200,
+        {
+            "url": "my-todo-app.vercel.app",
+            "id": "dpl_v2",
+        },
+    )
+
+    mock_client = AsyncMock()
+    mock_client.post.return_value = mock_response
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("src.core.deploy.vercel.settings") as mock_settings,
+        patch("src.core.deploy.vercel.httpx.AsyncClient", return_value=mock_client),
+    ):
+        mock_settings.vercel_token = "tok"
+        mock_settings.vercel_team_id = ""
+        result = await deploy(
+            "<h1>Hi v2</h1>",
+            "page.html",
+            ".html",
+            "new_id",
+            project_name="app-original_id",
+        )
+
+    assert result.url == "https://my-todo-app.vercel.app"
+    assert result.project_name == "app-original_id"
+
+    # Verify the reused project name was sent (not the new suffix)
+    body = mock_client.post.call_args[1]["json"]
+    assert body["name"] == "app-original_id"
+
+
+async def test_deploy_returns_project_name():
+    """Successful deploy returns project_name in result."""
+    mock_response = _make_mock_response(
+        200,
+        {
+            "url": "app-abc.vercel.app",
+            "id": "dpl_1",
+        },
+    )
+
+    mock_client = AsyncMock()
+    mock_client.post.return_value = mock_response
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=False)
+
+    with (
+        patch("src.core.deploy.vercel.settings") as mock_settings,
+        patch("src.core.deploy.vercel.httpx.AsyncClient", return_value=mock_client),
+    ):
+        mock_settings.vercel_token = "tok"
+        mock_settings.vercel_team_id = ""
+        result = await deploy("<h1>Hi</h1>", "page.html", ".html", "abc")
+
+    assert result.project_name == "app-abc"

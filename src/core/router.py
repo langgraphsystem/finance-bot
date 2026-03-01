@@ -1558,13 +1558,38 @@ async def _handle_callback(
             filename, code = "program.py", payload
         ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".py"
 
-        result = await vercel.deploy(code, filename, ext, prog_id)
+        # Check for existing Vercel project (stable URL on redeploy)
+        existing_project = await redis.get(f"deploy_project:{context.user_id}")
+        if existing_project:
+            existing_project = (
+                existing_project
+                if isinstance(existing_project, str)
+                else existing_project.decode("utf-8")
+            )
+
+        result = await vercel.deploy(
+            code, filename, ext, prog_id, project_name=existing_project
+        )
         if result.url:
+            # Save project name for future redeploys (30 days)
+            if result.project_name:
+                await redis.setex(
+                    f"deploy_project:{context.user_id}",
+                    86400 * 30,
+                    result.project_name,
+                )
+            is_update = existing_project is not None
+            label = "Updated!" if is_update else "Deployed!"
+            note = (
+                "Same URL — your users see the new version."
+                if is_update
+                else "Permanent link — works forever."
+            )
             return OutgoingMessage(
                 text=(
-                    f'<b>\u2705 Deployed!</b>\n\n'
+                    f"<b>\u2705 {label}</b>\n\n"
                     f'\U0001f310 <a href="{result.url}">{result.url}</a>\n'
-                    f'<i>Permanent link — works forever.</i>'
+                    f"<i>{note}</i>"
                 ),
                 chat_id=message.chat_id,
             )

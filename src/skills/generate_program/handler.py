@@ -52,7 +52,17 @@ Rules:
 - The app MUST work as a single file.
 - Add a brief docstring/comment at the top describing what the app does.
 - DO NOT add placeholder/TODO sections — generate working code.
-- Respond ONLY with code, no explanations outside the code."""
+- Respond ONLY with code, no explanations outside the code.
+
+Data storage (when the app needs to save/load data):
+- For HTML/JS apps: use localStorage for client-side persistence. \
+Example: localStorage.setItem('todos', JSON.stringify(items)); \
+const items = JSON.parse(localStorage.getItem('todos') || '[]');
+- For Python/Flask apps: use a global dict or list as in-memory store \
+(works for preview). Add "# pip install supabase" comment and import \
+supabase client when persistent DB is needed. Use SUPABASE_URL and \
+SUPABASE_KEY env vars for connection.
+- NEVER use SQLite or local files — the app will be deployed to serverless."""
 
 FIX_CODE_PROMPT = """\
 The following code failed to run with this error:
