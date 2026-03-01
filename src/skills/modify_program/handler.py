@@ -10,6 +10,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.db import redis
+from src.core.deploy import vercel
 from src.core.llm.clients import generate_text
 from src.core.memory.mem0_client import add_memory
 from src.core.observability import observe
@@ -61,17 +62,12 @@ class ModifyProgramSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        changes = (
-            intent_data.get("program_changes")
-            or message.text
-            or ""
-        ).strip()
+        changes = (intent_data.get("program_changes") or message.text or "").strip()
 
         if not changes:
             return SkillResult(
                 response_text=(
-                    "What changes do you need? "
-                    "Describe the modifications to your program."
+                    "What changes do you need? Describe the modifications to your program."
                 )
             )
 
@@ -100,8 +96,7 @@ class ModifyProgramSkill:
         if not code:
             return SkillResult(
                 response_text=(
-                    "No recent program found to modify. "
-                    "Generate one first, then ask for changes."
+                    "No recent program found to modify. Generate one first, then ask for changes."
                 )
             )
 
@@ -114,7 +109,9 @@ class ModifyProgramSkill:
         model = _select_model(language, changes)
         logger.info(
             "modify_program: model=%s prog_id=%s changes=%.60s",
-            model, prog_id, changes,
+            model,
+            prog_id,
+            changes,
         )
 
         # Build modification prompt
@@ -138,13 +135,19 @@ class ModifyProgramSkill:
         code_payload = f"{filename}\n---\n{modified_code}"
         await redis.setex(f"program:{new_prog_id}", CODE_TTL_S, code_payload)
         await redis.setex(
-            f"user_last_program:{context.user_id}", CODE_TTL_S, new_prog_id,
+            f"user_last_program:{context.user_id}",
+            CODE_TTL_S,
+            new_prog_id,
         )
 
         code_desc = _extract_description(modified_code)
         buttons = [
             {"text": "\U0001f4c4 Code", "callback": f"show_code:{new_prog_id}"},
         ]
+        if vercel.is_configured():
+            buttons.append(
+                {"text": "\U0001f680 Deploy", "callback": f"deploy_vercel:{new_prog_id}"}
+            )
 
         # Mem0 background task
         async def _mem0_task():
@@ -171,7 +174,9 @@ class ModifyProgramSkill:
             timeout = 60 if is_web else 30
 
             exec_result = await e2b_runner.execute_code(
-                run_code, language=e2b_lang, timeout=timeout,
+                run_code,
+                language=e2b_lang,
+                timeout=timeout,
             )
 
             # Auto-retry loop
@@ -180,10 +185,12 @@ class ModifyProgramSkill:
                     break
                 logger.info(
                     "modify_program auto-retry %d/%d",
-                    attempt + 1, MAX_FIX_ATTEMPTS,
+                    attempt + 1,
+                    MAX_FIX_ATTEMPTS,
                 )
                 fix_prompt = FIX_CODE_PROMPT.format(
-                    error=exec_result.error, code=modified_code,
+                    error=exec_result.error,
+                    code=modified_code,
                 )
                 fixed = await generate_text(
                     model=model,
@@ -195,19 +202,26 @@ class ModifyProgramSkill:
 
                 run_fixed = _wrap_html_as_flask(fixed) if is_html else fixed
                 exec_result = await e2b_runner.execute_code(
-                    run_fixed, language=e2b_lang, timeout=timeout,
+                    run_fixed,
+                    language=e2b_lang,
+                    timeout=timeout,
                 )
 
                 if not exec_result.error:
                     modified_code = fixed
                     code_payload = f"{filename}\n---\n{modified_code}"
                     await redis.setex(
-                        f"program:{new_prog_id}", CODE_TTL_S, code_payload,
+                        f"program:{new_prog_id}",
+                        CODE_TTL_S,
+                        code_payload,
                     )
                     break
 
             result = _build_code_response(
-                filename, code_desc, exec_result, buttons,
+                filename,
+                code_desc,
+                exec_result,
+                buttons,
             )
             result.background_tasks = [_mem0_task]
             return result

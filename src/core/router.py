@@ -1540,6 +1540,39 @@ async def _handle_callback(
             chat_id=message.chat_id,
         )
 
+    elif action == "deploy_vercel":
+        from src.core.db import redis
+        from src.core.deploy import vercel
+
+        prog_id = parts[1] if len(parts) > 1 else ""
+        raw = await redis.get(f"program:{prog_id}")
+        if not raw:
+            return OutgoingMessage(
+                text="Code expired. Generate a new program first.",
+                chat_id=message.chat_id,
+            )
+        payload = raw if isinstance(raw, str) else raw.decode("utf-8")
+        if "\n---\n" in payload:
+            filename, code = payload.split("\n---\n", 1)
+        else:
+            filename, code = "program.py", payload
+        ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".py"
+
+        result = await vercel.deploy(code, filename, ext, prog_id)
+        if result.url:
+            return OutgoingMessage(
+                text=(
+                    f'<b>\u2705 Deployed!</b>\n\n'
+                    f'\U0001f310 <a href="{result.url}">{result.url}</a>\n'
+                    f'<i>Permanent link — works forever.</i>'
+                ),
+                chat_id=message.chat_id,
+            )
+        return OutgoingMessage(
+            text=f"<b>\u274c Deploy failed</b>\n<code>{result.error}</code>",
+            chat_id=message.chat_id,
+        )
+
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>
         pending_id = parts[1] if len(parts) > 1 else ""

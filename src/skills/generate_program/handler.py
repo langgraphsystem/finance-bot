@@ -19,6 +19,7 @@ from typing import Any
 
 from src.core.context import SessionContext
 from src.core.db import redis
+from src.core.deploy import vercel
 from src.core.llm.clients import generate_text
 from src.core.memory.mem0_client import add_memory
 from src.core.observability import observe
@@ -312,6 +313,8 @@ class GenerateProgramSkill:
         buttons = [
             {"text": "\U0001f4c4 Code", "callback": f"show_code:{prog_id}"},
         ]
+        if vercel.is_configured():
+            buttons.append({"text": "\U0001f680 Deploy", "callback": f"deploy_vercel:{prog_id}"})
 
         # Mem0 background task — remember what was generated
         async def _mem0_task():
@@ -469,9 +472,15 @@ def _build_code_response(
         parts.append(f"<b>\u2705 {filename}</b>")
         if description:
             parts.append(f"\n{description}")
-        parts.append(
-            f'\n\U0001f310 <a href="{exec_result.url}">Open app</a>\n<i>(active ~5 min)</i>'
-        )
+        if vercel.is_configured():
+            parts.append(
+                f'\n\U0001f310 <a href="{exec_result.url}">Open app</a>'
+                "\n<i>(preview ~5 min — click Deploy for a permanent link)</i>"
+            )
+        else:
+            parts.append(
+                f'\n\U0001f310 <a href="{exec_result.url}">Open app</a>\n<i>(active ~5 min)</i>'
+            )
     elif exec_result.error:
         err = html_mod.escape(_truncate(exec_result.error, 500))
         parts.append(f"<b>\u274c {filename}</b>")

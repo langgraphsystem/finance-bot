@@ -103,6 +103,10 @@ class Settings(BaseSettings):
     # E2B (code sandbox execution)
     e2b_api_key: str = ""
 
+    # Vercel (persistent deployment for generated apps)
+    vercel_token: str = ""
+    vercel_team_id: str = ""
+
     # App
     app_env: str = "development"
     log_level: str = "INFO"
