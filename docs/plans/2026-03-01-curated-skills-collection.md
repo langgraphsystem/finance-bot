@@ -368,47 +368,135 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 
 | Skill | Source | Описание | Применение у нас |
 |-------|--------|----------|-----------------|
-| **claude-ally-health** | `BehiSecc` | Medical report analysis, personalized wellness tracking | Ядро Health specialist |
-| **NeuroKit2** | `K-Dense-AI` | Physiological signal processing | Для wearable integration |
+| **claude-ally-health** | `huifer` (BehiSecc) | Medical report analysis, symptom tracking, medication management, drug interactions, specialist consultations (cardiology, endocrinology, neurology). Privacy-first, runs locally | Ядро Health specialist |
+| **NeuroKit2** | `K-Dense-AI` | Physiological signal processing (ECG, EEG, PPG, EMG) | Для wearable/biometrics integration |
 | **Clinical Decision Support** | `K-Dense-AI` | Treatment recommendation systems | Pattern для health advisor |
+| **USDA Nutrition MCP** | GitHub (independent) | USDA nutrition data API — accurate macros, calories, ingredients | Ядро Nutritionist specialist |
+| **Meal Planning Agent** | `thefalc` | Claude + Kafka: meal plans, grocery lists, family preferences | Skill: meal_plan |
+| **Fitness App** | `dharmveer97` | Workout tracking (exercises, sets, reps, weights), nutrition insights, progress analytics, goal setting | Паттерн для Fitness specialist |
+| **TrainingPeaks MCP** | GitHub (independent) | Query workouts, analyze data, track fitness trends | Для advanced fitness users |
+| **HMDB** | `K-Dense-AI` | Human Metabolome Database — metabolites, nutritional metabolism | Для научного подхода к nutrition |
+| **FDA Databases** | `K-Dense-AI` | Drugs, adverse events, food safety regulatory data | Для food safety compliance |
 
-### 9.2 Legal (Wave 4 — Legal Assistant)
+### 9.2 Legal (Wave 4 — Legal Assistant) **🟢 39 SKILLS НАЙДЕНО**
 
 | Skill | Source | Описание | Применение у нас |
 |-------|--------|----------|-----------------|
-| **awesome-legal-skills** | `lawvable` (VoltAgent) | Legal workflow automation | Ядро Legal specialist |
-| **Senior GDPR/DSGVO Expert** | `alirezarezvani` | EU compliance | GDPR skill для legal agent |
+| **NDA Review** | `lawvable` (Jamie Tso) | Clause-by-clause issue log, preferred redlines, fallbacks, rationales, deadlines | Skill: review_nda |
+| **Contract Review** | `lawvable` (Anthropic) | Reviews contracts against organizational playbooks | Skill: review_contract |
+| **NDA Triage** | `lawvable` (Anthropic) | GREEN/YELLOW/RED risk classification for instant routing | Skill: triage_nda |
+| **Tech Contract Negotiation** | `lawvable` (Patrick Munro) | Technology services, professional services, B2B contracts | Skill: negotiate_contract |
+| **GDPR Breach Sentinel** | `lawvable` (Oliver Schmidt-Prietz) | Breach response under GDPR Articles 33-34 | Для EU compliance |
+| **DPIA Sentinel** | `lawvable` (Oliver Schmidt-Prietz) | Data Protection Impact Assessments | Для EU privacy |
+| **Privacy Notice / Policy** | `lawvable` (Malik Taiar) | GDPR-compliant privacy notices, cookie policies | Skill: generate_privacy_policy |
+| **Vendor Due Diligence** | `lawvable` (Patrick Munro) | Third-party vendor risk assessment | Skill: vendor_audit |
+| **Legal Risk Assessment** | `lawvable` (Anthropic) | Risk classification by severity and likelihood | Skill: assess_legal_risk |
+| **claude-legal-skill** | `evolsb` (independent) | CUAD risk detection, market benchmarks, lawyer-ready redlines. Position-aware (customer/vendor/buyer/seller). NDAs, SaaS, M&A | Продвинутый contract review |
+| **Claude-Legal** | `Kromer-Group` (independent) | Commands: /review-contract, /triage-nda, /vendor-check, /brief, /respond. MCP интеграция с Slack, Teams, Box, Microsoft 365 | Plugin для legal team |
+| **Senior GDPR/DSGVO Expert** | `alirezarezvani` | EU GDPR + German DSGVO, DPIA, breach notification | RA/QM bundle (12 skills) |
+| _+ 26 доп. skills в lawvable_ | `lawvable` | Employment law, corporate law, methodology, utilities | Полная legal suite |
 
-### 9.3 Education (Wave 4 — Tutor)
+### 9.3 Construction & Contractor **🟢 221 SKILLS НАЙДЕНО**
 
 | Skill | Source | Описание | Применение у нас |
 |-------|--------|----------|-----------------|
-| **tutor-skills** | `RoundTable02` (VoltAgent) | Obsidian StudyVault generation | Паттерн для Tutor specialist |
-| **Scientific Brainstorming** | `K-Dense-AI` | Ideation and concept generation | Для education/research |
+| **estimate-builder** | `DDC Construction` | Generates estimates from historical data and templates | Skill: create_estimate |
+| **semantic-search-cwicr** | `DDC Construction` | Search 55,719 work items in 31 languages for rate lookups | Skill: search_rates |
+| **budget-tracker** | `DDC Construction` | Scheduled budget vs actual costs with alerts | Skill: track_budget |
+| **cost-analysis** | `DDC Construction` | Project spending pattern analysis | Skill: analyze_costs |
+| **cost-prediction** | `DDC Construction` | ML-based cost forecasting | Skill: predict_cost |
+| **schedule-delay-analyzer** | `DDC Construction` | Statistical analysis of schedule variance | Skill: analyze_delays |
+| **risk-assessment** | `DDC Construction` | Identifies project risks early | Skill: assess_risk |
+| **specification-extractor** | `DDC Construction` | Extracts text/tables from PDF specs into structured data | Skill: extract_specs |
+| **ifc-to-excel / rvt-to-excel** | `DDC Construction` | BIM models → Excel for quantity takeoff | Skill: convert_bim |
+| **n8n-daily-report** | `DDC Construction` | Automated data collection and report generation | Skill: daily_report |
+| **n8n-photo-report** | `DDC Construction` | AI classifies/tags site photos automatically | Skill: photo_report |
+| _+ 210 доп. skills_ | `DDC Construction` | 5 категорий: Toolkit (85), Book (67), Insights (20), Curated (20), Innovative (29) | Полная construction suite |
+
+### 9.4 E-commerce / Amazon
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **amazon-ads-mcp (PPC Prophet)** | `ppcprophet` | Amazon Advertising: campaign performance, ACOS, ROAS, CTR, CPC, natural language queries | Skill: amazon_ads |
+| **amazon-product-api** | VoltAgent/OpenClaw | Extracts product listings: titles, ASINs, prices, ratings | Skill: amazon_products |
+| **ecommerce-operations** | `skills.rest` | Cross-border ops: Inventory Adjuster, Ad Monitor, Daily Reports | Skill: ecommerce_ops |
+| **Shopify Automation** | `ComposioHQ` | Products, orders, customers, inventory, GraphQL queries | Skill: shopify_manage |
+| **Square Automation** | `ComposioHQ` | Payments, customers, catalog, orders, locations | Skill: square_pos |
+| **Seller Labs Amazon MCP** | Seller Labs | Sales, advertising, profitability, inventory, keywords, margins | Skill: seller_analytics |
+
+### 9.5 Travel Planner **🟢 7 ПРОЕКТОВ НАЙДЕНО**
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **travel-planner** | `ailabs-393` (claude-plugins.dev) | Weather, currency, timezone, day-by-day itineraries, budget breakdowns, packing checklists, cultural guides, safety, preference database | Ядро Travel Planner specialist |
+| **TRAVEL-PLANNER MCP** | `GongRzhe` | Google Maps API integration for location-based planning | Maps integration |
+| **Agentic Travel Planner** | `aakar-mutha` | 5 AI agents collaborating: Claude Haiku + Tavily real-time data | Multi-agent pattern |
+| **Travel Consultant** | `jyoung10078` | React app: preferences → detailed itinerary | Frontend pattern |
+| **Tripper** | `embabel` | Web search + mapping + Airbnb integration | Booking integration |
+
+### 9.6 Customer Support **🟢 ZENDESK/INTERCOM/FRESHDESK AUTOMATION**
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **claude-cs** | `nbashaw` (independent) | Meta-skill: auto-triage (Critical/High/Medium/Low), context gathering, templated responses, refunds/cancellations. Zendesk, Intercom, HelpScout, Stripe integration | Ядро Customer Support specialist |
+| **Zendesk Automation** | `ComposioHQ` | Tickets, users, organizations, search, macros | Skill: zendesk_manage |
+| **Intercom Automation** | `ComposioHQ` | Conversations, contacts, companies, tickets, articles | Skill: intercom_manage |
+| **Freshdesk Automation** | `ComposioHQ` | Tickets, contacts, agents, groups, canned responses | Skill: freshdesk_manage |
+| **Help Scout Automation** | `ComposioHQ` | Conversations, customers, mailboxes, tags | Skill: helpscout_manage |
+| **Internal Comms** | `ComposioHQ` | Updates, newsletters, FAQs, status reports | Skill: internal_comms |
+
+### 9.7 Voice & Call Center
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **voice-ai-engine-development** | `sickn33/antigravity` | Complete toolkit: OpenAI Realtime, Vapi, Deepgram, ElevenLabs | Ядро Voice Receptionist |
+| **azure-communication-callautomation** | `sickn33/antigravity` | Azure: IVR systems, call routing, call recording | Enterprise voice |
+| **azure-ai-voicelive** | `sickn33/antigravity` | Real-time voice AI applications | Realtime voice |
+| **claude-code-voice-skill** | `abracadabra50` | Talk to Claude over phone — telephony receptionist | Phone receptionist паттерн |
+| **voicemode** | `mbailey` | Offline: local Whisper STT + Kokoro TTS, smart silence detection | Offline voice |
+| **elevenlabs** | `BehiSecc` | TTS + two-host podcast generation | Premium TTS |
+| **google-tts** | `BehiSecc` | Google Cloud text-to-speech | Budget TTS |
+
+### 9.8 HR & Recruiting
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **Interview System Designer** | `alirezarezvani` | Interview loops, question banks, hiring calibration | Skill: design_interview |
+| **ResumeSkills** | `Paramchoudhary` (VoltAgent) | 20 skills: resume optimization, ATS analysis, interview prep, career transitions | Skill: optimize_resume |
+| **claude-code-job-tailor** | `javiera-vasquez` | AI resume optimization: job analysis, YAML profiles → tailored PDFs, /tailor command | Skill: tailor_resume |
+| **employment-contract-templates** | `sickn33/antigravity` | Employment contracts, offer letters, HR policy documents | Skill: generate_contract |
+| _aj-geddes HR prompts (18)_ | `aj-geddes` | talent-acquisition, job-description-writer, interview-question-designer, compensation-benchmarking, diversity-inclusion, onboarding-design, succession-planning | Промпт-паттерны для HR agent |
+
+### 9.9 Coaching & Personal Growth
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| _aj-geddes personal-growth (8)_ | `aj-geddes` | confidence-building, emotional-intelligence, life-purpose-discovery, mindfulness-meditation, personal-values, resilience-building, self-awareness, self-discipline | Промпт-паттерны для Coach |
+| _aj-geddes personal-productivity (13)_ | `aj-geddes` | goal-achievement-architect, habit-formation-strategist, focus-deep-work, procrastination-elimination, energy-management, peak-performance | Productivity coaching |
+| _aj-geddes health-wellness (13)_ | `aj-geddes` | mindfulness-meditation, stress-reduction, mental-health, sleep-optimization, nutrition-planning, workout-routine-designer | Wellness coaching |
+| **hooked-ux** | `wondelai` | Hook Model — habit-forming product/life design | Habit formation framework |
+| **jobs-to-be-done** | `wondelai` | JTBD — understanding motivation | Self-discovery framework |
+
+### 9.10 Education & Tutoring
+
+| Skill | Source | Описание | Применение у нас |
+|-------|--------|----------|-----------------|
+| **tutor-skills** | `RoundTable02` (VoltAgent) | Obsidian StudyVault generation | Study material generation |
+| **quiz-generator** | `dmccreary` | Quiz generation following Bloom's Taxonomy | Skill: generate_quiz |
+| **learning-graph-generator** | `dmccreary` | Learning path visualization | Skill: learning_path |
+| **course-description-analyzer** | `dmccreary` | Course analysis and improvement | Skill: analyze_course |
+| **Scientific Brainstorming** | `K-Dense-AI` | Ideation and concept generation | Research-based teaching |
 | **Research Grants** | `K-Dense-AI` | Grant proposal writing | Для academic users |
 
-### 9.4 Real Estate (Wave 3)
-
-| Skill | Source | Описание | Применение у нас |
-|-------|--------|----------|-----------------|
-| **local-legal-seo-audit** | `sickn33/antigravity` | Google Business Profile, location pages, reviews | Паттерн для Real Estate SEO |
-
-### 9.5 Recruiting (Wave 4 — Recruiter)
-
-| Skill | Source | Описание | Применение у нас |
-|-------|--------|----------|-----------------|
-| **Interview System Designer** | `alirezarezvani` | Interview loops, question banks, hiring calibration | Recruiter specialist skill |
-| **ResumeSkills** | `Paramchoudhary` (VoltAgent) | Resume optimization and interview prep | Companion skill |
-
-### 9.6 DevOps & Engineering (Wave 4 — для tech users)
+### 9.11 DevOps & Engineering (для tech users)
 
 | Skill | Source | Описание | Применение у нас |
 |-------|--------|----------|-----------------|
 | **Senior DevOps Engineer** | `alirezarezvani` | CI/CD automation, IaC scaffolding, deployment | Для tech_startup business_type |
 | **Incident Commander** | `alirezarezvani` | Incident response, severity classification, post-incident review | Operational skill |
-| **Observability Designer** | `alirezarezvani` | SLI/SLO framework, alert optimization, golden signals | Для мониторинга нашего Production |
+| **Observability Designer** | `alirezarezvani` | SLI/SLO framework, alert optimization, golden signals | Для мониторинга Production |
 
-**Итого Specialist Verticals: 14 skills**
+**Итого Specialist Verticals: 95+ skills (включая DDC 221 и lawvable 39)**
 
 ---
 
@@ -490,7 +578,7 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 | 6 | **Email Marketer** | 🟢 | email-marketing-bible (CosmoBlk): 55K-word guide. sales-automator (antigravity): cold email sequences 3-5 touchpoints. Marketing Demand & Acquisition (alirezarezvani): demand gen, full-funnel. predictable-revenue (wondelai): Cold Calling 2.0, outbound. hundred-million-offers (wondelai): pricing, value stacking | **5** |
 | 7 | **Google/Meta Ads** | 🟢 | competitive-ads-extractor (ComposioHQ): competitor ad analysis. marketing-ideas (antigravity): SaaS marketing MFS score. marketing-psychology (antigravity): cognitive biases → funnel. Campaign Analytics (alirezarezvani): multi-touch attribution, ROI. Social Media Analyzer (alirezarezvani): engagement metrics. scorecard-marketing (wondelai): quiz/assessment lead funnels. cro-methodology (wondelai): conversion rate optimization | **7** |
 | 8 | **Sales Outreach** | 🟢 | sales-pipeline-optimizer (aj-geddes): MEDDIC qualification, forecasting. linkedin-cli (antigravity): LinkedIn automation, Social Selling Index. Sales Engineer (alirezarezvani): solution design, RFP, demo. Revenue Operations (alirezarezvani): pipeline analytics, territory. Customer Success Manager (alirezarezvani): health scores, churn risk. predictable-revenue (wondelai): outbound sales methodology. investor-outreach (affaan-m): personalized outreach | **7** |
-| 9 | **Customer Support** | 🟡 | Customer Success Manager (alirezarezvani): onboarding playbooks, QBR templates. meeting-insights-analyzer (ComposioHQ): transcript analysis. owasp-security (BehiSecc): agentic AI security для chatbot. Нет готовых ticket routing / FAQ automation скиллов | **3** |
+| 9 | **Customer Support** | 🟢 | claude-cs (nbashaw): auto-triage + Zendesk/Intercom/HelpScout/Stripe. Zendesk Automation (ComposioHQ). Intercom Automation (ComposioHQ). Freshdesk Automation (ComposioHQ). Help Scout Automation (ComposioHQ). Internal Comms (ComposioHQ). Customer Success Manager (alirezarezvani): playbooks | **7** |
 | 10 | **SEO Specialist** | 🟢 | seo-audit (antigravity): weighted scoring 0-100. seo-keyword-strategist: density, LSI, voice search. seo-content-writer: E-E-A-T, Grade 8-10. seo-content-planner: topic clusters, 30-60 day calendars. seo-content-auditor: depth, originality. seo-content-refresher: stale detection. seo-meta-optimizer: URLs/titles/descriptions. seo-snippet-hunter: position zero. seo-authority-builder: E-E-A-T scorecards. seo-structure-architect: siloing, JSON-LD. seo-cannibalization-detector: keyword conflicts. programmatic-seo: scalable page gen. claude-seo (AgriciDaniel). seo-aeo-best-practices (sanity-io) | **14** |
 
 ### Wave 3 — Verticals (6 специалистов, August+ 2026)
@@ -499,24 +587,24 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 |---|-----------|----------|---------------------|-------------------|
 | 11 | **Real Estate Agent** | 🟡 | local-legal-seo-audit (antigravity): Google Business, location pages, reviews. Market Research Reports (K-Dense-AI): рыночный анализ. investor-materials (affaan-m): pitch decks. Content Creator patterns для описания объектов. CRM patterns из booking agent | Нужно: MLS интеграция, виртуальный staging, lead follow-up воронка. Паттерны CRM + content + SEO дают ~40% coverage |
 | 12 | **Beauty Salon** | 🟡 | calendly-automation (antigravity): scheduling. Specialist Config Engine — УЖЕ ЕСТЬ manicure.yaml profile. Booking agent skills (9 штук). Customer Success Manager patterns для loyalty | Нужно: loyalty программы, product inventory, специфичные сервисы. Наш specialist engine + booking agent дают ~60% coverage |
-| 13 | **Contractor/Plumber** | 🟡 | Specialist Config Engine — УЖЕ ЕСТЬ construction.yaml profile. generate_invoice_pdf skill. maps_search skill для route optimization. Booking agent для scheduling | Нужно: estimate калькулятор, route optimization, job costing, materials inventory. Наш specialist engine + invoice + maps дают ~50% coverage |
-| 14 | **E-commerce/Amazon** | 🟡 | seo-* skills (14 штук): product page SEO. Campaign Analytics (alirezarezvani): ROAS, attribution. competitive-ads-extractor. pricing-strategy (antigravity): Van Westendorp, MaxDiff. startup-metrics-framework: unit economics | Нужно: Amazon API (Selling Partner), PPC ACOS tracking, inventory forecasting, product listing optimization. SEO + Ads patterns дают ~30% coverage |
-| 15 | **Voice Receptionist** | 🟡 | elevenlabs (BehiSecc): TTS + podcast. google-tts (BehiSecc): Google Cloud TTS. fal-audio (fal-ai): STT + TTS. Наш receptionist skill + specialist engine | Нужно: Twilio/Vapi voice integration, call routing IVR, hold music, voice-specific UX. TTS/STT building blocks есть, но voice pipeline нужно строить |
+| 13 | **Contractor/Plumber** | 🟢 | **DDC Construction (221 skills!)**: estimate-builder, semantic-search-cwicr (55K work items, 31 lang), budget-tracker, cost-analysis, cost-prediction, schedule-delay-analyzer, risk-assessment, specification-extractor, ifc-to-excel, n8n-daily-report, n8n-photo-report. Плюс наш construction.yaml profile + invoice + maps | DDC покрывает ~80% функционала. Нужно: plumber-specific (pipe sizing, drain inspection). Самый обеспеченный вертикальный специалист |
+| 14 | **E-commerce/Amazon** | 🟡 | **amazon-ads-mcp (PPC Prophet)**: ACOS, ROAS, CTR, CPC queries. amazon-product-api: listings, ASINs. Shopify Automation (ComposioHQ). Square Automation (ComposioHQ). Seller Labs Amazon MCP. ecommerce-operations (skills.rest). seo-* (14): product page SEO. pricing-strategy (antigravity) | Нужно: unified Seller Central dashboard, inventory forecasting. Amazon MCP + Shopify + SEO дают ~55% coverage |
+| 15 | **Voice Receptionist** | 🟡 | **voice-ai-engine-development** (antigravity): OpenAI Realtime + Vapi + Deepgram + ElevenLabs toolkit. azure-communication-callautomation: IVR, call routing, recording. claude-code-voice-skill (abracadabra50): phone receptionist. voicemode (mbailey): offline Whisper STT + Kokoro TTS. elevenlabs + google-tts (BehiSecc) | Нужно: Twilio/Vapi integration, hold music, voice-specific UX. Building blocks покрывают ~50% — pipeline нужно строить |
 | 16 | **Restaurant/Food** | 🔴 | track_food skill (наш, life agent). pricing-strategy (antigravity): ценообразование. generate_spreadsheet skill: food cost расчёты. Booking agent для бронирования столов | Нужно: menu management, order processing, food cost percentage, inventory tracking, supplier orders. Самый большой gap — нет ничего в экосистеме |
 
 ### Wave 4 — Lifestyle & Niche (12 специалистов, August+ 2026)
 
 | # | Specialist | Покрытие | Скиллы из экосистемы | Что нужно строить |
 |---|-----------|----------|---------------------|-------------------|
-| 17 | **Nutritionist** | 🟡 | claude-ally-health (BehiSecc): wellness tracking, medical report analysis. NeuroKit2 (K-Dense-AI): physiological signals. track_food skill (наш). Clinical Decision Support (K-Dense-AI) | Нужно: macro/calorie database API, meal plan generator, dietary restrictions. Health skills дают ~35% coverage |
-| 18 | **Fitness Trainer** | 🟡 | claude-ally-health (BehiSecc): health tracking. Наш track_food + mood_checkin + day_plan | Нужно: exercise database API, workout program generator, progressive overload tracking, recovery metrics. ~20% coverage |
-| 19 | **Coach / Personal Growth** | 🟡 | hooked-ux (wondelai): habit formation Hook Model. jobs-to-be-done (wondelai): JTBD customer insights. Наш mood_checkin + day_plan + day_reflection + quick_capture. mom-test (wondelai): interview framework. design-sprint (wondelai): prototyping | Нужно: goal tracking, habit streaks, journaling prompts, meditation timer. Наш life agent + wondelai patterns дают ~45% coverage |
-| 20 | **Tutor** | 🟡 | tutor-skills (RoundTable02, VoltAgent): StudyVault generation. Scientific Brainstorming (K-Dense-AI): ideation. Research Grants (K-Dense-AI): academic writing. dmccreary/claude-skills: quiz-generator, Bloom's Taxonomy, learning-graph-generator | Нужно: curriculum database, adaptive difficulty, progress tracking, spaced repetition. Education skills дают ~40% coverage |
-| 21 | **Career Consultant** | 🟡 | ResumeSkills (Paramchoudhary, VoltAgent): resume + interview prep. linkedin-cli (antigravity): LinkedIn optimization. Sales Engineer (alirezarezvani): RFP/demo framework (паттерн). Content Creator: cover letters. Interview System Designer (alirezarezvani): question banks, calibration | Нужно: ATS-friendly resume templates, LinkedIn profile optimizer, salary negotiation framework. Skill patterns дают ~50% coverage |
-| 22 | **Legal Assistant** | 🟡 | legal-advisor (davepoon): privacy policies, ToS, GDPR/CCPA/LGPD. Senior GDPR/DSGVO Expert (alirezarezvani). awesome-legal-skills (lawvable, VoltAgent): legal workflow. Наш generate_document skill: contracts, NDAs | Нужно: юридическая терминология, deadline tracking, court filing templates. Legal skills + document agent дают ~55% coverage |
-| 23 | **Recruiter** | 🟡 | Interview System Designer (alirezarezvani): interview loops, hiring calibration. ResumeSkills (VoltAgent): resume parsing. linkedin-cli (antigravity): candidate search. Portfolio & Resource Manager (alirezarezvani): resource allocation | Нужно: ATS pipeline, candidate scoring, job posting templates, onboarding checklists. HR patterns дают ~40% coverage |
+| 17 | **Nutritionist** | 🟡 | **USDA Nutrition MCP**: accurate macros, calories, ingredients API. **Meal Planning Agent** (thefalc): Claude + Kafka, meal plans, grocery lists, family preferences. claude-ally-health. HMDB (K-Dense-AI): metabolites. FDA Databases. track_food skill (наш) | Нужно: dietary restrictions engine, client meal tracking dashboard. USDA MCP + Meal Planner + наш track_food дают ~55% coverage |
+| 18 | **Fitness Trainer** | 🟡 | **Fitness App** (dharmveer97): exercises, sets, reps, weights, nutrition insights, progress analytics, goal setting. **TrainingPeaks MCP**: query workouts, analyze data, track trends. claude-ally-health. Наш mood_checkin + day_plan | Нужно: exercise database API, progressive overload engine, client program builder. Fitness App + TrainingPeaks дают ~40% coverage |
+| 19 | **Coach / Personal Growth** | 🟡 | **aj-geddes (34 prompts)**: confidence-building, emotional-intelligence, life-purpose-discovery, mindfulness-meditation, personal-values, resilience-building, self-awareness, self-discipline + 13 productivity (goal-achievement-architect, habit-formation-strategist, focus-deep-work, peak-performance) + 13 health-wellness (stress-reduction, mental-health, sleep-optimization). hooked-ux (wondelai): Hook Model. Наш life agent (mood_checkin, day_plan, day_reflection, quick_capture) | Нужно: goal tracking DB, habit streaks, journaling templates. aj-geddes + наш life agent дают ~55% coverage |
+| 20 | **Tutor** | 🟡 | tutor-skills (RoundTable02): StudyVault. **dmccreary (4)**: quiz-generator (Bloom's Taxonomy), learning-graph-generator, course-description-analyzer, p5.js MicroSims. Scientific Brainstorming + Research Grants (K-Dense-AI) | Нужно: curriculum database, adaptive difficulty, spaced repetition, progress tracking. Education skills дают ~45% coverage |
+| 21 | **Career Consultant** | 🟡 | **ResumeSkills** (Paramchoudhary): 20 skills — ATS analysis, interview prep, career transitions. **claude-code-job-tailor** (javiera-vasquez): YAML profiles → tailored PDFs, /tailor command. linkedin-cli (antigravity). Interview System Designer (alirezarezvani). **aj-geddes career (15 prompts)**: interview-prep, job-search-optimizer, salary-negotiation, personal-branding, networking | Нужно: LinkedIn profile optimizer, cover letter generator. Resume + Interview + LinkedIn дают ~60% coverage |
+| 22 | **Legal Assistant** | 🟢 | **lawvable (39 skills!)**: NDA Review, Contract Review, NDA Triage, Tech Contract Negotiation, GDPR Breach Sentinel, DPIA, Privacy Notice/Policy, Vendor Due Diligence, Legal Risk Assessment + employment law + methodology + utilities. **claude-legal-skill** (evolsb): CUAD risk detection, position-aware analysis. **Claude-Legal** (Kromer-Group): /review-contract, /triage-nda, /vendor-check + MCP. Senior GDPR/DSGVO Expert (alirezarezvani, 12 RA/QM skills). Наш generate_document: contracts, NDAs | Самый обеспеченный Wave 4 specialist. lawvable (39) + alirezarezvani (12) + evolsb + Kromer дают ~75% coverage |
+| 23 | **Recruiter** | 🟡 | **aj-geddes HR (18 prompts)**: talent-acquisition, job-description-writer, interview-question-designer, compensation-benchmarking, diversity-inclusion, employee-engagement, onboarding-design, succession-planning. Interview System Designer (alirezarezvani). ResumeSkills (VoltAgent). linkedin-cli (antigravity). **employment-contract-templates** (antigravity): contracts, offer letters, HR policies | Нужно: ATS pipeline, candidate scoring. aj-geddes HR + alirezarezvani + LinkedIn дают ~50% coverage |
 | 24 | **Property Manager** | 🟡 | payment-integration (davepoon): rent collection, recurring billing. generate_invoice_pdf: monthly rent invoices. Booking agent: tenant scheduling. calendly-automation: maintenance scheduling. generate_spreadsheet: property P&L | Нужно: tenant screening, maintenance ticket system, lease management, property inspection checklists. Наши building blocks дают ~35% coverage |
-| 25 | **Travel Planner** | 🟡 | maps_search skill (наш): location search. web_search + compare_options skills (наш). Gemini Google Search Grounding: real-time travel info. price_check skill (наш): flight/hotel prices | Нужно: itinerary builder, booking aggregator API, budget tracker per trip, visa requirements. Наш research agent дают ~40% coverage |
+| 25 | **Travel Planner** | 🟢 | **travel-planner** (ailabs-393): weather, currency, timezone, day-by-day itineraries, budget breakdowns, packing checklists, cultural guides, safety, preference DB. **TRAVEL-PLANNER MCP** (GongRzhe): Google Maps API. **Agentic Travel Planner** (aakar-mutha): 5 AI agents + Tavily. Tripper (embabel): Airbnb integration. Наш maps_search + web_search + price_check | 7 проектов + наш research agent. Нужно: booking API, visa requirements. Coverage ~65% |
 | 26 | **Event Planner** | 🟡 | create_task + set_reminder skills (наш). calendly-automation: scheduling. generate_spreadsheet: budget tracking. send_to_client: vendor communications. Booking agent: venue/vendor scheduling | Нужно: timeline builder, vendor database, guest list management, floor plan tools. Наш tasks + booking agents дают ~35% coverage |
 | 27 | **Pet Business** | 🔴 | Booking agent: appointment scheduling. add_contact + list_contacts: client management. set_reminder: vaccination reminders. generate_invoice_pdf: billing | Нужно: pet profile database, vaccination tracker, grooming schedule, breed-specific health alerts. Только наши generic skills, ничего в экосистеме. ~25% coverage |
 | 28 | **Auto Repair** | 🔴 | Booking agent: appointment scheduling. generate_invoice_pdf: estimates. maps_search: parts suppliers. compare_options: parts pricing | Нужно: VIN decoder API, vehicle history tracker, parts inventory, labor rate calculator, diagnostic code database. Ничего в экосистеме. ~20% coverage |
@@ -529,22 +617,30 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 |------|------------|----------|------------|----------|-------------|
 | **Wave 1** (DONE) | 4 | 1 | 3 | 0 | ~70% (уже реализованы) |
 | **Wave 2** (Marketing) | 6 | **5** | 1 | 0 | **~75%** — богатейшее покрытие |
-| **Wave 3** (Verticals) | 6 | 0 | **5** | 1 | ~40% — нужно строить domain logic |
-| **Wave 4** (Niche) | 12 | 0 | **9** | **3** | ~35% — building blocks + custom dev |
-| **TOTAL** | **28** | **6** | **18** | **4** | ~50% |
+| **Wave 3** (Verticals) | 6 | **2** (Contractor, Travel) | **3** | 1 (Restaurant) | **~55%** ↑ DDC Construction + Travel |
+| **Wave 4** (Niche) | 12 | **2** (Legal, Customer Support) | **8** | **2** (Pet, Auto Repair) | **~50%** ↑ lawvable + ComposioHQ |
+| **TOTAL** | **28** | **10** | **15** | **3** | **~60%** ↑ (было ~50%) |
 
 ### Ключевой вывод по специалистам
 
-**Wave 2 (Marketing & Sales) — jackpot.** 46 готовых скиллов из экосистемы покрывают ~75% функционала 6 специалистов. SEO Specialist — самый обеспеченный (14 прямых скиллов). Content Creator и Sales Outreach — по 10 и 7 скиллов соответственно.
+**Wave 2 (Marketing & Sales) — jackpot.** 46 готовых скиллов покрывают ~75% функционала 6 специалистов. SEO Specialist — самый обеспеченный (14 прямых скиллов). Content Creator и Sales Outreach — по 10 и 7 скиллов.
 
-**Wave 3-4 (Verticals & Niche) — нужно строить.** Экосистема Claude Skills ориентирована на tech/development. Для бизнес-вертикалей (restaurant, auto repair, pet business) нет НИЧЕГО. Наше преимущество — **Specialist Config Engine** (`src/core/specialist.py`) + **YAML profiles** + **Booking agent** + **Document agent** дают generic building blocks для любой вертикали. Каждый новый специалист = 1 YAML profile + domain-specific API integrations.
+**Wave 3 — лучше чем казалось.** DDC Construction (221 skill!) покрывает ~80% Contractor/Plumber. Travel Planner — 7 проектов, ~65% coverage. E-commerce — Amazon MCP + Shopify + Square + SEO дают ~55%.
 
-**Самые дефицитные вертикали (🔴):**
-1. Restaurant/Food — нет food cost/menu/inventory скиллов нигде
-2. Pet Business — нет pet health/grooming скиллов нигде
-3. Auto Repair — нет VIN/diagnostic/parts скиллов нигде
+**Wave 4 — два прорыва.** Legal Assistant: lawvable (39 skills) + alirezarezvani (12 RA/QM) + evolsb + Kromer = ~75% coverage — самый обеспеченный нишевый специалист. Customer Support: claude-cs + Zendesk/Intercom/Freshdesk/HelpScout automation = ~70%.
 
-**Возможность:** Если мы создадим эти вертикальные скиллы и опубликуем — станем единственными в экосистеме 270K+ скиллов с реальными business vertical solutions.
+**Неожиданные находки:**
+- **DDC Construction** — 221 skill, не в наших основных 18 repos. Estimate builder, cost prediction, BIM→Excel, site photo AI. Самый богатый вертикальный collection
+- **lawvable** — 39 юридических skills. NDA review, contract review, GDPR sentinel, vendor due diligence
+- **aj-geddes** — 73 промпта для coaching (34), HR (18), career (15), customer support (30). Не Claude Skills, но отличные system prompt foundations
+- **ComposioHQ** — Zendesk, Intercom, Freshdesk, HelpScout, Shopify, Square автоматизации. Подключаемые интеграции
+
+**Самые дефицитные вертикали (🔴, нет ничего в экосистеме):**
+1. Restaurant/Food — нет food cost/menu/inventory скиллов
+2. Pet Business — нет pet health/grooming скиллов
+3. Auto Repair — нет VIN/diagnostic/parts скиллов
+
+**Возможность:** Если мы создадим эти 3 вертикали + опубликуем — станем единственными в экосистеме 270K+ скиллов с реальными business vertical solutions.
 
 ---
 
@@ -622,6 +718,11 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 | 16 | Jeffallan/claude-skills | 3K | 66 | github.com/Jeffallan/claude-skills |
 | 17 | wondelai/skills (via BehiSecc) | — | 44 | github.com/wondelai/skills |
 | 18 | qdhenry/Claude-Command-Suite | — | 148 commands | github.com/qdhenry/Claude-Command-Suite |
+| 19 | lawvable/awesome-legal-skills | — | 39 | github.com/lawvable/awesome-legal-skills |
+| 20 | DDC Construction Skills | — | 221 | github.com/datadrivenconstruction/DDC_Skills_for_AI_Agents_in_Construction |
+| 21 | nbashaw/claude-cs | — | 1 (meta-skill) | github.com/nbashaw/claude-cs |
+| 22 | evolsb/claude-legal-skill | — | 1 | github.com/evolsb/claude-legal-skill |
+| 23 | Kromer-Group/Claude-Legal | — | 1 | github.com/Kromer-Group/Claude-Legal |
 
 ---
 
