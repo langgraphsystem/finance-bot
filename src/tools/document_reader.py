@@ -68,8 +68,14 @@ async def extract_text(file_bytes: bytes, filename: str, mime_type: str) -> str:
         return file_bytes.decode("utf-8", errors="replace")
 
 
-async def extract_pages_as_images(file_bytes: bytes, filename: str) -> list[bytes]:
-    """Convert PDF pages to PNG images for Sonnet vision API."""
+async def extract_pages_as_images(
+    file_bytes: bytes, filename: str, max_pages: int = 50
+) -> list[bytes]:
+    """Convert PDF pages to PNG images for Sonnet vision API.
+
+    Args:
+        max_pages: Maximum pages to render (default 50 to avoid OOM on huge PDFs).
+    """
     ext = _get_extension(filename)
     if ext != "pdf":
         return []
@@ -79,7 +85,8 @@ async def extract_pages_as_images(file_bytes: bytes, filename: str) -> list[byte
 
         images = []
         pdf = pypdfium2.PdfDocument(file_bytes)
-        for i in range(len(pdf)):
+        page_count = min(len(pdf), max_pages)
+        for i in range(page_count):
             page = pdf[i]
             bitmap = page.render(scale=2)  # 2x for better OCR
             pil_image = bitmap.to_pil()
@@ -94,9 +101,7 @@ async def extract_pages_as_images(file_bytes: bytes, filename: str) -> list[byte
     return await asyncio.to_thread(_render)
 
 
-async def extract_tables(
-    file_bytes: bytes, filename: str, mime_type: str
-) -> list[Table]:
+async def extract_tables(file_bytes: bytes, filename: str, mime_type: str) -> list[Table]:
     """Extract tables from PDF/DOCX/XLSX/CSV."""
     ext = _get_extension(filename)
 
@@ -170,20 +175,24 @@ async def compute_content_hash(file_bytes: bytes) -> str:
     return hashlib.sha256(file_bytes).hexdigest()
 
 
-def is_scanned_pdf(file_bytes: bytes) -> bool:
+async def is_scanned_pdf(file_bytes: bytes) -> bool:
     """Check if a PDF is scanned (image-based) vs native text."""
-    try:
-        import pdfplumber
 
-        with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-            total_chars = 0
-            pages_checked = min(3, len(pdf.pages))
-            for i in range(pages_checked):
-                text = pdf.pages[i].extract_text() or ""
-                total_chars += len(text.strip())
-            return total_chars < 100 * pages_checked
-    except Exception:
-        return True  # If we can't parse, treat as scanned
+    def _check():
+        try:
+            import pdfplumber
+
+            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+                total_chars = 0
+                pages_checked = min(3, len(pdf.pages))
+                for i in range(pages_checked):
+                    text = pdf.pages[i].extract_text() or ""
+                    total_chars += len(text.strip())
+                return total_chars < 100 * pages_checked
+        except Exception:
+            return True  # If we can't parse, treat as scanned
+
+    return await asyncio.to_thread(_check)
 
 
 # --- Private helpers ---
@@ -250,10 +259,7 @@ async def _extract_tables_pdf(file_bytes: bytes) -> list[Table]:
                     if not raw_table or len(raw_table) < 2:
                         continue
                     headers = [str(c or "") for c in raw_table[0]]
-                    rows = [
-                        [str(c or "") for c in row]
-                        for row in raw_table[1:]
-                    ]
+                    rows = [[str(c or "") for c in row] for row in raw_table[1:]]
                     tables.append(Table(headers=headers, rows=rows, page=page_num + 1))
         return tables
 

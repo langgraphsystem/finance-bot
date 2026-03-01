@@ -9,7 +9,7 @@ from src.tools.document_reader import Table
 async def test_extract_table_no_file(sample_context, text_message):
     """Asks user to send a file."""
     result = await skill.execute(text_message, sample_context, {})
-    assert "Send a document" in result.response_text
+    assert "Отправьте" in result.response_text or "Send a document" in result.response_text
 
 
 async def test_extract_table_from_pdf(sample_context, text_message):
@@ -47,7 +47,7 @@ async def test_extract_table_no_tables(sample_context, text_message):
         return_value=[],
     ):
         result = await skill.execute(text_message, sample_context, {})
-        assert "No tables" in result.response_text
+        assert "таблицы не найдены" in result.response_text or "No tables" in result.response_text
 
 
 async def test_skill_attributes():

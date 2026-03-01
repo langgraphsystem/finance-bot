@@ -15,19 +15,49 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-DOC_TYPE_LABELS = {
-    "receipt": "Чек",
-    "invoice": "Инвойс",
-    "rate_confirmation": "Rate Confirmation",
-    "fuel_receipt": "Заправочный чек",
-    "contract": "Контракт",
-    "form": "Форма",
-    "report": "Отчёт",
-    "template": "Шаблон",
-    "spreadsheet": "Таблица",
-    "presentation": "Презентация",
-    "other": "Документ",
+DOC_TYPE_LABELS_I18N: dict[str, dict[str, str]] = {
+    "en": {
+        "receipt": "Receipt",
+        "invoice": "Invoice",
+        "rate_confirmation": "Rate Confirmation",
+        "fuel_receipt": "Fuel Receipt",
+        "contract": "Contract",
+        "form": "Form",
+        "report": "Report",
+        "template": "Template",
+        "spreadsheet": "Spreadsheet",
+        "presentation": "Presentation",
+        "other": "Document",
+    },
+    "ru": {
+        "receipt": "Чек",
+        "invoice": "Инвойс",
+        "rate_confirmation": "Rate Confirmation",
+        "fuel_receipt": "Заправочный чек",
+        "contract": "Контракт",
+        "form": "Форма",
+        "report": "Отчёт",
+        "template": "Шаблон",
+        "spreadsheet": "Таблица",
+        "presentation": "Презентация",
+        "other": "Документ",
+    },
+    "es": {
+        "receipt": "Recibo",
+        "invoice": "Factura",
+        "rate_confirmation": "Rate Confirmation",
+        "fuel_receipt": "Recibo de combustible",
+        "contract": "Contrato",
+        "form": "Formulario",
+        "report": "Informe",
+        "template": "Plantilla",
+        "spreadsheet": "Hoja de calculo",
+        "presentation": "Presentacion",
+        "other": "Documento",
+    },
 }
+
+DOC_TYPE_LABELS = DOC_TYPE_LABELS_I18N["ru"]
 
 
 class ListDocumentsSkill:
@@ -58,13 +88,25 @@ class ListDocumentsSkill:
             result = await session.execute(stmt)
             docs = result.scalars().all()
 
+        lang = context.language or "en"
         if not docs:
+            if lang == "ru":
+                return SkillResult(response_text="Документы не найдены.")
+            elif lang == "es":
+                return SkillResult(response_text="No se encontraron documentos.")
             return SkillResult(response_text="No documents found.")
 
-        lines = [f"<b>Documents ({len(docs)})</b>\n"]
+        type_labels = DOC_TYPE_LABELS_I18N.get(lang, DOC_TYPE_LABELS_I18N["en"])
+        if lang == "ru":
+            header = "Документы"
+        elif lang == "es":
+            header = "Documentos"
+        else:
+            header = "Documents"
+        lines = [f"<b>{header} ({len(docs)})</b>\n"]
         for doc in docs:
             icon = _type_icon(doc.type)
-            label = DOC_TYPE_LABELS.get(doc.type, doc.type)
+            label = type_labels.get(doc.type, doc.type)
             title = doc.title or doc.file_name or label
             date_str = doc.created_at.strftime("%d.%m.%Y") if doc.created_at else ""
             size_str = _format_size(doc.file_size_bytes) if doc.file_size_bytes else ""

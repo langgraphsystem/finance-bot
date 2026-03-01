@@ -42,11 +42,14 @@ class CompareDocumentsSkill:
 
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
-            return SkillResult(
-                response_text="Upload the documents you want to compare."
-                if context.language == "en"
-                else "Отправьте документы для сравнения."
-            )
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Отправьте документы для сравнения."
+            elif lang == "es":
+                text = "Suba los documentos que desea comparar."
+            else:
+                text = "Upload the documents you want to compare."
+            return SkillResult(response_text=text)
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "application/octet-stream"

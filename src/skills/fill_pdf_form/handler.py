@@ -69,11 +69,14 @@ class FillPdfFormSkill:
         filename = message.document_file_name or ""
 
         if not file_bytes:
-            return SkillResult(
-                response_text="Upload a <b>PDF form</b> to fill."
-                if context.language == "en"
-                else "Отправьте <b>PDF-форму</b> для заполнения."
-            )
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Отправьте <b>PDF-форму</b> для заполнения."
+            elif lang == "es":
+                text = "Suba un <b>formulario PDF</b> para completar."
+            else:
+                text = "Upload a <b>PDF form</b> to fill."
+            return SkillResult(response_text=text)
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         mime = message.document_mime_type or ""

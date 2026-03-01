@@ -17,7 +17,7 @@ async def test_list_documents_empty(sample_context, text_message):
         mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await skill.execute(text_message, sample_context, {})
-        assert "No documents" in result.response_text
+        assert "не найдены" in result.response_text or "No documents" in result.response_text
 
 
 async def test_list_documents_with_results(sample_context, text_message):
@@ -40,7 +40,7 @@ async def test_list_documents_with_results(sample_context, text_message):
         mock_session.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await skill.execute(text_message, sample_context, {})
-        assert "Documents" in result.response_text
+        assert "Документы" in result.response_text or "Documents" in result.response_text
         assert "Test Invoice" in result.response_text
 
 

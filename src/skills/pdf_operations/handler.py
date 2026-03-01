@@ -1,12 +1,14 @@
 """PDF manipulation: split, rotate, encrypt, decrypt, extract pages."""
 
 import asyncio
+import base64
 import io
 import logging
 import re
 from typing import Any
 
 from src.core.context import SessionContext
+from src.core.db import redis
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
@@ -151,11 +153,14 @@ class PdfOperationsSkill:
         filename = message.document_file_name or ""
 
         if not file_bytes:
-            return SkillResult(
-                response_text="Upload a <b>PDF</b> file."
-                if context.language == "en"
-                else "Отправьте <b>PDF</b> файл."
-            )
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Отправьте <b>PDF</b> файл."
+            elif lang == "es":
+                text = "Suba un archivo <b>PDF</b>."
+            else:
+                text = "Upload a <b>PDF</b> file."
+            return SkillResult(response_text=text)
 
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         mime = message.document_mime_type or ""
@@ -371,12 +376,17 @@ class PdfOperationsSkill:
                 document_name=f"{base}_part1.pdf",
             )
 
+        # Store remaining parts in Redis so user can request them by number
         info_lines = []
         for i, (part_bytes, _) in enumerate(results):
             from pypdf import PdfReader
 
             pr = PdfReader(io.BytesIO(part_bytes))
             info_lines.append(f"  Part {i + 1}: {len(pr.pages)} pages")
+
+            if i > 0:
+                key = f"pdf_split:{base}:part{i + 1}"
+                await redis.set(key, base64.b64encode(part_bytes).decode(), ex=3600)
 
         return SkillResult(
             response_text=(

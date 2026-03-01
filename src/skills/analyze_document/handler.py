@@ -1,6 +1,5 @@
 """Deep AI analysis of documents with Q&A."""
 
-import asyncio
 import logging
 from typing import Any
 
@@ -118,11 +117,14 @@ class AnalyzeDocumentSkill:
         mime_type = message.document_mime_type or ""
 
         if not file_bytes:
-            return SkillResult(
-                response_text="Send me a document — photo, PDF, Word, or Excel."
-                if context.language == "en"
-                else "Отправьте документ — фото, PDF, Word или Excel."
-            )
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Отправьте документ — фото, PDF, Word или Excel."
+            elif lang == "es":
+                text = "Envie un documento — foto, PDF, Word o Excel."
+            else:
+                text = "Send me a document — photo, PDF, Word, or Excel."
+            return SkillResult(response_text=text)
 
         question = intent_data.get("search_query") or intent_data.get("query")
 
@@ -140,7 +142,7 @@ class AnalyzeDocumentSkill:
         # Check if scanned PDF (needs vision path)
         is_scanned = False
         if ext == "pdf":
-            is_scanned = await asyncio.to_thread(is_scanned_pdf, file_bytes)
+            is_scanned = await is_scanned_pdf(file_bytes)
 
         if is_scanned:
             logger.info("Scanned PDF detected, using vision analysis for %s", filename)

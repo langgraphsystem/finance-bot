@@ -31,7 +31,14 @@ class SearchDocumentsSkill:
         query = intent_data.get("search_query") or message.text or ""
         query = query.strip()
         if not query:
-            return SkillResult(response_text="What should I search for in your documents?")
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Что искать в ваших документах?"
+            elif lang == "es":
+                text = "Que debo buscar en sus documentos?"
+            else:
+                text = "What should I search for in your documents?"
+            return SkillResult(response_text=text)
 
         search_pattern = f"%{query}%"
 
@@ -52,12 +59,25 @@ class SearchDocumentsSkill:
             result = await session.execute(stmt)
             docs = result.scalars().all()
 
+        lang = context.language or "en"
         if not docs:
-            return SkillResult(
-                response_text=f'No documents found matching "<b>{query}</b>".'
-            )
+            if lang == "ru":
+                return SkillResult(
+                    response_text=f'Документы по запросу "<b>{query}</b>" не найдены.'
+                )
+            elif lang == "es":
+                return SkillResult(
+                    response_text=f'No se encontraron documentos para "<b>{query}</b>".'
+                )
+            return SkillResult(response_text=f'No documents found matching "<b>{query}</b>".')
 
-        lines = [f'<b>Found {len(docs)} document(s) for "{query}"</b>\n']
+        if lang == "ru":
+            header = f'<b>Найдено {len(docs)} документ(ов) по запросу "{query}"</b>\n'
+        elif lang == "es":
+            header = f'<b>Se encontraron {len(docs)} documento(s) para "{query}"</b>\n'
+        else:
+            header = f'<b>Found {len(docs)} document(s) for "{query}"</b>\n'
+        lines = [header]
         for doc in docs:
             title = doc.title or doc.file_name or doc.type
             date_str = doc.created_at.strftime("%d.%m.%Y") if doc.created_at else ""

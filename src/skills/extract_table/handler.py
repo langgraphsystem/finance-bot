@@ -40,9 +40,14 @@ class ExtractTableSkill:
     ) -> SkillResult:
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
-            return SkillResult(
-                response_text="Send a document or image to extract tables from."
-            )
+            lang = context.language or "en"
+            if lang == "ru":
+                text = "Отправьте документ или изображение для извлечения таблиц."
+            elif lang == "es":
+                text = "Envie un documento o imagen para extraer tablas."
+            else:
+                text = "Send a document or image to extract tables from."
+            return SkillResult(response_text=text)
 
         filename = message.document_file_name or "document"
         mime_type = message.document_mime_type or "image/jpeg"
@@ -58,13 +63,17 @@ class ExtractTableSkill:
             tables_data = await self._extract_from_image(file_bytes, mime_type)
         else:
             tables = await extract_tables(file_bytes, filename, mime_type)
-            tables_data = [
-                {"headers": t.headers, "rows": t.rows, "page": t.page}
-                for t in tables
-            ]
+            tables_data = [{"headers": t.headers, "rows": t.rows, "page": t.page} for t in tables]
 
         if not tables_data:
-            return SkillResult(response_text="No tables found in this document.")
+            lang = context.language or "en"
+            if lang == "ru":
+                msg = "В этом документе таблицы не найдены."
+            elif lang == "es":
+                msg = "No se encontraron tablas en este documento."
+            else:
+                msg = "No tables found in this document."
+            return SkillResult(response_text=msg)
 
         # Format response
         parts = [f"<b>Found {len(tables_data)} table(s)</b>\n"]
@@ -101,9 +110,7 @@ class ExtractTableSkill:
             csv_bytes = csv_parts[0].encode("utf-8")
             csv_name = "table.csv"
         else:
-            combined = "\n\n".join(
-                f"--- Table {i + 1} ---\n{c}" for i, c in enumerate(csv_parts)
-            )
+            combined = "\n\n".join(f"--- Table {i + 1} ---\n{c}" for i, c in enumerate(csv_parts))
             csv_bytes = combined.encode("utf-8")
             csv_name = "tables.csv"
 
@@ -114,9 +121,7 @@ class ExtractTableSkill:
         )
 
     @observe(name="extract_table_vision")
-    async def _extract_from_image(
-        self, image_bytes: bytes, mime_type: str
-    ) -> list[dict]:
+    async def _extract_from_image(self, image_bytes: bytes, mime_type: str) -> list[dict]:
         """Extract tables from images using Gemini 3 Flash vision."""
         client = google_client()
         parts = [

@@ -46,14 +46,29 @@ class GenerateDocumentSkill:
         description = (intent_data.get("description") or message.text or "").strip()
 
         if not description:
-            return SkillResult(
-                response_text=(
+            lang = context.language or "en"
+            if lang == "ru":
+                prompt = (
+                    "Какой документ создать? Например:\n"
+                    "- <i>NDA для моего бизнеса</i>\n"
+                    "- <i>прайс-лист для салона</i>\n"
+                    "- <i>шаблон договора на услуги</i>"
+                )
+            elif lang == "es":
+                prompt = (
+                    "Que documento debo crear? Por ejemplo:\n"
+                    "- <i>NDA para mi negocio</i>\n"
+                    "- <i>lista de precios para servicios</i>\n"
+                    "- <i>plantilla de contrato de servicios</i>"
+                )
+            else:
+                prompt = (
                     "What document should I create? For example:\n"
                     "- <i>NDA for my plumbing business</i>\n"
                     "- <i>price list for salon services</i>\n"
                     "- <i>service agreement template</i>"
                 )
-            )
+            return SkillResult(response_text=prompt)
 
         target_format = (intent_data.get("target_format") or "pdf").strip().lower()
 

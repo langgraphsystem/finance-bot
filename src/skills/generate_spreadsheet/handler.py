@@ -131,11 +131,18 @@ class GenerateSpreadsheetSkill:
         description = (intent_data.get("description") or message.text or "").strip()
 
         if not description:
-            return SkillResult(
-                response_text=(
+            lang = context.language or "en"
+            if lang == "ru":
+                prompt = "Какую таблицу создать? Опишите данные и структуру."
+            elif lang == "es":
+                prompt = (
+                    "Que tipo de hoja de calculo debo crear? Describa los datos y la estructura."
+                )
+            else:
+                prompt = (
                     "What kind of spreadsheet should I create? Describe the data and structure."
                 )
-            )
+            return SkillResult(response_text=prompt)
 
         # Try E2B sandbox first
         try:

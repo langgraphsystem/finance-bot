@@ -126,6 +126,22 @@ domains:
       - form
       - w-9
       - заполни
+      - convertir
+      - documento
+      - extraer
+      - plantilla
+      - factura
+      - analizar
+      - comparar
+      - resumir
+      - combinar
+      - dividir
+      - cifrar
+      - descifrar
+      - rotar
+      - formulario
+      - presentacion
+      - hoja de calculo
     agent: document
     skills:
       - scan_document

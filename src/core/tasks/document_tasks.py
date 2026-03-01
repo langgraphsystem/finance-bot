@@ -51,9 +51,7 @@ async def cleanup_old_documents() -> None:
                 doc_ids = [row[0] for row in candidates]
                 storage_paths = [row[1] for row in candidates if row[1]]
 
-                await session.execute(
-                    delete(Document).where(Document.id.in_(doc_ids))
-                )
+                await session.execute(delete(Document).where(Document.id.in_(doc_ids)))
                 await session.commit()
 
             # Best-effort storage cleanup — outside the DB session
@@ -96,6 +94,51 @@ def _advance_next_run(current: date, frequency: str) -> date:
     return date(year, month, min(current.day, 28))
 
 
+async def _generate_recurring_doc(doc: Document, family_id: str, contact_name: str) -> None:
+    """Generate the actual recurring document based on the parent template type."""
+    from src.core.reports import generate_monthly_report
+
+    template_type = (
+        (doc.metadata_extra or {}).get("recurring", {}).get("template_type", str(doc.type))
+    )
+
+    if template_type in ("invoice", "DocumentType.invoice"):
+        # Generate invoice PDF using the reports module
+        today = date.today()
+        pdf_bytes, filename = await generate_monthly_report(
+            family_id, year=today.year, month=today.month
+        )
+
+        # Save as a new versioned document
+        new_doc = Document(
+            family_id=doc.family_id,
+            user_id=doc.user_id,
+            type=doc.type,
+            storage_path="pending",
+            file_name=filename,
+            title=f"{doc.title} — {today.isoformat()}",
+            mime_type="application/pdf",
+            file_size_bytes=len(pdf_bytes),
+            version=(doc.version or 1) + 1,
+            parent_document_id=doc.id,
+            metadata_extra={"generated_from": str(doc.id), "contact_name": contact_name},
+        )
+        async with rls_session(family_id) as session:
+            session.add(new_doc)
+            await session.commit()
+
+        logger.info(
+            "Generated recurring document for family=%s parent=%s",
+            family_id,
+            doc.id,
+        )
+    else:
+        logger.info(
+            "Recurring document type '%s' — no auto-generation logic, skipping",
+            template_type,
+        )
+
+
 @broker.task(schedule=[{"cron": "0 9 * * *"}])  # Daily at 09:00 UTC
 async def generate_recurring_documents() -> None:
     """Log and reschedule recurring documents whose next_run date is due."""
@@ -103,9 +146,7 @@ async def generate_recurring_documents() -> None:
 
     async with async_session() as session:
         result = await session.execute(
-            select(Document).where(
-                Document.metadata_extra["recurring"].as_string().is_not(None)
-            )
+            select(Document).where(Document.metadata_extra["recurring"].as_string().is_not(None))
         )
         documents = result.scalars().all()
 
@@ -141,13 +182,17 @@ async def generate_recurring_documents() -> None:
                 frequency,
             )
 
+            # Generate the recurring document (e.g. invoice PDF)
+            try:
+                await _generate_recurring_doc(doc, family_id, contact_name)
+            except Exception as gen_err:
+                logger.error("Failed to generate recurring document %s: %s", doc.id, gen_err)
+
             new_next_run = _advance_next_run(next_run, frequency)
             updated_recurring = {**recurring, "next_run": new_next_run.isoformat()}
 
             async with rls_session(family_id) as session:
-                db_result = await session.execute(
-                    select(Document).where(Document.id == doc.id)
-                )
+                db_result = await session.execute(select(Document).where(Document.id == doc.id))
                 db_doc = db_result.scalar_one_or_none()
                 if db_doc is None:
                     continue
@@ -164,8 +209,6 @@ async def generate_recurring_documents() -> None:
                 new_next_run,
             )
         except Exception as e:
-            logger.error(
-                "Recurring document processing failed for doc %s: %s", doc.id, e
-            )
+            logger.error("Recurring document processing failed for doc %s: %s", doc.id, e)
         finally:
             reset_family_context(token)

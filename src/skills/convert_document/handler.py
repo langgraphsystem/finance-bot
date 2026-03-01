@@ -25,10 +25,27 @@ from src.tools.conversion_service import (
 logger = logging.getLogger(__name__)
 
 KNOWN_FORMATS = {
-    "pdf", "docx", "doc", "txt", "rtf", "odt", "html", "md",
-    "xlsx", "xls", "csv", "ods", "pptx",
-    "epub", "fb2", "mobi", "djvu",
-    "jpg", "jpeg", "png", "tiff",
+    "pdf",
+    "docx",
+    "doc",
+    "txt",
+    "rtf",
+    "odt",
+    "html",
+    "md",
+    "xlsx",
+    "xls",
+    "csv",
+    "ods",
+    "pptx",
+    "epub",
+    "fb2",
+    "mobi",
+    "djvu",
+    "jpg",
+    "jpeg",
+    "png",
+    "tiff",
 }
 
 BATCH_KEY_PREFIX = "doc_batch_convert"
@@ -36,8 +53,14 @@ BATCH_TTL = 1800  # 30 minutes
 MAX_BATCH = 10
 
 BATCH_TRIGGERS = {
-    "convert all", "конвертируй всё", "конвертируй все", "batch convert",
-    "convert them all", "convert them", "конвертировать все", "конвертировать всё",
+    "convert all",
+    "конвертируй всё",
+    "конвертируй все",
+    "batch convert",
+    "convert them all",
+    "convert them",
+    "конвертировать все",
+    "конвертировать всё",
 }
 
 SYSTEM_PROMPT = """\
@@ -107,29 +130,36 @@ class ConvertDocumentSkill:
 
             # Single-file conversion: file + target format both present
             if target_format:
-                return await self._convert_single(
-                    file_bytes, filename, mime_type, target_format
-                )
+                return await self._convert_single(file_bytes, filename, mime_type, target_format)
 
             # No target format — add to batch queue for later conversion
             if len(file_bytes) > MAX_INPUT_SIZE:
                 size_mb = len(file_bytes) / (1024 * 1024)
                 return SkillResult(
-                    response_text=(
-                        f"File is too large ({size_mb:.1f} MB). Maximum: 20 MB."
-                    )
+                    response_text=(f"File is too large ({size_mb:.1f} MB). Maximum: 20 MB.")
                 )
             return await self._add_to_batch(
                 batch_key, file_bytes, filename or "document", mime_type or ""
             )
 
         # --- No file attached: ask user to send a file ---
-        return SkillResult(
-            response_text=(
+        lang = context.language or "en"
+        if lang == "ru":
+            no_file = (
+                "Отправьте файл вместе с запросом на конвертацию.\n"
+                "Пример: прикрепите DOCX и напишите <b>конвертируй в PDF</b>"
+            )
+        elif lang == "es":
+            no_file = (
+                "Envie un archivo junto con su solicitud de conversion.\n"
+                "Ejemplo: adjunte un DOCX y escriba <b>convertir a PDF</b>"
+            )
+        else:
+            no_file = (
                 "Please send a file along with your conversion request.\n"
                 "Example: attach a DOCX and write <b>convert to PDF</b>"
             )
-        )
+        return SkillResult(response_text=no_file)
 
     # ------------------------------------------------------------------
     # Single-file conversion (original behaviour, extracted to a method)
@@ -172,9 +202,7 @@ class ConvertDocumentSkill:
         if not is_supported(source_format, target_format):
             targets = get_supported_targets(source_format)
             if targets:
-                target_list = ", ".join(
-                    f"<b>{t.upper()}</b>" for t in sorted(targets)
-                )
+                target_list = ", ".join(f"<b>{t.upper()}</b>" for t in sorted(targets))
                 return SkillResult(
                     response_text=(
                         f"Can't convert <b>{source_format.upper()}</b> to "
@@ -195,24 +223,16 @@ class ConvertDocumentSkill:
                 file_bytes, source_format, target_format, src_filename
             )
         except ConversionError as e:
-            logger.warning(
-                "Conversion failed: %s -> %s: %s", source_format, target_format, e
-            )
+            logger.warning("Conversion failed: %s -> %s: %s", source_format, target_format, e)
             return SkillResult(
-                response_text=(
-                    f"Conversion failed: {e}\nTry a different format or check the file."
-                )
+                response_text=(f"Conversion failed: {e}\nTry a different format or check the file.")
             )
         except Exception:
             logger.exception("Unexpected conversion error")
-            return SkillResult(
-                response_text="Something went wrong during conversion. Try again?"
-            )
+            return SkillResult(response_text="Something went wrong during conversion. Try again?")
 
         size_kb = len(output_bytes) / 1024
-        size_str = (
-            f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
-        )
+        size_str = f"{size_kb:.0f} KB" if size_kb < 1024 else f"{size_kb / 1024:.1f} MB"
         return SkillResult(
             response_text=(
                 f"Converted <b>{source_format.upper()}</b> → "
@@ -275,9 +295,7 @@ class ConvertDocumentSkill:
         """Convert all queued files, zip the results, and return a single archive."""
         pending = await redis.get(batch_key)
         if not pending:
-            return SkillResult(
-                response_text="No files queued. Send me files first."
-            )
+            return SkillResult(response_text="No files queued. Send me files first.")
 
         meta = json.loads(pending)
         files_b64: list[str] = meta.get("files", [])
@@ -285,9 +303,7 @@ class ConvertDocumentSkill:
         mime_types: list[str] = meta.get("mime_types", [])
 
         if not files_b64:
-            return SkillResult(
-                response_text="No files in the queue. Send files first."
-            )
+            return SkillResult(response_text="No files in the queue. Send files first.")
 
         converted: list[tuple[str, bytes]] = []
         errors: list[str] = []
@@ -326,10 +342,7 @@ class ConvertDocumentSkill:
         if not converted:
             error_lines = "\n".join(f"  • {e}" for e in errors)
             return SkillResult(
-                response_text=(
-                    "None of the files could be converted.\n"
-                    f"{error_lines}"
-                )
+                response_text=(f"None of the files could be converted.\n{error_lines}")
             )
 
         # If only one file converted successfully, return it directly

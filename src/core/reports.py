@@ -1,5 +1,6 @@
 """PDF report generation using WeasyPrint + Jinja2."""
 
+import asyncio
 import logging
 import uuid
 from collections import Counter
@@ -17,7 +18,7 @@ from src.core.observability import observe
 
 logger = logging.getLogger(__name__)
 
-# HTML template for monthly report
+# HTML template for monthly report (with Jinja2 label variables)
 MONTHLY_REPORT_TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -42,19 +43,22 @@ MONTHLY_REPORT_TEMPLATE = """
 </head>
 <body>
     <h1>{{ title }}</h1>
-    <p>Период: {{ period }}</p>
+    <p>{{ labels.period }}: {{ period }}</p>
 
     <div class="summary">
-        <h2>Итоги</h2>
-        <p class="income">Доходы: ${{ "%.2f"|format(total_income) }}</p>
-        <p class="expense">Расходы: ${{ "%.2f"|format(total_expense) }}</p>
-        <p><strong>Баланс: ${{ "%.2f"|format(total_income - total_expense) }}</strong></p>
+        <h2>{{ labels.summary }}</h2>
+        <p class="income">{{ labels.income }}: ${{ "%.2f"|format(total_income) }}</p>
+        <p class="expense">{{ labels.expenses }}: ${{ "%.2f"|format(total_expense) }}</p>
+        <p><strong>{{ labels.balance }}:
+        ${{ "%.2f"|format(total_income - total_expense) }}</strong></p>
     </div>
 
     {% if expense_categories %}
-    <h2>Расходы по категориям</h2>
+    <h2>{{ labels.expenses_by_category }}</h2>
     <table>
-        <tr><th>Категория</th><th class="amount">Сумма</th><th class="amount">%</th></tr>
+        <tr><th>{{ labels.category }}</th>
+        <th class="amount">{{ labels.amount }}</th>
+        <th class="amount">%</th></tr>
         {% for cat in expense_categories %}
         <tr>
             <td>{{ cat.icon }} {{ cat.name }}</td>
@@ -63,7 +67,7 @@ MONTHLY_REPORT_TEMPLATE = """
         </tr>
         {% endfor %}
         <tr class="total-row">
-            <td>Итого</td>
+            <td>{{ labels.total }}</td>
             <td class="amount">${{ "%.2f"|format(total_expense) }}</td>
             <td class="amount">100%</td>
         </tr>
@@ -71,9 +75,9 @@ MONTHLY_REPORT_TEMPLATE = """
     {% endif %}
 
     {% if income_categories %}
-    <h2>Доходы по категориям</h2>
+    <h2>{{ labels.income_by_category }}</h2>
     <table>
-        <tr><th>Категория</th><th class="amount">Сумма</th></tr>
+        <tr><th>{{ labels.category }}</th><th class="amount">{{ labels.amount }}</th></tr>
         {% for cat in income_categories %}
         <tr>
             <td>{{ cat.icon }} {{ cat.name }}</td>
@@ -84,12 +88,12 @@ MONTHLY_REPORT_TEMPLATE = """
     {% endif %}
 
     {% if life_summary %}
-    <h2>Записи и заметки</h2>
+    <h2>{{ labels.life_entries }}</h2>
     <div class="summary">
-        <p><strong>Всего записей:</strong> {{ life_summary.total }}</p>
+        <p><strong>{{ labels.total_entries }}:</strong> {{ life_summary.total }}</p>
         {% if life_summary.by_type %}
         <table>
-            <tr><th>Тип</th><th class="amount">Кол-во</th></tr>
+            <tr><th>{{ labels.type }}</th><th class="amount">{{ labels.count }}</th></tr>
             {% for item in life_summary.by_type %}
             <tr>
                 <td>{{ item.icon }} {{ item.label }}</td>
@@ -99,7 +103,7 @@ MONTHLY_REPORT_TEMPLATE = """
         </table>
         {% endif %}
         {% if life_summary.recent %}
-        <h3 style="margin-top: 20px;">Последние записи</h3>
+        <h3 style="margin-top: 20px;">{{ labels.recent_entries }}</h3>
         {% for event in life_summary.recent %}
         <p style="margin: 4px 0;">
             <span style="color: #999;">{{ event.date }}</span>
@@ -112,25 +116,144 @@ MONTHLY_REPORT_TEMPLATE = """
     {% endif %}
 
     <div class="footer">
-        Сгенерировано FinBot | {{ generated_date }}
+        {{ labels.generated_by }} | {{ generated_date }}
     </div>
 </body>
 </html>
 """
 
-MONTH_NAMES = {
-    1: "Январь",
-    2: "Февраль",
-    3: "Март",
-    4: "Апрель",
-    5: "Май",
-    6: "Июнь",
-    7: "Июль",
-    8: "Август",
-    9: "Сентябрь",
-    10: "Октябрь",
-    11: "Ноябрь",
-    12: "Декабрь",
+MONTH_NAMES_I18N: dict[str, dict[int, str]] = {
+    "en": {
+        1: "January",
+        2: "February",
+        3: "March",
+        4: "April",
+        5: "May",
+        6: "June",
+        7: "July",
+        8: "August",
+        9: "September",
+        10: "October",
+        11: "November",
+        12: "December",
+    },
+    "ru": {
+        1: "Январь",
+        2: "Февраль",
+        3: "Март",
+        4: "Апрель",
+        5: "Май",
+        6: "Июнь",
+        7: "Июль",
+        8: "Август",
+        9: "Сентябрь",
+        10: "Октябрь",
+        11: "Ноябрь",
+        12: "Декабрь",
+    },
+    "es": {
+        1: "Enero",
+        2: "Febrero",
+        3: "Marzo",
+        4: "Abril",
+        5: "Mayo",
+        6: "Junio",
+        7: "Julio",
+        8: "Agosto",
+        9: "Septiembre",
+        10: "Octubre",
+        11: "Noviembre",
+        12: "Diciembre",
+    },
+}
+
+MONTH_NAMES = MONTH_NAMES_I18N["ru"]
+
+REPORT_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "period": "Period",
+        "summary": "Summary",
+        "income": "Income",
+        "expenses": "Expenses",
+        "balance": "Balance",
+        "expenses_by_category": "Expenses by Category",
+        "income_by_category": "Income by Category",
+        "category": "Category",
+        "amount": "Amount",
+        "total": "Total",
+        "life_entries": "Life Entries",
+        "total_entries": "Total entries",
+        "type": "Type",
+        "count": "Count",
+        "recent_entries": "Recent Entries",
+        "generated_by": "Generated by FinBot",
+        "report_title": "Financial Report",
+    },
+    "ru": {
+        "period": "Период",
+        "summary": "Итоги",
+        "income": "Доходы",
+        "expenses": "Расходы",
+        "balance": "Баланс",
+        "expenses_by_category": "Расходы по категориям",
+        "income_by_category": "Доходы по категориям",
+        "category": "Категория",
+        "amount": "Сумма",
+        "total": "Итого",
+        "life_entries": "Записи и заметки",
+        "total_entries": "Всего записей",
+        "type": "Тип",
+        "count": "Кол-во",
+        "recent_entries": "Последние записи",
+        "generated_by": "Сгенерировано FinBot",
+        "report_title": "Финансовый отчёт",
+    },
+    "es": {
+        "period": "Periodo",
+        "summary": "Resumen",
+        "income": "Ingresos",
+        "expenses": "Gastos",
+        "balance": "Balance",
+        "expenses_by_category": "Gastos por categoria",
+        "income_by_category": "Ingresos por categoria",
+        "category": "Categoria",
+        "amount": "Monto",
+        "total": "Total",
+        "life_entries": "Entradas de vida",
+        "total_entries": "Total de entradas",
+        "type": "Tipo",
+        "count": "Cantidad",
+        "recent_entries": "Entradas recientes",
+        "generated_by": "Generado por FinBot",
+        "report_title": "Informe financiero",
+    },
+}
+
+_LIFE_TYPE_LABELS_I18N: dict[str, dict] = {
+    "en": {
+        LifeEventType.note: ("📝", "Notes"),
+        LifeEventType.food: ("🍽", "Food"),
+        LifeEventType.drink: ("☕", "Drinks"),
+        LifeEventType.mood: ("😊", "Mood"),
+        LifeEventType.task: ("✅", "Tasks"),
+        LifeEventType.reflection: ("🌙", "Reflection"),
+    },
+    "ru": {
+        LifeEventType.note: ("📝", "Заметки"),
+        LifeEventType.food: ("🍽", "Питание"),
+        LifeEventType.drink: ("☕", "Напитки"),
+        LifeEventType.mood: ("😊", "Настроение"),
+        LifeEventType.task: ("✅", "Задачи"),
+        LifeEventType.reflection: ("🌙", "Рефлексия"),
+    },
+    "es": {
+        LifeEventType.note: ("📝", "Notas"),
+        LifeEventType.food: ("🍽", "Comida"),
+        LifeEventType.drink: ("☕", "Bebidas"),
+        LifeEventType.mood: ("😊", "Estado de animo"),
+        LifeEventType.task: ("✅", "Tareas"),
+        LifeEventType.reflection: ("🌙", "Reflexion"),
+    },
 }
 
 jinja_env = Environment(loader=BaseLoader())
@@ -146,8 +269,10 @@ def render_report_html(
     income_categories: list[dict],
     life_summary: dict | None = None,
     generated_date: str,
+    language: str = "ru",
 ) -> str:
     """Render the monthly report HTML from template and data."""
+    labels = REPORT_LABELS.get(language, REPORT_LABELS["en"])
     template = jinja_env.from_string(MONTHLY_REPORT_TEMPLATE)
     return template.render(
         title=title,
@@ -158,6 +283,7 @@ def render_report_html(
         income_categories=income_categories,
         life_summary=life_summary,
         generated_date=generated_date,
+        labels=labels,
     )
 
 
@@ -166,6 +292,7 @@ async def generate_monthly_report(
     family_id: str,
     year: int | None = None,
     month: int | None = None,
+    language: str = "ru",
 ) -> tuple[bytes, str]:
     """Generate a monthly PDF report.
 
@@ -258,7 +385,7 @@ async def generate_monthly_report(
         life_events = list(life_result.scalars().all())
 
     # Build life events summary
-    life_summary = _build_life_summary(life_events) if life_events else None
+    life_summary = _build_life_summary(life_events, language) if life_events else None
 
     # Format categories with percentages
     expense_categories = []
@@ -283,47 +410,45 @@ async def generate_monthly_report(
         )
 
     # Render HTML
+    month_names = MONTH_NAMES_I18N.get(language, MONTH_NAMES_I18N["en"])
+    labels = REPORT_LABELS.get(language, REPORT_LABELS["en"])
+    report_title = labels["report_title"]
     html_content = render_report_html(
-        title=f"Финансовый отчёт — {MONTH_NAMES[month]} {year}",
-        period=f"{MONTH_NAMES[month]} {year}",
+        title=f"{report_title} — {month_names[month]} {year}",
+        period=f"{month_names[month]} {year}",
         total_income=total_income,
         total_expense=total_expense,
         expense_categories=expense_categories,
         income_categories=income_categories,
         life_summary=life_summary,
         generated_date=today.isoformat(),
+        language=language,
     )
 
-    # Generate PDF
-    pdf_bytes = html_to_pdf(html_content)
+    # Generate PDF (in thread to avoid blocking the event loop)
+    pdf_bytes = await asyncio.to_thread(html_to_pdf, html_content)
     filename = f"report_{year}_{month:02d}.pdf"
 
     return pdf_bytes, filename
 
 
-_LIFE_TYPE_LABELS = {
-    LifeEventType.note: ("📝", "Заметки"),
-    LifeEventType.food: ("🍽", "Питание"),
-    LifeEventType.drink: ("☕", "Напитки"),
-    LifeEventType.mood: ("😊", "Настроение"),
-    LifeEventType.task: ("✅", "Задачи"),
-    LifeEventType.reflection: ("🌙", "Рефлексия"),
-}
+_LIFE_TYPE_LABELS = _LIFE_TYPE_LABELS_I18N["ru"]
 
 
-def _build_life_summary(events: list) -> dict:
+def _build_life_summary(events: list, language: str = "ru") -> dict:
     """Build a summary dict of life events for the report template."""
     type_counts = Counter(e.type for e in events)
+    life_labels = _LIFE_TYPE_LABELS_I18N.get(language, _LIFE_TYPE_LABELS_I18N["en"])
 
     by_type = []
     for event_type, count in type_counts.most_common():
-        icon, label = _LIFE_TYPE_LABELS.get(event_type, ("📌", str(event_type)))
+        icon, label = life_labels.get(event_type, ("📌", str(event_type)))
         by_type.append({"icon": icon, "label": label, "count": count})
 
     # Recent events (last 10)
     recent = []
     for event in events[:10]:
-        icon, _ = _LIFE_TYPE_LABELS.get(event.type, ("📌", ""))
+        icon, _ = life_labels.get(event.type, ("📌", ""))
         text = (event.text or "")[:80]
         if len(event.text or "") > 80:
             text += "..."

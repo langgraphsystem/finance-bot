@@ -90,12 +90,23 @@ class MergeDocumentsSkill:
                 )
             )
 
-        return SkillResult(
-            response_text=(
+        lang = context.language or "en"
+        if lang == "ru":
+            prompt = (
+                "Отправьте <b>PDF файлы</b> для объединения, по одному.\n"
+                "Когда закончите, скажите <b>done</b> и я объединю их."
+            )
+        elif lang == "es":
+            prompt = (
+                "Envieme los <b>archivos PDF</b> que desea combinar, uno por uno.\n"
+                "Cuando termine, diga <b>done</b> y los combinare."
+            )
+        else:
+            prompt = (
                 "Send me the <b>PDF files</b> you want to merge, one by one.\n"
                 "When you're done, say <b>done</b> and I'll combine them."
             )
-        )
+        return SkillResult(response_text=prompt)
 
     async def _add_to_queue(self, merge_key: str, file_bytes: bytes, filename: str) -> SkillResult:
         """Add a PDF to the merge queue in Redis."""

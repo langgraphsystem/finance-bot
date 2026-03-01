@@ -141,7 +141,14 @@ class GeneratePresentationSkill:
         topic = (intent_data.get("presentation_topic") or message.text or "").strip()
 
         if not topic:
-            return SkillResult(response_text="What should the presentation be about?")
+            lang = context.language or "en"
+            if lang == "ru":
+                prompt = "О чём должна быть презентация?"
+            elif lang == "es":
+                prompt = "Sobre que debe ser la presentacion?"
+            else:
+                prompt = "What should the presentation be about?"
+            return SkillResult(response_text=prompt)
 
         # Try E2B sandbox first
         try:

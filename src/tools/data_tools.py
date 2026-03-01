@@ -56,7 +56,14 @@ ALLOWED_TABLES: dict[str, type] = {
 READ_ONLY_TABLES = {"categories"}
 
 # Tables that require user confirmation before delete
-CONFIRM_DELETE_TABLES = {"transactions", "budgets", "recurring_payments", "bookings", "contacts"}
+CONFIRM_DELETE_TABLES = {
+    "transactions",
+    "budgets",
+    "recurring_payments",
+    "bookings",
+    "contacts",
+    "documents",
+}
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -73,8 +80,7 @@ def _get_allowed_columns(table_name: str) -> set[str]:
 def _validate_table(table_name: str) -> type:
     if table_name not in ALLOWED_TABLES:
         raise ValueError(
-            f"Table '{table_name}' not allowed. "
-            f"Allowed: {', '.join(sorted(ALLOWED_TABLES))}"
+            f"Table '{table_name}' not allowed. Allowed: {', '.join(sorted(ALLOWED_TABLES))}"
         )
     return ALLOWED_TABLES[table_name]
 
@@ -102,11 +108,7 @@ def _serialize_value(val: Any) -> Any:
 
 def _row_to_dict(row: Any, table_name: str) -> dict[str, Any]:
     columns = _get_allowed_columns(table_name)
-    return {
-        col: _serialize_value(getattr(row, col, None))
-        for col in columns
-        if hasattr(row, col)
-    }
+    return {col: _serialize_value(getattr(row, col, None)) for col in columns if hasattr(row, col)}
 
 
 def _coerce_enum(model: type, col_name: str, value: Any) -> Any:
@@ -433,8 +435,7 @@ async def aggregate_data(
         if group_by:
             rows = result.all()
             groups = [
-                {"key": _serialize_value(r[0]), "value": _serialize_value(r[1])}
-                for r in rows
+                {"key": _serialize_value(r[0]), "value": _serialize_value(r[1])} for r in rows
             ]
             return {"groups": groups, "table": table, "metric": metric}
         else:

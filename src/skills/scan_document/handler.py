@@ -22,6 +22,15 @@ from src.tools.document_reader import extract_pages_as_images
 
 logger = logging.getLogger(__name__)
 
+
+def _t(lang: str | None, en: str, ru: str, es: str = "") -> str:
+    if lang == "ru":
+        return ru
+    if lang == "es":
+        return es or en
+    return en
+
+
 PENDING_DOC_TTL = 3600  # 1 hour
 
 # Maximum pages to send to the LLM in a single request (avoids context overflow)
@@ -165,8 +174,16 @@ class ScanDocumentSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         image_bytes = message.photo_bytes or message.document_bytes
+        lang = context.language or "en"
         if not image_bytes:
-            return SkillResult(response_text="Отправьте фото или документ для распознавания.")
+            return SkillResult(
+                response_text=_t(
+                    lang,
+                    "Send a photo or document to scan.",
+                    "Отправьте фото или документ для распознавания.",
+                    "Envie una foto o documento para escanear.",
+                )
+            )
 
         mime_type = message.document_mime_type or "image/jpeg"
         filename = message.document_file_name or ""
@@ -221,8 +238,12 @@ class ScanDocumentSkill:
             except Exception as e2:
                 logger.error("All OCR models failed: %s", e2)
                 return SkillResult(
-                    response_text="Не удалось распознать документ. "
-                    "Попробуйте сделать фото более чётким."
+                    response_text=_t(
+                        lang,
+                        "Failed to recognize the document. Try a clearer photo.",
+                        "Не удалось распознать документ. Попробуйте сделать фото более чётким.",
+                        "No se pudo reconocer el documento. Intente con una foto mas clara.",
+                    )
                 )
 
         # Step 3: Store pending data in Redis for later save
@@ -240,13 +261,13 @@ class ScanDocumentSkill:
 
         # Step 4: Format response based on document type
         if doc_type in ("receipt", "fuel_receipt"):
-            return self._format_receipt(raw_data, doc_type, pending_id)
+            return self._format_receipt(raw_data, doc_type, pending_id, lang)
         elif doc_type == "invoice":
-            return self._format_invoice(raw_data, pending_id)
+            return self._format_invoice(raw_data, pending_id, lang)
         elif doc_type == "rate_confirmation":
-            return self._format_rate_conf(raw_data, pending_id)
+            return self._format_rate_conf(raw_data, pending_id, lang)
         else:
-            return self._format_generic(raw_data, pending_id)
+            return self._format_generic(raw_data, pending_id, lang)
 
     @observe(name="doc_classify")
     async def _classify(self, image_bytes: bytes, mime_type: str) -> str:
@@ -375,35 +396,48 @@ class ScanDocumentSkill:
         )
         return result.model_dump(mode="json")
 
-    def _format_receipt(self, data: dict, doc_type: str, pending_id: str) -> SkillResult:
+    def _format_receipt(
+        self, data: dict, doc_type: str, pending_id: str, lang: str = "en"
+    ) -> SkillResult:
         """Format receipt/fuel receipt response."""
         try:
             receipt = ReceiptData(**data)
         except Exception:
-            return self._format_generic(data, pending_id)
+            return self._format_generic(data, pending_id, lang)
 
         is_fuel = doc_type == "fuel_receipt" or receipt.gallons
         icon = "\u26fd" if is_fuel else "\U0001f9fe"
-        label = "Заправочный чек" if is_fuel else "Чек"
+        label = _t(
+            lang,
+            "Fuel receipt" if is_fuel else "Receipt",
+            "Заправочный чек" if is_fuel else "Чек",
+            "Recibo de combustible" if is_fuel else "Recibo",
+        )
 
-        response = f"{icon} <b>{label} распознан</b>\n\n"
-        response += f"\U0001f3ea <b>Магазин:</b> {receipt.merchant}\n"
-        response += f"\U0001f4b5 <b>Сумма:</b> ${receipt.total}"
+        response = (
+            f"{icon} <b>{label} " + _t(lang, "recognized", "распознан", "reconocido") + "</b>\n\n"
+        )
+        response += (
+            f"\U0001f3ea <b>{_t(lang, 'Store:', 'Магазин:', 'Tienda:')}</b> {receipt.merchant}\n"
+        )
+        response += f"\U0001f4b5 <b>{_t(lang, 'Amount:', 'Сумма:', 'Monto:')}</b> ${receipt.total}"
         if receipt.tax:
-            response += f" (налог: ${receipt.tax})"
+            response += f" ({_t(lang, 'tax', 'налог', 'impuesto')}: ${receipt.tax})"
         response += "\n"
         if receipt.date:
-            response += f"\U0001f4c5 <b>Дата:</b> {receipt.date}\n"
+            response += f"\U0001f4c5 <b>{_t(lang, 'Date:', 'Дата:', 'Fecha:')}</b> {receipt.date}\n"
         if receipt.gallons:
+            fuel_lbl = _t(lang, "Fuel:", "Топливо:", "Combustible:")
             response += (
-                f"\u26fd <b>Топливо:</b> {receipt.gallons} gal"
+                f"\u26fd <b>{fuel_lbl}</b> {receipt.gallons} gal"
                 f" @ ${receipt.price_per_gallon}/gal\n"
             )
         if receipt.state:
-            response += f"\U0001f4cd <b>Штат:</b> {receipt.state}\n"
-        # Show items only for non-fuel receipts (fuel info is already above)
+            response += (
+                f"\U0001f4cd <b>{_t(lang, 'State:', 'Штат:', 'Estado:')}</b> {receipt.state}\n"
+            )
         if receipt.items and not is_fuel:
-            response += "\n\U0001f4cb <b>Товары:</b>\n"
+            response += f"\n\U0001f4cb <b>{_t(lang, 'Items:', 'Товары:', 'Articulos:')}</b>\n"
             for item in receipt.items[:10]:
                 name = item.name if hasattr(item, "name") else item.get("name", "\u2014")
                 qty = item.quantity if hasattr(item, "quantity") else item.get("quantity", 1)
@@ -419,37 +453,53 @@ class ScanDocumentSkill:
         return SkillResult(
             response_text=response,
             buttons=[
-                {"text": "\u2705 Сохранить", "callback": f"doc_save:{pending_id}"},
-                {"text": "\u270f\ufe0f Категория", "callback": f"receipt_correct:{pending_id}"},
-                {"text": "\u274c Отмена", "callback": "receipt_cancel"},
+                {
+                    "text": "\u2705 " + _t(lang, "Save", "Сохранить", "Guardar"),
+                    "callback": f"doc_save:{pending_id}",
+                },
+                {
+                    "text": "\u270f\ufe0f " + _t(lang, "Category", "Категория", "Categoria"),
+                    "callback": f"receipt_correct:{pending_id}",
+                },
+                {
+                    "text": "\u274c " + _t(lang, "Cancel", "Отмена", "Cancelar"),
+                    "callback": "receipt_cancel",
+                },
             ],
         )
 
-    def _format_invoice(self, data: dict, pending_id: str) -> SkillResult:
+    def _format_invoice(self, data: dict, pending_id: str, lang: str = "en") -> SkillResult:
         """Format invoice response."""
         try:
             invoice = InvoiceData(**data)
         except Exception:
-            return self._format_generic(data, pending_id)
+            return self._format_generic(data, pending_id, lang)
 
-        response = "\U0001f4c4 <b>Инвойс распознан</b>\n\n"
-        response += f"\U0001f3e2 <b>Поставщик:</b> {invoice.vendor}\n"
+        response = (
+            "\U0001f4c4 <b>"
+            + _t(lang, "Invoice recognized", "Инвойс распознан", "Factura reconocida")
+            + "</b>\n\n"
+        )
+        vendor_lbl = _t(lang, "Vendor:", "Поставщик:", "Proveedor:")
+        response += f"\U0001f3e2 <b>{vendor_lbl}</b> {invoice.vendor}\n"
         if invoice.invoice_number:
-            response += f"\U0001f522 <b>Номер:</b> {invoice.invoice_number}\n"
-        response += f"\U0001f4b5 <b>Сумма:</b> ${invoice.total}"
+            num_lbl = _t(lang, "Number:", "Номер:", "Numero:")
+            response += f"\U0001f522 <b>{num_lbl}</b> {invoice.invoice_number}\n"
+        response += f"\U0001f4b5 <b>{_t(lang, 'Amount:', 'Сумма:', 'Monto:')}</b> ${invoice.total}"
         if invoice.currency and invoice.currency != "USD":
             response += f" {invoice.currency}"
         response += "\n"
         if invoice.subtotal:
-            response += f"   Подитог: ${invoice.subtotal}\n"
+            response += f"   {_t(lang, 'Subtotal', 'Подитог', 'Subtotal')}: ${invoice.subtotal}\n"
         if invoice.tax:
-            response += f"   Налог: ${invoice.tax}\n"
+            response += f"   {_t(lang, 'Tax', 'Налог', 'Impuesto')}: ${invoice.tax}\n"
         if invoice.date:
-            response += f"\U0001f4c5 <b>Дата:</b> {invoice.date}\n"
+            response += f"\U0001f4c5 <b>{_t(lang, 'Date:', 'Дата:', 'Fecha:')}</b> {invoice.date}\n"
         if invoice.due_date:
-            response += f"\u23f0 <b>Срок оплаты:</b> {invoice.due_date}\n"
+            due_lbl = _t(lang, "Due date:", "Срок оплаты:", "Fecha de pago:")
+            response += f"\u23f0 <b>{due_lbl}</b> {invoice.due_date}\n"
         if invoice.items:
-            response += "\n\U0001f4cb <b>Позиции:</b>\n"
+            response += f"\n\U0001f4cb <b>{_t(lang, 'Items:', 'Позиции:', 'Articulos:')}</b>\n"
             for item in invoice.items[:10]:
                 desc = item.get("description", "\u2014")
                 total = item.get("total", "")
@@ -458,44 +508,65 @@ class ScanDocumentSkill:
                     line += f" \u2014 ${total}"
                 response += line + "\n"
         if invoice.notes:
-            response += f"\n\U0001f4dd <b>Примечания:</b> {invoice.notes}\n"
+            notes_lbl = _t(lang, "Notes:", "Примечания:", "Notas:")
+            response += f"\n\U0001f4dd <b>{notes_lbl}</b> {invoice.notes}\n"
 
         return SkillResult(
             response_text=response,
             buttons=[
-                {"text": "\u2705 Сохранить как расход", "callback": f"doc_save:{pending_id}"},
-                {"text": "\u274c Отмена", "callback": "receipt_cancel"},
+                {
+                    "text": "\u2705 "
+                    + _t(lang, "Save as expense", "Сохранить как расход", "Guardar como gasto"),
+                    "callback": f"doc_save:{pending_id}",
+                },
+                {
+                    "text": "\u274c " + _t(lang, "Cancel", "Отмена", "Cancelar"),
+                    "callback": "receipt_cancel",
+                },
             ],
         )
 
-    def _format_rate_conf(self, data: dict, pending_id: str) -> SkillResult:
+    def _format_rate_conf(self, data: dict, pending_id: str, lang: str = "en") -> SkillResult:
         """Format rate confirmation response."""
         try:
             load = LoadData(**data)
         except Exception:
-            return self._format_generic(data, pending_id)
+            return self._format_generic(data, pending_id, lang)
 
-        response = "\U0001f69a <b>Rate Confirmation распознан</b>\n\n"
-        response += f"\U0001f3e2 <b>Брокер:</b> {load.broker}\n"
-        response += f"\U0001f4b0 <b>Ставка:</b> ${load.rate}\n"
+        response = (
+            "\U0001f69a <b>Rate Confirmation "
+            + _t(lang, "recognized", "распознан", "reconocido")
+            + "</b>\n\n"
+        )
+        response += f"\U0001f3e2 <b>{_t(lang, 'Broker:', 'Брокер:', 'Broker:')}</b> {load.broker}\n"
+        response += f"\U0001f4b0 <b>{_t(lang, 'Rate:', 'Ставка:', 'Tarifa:')}</b> ${load.rate}\n"
         if load.ref_number:
             response += f"\U0001f522 <b>Ref #:</b> {load.ref_number}\n"
-        response += f"\U0001f4cd <b>Откуда:</b> {load.origin}\n"
-        response += f"\U0001f3c1 <b>Куда:</b> {load.destination}\n"
+        response += f"\U0001f4cd <b>{_t(lang, 'Origin:', 'Откуда:', 'Origen:')}</b> {load.origin}\n"
+        dest_lbl = _t(lang, "Destination:", "Куда:", "Destino:")
+        response += f"\U0001f3c1 <b>{dest_lbl}</b> {load.destination}\n"
         if load.pickup_date:
-            response += f"\U0001f4c5 <b>Пикап:</b> {load.pickup_date}\n"
+            pickup_lbl = _t(lang, "Pickup:", "Пикап:", "Recogida:")
+            response += f"\U0001f4c5 <b>{pickup_lbl}</b> {load.pickup_date}\n"
         if load.delivery_date:
-            response += f"\U0001f4e6 <b>Доставка:</b> {load.delivery_date}\n"
+            delivery_lbl = _t(lang, "Delivery:", "Доставка:", "Entrega:")
+            response += f"\U0001f4e6 <b>{delivery_lbl}</b> {load.delivery_date}\n"
 
         return SkillResult(
             response_text=response,
             buttons=[
-                {"text": "\u2705 Сохранить груз", "callback": f"doc_save:{pending_id}"},
-                {"text": "\u274c Отмена", "callback": "receipt_cancel"},
+                {
+                    "text": "\u2705 " + _t(lang, "Save load", "Сохранить груз", "Guardar carga"),
+                    "callback": f"doc_save:{pending_id}",
+                },
+                {
+                    "text": "\u274c " + _t(lang, "Cancel", "Отмена", "Cancelar"),
+                    "callback": "receipt_cancel",
+                },
             ],
         )
 
-    def _format_generic(self, data: dict, pending_id: str) -> SkillResult:
+    def _format_generic(self, data: dict, pending_id: str, lang: str = "en") -> SkillResult:
         """Format generic document/image response."""
         try:
             doc = GenericDocumentData(**data)
@@ -505,32 +576,57 @@ class ScanDocumentSkill:
                 extracted_text=json.dumps(data, ensure_ascii=False)[:1000],
             )
 
-        response = "\U0001f4c4 <b>Документ распознан</b>\n\n"
+        response = (
+            "\U0001f4c4 <b>"
+            + _t(lang, "Document recognized", "Документ распознан", "Documento reconocido")
+            + "</b>\n\n"
+        )
         if doc.title:
-            response += f"\U0001f4cc <b>Заголовок:</b> {doc.title}\n"
+            response += (
+                f"\U0001f4cc <b>{_t(lang, 'Title:', 'Заголовок:', 'Titulo:')}</b> {doc.title}\n"
+            )
         if doc.doc_type:
-            response += f"\U0001f4c1 <b>Тип:</b> {doc.doc_type}\n"
+            response += f"\U0001f4c1 <b>{_t(lang, 'Type:', 'Тип:', 'Tipo:')}</b> {doc.doc_type}\n"
         if doc.summary:
-            response += f"\n\U0001f4dd <b>Описание:</b>\n{doc.summary}\n"
+            desc_lbl = _t(lang, "Description:", "Описание:", "Descripcion:")
+            response += f"\n\U0001f4dd <b>{desc_lbl}</b>\n{doc.summary}\n"
         if doc.key_values:
-            response += "\n\U0001f511 <b>Ключевые данные:</b>\n"
+            response += (
+                f"\n\U0001f511 <b>{_t(lang, 'Key data:', 'Ключевые данные:', 'Datos clave:')}</b>\n"
+            )
             for k, v in list(doc.key_values.items())[:10]:
                 response += f"  \u2022 {k}: {v}\n"
         if doc.amounts:
-            response += "\n\U0001f4b0 <b>Суммы:</b> " + ", ".join(doc.amounts[:5]) + "\n"
+            response += (
+                f"\n\U0001f4b0 <b>{_t(lang, 'Amounts:', 'Суммы:', 'Montos:')}</b> "
+                + ", ".join(doc.amounts[:5])
+                + "\n"
+            )
         if doc.dates:
-            response += "\U0001f4c5 <b>Даты:</b> " + ", ".join(doc.dates[:5]) + "\n"
+            response += (
+                f"\U0001f4c5 <b>{_t(lang, 'Dates:', 'Даты:', 'Fechas:')}</b> "
+                + ", ".join(doc.dates[:5])
+                + "\n"
+            )
         if doc.extracted_text and not doc.summary:
             text_preview = doc.extracted_text[:300]
             if len(doc.extracted_text) > 300:
                 text_preview += "..."
-            response += f"\n<b>Текст:</b>\n<code>{text_preview}</code>\n"
+            response += (
+                f"\n<b>{_t(lang, 'Text:', 'Текст:', 'Texto:')}</b>\n<code>{text_preview}</code>\n"
+            )
 
         return SkillResult(
             response_text=response,
             buttons=[
-                {"text": "\u2705 Сохранить", "callback": f"doc_save:{pending_id}"},
-                {"text": "\u274c Отмена", "callback": "receipt_cancel"},
+                {
+                    "text": "\u2705 " + _t(lang, "Save", "Сохранить", "Guardar"),
+                    "callback": f"doc_save:{pending_id}",
+                },
+                {
+                    "text": "\u274c " + _t(lang, "Cancel", "Отмена", "Cancelar"),
+                    "callback": "receipt_cancel",
+                },
             ],
         )
 

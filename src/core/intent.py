@@ -266,47 +266,59 @@ program_language: язык если указан (python, js, bash...)
 program_id: ID программы если указан
 - convert_document: конвертировать файл в другой формат ("конвертируй в PDF", \
 "convert to docx", "в PDF", "save as PDF", "сделай PDF", "сохрани как docx", \
-"переведи в формат xlsx", "конвертируй в epub"). \
+"переведи в формат xlsx", "конвертируй в epub", "convertir a PDF", "cambiar formato"). \
 Извлеки target_format: целевой формат (pdf, docx, xlsx, txt, csv, html, md, \
 epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 - list_documents: показать сохранённые документы ("мои документы", "my documents", \
-"покажи документы", "list documents", "все документы", "какие документы есть")
+"покажи документы", "list documents", "все документы", "какие документы есть", \
+"mis documentos", "mostrar documentos")
 - search_documents: поиск по содержимому документов ("найди в документах", \
-"search documents for", "найди контракт", "где тот инвойс", "поиск документов"). \
+"search documents for", "найди контракт", "где тот инвойс", "поиск документов", \
+"buscar en documentos", "buscar contrato"). \
 Извлеки search_query: текст поиска
 - extract_table: извлечь таблицу из документа или фото ("извлечь таблицу", \
-"extract table", "данные из таблицы", "таблицу из PDF", "parse this table")
+"extract table", "данные из таблицы", "таблицу из PDF", "parse this table", \
+"extraer tabla", "tabla del documento")
 - generate_invoice_pdf: создать PDF-инвойс ("сделай PDF инвойс", \
-"generate invoice PDF", "PDF счёт для клиента", "invoice PDF for Mike"). \
+"generate invoice PDF", "PDF счёт для клиента", "invoice PDF for Mike", \
+"generar factura PDF"). \
 Извлеки contact_name: имя клиента
 - fill_template: заполнить шаблон документа ("заполни шаблон", "fill template", \
-"заполни договор данными", "fill this template with my info"). \
+"заполни договор данными", "fill this template with my info", \
+"llenar plantilla", "completar plantilla"). \
 Извлеки template_name: название шаблона если упомянуто
 - fill_pdf_form: заполнить PDF-форму ("заполни PDF форму", "fill this PDF form", \
-"заполни W-9", "fill out this form")
+"заполни W-9", "fill out this form", "llenar formulario PDF")
 - analyze_document: проанализировать документ, задать вопрос по документу \
 ("проанализируй этот документ", "analyze this document", "какие риски в контракте?", \
-"what's the payment term?", "вопрос по документу"). \
+"what's the payment term?", "вопрос по документу", "analizar documento", \
+"analizar este documento"). \
 Извлеки analysis_question: конкретный вопрос пользователя
 - merge_documents: объединить несколько PDF ("объедини PDF", "merge these PDFs", \
-"склей документы", "combine PDFs into one")
+"склей документы", "combine PDFs into one", "combinar PDFs", "unir documentos")
 - pdf_operations: операции с PDF — разделить, повернуть, зашифровать, расшифровать, \
 водяной знак, извлечь страницы ("раздели PDF", "split PDF", "повернуть страницу", \
 "rotate page", "зашифруй PDF", "encrypt PDF", "добавь водяной знак", "watermark", \
-"извлеки страницы 3-7", "extract pages"). \
+"извлеки страницы 3-7", "extract pages", "dividir PDF", "rotar pagina", \
+"cifrar PDF"). \
 Извлеки pdf_operation: split/rotate/encrypt/decrypt/watermark/extract_pages, \
 pdf_pages: диапазон страниц, pdf_password: пароль если указан
 - generate_spreadsheet: создать Excel-таблицу ("сделай таблицу в Excel", \
-"create a spreadsheet", "generate Excel report", "таблица расходов за месяц")
+"create a spreadsheet", "generate Excel report", "таблица расходов за месяц", \
+"crear hoja de calculo", "generar tabla Excel")
 - compare_documents: сравнить документы ("сравни эти документы", "compare documents", \
-"что изменилось в контракте?", "разница между версиями")
+"что изменилось в контракте?", "разница между версиями", "comparar documentos", \
+"diferencias entre versiones")
 - summarize_document: резюме документа ("кратко перескажи", "summarize this document", \
-"резюме контракта", "summary of this PDF", "о чём этот документ?")
+"резюме контракта", "summary of this PDF", "о чём этот документ?", \
+"resumir documento", "resumen de este PDF")
 - generate_document: создать документ с нуля ("создай NDA", "generate a contract", \
-"сделай прайс-лист", "create a price list", "напиши договор", "make a proposal"). \
+"сделай прайс-лист", "create a price list", "напиши договор", "make a proposal", \
+"crear contrato", "generar documento", "crear NDA"). \
 Извлеки document_description: описание документа, output_format: формат (pdf/docx)
 - generate_presentation: создать презентацию ("сделай презентацию", \
-"create a presentation about", "generate PPTX", "презентация расходов за квартал"). \
+"create a presentation about", "generate PPTX", "презентация расходов за квартал", \
+"crear presentacion", "generar presentacion"). \
 Извлеки presentation_topic: тема презентации
 - read_sheets: прочитать данные из Google Sheets ("open my spreadsheet", \
 "покажи таблицу", "read sheets", "данные из Google Sheets", "show spreadsheet data"). \
@@ -607,7 +619,19 @@ intent_type: "action", confidence: 0.92
     "contact_email": "email" или null,
     "detected_city": "city name IN ENGLISH if user mentions a specific city" или null,
     "location_specified": true/false для maps_search (указано ли место/адрес/город), null иначе,
-    "target_format": "целевой формат конвертации (pdf, docx, xlsx, ...)" или null
+    "target_format": "целевой формат конвертации (pdf, docx, xlsx, ...)" или null,
+    "document_type": "фильтр типа документов (invoice, template, etc.)" или null,
+    "template_name": "название шаблона" или null,
+    "output_format": "формат результата (pdf, docx, xlsx)" или null,
+    "analysis_question": "вопрос по документу" или null,
+    "document_description": "описание генерируемого документа" или null,
+    "pdf_operation": "split/rotate/encrypt/decrypt/watermark/extract_pages" или null,
+    "pdf_pages": "диапазон страниц (1-3, 5, 7-9)" или null,
+    "pdf_password": "пароль для шифрования/дешифрования PDF" или null,
+    "presentation_topic": "тема презентации" или null,
+    "sheet_url": "URL или ID Google Sheets таблицы" или null,
+    "sheet_range": "диапазон ячеек (A1:D10)" или null,
+    "sheet_data": "данные для записи/добавления" или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""
@@ -630,18 +654,42 @@ def _extract_period_hint(text: str) -> str | None:
 
 
 _MONTH_MAP: dict[str, int] = {
-    "январ": 1, "january": 1, "jan": 1,
-    "феврал": 2, "february": 2, "feb": 2,
-    "март": 3, "марта": 3, "march": 3, "mar": 3,
-    "апрел": 4, "april": 4, "apr": 4,
-    "ма": 5, "may": 5,
-    "июн": 6, "june": 6, "jun": 6,
-    "июл": 7, "july": 7, "jul": 7,
-    "август": 8, "august": 8, "aug": 8,
-    "сентябр": 9, "september": 9, "sep": 9,
-    "октябр": 10, "october": 10, "oct": 10,
-    "ноябр": 11, "november": 11, "nov": 11,
-    "декабр": 12, "december": 12, "dec": 12,
+    "январ": 1,
+    "january": 1,
+    "jan": 1,
+    "феврал": 2,
+    "february": 2,
+    "feb": 2,
+    "март": 3,
+    "марта": 3,
+    "march": 3,
+    "mar": 3,
+    "апрел": 4,
+    "april": 4,
+    "apr": 4,
+    "ма": 5,
+    "may": 5,
+    "июн": 6,
+    "june": 6,
+    "jun": 6,
+    "июл": 7,
+    "july": 7,
+    "jul": 7,
+    "август": 8,
+    "august": 8,
+    "aug": 8,
+    "сентябр": 9,
+    "september": 9,
+    "sep": 9,
+    "октябр": 10,
+    "october": 10,
+    "oct": 10,
+    "ноябр": 11,
+    "november": 11,
+    "nov": 11,
+    "декабр": 12,
+    "december": 12,
+    "dec": 12,
 }
 
 
@@ -731,14 +779,41 @@ def _rule_based_delete_intent(text: str) -> IntentDetectionResult | None:
 _PROGRAM_VERBS_RU = ("напиши", "создай", "сделай", "сгенерируй", "генерируй", "разработай")
 _PROGRAM_VERBS_EN = ("write", "create", "make", "generate", "build", "develop", "code")
 _PROGRAM_NOUNS_RU = (
-    "программ", "скрипт", "код", "парсер", "бот", "калькулятор",
-    "конвертер", "утилит", "автоматизаци", "генератор", "приложени",
-    "игр", "сервис", "api", "сайт", "страниц",
+    "программ",
+    "скрипт",
+    "код",
+    "парсер",
+    "бот",
+    "калькулятор",
+    "конвертер",
+    "утилит",
+    "автоматизаци",
+    "генератор",
+    "приложени",
+    "игр",
+    "сервис",
+    "api",
+    "сайт",
+    "страниц",
 )
 _PROGRAM_NOUNS_EN = (
-    "program", "script", "code", "parser", "bot", "calculator",
-    "converter", "utility", "automation", "generator", "app",
-    "game", "service", "api", "website", "page", "tool",
+    "program",
+    "script",
+    "code",
+    "parser",
+    "bot",
+    "calculator",
+    "converter",
+    "utility",
+    "automation",
+    "generator",
+    "app",
+    "game",
+    "service",
+    "api",
+    "website",
+    "page",
+    "tool",
 )
 
 
@@ -795,9 +870,15 @@ _RELATIVE_TIME_PATTERNS = [
 ]
 
 _TIME_UNIT_MINUTES = {
-    "минут": 1, "час": 60, "секунд": 1,
-    "minute": 1, "hour": 60, "second": 1,
-    "minuto": 1, "hora": 60, "segundo": 1,
+    "минут": 1,
+    "час": 60,
+    "секунд": 1,
+    "minute": 1,
+    "hour": 60,
+    "second": 1,
+    "minuto": 1,
+    "hora": 60,
+    "segundo": 1,
 }
 
 
@@ -891,7 +972,7 @@ def _rule_based_generate_program(text: str) -> IntentDetectionResult | None:
     # Strip leading noun if present (e.g., "программу калькулятор" → "калькулятор")
     for n in _PROGRAM_NOUNS_RU + _PROGRAM_NOUNS_EN:
         if description.startswith(n):
-            after = description[len(n):].strip()
+            after = description[len(n) :].strip()
             if after:
                 description = after
             break
@@ -1009,13 +1090,11 @@ async def _detect_with_claude(
 SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
     "finance": {
         "add_expense": 'запись расхода ("заправился на 50", "купил продукты 87.50")',
-        "add_income": "запись дохода С СУММОЙ "
-        '("заработал 185", "получил оплату за рейс 2500")',
+        "add_income": 'запись дохода С СУММОЙ ("заработал 185", "получил оплату за рейс 2500")',
         "correct_category": 'исправление категории ("это не продукты, а бензин")',
         "undo_last": 'отмена последней операции ("отмени последнюю", "undo")',
         "set_budget": 'установить бюджет/лимит ("бюджет на продукты 30000")',
-        "mark_paid": "изменить статус на оплачен БЕЗ суммы "
-        '("груз оплачен", "mark paid")',
+        "mark_paid": 'изменить статус на оплачен БЕЗ суммы ("груз оплачен", "mark paid")',
         "add_recurring": 'регулярный платёж ("подписка", "аренда 50000")',
         "delete_data": 'удаление данных ("удали расходы за январь")',
     },
@@ -1293,7 +1372,9 @@ async def detect_intent_v2(
     if domain and skills:
         logger.info(
             "Supervisor resolved domain=%s (%d skills) for: %.60s",
-            domain, len(skills), text,
+            domain,
+            len(skills),
+            text,
         )
         # Stage 2: scoped intent detection
         result = await detect_intent_scoped(

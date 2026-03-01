@@ -62,7 +62,8 @@ async def test_convert_no_file(skill, ctx):
         text="convert to pdf",
     )
     result = await skill.execute(msg, ctx, {"target_format": "pdf"})
-    assert "send a file" in result.response_text.lower()
+    txt = result.response_text.lower()
+    assert "send a file" in txt or "отправьте" in txt
     assert result.document is None
 
 

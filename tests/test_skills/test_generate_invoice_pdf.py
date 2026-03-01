@@ -16,20 +16,19 @@ async def test_generate_invoice_no_family(sample_context, text_message):
     """Requires account setup."""
     sample_context.family_id = None
     result = await skill.execute(text_message, sample_context, {})
-    assert "Set up" in result.response_text
+    assert "Set up" in result.response_text or "настройте" in result.response_text.lower()
 
 
 async def test_generate_invoice_no_contact(sample_context, text_message):
     """Asks who to invoice."""
     result = await skill.execute(text_message, sample_context, {})
-    assert "Who should I invoice" in result.response_text
+    txt = result.response_text
+    assert "Who should I invoice" in txt or "Кому выставить" in txt
 
 
 async def test_generate_invoice_contact_not_found(sample_context, text_message):
     """Reports when contact not found."""
-    with patch.object(
-        skill, "_find_contact", new_callable=AsyncMock, return_value=None
-    ):
+    with patch.object(skill, "_find_contact", new_callable=AsyncMock, return_value=None):
         result = await skill.execute(
             text_message, sample_context, {"contact_name": "Unknown Person"}
         )
@@ -40,9 +39,7 @@ async def test_generate_invoice_no_transactions(sample_context, text_message):
     """Reports when no transactions to invoice."""
     contact = {"name": "Mike Chen", "email": "mike@test.com", "phone": "555-1234"}
     with (
-        patch.object(
-            skill, "_find_contact", new_callable=AsyncMock, return_value=contact
-        ),
+        patch.object(skill, "_find_contact", new_callable=AsyncMock, return_value=contact),
         patch.object(
             skill,
             "_get_recent_transactions",
@@ -50,9 +47,7 @@ async def test_generate_invoice_no_transactions(sample_context, text_message):
             return_value=[],
         ),
     ):
-        result = await skill.execute(
-            text_message, sample_context, {"contact_name": "Mike"}
-        )
+        result = await skill.execute(text_message, sample_context, {"contact_name": "Mike"})
         assert "No recent transactions" in result.response_text
 
 
@@ -65,9 +60,7 @@ async def test_generate_invoice_success(sample_context, text_message):
     ]
 
     with (
-        patch.object(
-            skill, "_find_contact", new_callable=AsyncMock, return_value=contact
-        ),
+        patch.object(skill, "_find_contact", new_callable=AsyncMock, return_value=contact),
         patch.object(
             skill,
             "_get_recent_transactions",
@@ -79,9 +72,7 @@ async def test_generate_invoice_success(sample_context, text_message):
         mock_html.return_value.write_pdf.return_value = b"%PDF-fake"
         sys.modules["weasyprint"].HTML = mock_html
 
-        result = await skill.execute(
-            text_message, sample_context, {"contact_name": "Mike"}
-        )
+        result = await skill.execute(text_message, sample_context, {"contact_name": "Mike"})
         assert "Invoice" in result.response_text
         assert "Mike Chen" in result.response_text
         assert "750.00" in result.response_text

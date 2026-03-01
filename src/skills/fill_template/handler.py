@@ -16,6 +16,7 @@ from src.core.models.enums import DocumentType
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.tools.storage import upload_document
 
 logger = logging.getLogger(__name__)
 
@@ -158,30 +159,43 @@ class FillTemplateSkill:
             return await self._list_templates(context)
 
         if "delete template" in text or "удали шаблон" in text:
-            template_name = (
-                intent_data.get("template_name") or _extract_template_name(text, "delete")
+            template_name = intent_data.get("template_name") or _extract_template_name(
+                text, "delete"
             )
             return await self._delete_template(context, template_name)
 
         # Save template: file attached + user asks to save as template
-        if file_bytes and ("save" in text or "сохрани" in text) and (
-            "template" in text or "шаблон" in text
+        if (
+            file_bytes
+            and ("save" in text or "сохрани" in text)
+            and ("template" in text or "шаблон" in text)
         ):
-            template_name = (
-                intent_data.get("template_name") or _extract_template_name(text, "save")
-            )
+            template_name = intent_data.get("template_name") or _extract_template_name(text, "save")
             return await self._save_template(context, file_bytes, filename, ext, template_name)
 
         # --- Existing fill-template logic ---
 
         if not file_bytes:
-            return SkillResult(
-                response_text=(
+            lang = context.language or "en"
+            if lang == "ru":
+                no_file_text = (
+                    "Загрузите файл-шаблон <b>DOCX</b> или <b>XLSX</b>.\n"
+                    "Используйте заполнители вроде <code>{{name}}</code>, <code>{{date}}</code>, "
+                    "<code>{{amount}}</code> в шаблоне."
+                )
+            elif lang == "es":
+                no_file_text = (
+                    "Suba un archivo de plantilla <b>DOCX</b> o <b>XLSX</b>.\n"
+                    "Use marcadores como <code>{{name}}</code>, <code>{{date}}</code>, "
+                    "<code>{{amount}}</code> en su plantilla."
+                )
+            else:
+                no_file_text = (
                     "Please upload a <b>DOCX</b> or <b>XLSX</b> template file.\n"
                     "Use placeholders like <code>{{name}}</code>, <code>{{date}}</code>, "
                     "<code>{{amount}}</code> in your template."
                 )
-            )
+            return SkillResult(response_text=no_file_text)
 
         if ext not in ("docx", "xlsx"):
             return SkillResult(
@@ -240,8 +254,7 @@ class FillTemplateSkill:
         if not templates:
             return SkillResult(
                 response_text=(
-                    "No saved templates. Upload a DOCX/XLSX and say "
-                    "<b>save as template</b>."
+                    "No saved templates. Upload a DOCX/XLSX and say <b>save as template</b>."
                 )
             )
 
@@ -268,11 +281,16 @@ class FillTemplateSkill:
         else:
             mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
+        # Upload file bytes to Supabase Storage
+        storage_path = await upload_document(
+            file_bytes, context.family_id, filename, mime_type=mime, bucket="documents"
+        )
+
         doc = Document(
             family_id=uuid_mod.UUID(context.family_id),
             user_id=uuid_mod.UUID(context.user_id),
             type=DocumentType.template,
-            storage_path=f"templates/{context.family_id}/{filename}",
+            storage_path=storage_path,
             file_name=filename,
             title=template_name,
             mime_type=mime,
@@ -286,19 +304,14 @@ class FillTemplateSkill:
 
         return SkillResult(
             response_text=(
-                f"Template <b>{template_name}</b> saved. "
-                "Use <b>list templates</b> to see all."
+                f"Template <b>{template_name}</b> saved. Use <b>list templates</b> to see all."
             )
         )
 
-    async def _delete_template(
-        self, context: SessionContext, template_name: str
-    ) -> SkillResult:
+    async def _delete_template(self, context: SessionContext, template_name: str) -> SkillResult:
         """Delete a saved template by name."""
         if not template_name:
-            return SkillResult(
-                response_text="Which template? Say <b>delete template {name}</b>."
-            )
+            return SkillResult(response_text="Which template? Say <b>delete template {name}</b>.")
 
         async with async_session() as session:
             result = await session.execute(
@@ -310,9 +323,7 @@ class FillTemplateSkill:
             )
             doc = result.scalar_one_or_none()
             if not doc:
-                return SkillResult(
-                    response_text=f"Template <b>{template_name}</b> not found."
-                )
+                return SkillResult(response_text=f"Template <b>{template_name}</b> not found.")
             await session.delete(doc)
             await session.commit()
 

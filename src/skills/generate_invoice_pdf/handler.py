@@ -1,5 +1,6 @@
 """Generate invoice PDF skill — create professional PDF invoices."""
 
+import asyncio
 import logging
 import uuid
 from datetime import date, timedelta
@@ -127,17 +128,25 @@ class GenerateInvoicePdfSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         family_id = context.family_id
+        lang = context.language or "en"
         if not family_id:
-            return SkillResult(
-                response_text="Set up your account first to generate invoices."
-            )
+            if lang == "ru":
+                text = "Сначала настройте аккаунт для создания инвойсов."
+            elif lang == "es":
+                text = "Configure su cuenta primero para generar facturas."
+            else:
+                text = "Set up your account first to generate invoices."
+            return SkillResult(response_text=text)
 
         contact_name = intent_data.get("contact_name")
         if not contact_name:
-            return SkillResult(
-                response_text="Who should I invoice? "
-                'Try: "generate invoice PDF for Mike Chen"'
-            )
+            if lang == "ru":
+                text = 'Кому выставить инвойс? Пример: "сделай PDF инвойс для Mike Chen"'
+            elif lang == "es":
+                text = 'A quien debo facturar? Ejemplo: "generar factura PDF para Mike Chen"'
+            else:
+                text = 'Who should I invoice? Try: "generate invoice PDF for Mike Chen"'
+            return SkillResult(response_text=text)
 
         # Find contact
         contact = await self._find_contact(family_id, contact_name)
@@ -195,16 +204,14 @@ class GenerateInvoicePdfSkill:
             notes="Payment due within 30 days.",
         )
 
-        # Generate PDF with WeasyPrint
+        # Generate PDF with WeasyPrint (in thread to avoid blocking event loop)
         try:
             from weasyprint import HTML
 
-            pdf_bytes = HTML(string=html).write_pdf()
-        except Exception as e:
+            pdf_bytes = await asyncio.to_thread(HTML(string=html).write_pdf)
+        except Exception:
             logger.exception("PDF generation failed")
-            return SkillResult(
-                response_text=f"Failed to generate PDF: {e}"
-            )
+            return SkillResult(response_text="Failed to generate PDF. Please try again.")
 
         filename = f"invoice_{invoice_num}.pdf"
         return SkillResult(
