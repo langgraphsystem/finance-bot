@@ -314,9 +314,16 @@ async def _dispatch_message(
 
         if message.text:
             # Caption present → let LLM decide the intent (convert_document, scan_document, etc.)
+            # Add file context hint so intent detection knows a document is attached
+            detect_text = message.text
+            fname = message.document_file_name or ""
+            if fname:
+                detect_text = f"[Attached file: {fname}] {message.text}"
+            elif message.photo_bytes:
+                detect_text = f"[Attached photo] {message.text}"
             _detect = _get_intent_detector()
             result = await _detect(
-                text=message.text,
+                text=detect_text,
                 categories=context.categories,
                 language=context.language,
             )

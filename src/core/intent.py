@@ -289,10 +289,11 @@ epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 Извлеки template_name: название шаблона если упомянуто
 - fill_pdf_form: заполнить PDF-форму ("заполни PDF форму", "fill this PDF form", \
 "заполни W-9", "fill out this form", "llenar formulario PDF")
-- analyze_document: проанализировать документ, задать вопрос по документу \
-("проанализируй этот документ", "analyze this document", "какие риски в контракте?", \
+- analyze_document: проанализировать/изучить документ, задать вопрос по документу \
+("проанализируй этот документ", "изучи документ", "изучить", "рассмотри файл", \
+"analyze this document", "какие риски в контракте?", "что в этом документе?", \
 "what's the payment term?", "вопрос по документу", "analizar documento", \
-"analizar este documento"). \
+"analizar este documento", "посмотри документ", "разбери этот файл"). \
 Извлеки analysis_question: конкретный вопрос пользователя
 - merge_documents: объединить несколько PDF ("объедини PDF", "merge these PDFs", \
 "склей документы", "combine PDFs into one", "combinar PDFs", "unir documentos")
