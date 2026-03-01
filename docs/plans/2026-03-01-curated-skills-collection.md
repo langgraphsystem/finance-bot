@@ -2,7 +2,7 @@
 
 **Date:** 2026-03-01
 **Source:** 15+ repositories, 270K+ ecosystem, 1200+ skills reviewed
-**Result:** 214 skills selected, mapped to 13 agents + 6 planned specialists + dev workflow
+**Result:** 214 skills selected, mapped to 13 agents + 28 planned specialists (Wave 1-4) + dev workflow
 
 ---
 
@@ -465,6 +465,86 @@ curl -sL https://raw.githubusercontent.com/<org>/<repo>/main/skills/<name>/SKILL
 | **notion-knowledge-capture** | `openai` (VoltAgent) | Notion wiki entry creation | Для notes/knowledge base интеграция |
 
 **Итого Booking & CRM: 5 skills**
+
+---
+
+## 12. Full Specialist Mapping (все 28 специалистов → скиллы из экосистемы)
+
+> Полный маппинг всех 28 запланированных специалистов (Wave 1-4) к доступным скиллам.
+> Покрытие: 🟢 = прямые скиллы есть, 🟡 = есть паттерны/building blocks, 🔴 = нужно строить с нуля.
+
+### Wave 1 — Financial (DONE, 4 специалиста)
+
+| # | Specialist | Покрытие | Скиллы из экосистемы | Наш статус |
+|---|-----------|----------|---------------------|-----------|
+| 1 | **Bookkeeper** | 🟢 | Financial Analyst (alirezarezvani): DCF, budgeting, ratio analysis. analytics-tracking (antigravity): measurement index. charlie-cfo-skill (EveryInc): CFO-level finance | ✅ DONE — financial_summary skill |
+| 2 | **Invoicing** | 🟡 | payment-integration (davepoon): Stripe/PayPal/Square, PCI. stripe-best-practices (VoltAgent): billing patterns. xlsx (anthropics): financial model standards | ✅ DONE — generate_invoice skill |
+| 3 | **Tax Consultant** | 🟡 | usfiscaldata (K-Dense-AI): Treasury data, national debt, tax revenue. edgartools (K-Dense-AI): SEC filings. Senior GDPR/DSGVO Expert (alirezarezvani): EU tax compliance паттерн | ✅ DONE — tax_estimate skill |
+| 4 | **Cash Flow Forecast** | 🟡 | startup-financial-modeling (antigravity): 3-5 year projections. data-storytelling (antigravity): данные → нарратив. alpha-vantage (K-Dense-AI): real-time market data | ✅ DONE — cash_flow_forecast skill |
+
+### Wave 2 — Marketing & Sales (6 специалистов, June-July 2026)
+
+| # | Specialist | Покрытие | Скиллы из экосистемы | Кол-во |
+|---|-----------|----------|---------------------|--------|
+| 5 | **Content Creator** | 🟢 | content-creator (antigravity): brand voice, SEO optimizer, social strategy. copywriting (antigravity): 5-фаз brief→delivery. Content Creator (alirezarezvani): platform-specific frameworks. content-research-writer (ComposioHQ). creative-director-skill (smixs). storybrand-messaging (wondelai): StoryBrand framework. made-to-stick (wondelai): SUCCESs framework. contagious (wondelai): STEPPS вирусность. content-engine (affaan-m): repurposing workflows. typefully (VoltAgent): social management | **10** |
+| 6 | **Email Marketer** | 🟢 | email-marketing-bible (CosmoBlk): 55K-word guide. sales-automator (antigravity): cold email sequences 3-5 touchpoints. Marketing Demand & Acquisition (alirezarezvani): demand gen, full-funnel. predictable-revenue (wondelai): Cold Calling 2.0, outbound. hundred-million-offers (wondelai): pricing, value stacking | **5** |
+| 7 | **Google/Meta Ads** | 🟢 | competitive-ads-extractor (ComposioHQ): competitor ad analysis. marketing-ideas (antigravity): SaaS marketing MFS score. marketing-psychology (antigravity): cognitive biases → funnel. Campaign Analytics (alirezarezvani): multi-touch attribution, ROI. Social Media Analyzer (alirezarezvani): engagement metrics. scorecard-marketing (wondelai): quiz/assessment lead funnels. cro-methodology (wondelai): conversion rate optimization | **7** |
+| 8 | **Sales Outreach** | 🟢 | sales-pipeline-optimizer (aj-geddes): MEDDIC qualification, forecasting. linkedin-cli (antigravity): LinkedIn automation, Social Selling Index. Sales Engineer (alirezarezvani): solution design, RFP, demo. Revenue Operations (alirezarezvani): pipeline analytics, territory. Customer Success Manager (alirezarezvani): health scores, churn risk. predictable-revenue (wondelai): outbound sales methodology. investor-outreach (affaan-m): personalized outreach | **7** |
+| 9 | **Customer Support** | 🟡 | Customer Success Manager (alirezarezvani): onboarding playbooks, QBR templates. meeting-insights-analyzer (ComposioHQ): transcript analysis. owasp-security (BehiSecc): agentic AI security для chatbot. Нет готовых ticket routing / FAQ automation скиллов | **3** |
+| 10 | **SEO Specialist** | 🟢 | seo-audit (antigravity): weighted scoring 0-100. seo-keyword-strategist: density, LSI, voice search. seo-content-writer: E-E-A-T, Grade 8-10. seo-content-planner: topic clusters, 30-60 day calendars. seo-content-auditor: depth, originality. seo-content-refresher: stale detection. seo-meta-optimizer: URLs/titles/descriptions. seo-snippet-hunter: position zero. seo-authority-builder: E-E-A-T scorecards. seo-structure-architect: siloing, JSON-LD. seo-cannibalization-detector: keyword conflicts. programmatic-seo: scalable page gen. claude-seo (AgriciDaniel). seo-aeo-best-practices (sanity-io) | **14** |
+
+### Wave 3 — Verticals (6 специалистов, August+ 2026)
+
+| # | Specialist | Покрытие | Скиллы из экосистемы | Что нужно строить |
+|---|-----------|----------|---------------------|-------------------|
+| 11 | **Real Estate Agent** | 🟡 | local-legal-seo-audit (antigravity): Google Business, location pages, reviews. Market Research Reports (K-Dense-AI): рыночный анализ. investor-materials (affaan-m): pitch decks. Content Creator patterns для описания объектов. CRM patterns из booking agent | Нужно: MLS интеграция, виртуальный staging, lead follow-up воронка. Паттерны CRM + content + SEO дают ~40% coverage |
+| 12 | **Beauty Salon** | 🟡 | calendly-automation (antigravity): scheduling. Specialist Config Engine — УЖЕ ЕСТЬ manicure.yaml profile. Booking agent skills (9 штук). Customer Success Manager patterns для loyalty | Нужно: loyalty программы, product inventory, специфичные сервисы. Наш specialist engine + booking agent дают ~60% coverage |
+| 13 | **Contractor/Plumber** | 🟡 | Specialist Config Engine — УЖЕ ЕСТЬ construction.yaml profile. generate_invoice_pdf skill. maps_search skill для route optimization. Booking agent для scheduling | Нужно: estimate калькулятор, route optimization, job costing, materials inventory. Наш specialist engine + invoice + maps дают ~50% coverage |
+| 14 | **E-commerce/Amazon** | 🟡 | seo-* skills (14 штук): product page SEO. Campaign Analytics (alirezarezvani): ROAS, attribution. competitive-ads-extractor. pricing-strategy (antigravity): Van Westendorp, MaxDiff. startup-metrics-framework: unit economics | Нужно: Amazon API (Selling Partner), PPC ACOS tracking, inventory forecasting, product listing optimization. SEO + Ads patterns дают ~30% coverage |
+| 15 | **Voice Receptionist** | 🟡 | elevenlabs (BehiSecc): TTS + podcast. google-tts (BehiSecc): Google Cloud TTS. fal-audio (fal-ai): STT + TTS. Наш receptionist skill + specialist engine | Нужно: Twilio/Vapi voice integration, call routing IVR, hold music, voice-specific UX. TTS/STT building blocks есть, но voice pipeline нужно строить |
+| 16 | **Restaurant/Food** | 🔴 | track_food skill (наш, life agent). pricing-strategy (antigravity): ценообразование. generate_spreadsheet skill: food cost расчёты. Booking agent для бронирования столов | Нужно: menu management, order processing, food cost percentage, inventory tracking, supplier orders. Самый большой gap — нет ничего в экосистеме |
+
+### Wave 4 — Lifestyle & Niche (12 специалистов, August+ 2026)
+
+| # | Specialist | Покрытие | Скиллы из экосистемы | Что нужно строить |
+|---|-----------|----------|---------------------|-------------------|
+| 17 | **Nutritionist** | 🟡 | claude-ally-health (BehiSecc): wellness tracking, medical report analysis. NeuroKit2 (K-Dense-AI): physiological signals. track_food skill (наш). Clinical Decision Support (K-Dense-AI) | Нужно: macro/calorie database API, meal plan generator, dietary restrictions. Health skills дают ~35% coverage |
+| 18 | **Fitness Trainer** | 🟡 | claude-ally-health (BehiSecc): health tracking. Наш track_food + mood_checkin + day_plan | Нужно: exercise database API, workout program generator, progressive overload tracking, recovery metrics. ~20% coverage |
+| 19 | **Coach / Personal Growth** | 🟡 | hooked-ux (wondelai): habit formation Hook Model. jobs-to-be-done (wondelai): JTBD customer insights. Наш mood_checkin + day_plan + day_reflection + quick_capture. mom-test (wondelai): interview framework. design-sprint (wondelai): prototyping | Нужно: goal tracking, habit streaks, journaling prompts, meditation timer. Наш life agent + wondelai patterns дают ~45% coverage |
+| 20 | **Tutor** | 🟡 | tutor-skills (RoundTable02, VoltAgent): StudyVault generation. Scientific Brainstorming (K-Dense-AI): ideation. Research Grants (K-Dense-AI): academic writing. dmccreary/claude-skills: quiz-generator, Bloom's Taxonomy, learning-graph-generator | Нужно: curriculum database, adaptive difficulty, progress tracking, spaced repetition. Education skills дают ~40% coverage |
+| 21 | **Career Consultant** | 🟡 | ResumeSkills (Paramchoudhary, VoltAgent): resume + interview prep. linkedin-cli (antigravity): LinkedIn optimization. Sales Engineer (alirezarezvani): RFP/demo framework (паттерн). Content Creator: cover letters. Interview System Designer (alirezarezvani): question banks, calibration | Нужно: ATS-friendly resume templates, LinkedIn profile optimizer, salary negotiation framework. Skill patterns дают ~50% coverage |
+| 22 | **Legal Assistant** | 🟡 | legal-advisor (davepoon): privacy policies, ToS, GDPR/CCPA/LGPD. Senior GDPR/DSGVO Expert (alirezarezvani). awesome-legal-skills (lawvable, VoltAgent): legal workflow. Наш generate_document skill: contracts, NDAs | Нужно: юридическая терминология, deadline tracking, court filing templates. Legal skills + document agent дают ~55% coverage |
+| 23 | **Recruiter** | 🟡 | Interview System Designer (alirezarezvani): interview loops, hiring calibration. ResumeSkills (VoltAgent): resume parsing. linkedin-cli (antigravity): candidate search. Portfolio & Resource Manager (alirezarezvani): resource allocation | Нужно: ATS pipeline, candidate scoring, job posting templates, onboarding checklists. HR patterns дают ~40% coverage |
+| 24 | **Property Manager** | 🟡 | payment-integration (davepoon): rent collection, recurring billing. generate_invoice_pdf: monthly rent invoices. Booking agent: tenant scheduling. calendly-automation: maintenance scheduling. generate_spreadsheet: property P&L | Нужно: tenant screening, maintenance ticket system, lease management, property inspection checklists. Наши building blocks дают ~35% coverage |
+| 25 | **Travel Planner** | 🟡 | maps_search skill (наш): location search. web_search + compare_options skills (наш). Gemini Google Search Grounding: real-time travel info. price_check skill (наш): flight/hotel prices | Нужно: itinerary builder, booking aggregator API, budget tracker per trip, visa requirements. Наш research agent дают ~40% coverage |
+| 26 | **Event Planner** | 🟡 | create_task + set_reminder skills (наш). calendly-automation: scheduling. generate_spreadsheet: budget tracking. send_to_client: vendor communications. Booking agent: venue/vendor scheduling | Нужно: timeline builder, vendor database, guest list management, floor plan tools. Наш tasks + booking agents дают ~35% coverage |
+| 27 | **Pet Business** | 🔴 | Booking agent: appointment scheduling. add_contact + list_contacts: client management. set_reminder: vaccination reminders. generate_invoice_pdf: billing | Нужно: pet profile database, vaccination tracker, grooming schedule, breed-specific health alerts. Только наши generic skills, ничего в экосистеме. ~25% coverage |
+| 28 | **Auto Repair** | 🔴 | Booking agent: appointment scheduling. generate_invoice_pdf: estimates. maps_search: parts suppliers. compare_options: parts pricing | Нужно: VIN decoder API, vehicle history tracker, parts inventory, labor rate calculator, diagnostic code database. Ничего в экосистеме. ~20% coverage |
+
+---
+
+### Сводка покрытия по Waves
+
+| Wave | Специалисты | 🟢 Прямые | 🟡 Паттерны | 🔴 С нуля | Avg Coverage |
+|------|------------|----------|------------|----------|-------------|
+| **Wave 1** (DONE) | 4 | 1 | 3 | 0 | ~70% (уже реализованы) |
+| **Wave 2** (Marketing) | 6 | **5** | 1 | 0 | **~75%** — богатейшее покрытие |
+| **Wave 3** (Verticals) | 6 | 0 | **5** | 1 | ~40% — нужно строить domain logic |
+| **Wave 4** (Niche) | 12 | 0 | **9** | **3** | ~35% — building blocks + custom dev |
+| **TOTAL** | **28** | **6** | **18** | **4** | ~50% |
+
+### Ключевой вывод по специалистам
+
+**Wave 2 (Marketing & Sales) — jackpot.** 46 готовых скиллов из экосистемы покрывают ~75% функционала 6 специалистов. SEO Specialist — самый обеспеченный (14 прямых скиллов). Content Creator и Sales Outreach — по 10 и 7 скиллов соответственно.
+
+**Wave 3-4 (Verticals & Niche) — нужно строить.** Экосистема Claude Skills ориентирована на tech/development. Для бизнес-вертикалей (restaurant, auto repair, pet business) нет НИЧЕГО. Наше преимущество — **Specialist Config Engine** (`src/core/specialist.py`) + **YAML profiles** + **Booking agent** + **Document agent** дают generic building blocks для любой вертикали. Каждый новый специалист = 1 YAML profile + domain-specific API integrations.
+
+**Самые дефицитные вертикали (🔴):**
+1. Restaurant/Food — нет food cost/menu/inventory скиллов нигде
+2. Pet Business — нет pet health/grooming скиллов нигде
+3. Auto Repair — нет VIN/diagnostic/parts скиллов нигде
+
+**Возможность:** Если мы создадим эти вертикальные скиллы и опубликуем — станем единственными в экосистеме 270K+ скиллов с реальными business vertical solutions.
 
 ---
 
