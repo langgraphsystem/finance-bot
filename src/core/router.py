@@ -164,8 +164,8 @@ async def _cache_last_file(user_id: str, message: IncomingMessage) -> None:
         logger.warning("Failed to cache last file: %s", e)
 
 
-async def _pop_cached_file(user_id: str) -> dict | None:
-    """Retrieve and delete cached file data from Redis."""
+async def _get_cached_file(user_id: str) -> dict | None:
+    """Retrieve cached file data from Redis (non-destructive, TTL handles cleanup)."""
     import json
 
     try:
@@ -179,7 +179,6 @@ async def _pop_cached_file(user_id: str) -> dict | None:
         data = await redis.get(key_data)
         if not data:
             return None
-        await redis.delete(key_data, key_meta)
         meta = json.loads(meta_raw)
         return {
             "bytes": data,
@@ -188,8 +187,10 @@ async def _pop_cached_file(user_id: str) -> dict | None:
             "is_photo": meta.get("is_photo", False),
         }
     except Exception as e:
-        logger.warning("Failed to pop cached file: %s", e)
+        logger.warning("Failed to get cached file: %s", e)
         return None
+
+
 
 
 async def handle_message(
@@ -494,7 +495,11 @@ async def _dispatch_message(
         MessageType.photo,
         MessageType.document,
     ):
-        cached = await _pop_cached_file(context.user_id)
+        cached = await _get_cached_file(context.user_id)
+        if cached:
+            logger.info("Injecting cached file '%s' for %s", cached.get("name"), intent_name)
+        else:
+            logger.info("No cached file for %s (user %s)", intent_name, context.user_id)
         if cached:
             is_photo = cached["is_photo"]
             message = IncomingMessage(
