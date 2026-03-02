@@ -10,6 +10,7 @@ Flow:
 
 import json
 import logging
+import re
 import uuid
 from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
@@ -39,6 +40,9 @@ PENDING_INVOICE_TTL = 600  # 10 minutes
 
 
 class InvoiceDraftState(StrEnum):
+    collect_seller = "collect_seller"
+    collect_buyer = "collect_buyer"
+    collect_items = "collect_items"
     await_confirm = "await_confirm"
     confirmed = "confirmed"
     cancelled = "cancelled"
@@ -53,6 +57,10 @@ _STRINGS = {
             "Who should I invoice? Tell me the client name and what to include.\n"
             'Example: "invoice Mike Chen for plumbing repair $500"'
         ),
+        "need_seller_fields": "Before creating invoice, provide seller data:\n{fields}",
+        "need_buyer_fields": "Need buyer data:\n{fields}",
+        "buyer_choices": "Found multiple contacts for <b>{name}</b>:\n{options}\nSend exact name.",
+        "buyer_created": "Created new buyer contact: <b>{name}</b>.",
         "no_contact": (
             "I don't have <b>{name}</b> in your contacts. "
             'Add them first: "add contact {name}"'
@@ -61,6 +69,11 @@ _STRINGS = {
             "No items to invoice. Tell me what to include:\n"
             '• "invoice Mike for plumbing $500, parts $150"\n'
             '• "invoice Sarah for this month\'s work"'
+        ),
+        "need_item_details": (
+            "Send invoice items like:\n"
+            "• item: Plumbing repair, qty: 1, price: 500\n"
+            "• item: Pipe parts, qty: 2, price: 75"
         ),
         "preview_header": "📋 <b>Invoice Preview #{number}</b>",
         "preview_client": "Client: {name}",
@@ -104,6 +117,13 @@ _STRINGS = {
             "Кому выставить счёт? Укажи клиента и что включить.\n"
             'Пример: "инвойс для Mike Chen за ремонт $500"'
         ),
+        "need_seller_fields": "Перед созданием инвойса укажите данные продавца:\n{fields}",
+        "need_buyer_fields": "Нужны данные покупателя:\n{fields}",
+        "buyer_choices": (
+            "Найдено несколько контактов для <b>{name}</b>:\n{options}\n"
+            "Отправьте точное имя."
+        ),
+        "buyer_created": "Новый контакт покупателя создан: <b>{name}</b>.",
         "no_contact": (
             "Контакт <b>{name}</b> не найден. "
             'Сначала добавьте: "добавь контакт {name}"'
@@ -112,6 +132,11 @@ _STRINGS = {
             "Нет позиций для инвойса. Укажите что включить:\n"
             '• "инвойс Mike за ремонт $500, запчасти $150"\n'
             '• "инвойс Sarah за работу в этом месяце"'
+        ),
+        "need_item_details": (
+            "Пришлите позиции инвойса в формате:\n"
+            "• item: Ремонт, qty: 1, price: 500\n"
+            "• item: Запчасти, qty: 2, price: 75"
         ),
         "preview_header": "📋 <b>Предпросмотр инвойса #{number}</b>",
         "preview_client": "Клиент: {name}",
@@ -155,6 +180,13 @@ _STRINGS = {
             "¿A quién debo facturar? Dime el cliente y qué incluir.\n"
             'Ejemplo: "factura para Mike Chen por reparación $500"'
         ),
+        "need_seller_fields": "Antes de crear la factura, envia datos del vendedor:\n{fields}",
+        "need_buyer_fields": "Faltan datos del cliente:\n{fields}",
+        "buyer_choices": (
+            "Encontré varios contactos para <b>{name}</b>:\n{options}\n"
+            "Envia el nombre exacto."
+        ),
+        "buyer_created": "Se creó el contacto del cliente: <b>{name}</b>.",
         "no_contact": (
             "No tengo a <b>{name}</b> en tus contactos. "
             'Agrégalo primero: "agregar contacto {name}"'
@@ -163,6 +195,11 @@ _STRINGS = {
             "No hay elementos para facturar. Dime qué incluir:\n"
             '• "factura Mike por plomería $500, materiales $150"\n'
             '• "factura Sarah por el trabajo de este mes"'
+        ),
+        "need_item_details": (
+            "Envia partidas así:\n"
+            "• item: Reparación, qty: 1, price: 500\n"
+            "• item: Materiales, qty: 2, price: 75"
         ),
         "preview_header": "📋 <b>Vista previa de factura #{number}</b>",
         "preview_client": "Cliente: {name}",
@@ -348,22 +385,66 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
 # Redis pending helpers
 # ---------------------------------------------------------------------------
 async def store_pending_invoice(pending_id: str, data: dict) -> None:
-    await redis.set(
-        f"invoice_pending:{pending_id}",
-        json.dumps(data, default=str),
-        ex=PENDING_INVOICE_TTL,
-    )
+    try:
+        await redis.set(
+            f"invoice_pending:{pending_id}",
+            json.dumps(data, default=str),
+            ex=PENDING_INVOICE_TTL,
+        )
+        user_id = str(data.get("user_id", "")).strip()
+        if user_id:
+            await redis.set(f"invoice_active:{user_id}", pending_id, ex=PENDING_INVOICE_TTL)
+    except Exception:
+        logger.warning("Failed to store pending invoice in Redis", exc_info=True)
 
 
 async def get_pending_invoice(pending_id: str) -> dict | None:
-    raw = await redis.get(f"invoice_pending:{pending_id}")
-    if not raw:
+    try:
+        raw = await redis.get(f"invoice_pending:{pending_id}")
+        if not raw:
+            return None
+        return json.loads(raw)
+    except Exception:
+        logger.warning("Failed to load pending invoice from Redis", exc_info=True)
         return None
-    return json.loads(raw)
 
 
-async def delete_pending_invoice(pending_id: str) -> None:
-    await redis.delete(f"invoice_pending:{pending_id}")
+async def get_active_pending_invoice_id(user_id: str) -> str | None:
+    try:
+        return await redis.get(f"invoice_active:{user_id}")
+    except Exception:
+        logger.warning("Failed to load active invoice draft id from Redis", exc_info=True)
+        return None
+
+
+async def get_active_pending_invoice(user_id: str) -> dict | None:
+    pending_id = await get_active_pending_invoice_id(user_id)
+    if not pending_id:
+        return None
+    data = await get_pending_invoice(pending_id)
+    if not data:
+        try:
+            await redis.delete(f"invoice_active:{user_id}")
+        except Exception:
+            logger.warning("Failed to clear stale active invoice pointer", exc_info=True)
+        return None
+    return data
+
+
+async def delete_pending_invoice(pending_id: str, user_id: str | None = None) -> None:
+    try:
+        if user_id is None:
+            existing = await get_pending_invoice(pending_id)
+            if existing:
+                user_id = str(existing.get("user_id", "")).strip() or None
+        await redis.delete(f"invoice_pending:{pending_id}")
+        if user_id:
+            active_key = f"invoice_active:{user_id}"
+            active_pid = await redis.get(active_key)
+            if active_pid == pending_id:
+                await redis.delete(active_key)
+    except Exception:
+        logger.warning("Failed to delete pending invoice from Redis", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -454,6 +535,144 @@ def is_pending_invoice_owner(invoice_data: dict[str, Any], context: SessionConte
     )
 
 
+def _extract_fsm_hints_from_text(text: str) -> dict[str, Any]:
+    """Parse explicit key:value hints from follow-up messages in draft workflow."""
+    hints: dict[str, Any] = {}
+    if not text:
+        return hints
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    item_rows: list[dict[str, Any]] = []
+    email_re = re.compile(r"[\w.\-+]+@[\w.\-]+\.\w+")
+    phone_re = re.compile(r"\+?[0-9][0-9\-\s()]{6,}")
+    for line in lines:
+        if ":" not in line:
+            # Fallback: detect email/phone anywhere in line
+            email_match = email_re.search(line)
+            if email_match and "contact_email" not in hints:
+                hints["contact_email"] = email_match.group(0)
+            phone_match = phone_re.search(line)
+            if phone_match and "contact_phone" not in hints:
+                hints["contact_phone"] = phone_match.group(0).strip()
+            continue
+
+        key, value = line.split(":", 1)
+        key = key.strip().lower().replace(" ", "_")
+        value = value.strip()
+        if not value:
+            continue
+
+        if key in {"company", "company_name"}:
+            hints["company_name"] = value
+        elif key in {"company_address", "seller_address", "address"}:
+            hints["company_address"] = value
+        elif key in {"seller_state", "state"}:
+            hints["seller_state"] = value.upper()
+        elif key in {"buyer", "buyer_name", "contact_name", "client"}:
+            hints["contact_name"] = value
+        elif key in {"buyer_email", "client_email", "contact_email", "email"}:
+            hints["contact_email"] = value
+        elif key in {"buyer_phone", "client_phone", "contact_phone", "phone"}:
+            hints["contact_phone"] = value
+        elif key in {"buyer_address", "buyer_address_line1"}:
+            hints["buyer_address_line1"] = value
+        elif key in {"buyer_city", "city"}:
+            hints["buyer_city"] = value
+        elif key in {"buyer_state"}:
+            hints["buyer_state"] = value.upper()
+        elif key in {"buyer_zip", "buyer_postal_code", "zip", "postal"}:
+            hints["buyer_postal_code"] = value
+        elif key in {"buyer_country", "country"}:
+            hints["buyer_country"] = value.upper()
+        elif key in {"due_days", "net", "invoice_due_days"}:
+            hints["invoice_due_days"] = value
+        elif key in {"note", "notes", "invoice_notes"}:
+            hints["invoice_notes"] = value
+        elif key in {"sales_tax", "requires_sales_tax"}:
+            hints["requires_sales_tax"] = value.lower() in {"1", "true", "yes", "y", "да"}
+        elif key in {"item", "line", "line_item"}:
+            # Format: item: Description, qty: 2, price: 99.5
+            parts = [p.strip() for p in value.split(",") if p.strip()]
+            row: dict[str, Any] = {"description": parts[0] if parts else value}
+            for p in parts[1:]:
+                if ":" not in p:
+                    continue
+                k2, v2 = p.split(":", 1)
+                k2 = k2.strip().lower()
+                v2 = v2.strip()
+                if k2 in {"qty", "quantity"}:
+                    row["quantity"] = v2
+                elif k2 in {"price", "unit_price", "amount"}:
+                    row["unit_price"] = v2
+            item_rows.append(row)
+
+    if item_rows:
+        hints["invoice_items"] = item_rows
+    return hints
+
+
+def _field_label(field: str, lang: str) -> str:
+    labels = {
+        "en": {
+            "company_name": "company_name",
+            "company_address": "company_address",
+            "seller_state": "seller_state (US state code)",
+            "contact_name": "buyer_name",
+            "contact_email": "buyer_email",
+            "contact_phone": "buyer_phone",
+            "buyer_address_line1": "buyer_address",
+            "buyer_city": "buyer_city",
+            "buyer_state": "buyer_state",
+            "buyer_postal_code": "buyer_zip",
+        },
+        "ru": {
+            "company_name": "company_name (название компании)",
+            "company_address": "company_address (адрес продавца)",
+            "seller_state": "seller_state (штат продавца)",
+            "contact_name": "buyer_name (имя покупателя)",
+            "contact_email": "buyer_email",
+            "contact_phone": "buyer_phone",
+            "buyer_address_line1": "buyer_address",
+            "buyer_city": "buyer_city",
+            "buyer_state": "buyer_state",
+            "buyer_postal_code": "buyer_zip",
+        },
+        "es": {
+            "company_name": "company_name",
+            "company_address": "company_address",
+            "seller_state": "seller_state (estado del vendedor)",
+            "contact_name": "buyer_name",
+            "contact_email": "buyer_email",
+            "contact_phone": "buyer_phone",
+            "buyer_address_line1": "buyer_address",
+            "buyer_city": "buyer_city",
+            "buyer_state": "buyer_state",
+            "buyer_postal_code": "buyer_zip",
+        },
+    }
+    return labels.get(lang, labels["en"]).get(field, field)
+
+
+def _format_missing_fields(fields: list[str], lang: str) -> str:
+    return "\n".join(f"• <code>{_field_label(field, lang)}: ...</code>" for field in fields)
+
+
+def _resolve_contact_name_from_candidates(
+    text: str,
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    lowered = text.strip().lower()
+    if not lowered:
+        return None
+    if lowered.isdigit():
+        idx = int(lowered) - 1
+        if 0 <= idx < len(candidates):
+            return candidates[idx]
+    for candidate in candidates:
+        if candidate["name"].strip().lower() == lowered:
+            return candidate
+    return None
+
+
 async def _parse_invoice_request(
     text: str, currency: str,
 ) -> dict:
@@ -485,8 +704,8 @@ async def _parse_invoice_request(
         return {"contact_name": None, "items": [], "due_days": 30, "notes": None}
 
 
-async def _find_contact(family_id: str, name: str) -> dict[str, Any] | None:
-    """Find contact by name (fuzzy word match)."""
+async def _find_contacts(family_id: str, name: str, limit: int = 5) -> list[dict[str, Any]]:
+    """Find contacts by fuzzy name match."""
     async with async_session() as session:
         words = split_search_words(name)
         name_filter = (
@@ -495,16 +714,62 @@ async def _find_contact(family_id: str, name: str) -> dict[str, Any] | None:
         stmt = (
             select(Contact)
             .where(Contact.family_id == uuid.UUID(family_id), name_filter)
-            .limit(1)
+            .order_by(Contact.name.asc())
+            .limit(limit)
         )
-        result = await session.scalar(stmt)
-        if not result:
+        rows = (await session.scalars(stmt)).all()
+        return [
+            {
+                "id": str(r.id),
+                "name": r.name,
+                "email": r.email,
+                "phone": r.phone,
+            }
+            for r in rows
+        ]
+
+
+async def _find_contact_by_id(family_id: str, contact_id: str) -> dict[str, Any] | None:
+    async with async_session() as session:
+        stmt = select(Contact).where(
+            Contact.family_id == uuid.UUID(family_id),
+            Contact.id == uuid.UUID(contact_id),
+        )
+        row = await session.scalar(stmt)
+        if not row:
             return None
         return {
-            "id": str(result.id),
-            "name": result.name,
-            "email": result.email,
-            "phone": result.phone,
+            "id": str(row.id),
+            "name": row.name,
+            "email": row.email,
+            "phone": row.phone,
+        }
+
+
+async def _create_contact(
+    *,
+    family_id: str,
+    user_id: str,
+    name: str,
+    email: str | None,
+    phone: str | None,
+) -> dict[str, Any]:
+    async with async_session() as session:
+        row = Contact(
+            id=uuid.uuid4(),
+            family_id=uuid.UUID(family_id),
+            user_id=uuid.UUID(user_id),
+            name=name,
+            email=email or None,
+            phone=phone or None,
+        )
+        session.add(row)
+        await session.commit()
+        return {
+            "id": str(row.id),
+            "name": row.name,
+            "email": row.email,
+            "phone": row.phone,
         }
 
 
@@ -649,99 +914,454 @@ class GenerateInvoiceSkill:
         if not family_id:
             return SkillResult(response_text=t(_STRINGS, "no_account", lang))
 
-        currency = context.currency or "USD"
-        symbol = _currency_symbol(currency)
         user_text = message.text or ""
-        requires_sales_tax = _requires_sales_tax(context, intent_data)
-        seller_state = _extract_seller_state(context, intent_data)
+        hints = _extract_fsm_hints_from_text(user_text)
+        merged = {**intent_data, **hints}
 
-        # Company info snapshot (kept stable in invoice records)
+        active_draft = await get_active_pending_invoice(context.user_id)
+        if active_draft and user_text.strip().lower() in {"cancel", "отмена", "cancel invoice"}:
+            pending_id = active_draft.get("pending_id")
+            if pending_id:
+                await delete_pending_invoice(pending_id, user_id=context.user_id)
+            return SkillResult(response_text=t(_STRINGS, "cancelled", lang))
+        if (
+            active_draft
+            and active_draft.get("draft_state") == InvoiceDraftState.await_confirm.value
+            and (merged.get("contact_name") or merged.get("invoice_items"))
+        ):
+            await delete_pending_invoice(
+                active_draft.get("pending_id", ""),
+                user_id=context.user_id,
+            )
+            active_draft = None
+
+        draft = active_draft or {}
+        pending_id = draft.get("pending_id") or uuid.uuid4().hex[:8]
+
+        currency = str(
+            merged.get("currency") or draft.get("currency") or context.currency or "USD"
+        ).upper()
+        symbol = _currency_symbol(currency)
+        due_days = _parse_due_days(
+            merged.get("invoice_due_days", draft.get("due_days", 30)),
+            default=30,
+        )
+        notes = str(merged.get("invoice_notes") or draft.get("notes") or "").strip() or None
+
+        requires_sales_tax = bool(
+            merged.get("requires_sales_tax")
+            if merged.get("requires_sales_tax") is not None
+            else draft.get("requires_sales_tax")
+            if draft.get("requires_sales_tax") is not None
+            else _requires_sales_tax(context, merged)
+        )
+
         profile = context.profile_config
-        company_name = (
-            getattr(profile, "business_name", None)
+        company_name = str(
+            merged.get("company_name")
+            or draft.get("company_name")
+            or getattr(profile, "business_name", None)
             or getattr(profile, "name", None)
             or context.user_profile.get("display_name")
-            or "My Business"
-        )
-        company_address = (
-            getattr(profile, "address", None) or context.user_profile.get("company_address") or ""
-        )
-        company_phone = (
-            getattr(profile, "phone", None) or context.user_profile.get("phone") or ""
-        )
+            or ""
+        ).strip()
+        company_address = str(
+            merged.get("company_address")
+            or draft.get("company_address")
+            or getattr(profile, "address", None)
+            or context.user_profile.get("company_address")
+            or ""
+        ).strip()
+        company_phone = str(
+            merged.get("company_phone")
+            or draft.get("company_phone")
+            or getattr(profile, "phone", None)
+            or context.user_profile.get("phone")
+            or ""
+        ).strip()
+        seller_state = str(
+            merged.get("seller_state")
+            or draft.get("seller_state")
+            or _extract_seller_state(context, merged)
+            or ""
+        ).upper().strip()
 
-        # Buyer address fields for US sales-tax (required only when tax is enabled)
-        buyer_line1 = str(intent_data.get("buyer_address_line1") or "").strip()
-        buyer_city = str(intent_data.get("buyer_city") or "").strip()
-        buyer_state = str(intent_data.get("buyer_state") or "").strip().upper()
-        buyer_postal_code = str(intent_data.get("buyer_postal_code") or "").strip()
-        buyer_country = str(intent_data.get("buyer_country") or "US").strip().upper()
-        if requires_sales_tax and (not seller_state or not buyer_state or not buyer_postal_code):
-            return SkillResult(response_text=t(_STRINGS, "tax_missing_address", lang))
+        contact_name = str(merged.get("contact_name") or draft.get("contact_name") or "").strip()
+        contact_email = str(merged.get("contact_email") or draft.get("contact_email") or "").strip()
+        contact_phone = str(merged.get("contact_phone") or draft.get("contact_phone") or "").strip()
+        buyer_line1 = str(
+            merged.get("buyer_address_line1") or draft.get("buyer_address_line1") or ""
+        ).strip()
+        buyer_city = str(merged.get("buyer_city") or draft.get("buyer_city") or "").strip()
+        buyer_state = str(
+            merged.get("buyer_state") or draft.get("buyer_state") or ""
+        ).strip().upper()
+        buyer_postal_code = str(
+            merged.get("buyer_postal_code") or draft.get("buyer_postal_code") or ""
+        ).strip()
+        buyer_country = str(
+            merged.get("buyer_country") or draft.get("buyer_country") or "US"
+        ).strip().upper()
 
-        # 1. Get contact name from intent or LLM extraction
-        contact_name = intent_data.get("contact_name")
-        parsed_items: list[dict] = []
-        due_days = _parse_due_days(intent_data.get("invoice_due_days"), default=30)
-        notes = intent_data.get("invoice_notes")
+        # Parse item hints / LLM extraction for current message
+        raw_items: list[dict[str, Any]] = []
+        if isinstance(draft.get("raw_items"), list):
+            raw_items = list(draft["raw_items"])
+        if isinstance(merged.get("invoice_items"), list):
+            raw_items = merged["invoice_items"]
 
-        # Try LLM extraction if we have user text with potential items
         if user_text and len(user_text) > 10:
             parsed = await _parse_invoice_request(user_text, currency)
             if not contact_name and parsed.get("contact_name"):
-                contact_name = parsed["contact_name"]
-            if parsed.get("items"):
-                parsed_items = parsed["items"]
+                contact_name = str(parsed["contact_name"]).strip()
+            if parsed.get("items") and not merged.get("invoice_items"):
+                raw_items = parsed["items"]
             if parsed.get("due_days"):
                 due_days = _parse_due_days(parsed["due_days"], default=due_days)
             if parsed.get("notes") and not notes:
-                notes = parsed["notes"]
+                notes = str(parsed["notes"]).strip() or None
 
-        # Also check intent_data for pre-extracted items
-        if intent_data.get("invoice_items"):
-            parsed_items = intent_data["invoice_items"]
-
-        if not contact_name:
-            return SkillResult(response_text=t(_STRINGS, "ask_who", lang))
-
-        # 2. Resolve contact from DB
-        contact = await _find_contact(family_id, contact_name)
-        if not contact:
+        # Seller validation stage
+        missing_seller_fields: list[str] = []
+        if not company_name:
+            missing_seller_fields.append("company_name")
+        if not company_address:
+            missing_seller_fields.append("company_address")
+        if requires_sales_tax and not seller_state:
+            missing_seller_fields.append("seller_state")
+        if missing_seller_fields:
+            draft_data = {
+                **draft,
+                "pending_id": pending_id,
+                "family_id": family_id,
+                "user_id": context.user_id,
+                "draft_state": InvoiceDraftState.collect_seller.value,
+                "contact_name": contact_name or None,
+                "contact_email": contact_email or None,
+                "contact_phone": contact_phone or None,
+                "company_name": company_name or None,
+                "company_address": company_address or None,
+                "company_phone": company_phone or None,
+                "seller_state": seller_state or None,
+                "requires_sales_tax": requires_sales_tax,
+                "due_days": due_days,
+                "notes": notes,
+                "currency": currency,
+                "currency_symbol": symbol,
+                "invoice_tax_category": str(
+                    merged.get("invoice_tax_category")
+                    or draft.get("invoice_tax_category")
+                    or "general"
+                ),
+                "invoice_tax_category_code": str(
+                    merged.get("invoice_tax_category_code")
+                    or draft.get("invoice_tax_category_code")
+                    or ""
+                ),
+                "buyer_address_line1": buyer_line1 or None,
+                "buyer_city": buyer_city or None,
+                "buyer_state": buyer_state or None,
+                "buyer_postal_code": buyer_postal_code or None,
+                "buyer_country": buyer_country,
+                "raw_items": raw_items,
+                "missing_seller_fields": missing_seller_fields,
+            }
+            await store_pending_invoice(pending_id, draft_data)
             return SkillResult(
-                response_text=t(_STRINGS, "no_contact", lang, name=contact_name)
+                response_text=t(
+                    _STRINGS,
+                    "need_seller_fields",
+                    lang,
+                    fields=_format_missing_fields(missing_seller_fields, lang),
+                )
             )
 
-        # 3. Build line items
-        items: list[dict] = []
+        # Buyer resolution stage
+        contact: dict[str, Any] | None = None
+        created_notice = ""
+        buyer_candidates = (
+            draft.get("buyer_candidates")
+            if isinstance(draft.get("buyer_candidates"), list)
+            else []
+        )
+        if buyer_candidates and user_text:
+            chosen = _resolve_contact_name_from_candidates(user_text, buyer_candidates)
+            if chosen:
+                contact = chosen
+                contact_name = chosen["name"]
 
-        # a) From parsed user text
-        items.extend(_normalize_invoice_items(parsed_items))
+        if not contact and draft.get("contact_id"):
+            contact = await _find_contact_by_id(family_id, draft["contact_id"])
 
-        # b) From DB transactions (only if no explicit items)
+        if not contact and contact_name:
+            candidates = await _find_contacts(family_id, contact_name)
+            if len(candidates) == 1:
+                contact = candidates[0]
+            elif len(candidates) > 1:
+                exact = _resolve_contact_name_from_candidates(contact_name, candidates)
+                if exact:
+                    contact = exact
+                else:
+                    options = "\n".join(f"{i + 1}. {c['name']}" for i, c in enumerate(candidates))
+                    draft_data = {
+                        **draft,
+                        "pending_id": pending_id,
+                        "family_id": family_id,
+                        "user_id": context.user_id,
+                        "draft_state": InvoiceDraftState.collect_buyer.value,
+                        "contact_name": contact_name,
+                        "contact_email": contact_email or None,
+                        "contact_phone": contact_phone or None,
+                        "company_name": company_name,
+                        "company_address": company_address,
+                        "company_phone": company_phone or None,
+                        "seller_state": seller_state,
+                        "requires_sales_tax": requires_sales_tax,
+                        "due_days": due_days,
+                        "notes": notes,
+                        "currency": currency,
+                        "currency_symbol": symbol,
+                        "invoice_tax_category": str(
+                            merged.get("invoice_tax_category")
+                            or draft.get("invoice_tax_category")
+                            or "general"
+                        ),
+                        "invoice_tax_category_code": str(
+                            merged.get("invoice_tax_category_code")
+                            or draft.get("invoice_tax_category_code")
+                            or ""
+                        ),
+                        "buyer_address_line1": buyer_line1 or None,
+                        "buyer_city": buyer_city or None,
+                        "buyer_state": buyer_state or None,
+                        "buyer_postal_code": buyer_postal_code or None,
+                        "buyer_country": buyer_country,
+                        "raw_items": raw_items,
+                        "buyer_candidates": candidates,
+                    }
+                    await store_pending_invoice(pending_id, draft_data)
+                    return SkillResult(
+                        response_text=t(
+                            _STRINGS,
+                            "buyer_choices",
+                            lang,
+                            name=contact_name,
+                            options=options,
+                        )
+                    )
+            elif contact_email or contact_phone:
+                contact = await _create_contact(
+                    family_id=family_id,
+                    user_id=context.user_id,
+                    name=contact_name,
+                    email=contact_email or None,
+                    phone=contact_phone or None,
+                )
+                created_notice = t(_STRINGS, "buyer_created", lang, name=contact["name"])
+
+        if not contact:
+            if not contact_name:
+                if draft:
+                    draft_data = {
+                        **draft,
+                        "pending_id": pending_id,
+                        "family_id": family_id,
+                        "user_id": context.user_id,
+                        "draft_state": InvoiceDraftState.collect_buyer.value,
+                        "company_name": company_name,
+                        "company_address": company_address,
+                        "company_phone": company_phone or None,
+                        "seller_state": seller_state,
+                        "requires_sales_tax": requires_sales_tax,
+                        "due_days": due_days,
+                        "notes": notes,
+                        "currency": currency,
+                        "currency_symbol": symbol,
+                        "raw_items": raw_items,
+                    }
+                    await store_pending_invoice(pending_id, draft_data)
+                return SkillResult(response_text=t(_STRINGS, "ask_who", lang))
+
+            missing_buyer_fields = []
+            if not contact_name:
+                missing_buyer_fields.append("contact_name")
+            if not contact_email:
+                missing_buyer_fields.append("contact_email")
+            if not contact_phone:
+                missing_buyer_fields.append("contact_phone")
+            draft_data = {
+                **draft,
+                "pending_id": pending_id,
+                "family_id": family_id,
+                "user_id": context.user_id,
+                "draft_state": InvoiceDraftState.collect_buyer.value,
+                "contact_name": contact_name,
+                "contact_email": contact_email or None,
+                "contact_phone": contact_phone or None,
+                "company_name": company_name,
+                "company_address": company_address,
+                "company_phone": company_phone or None,
+                "seller_state": seller_state,
+                "requires_sales_tax": requires_sales_tax,
+                "due_days": due_days,
+                "notes": notes,
+                "currency": currency,
+                "currency_symbol": symbol,
+                "invoice_tax_category": str(
+                    merged.get("invoice_tax_category")
+                    or draft.get("invoice_tax_category")
+                    or "general"
+                ),
+                "invoice_tax_category_code": str(
+                    merged.get("invoice_tax_category_code")
+                    or draft.get("invoice_tax_category_code")
+                    or ""
+                ),
+                "buyer_address_line1": buyer_line1 or None,
+                "buyer_city": buyer_city or None,
+                "buyer_state": buyer_state or None,
+                "buyer_postal_code": buyer_postal_code or None,
+                "buyer_country": buyer_country,
+                "raw_items": raw_items,
+                "missing_buyer_fields": missing_buyer_fields,
+            }
+            await store_pending_invoice(pending_id, draft_data)
+            return SkillResult(
+                response_text=t(
+                    _STRINGS,
+                    "need_buyer_fields",
+                    lang,
+                    fields=_format_missing_fields(missing_buyer_fields, lang),
+                )
+            )
+
+        # Buyer completeness for sales-tax flow
+        missing_buyer_fields: list[str] = []
+        if requires_sales_tax:
+            if not buyer_line1:
+                missing_buyer_fields.append("buyer_address_line1")
+            if not buyer_city:
+                missing_buyer_fields.append("buyer_city")
+            if not buyer_state:
+                missing_buyer_fields.append("buyer_state")
+            if not buyer_postal_code:
+                missing_buyer_fields.append("buyer_postal_code")
+        if missing_buyer_fields:
+            draft_data = {
+                **draft,
+                "pending_id": pending_id,
+                "family_id": family_id,
+                "user_id": context.user_id,
+                "draft_state": InvoiceDraftState.collect_buyer.value,
+                "contact_id": contact["id"],
+                "contact_name": contact["name"],
+                "contact_email": contact.get("email") or contact_email or None,
+                "contact_phone": contact.get("phone") or contact_phone or None,
+                "company_name": company_name,
+                "company_address": company_address,
+                "company_phone": company_phone or None,
+                "seller_state": seller_state,
+                "requires_sales_tax": requires_sales_tax,
+                "due_days": due_days,
+                "notes": notes,
+                "currency": currency,
+                "currency_symbol": symbol,
+                "invoice_tax_category": str(
+                    merged.get("invoice_tax_category")
+                    or draft.get("invoice_tax_category")
+                    or "general"
+                ),
+                "invoice_tax_category_code": str(
+                    merged.get("invoice_tax_category_code")
+                    or draft.get("invoice_tax_category_code")
+                    or ""
+                ),
+                "buyer_address_line1": buyer_line1 or None,
+                "buyer_city": buyer_city or None,
+                "buyer_state": buyer_state or None,
+                "buyer_postal_code": buyer_postal_code or None,
+                "buyer_country": buyer_country,
+                "raw_items": raw_items,
+                "missing_buyer_fields": missing_buyer_fields,
+            }
+            await store_pending_invoice(pending_id, draft_data)
+            return SkillResult(
+                response_text=t(
+                    _STRINGS,
+                    "need_buyer_fields",
+                    lang,
+                    fields=_format_missing_fields(missing_buyer_fields, lang),
+                )
+            )
+
+        # Items stage
+        items = _normalize_invoice_items(raw_items)
         if not items:
             tx_items = await _pull_contact_transactions(
                 family_id,
                 contact,
-                date_from=intent_data.get("date_from"),
-                date_to=intent_data.get("date_to"),
+                date_from=merged.get("date_from") or draft.get("date_from"),
+                date_to=merged.get("date_to") or draft.get("date_to"),
             )
             items = tx_items
-
-        # 4. If still nothing — ask for info
         if not items:
-            return SkillResult(response_text=t(_STRINGS, "no_items", lang))
+            draft_data = {
+                **draft,
+                "pending_id": pending_id,
+                "family_id": family_id,
+                "user_id": context.user_id,
+                "draft_state": InvoiceDraftState.collect_items.value,
+                "contact_id": contact["id"],
+                "contact_name": contact["name"],
+                "contact_email": contact.get("email") or contact_email or None,
+                "contact_phone": contact.get("phone") or contact_phone or None,
+                "company_name": company_name,
+                "company_address": company_address,
+                "company_phone": company_phone or None,
+                "seller_state": seller_state,
+                "requires_sales_tax": requires_sales_tax,
+                "due_days": due_days,
+                "notes": notes,
+                "currency": currency,
+                "currency_symbol": symbol,
+                "invoice_tax_category": str(
+                    merged.get("invoice_tax_category")
+                    or draft.get("invoice_tax_category")
+                    or "general"
+                ),
+                "invoice_tax_category_code": str(
+                    merged.get("invoice_tax_category_code")
+                    or draft.get("invoice_tax_category_code")
+                    or ""
+                ),
+                "buyer_address_line1": buyer_line1 or None,
+                "buyer_city": buyer_city or None,
+                "buyer_state": buyer_state or None,
+                "buyer_postal_code": buyer_postal_code or None,
+                "buyer_country": buyer_country,
+                "raw_items": raw_items,
+            }
+            await store_pending_invoice(pending_id, draft_data)
+            return SkillResult(
+                response_text=(
+                    t(_STRINGS, "no_items", lang)
+                    + "\n\n"
+                    + t(_STRINGS, "need_item_details", lang)
+                )
+            )
 
-        # 5. Build invoice data
         today = date.today()
         due = today + timedelta(days=due_days)
-        invoice_number = _generate_invoice_number()
+        invoice_number = draft.get("invoice_number") or _generate_invoice_number()
         subtotal = sum(_parse_money(item.get("amount")) for item in items)
         total = float(subtotal)
 
         invoice_data = {
+            "pending_id": pending_id,
             "family_id": family_id,
             "user_id": context.user_id,
             "contact_id": contact["id"],
+            "contact_name": contact["name"],
             "invoice_number": invoice_number,
             "invoice_date": today.isoformat(),
             "due_date": due.strftime("%B %d, %Y"),
@@ -755,16 +1375,26 @@ class GenerateInvoiceSkill:
             "tax_jurisdiction": None,
             "total": total,
             "items": items,
+            "raw_items": raw_items,
             "notes": notes,
+            "due_days": due_days,
             "company_name": company_name,
             "company_address": company_address,
             "company_phone": company_phone,
             "client_name": contact["name"],
-            "client_email": contact.get("email"),
-            "client_phone": contact.get("phone"),
+            "client_email": contact.get("email") or contact_email,
+            "client_phone": contact.get("phone") or contact_phone,
             "requires_sales_tax": requires_sales_tax,
-            "invoice_tax_category": str(intent_data.get("invoice_tax_category") or "general"),
-            "invoice_tax_category_code": str(intent_data.get("invoice_tax_category_code") or ""),
+            "invoice_tax_category": str(
+                merged.get("invoice_tax_category")
+                or draft.get("invoice_tax_category")
+                or "general"
+            ),
+            "invoice_tax_category_code": str(
+                merged.get("invoice_tax_category_code")
+                or draft.get("invoice_tax_category_code")
+                or ""
+            ),
             "seller_state": seller_state,
             "buyer_address_line1": buyer_line1,
             "buyer_city": buyer_city,
@@ -773,12 +1403,11 @@ class GenerateInvoiceSkill:
             "buyer_country": buyer_country,
             "draft_state": InvoiceDraftState.await_confirm.value,
         }
-
-        # 6. Store in Redis, show preview with confirm/edit/cancel buttons
-        pending_id = uuid.uuid4().hex[:8]
         await store_pending_invoice(pending_id, invoice_data)
 
         preview_text = _format_preview(invoice_data, lang)
+        if created_notice:
+            preview_text = created_notice + "\n\n" + preview_text
         return SkillResult(
             response_text=preview_text,
             buttons=[

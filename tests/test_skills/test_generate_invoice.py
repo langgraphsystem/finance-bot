@@ -3,6 +3,7 @@
 import json
 import uuid
 from datetime import date, timedelta
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.context import SessionContext
@@ -10,6 +11,7 @@ from src.gateway.types import IncomingMessage, MessageType
 from src.skills.generate_invoice.handler import (
     _format_preview,
     _generate_invoice_number,
+    _resolve_contact_name_from_candidates,
     delete_pending_invoice,
     get_pending_invoice,
     is_pending_invoice_owner,
@@ -32,8 +34,16 @@ def _make_message(text: str) -> IncomingMessage:
 
 
 def _make_context(
-    lang="en", currency="USD", family_id=None, business_type="plumber",
+    lang="en", currency="USD", family_id=None, business_type="plumber", with_profile=True,
 ) -> SessionContext:
+    profile = None
+    if with_profile:
+        profile = SimpleNamespace(
+            business_name="Test Seller LLC",
+            address="10 Market Street",
+            phone="555-0000",
+            tax={},
+        )
     return SessionContext(
         user_id=str(uuid.uuid4()),
         family_id=family_id or str(uuid.uuid4()),
@@ -43,6 +53,7 @@ def _make_context(
         business_type=business_type,
         categories=[],
         merchant_mappings=[],
+        profile_config=profile,
     )
 
 
@@ -80,6 +91,8 @@ def _mock_async_session(scalar_value=_UNSET, scalars_list=None):
     mock_sess = AsyncMock()
     if scalar_value is not _UNSET:
         mock_sess.scalar = AsyncMock(return_value=scalar_value)
+    if scalars_list is None and scalar_value is not _UNSET:
+        scalars_list = [scalar_value] if scalar_value is not None else []
     if scalars_list is not None:
         mock_scalars = MagicMock()
         mock_scalars.all.return_value = scalars_list
@@ -160,7 +173,8 @@ async def test_contact_not_found():
     ):
         result = await skill.execute(msg, ctx, intent_data)
 
-    assert "John Doe" in result.response_text
+    text_lower = result.response_text.lower()
+    assert "buyer" in text_lower or "покупател" in text_lower
 
 
 # ---------------------------------------------------------------------------
@@ -658,3 +672,135 @@ async def test_pending_invoice_owner_check():
     payload = {"user_id": ctx.user_id, "family_id": ctx.family_id}
     assert is_pending_invoice_owner(payload, ctx) is True
     assert is_pending_invoice_owner({"user_id": "x", "family_id": ctx.family_id}, ctx) is False
+
+
+async def test_fsm_collects_missing_seller_fields():
+    ctx = _make_context(with_profile=False)
+    msg = _make_message("invoice Mike for work $100")
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [{"description": "Work", "quantity": 1, "unit_price": 100.0}],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(msg, ctx, {"requires_sales_tax": True})
+
+    assert "seller" in result.response_text.lower() or "продав" in result.response_text.lower()
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "collect_seller"
+    assert "company_name" in stored["missing_seller_fields"]
+    assert "company_address" in stored["missing_seller_fields"]
+    assert "seller_state" in stored["missing_seller_fields"]
+
+
+async def test_fsm_creates_new_buyer_when_contact_missing_and_details_provided():
+    ctx = _make_context()
+    msg = _make_message("invoice New Buyer for work $100")
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "New Buyer",
+                "items": [{"description": "Work", "quantity": 1, "unit_price": 100.0}],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._find_contacts",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._create_contact",
+            new_callable=AsyncMock,
+            return_value={
+                "id": str(uuid.uuid4()),
+                "name": "New Buyer",
+                "email": "buyer@test.com",
+                "phone": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(
+            msg,
+            ctx,
+            {
+                "company_name": "Seller Inc",
+                "company_address": "1 Main St",
+                "contact_email": "buyer@test.com",
+            },
+        )
+
+    response = result.response_text.lower()
+    assert "new buyer" in response or "buyer contact" in response
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "await_confirm"
+    assert stored["contact_name"] == "New Buyer"
+
+
+async def test_fsm_requires_buyer_tax_address_when_sales_tax_enabled():
+    ctx = _make_context()
+    msg = _make_message("invoice Mike for service $200")
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [{"description": "Service", "quantity": 1, "unit_price": 200.0}],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._find_contacts",
+            new_callable=AsyncMock,
+            return_value=[{"id": str(uuid.uuid4()), "name": "Mike", "email": None, "phone": None}],
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(
+            msg,
+            ctx,
+            {
+                "requires_sales_tax": True,
+                "seller_state": "NY",
+                "company_name": "Seller Inc",
+                "company_address": "1 Main St",
+            },
+        )
+
+    assert "buyer" in result.response_text.lower() or "покупател" in result.response_text.lower()
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "collect_buyer"
+    assert "buyer_state" in stored["missing_buyer_fields"]
+    assert "buyer_postal_code" in stored["missing_buyer_fields"]
+
+
+async def test_contact_candidate_resolution_supports_numeric_choice():
+    candidates = [
+        {"id": "1", "name": "Mike Chen", "email": None, "phone": None},
+        {"id": "2", "name": "Michael Scott", "email": None, "phone": None},
+    ]
+    resolved = _resolve_contact_name_from_candidates("2", candidates)
+    assert resolved is not None
+    assert resolved["name"] == "Michael Scott"
