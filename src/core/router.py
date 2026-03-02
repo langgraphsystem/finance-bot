@@ -1577,37 +1577,75 @@ async def _handle_callback(
         return await _save_scanned_document(pending_id, message, context)
 
     elif action == "receipt_confirm":
-        # Create a Transaction from the receipt data
-        merchant = parts[1] if len(parts) > 1 else "Unknown"
-        total = Decimal(parts[2]) if len(parts) > 2 else Decimal("0")
-        try:
-            async with async_session() as session:
-                # Pick the first available category for the family as default
-                from src.core.models.category import Category
+        # Load full receipt data from Redis pending store
+        pending_id = parts[1] if len(parts) > 1 else ""
+        from src.skills.scan_receipt.handler import (
+            delete_pending_receipt,
+            get_pending_receipt,
+        )
 
-                cat_result = await session.execute(
-                    select(Category)
-                    .where(Category.family_id == uuid.UUID(context.family_id))
-                    .limit(1)
-                )
-                category = cat_result.scalar_one_or_none()
-                category_id = category.id if category else uuid.uuid4()
+        pending = await get_pending_receipt(pending_id) if pending_id else None
+        if pending:
+            from src.core.schemas.receipt import ReceiptData
+
+            receipt = ReceiptData(**pending["receipt"])
+            merchant = receipt.merchant or "Unknown"
+            total = receipt.total or Decimal("0")
+            tx_date = (
+                date.fromisoformat(receipt.date) if receipt.date else date.today()
+            )
+            gallons = receipt.gallons
+            price_per_gallon = receipt.price_per_gallon
+            state = receipt.state
+        else:
+            # Fallback: parse from callback parts (legacy format)
+            merchant = parts[1] if len(parts) > 1 else "Unknown"
+            total = Decimal(parts[2]) if len(parts) > 2 else Decimal("0")
+            tx_date = date.today()
+            gallons = None
+            price_per_gallon = None
+            state = None
+
+        try:
+            # Resolve category: merchant mapping → fuel detection → smart fallback
+            category_id = _resolve_receipt_category(
+                merchant, gallons, context,
+            )
+
+            async with async_session() as session:
+                meta = {"source": "receipt_scan"}
+                if gallons:
+                    meta["gallons"] = gallons
+                    if price_per_gallon:
+                        meta["price_per_gallon"] = float(price_per_gallon)
+
+                # Resolve scope from category
+                tx_scope = Scope.business if context.business_type else Scope.family
+                for cat in context.categories:
+                    if cat["id"] == category_id:
+                        tx_scope = Scope(cat.get("scope", "family"))
+                        break
 
                 tx = Transaction(
                     family_id=uuid.UUID(context.family_id),
                     user_id=uuid.UUID(context.user_id),
-                    category_id=category_id,
+                    category_id=uuid.UUID(category_id),
                     type=TransactionType.expense,
                     amount=total,
                     merchant=merchant,
                     description=f"Чек: {merchant}",
-                    date=date.today(),
-                    scope=Scope.family,
+                    date=tx_date,
+                    scope=tx_scope,
+                    state=state,
                     ai_confidence=Decimal("0.9"),
-                    meta={"source": "receipt_scan"},
+                    meta=meta,
                 )
                 session.add(tx)
                 await session.commit()
+
+            if pending_id:
+                await delete_pending_receipt(pending_id)
+
             logger.info(
                 "Receipt transaction created: merchant=%s total=%s for user %s",
                 merchant,
@@ -1617,21 +1655,184 @@ async def _handle_callback(
         except Exception as e:
             logger.error("Failed to create receipt transaction: %s", e)
             return OutgoingMessage(
-                text="Ошибка при записи чека. Попробуйте ещё раз.",
+                text=_receipt_t("save_error", context),
                 chat_id=message.chat_id,
             )
-        return OutgoingMessage(text="✅ Чек записан!", chat_id=message.chat_id)
+        return OutgoingMessage(
+            text=_receipt_t("saved_ok", context), chat_id=message.chat_id,
+        )
+
+    elif action == "receipt_scope":
+        # receipt_scope:{pending_id}:{scope} — user chose business or personal
+        pending_id = parts[1] if len(parts) > 1 else ""
+        chosen_scope = parts[2] if len(parts) > 2 else "family"
+        from src.skills.scan_receipt.handler import (
+            delete_pending_receipt,
+            get_pending_receipt,
+        )
+
+        pending = await get_pending_receipt(pending_id) if pending_id else None
+        if not pending:
+            return OutgoingMessage(
+                text=_receipt_t("receipt_expired", context),
+                chat_id=message.chat_id,
+            )
+
+        from src.core.schemas.receipt import ReceiptData
+
+        receipt = ReceiptData(**pending["receipt"])
+        merchant = receipt.merchant or "Unknown"
+        total = receipt.total or Decimal("0")
+        tx_date = (
+            date.fromisoformat(receipt.date) if receipt.date else date.today()
+        )
+        gallons = receipt.gallons
+        price_per_gallon = receipt.price_per_gallon
+        state = receipt.state
+
+        try:
+            category_id = _resolve_receipt_category_for_scope(
+                merchant, gallons, chosen_scope, context,
+            )
+
+            async with async_session() as session:
+                meta = {"source": "receipt_scan"}
+                if gallons:
+                    meta["gallons"] = gallons
+                    if price_per_gallon:
+                        meta["price_per_gallon"] = float(price_per_gallon)
+
+                tx = Transaction(
+                    family_id=uuid.UUID(context.family_id),
+                    user_id=uuid.UUID(context.user_id),
+                    category_id=uuid.UUID(category_id),
+                    type=TransactionType.expense,
+                    amount=total,
+                    merchant=merchant,
+                    description=merchant,
+                    date=tx_date,
+                    scope=Scope(chosen_scope),
+                    state=state,
+                    ai_confidence=Decimal("0.9"),
+                    meta=meta,
+                )
+                session.add(tx)
+                await session.commit()
+
+            await delete_pending_receipt(pending_id)
+            scope_label = "\U0001f3e2" if chosen_scope == "business" else "\U0001f3e0"
+            return OutgoingMessage(
+                text=_receipt_t(
+                    "saved_ok_scope", context, scope_label=scope_label,
+                ),
+                chat_id=message.chat_id,
+            )
+        except Exception as e:
+            logger.error("Failed to save scoped receipt: %s", e)
+            return OutgoingMessage(
+                text=_receipt_t("save_error", context),
+                chat_id=message.chat_id,
+            )
 
     elif action == "receipt_cancel":
-        # Also clean up any pending doc from Redis
+        # Clean up pending receipt from Redis
         cancel_pending_id = parts[1] if len(parts) > 1 else ""
         if cancel_pending_id:
-            from src.skills.scan_document.handler import delete_pending_doc
+            from src.skills.scan_receipt.handler import delete_pending_receipt
 
-            await delete_pending_doc(cancel_pending_id)
+            await delete_pending_receipt(cancel_pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+
+
+def _receipt_t(key: str, context: SessionContext, **kwargs: str) -> str:
+    """Get a localized receipt string using scan_receipt i18n."""
+    from src.skills._i18n import t_cached
+    from src.skills.scan_receipt.handler import _STRINGS
+
+    lang = context.language or "en"
+    return t_cached(_STRINGS, key, lang, "scan_receipt", **kwargs)
+
+
+_FUEL_CATEGORY_NAMES = {"дизель", "diesel", "fuel", "топливо", "gasoline", "бензин"}
+
+
+def _resolve_receipt_category(
+    merchant: str | None,
+    gallons: float | None,
+    context: SessionContext,
+) -> str:
+    """Resolve best category for a receipt.
+
+    Priority: merchant mapping → fuel auto-detect → scope-matching fallback.
+    """
+    # 1. Merchant mapping lookup
+    if merchant and context.merchant_mappings:
+        merchant_lower = merchant.lower()
+        for mapping in context.merchant_mappings:
+            pattern = mapping.get("merchant_pattern", "").lower()
+            if pattern and pattern in merchant_lower:
+                cat_id = mapping.get("category_id")
+                if cat_id:
+                    return cat_id
+
+    # 2. Fuel auto-detection: gallons present → smart commercial vs personal
+    if gallons:
+        from src.skills.scan_receipt.handler import _find_fuel_category
+
+        fuel_cat = _find_fuel_category(context, merchant=merchant, gallons=gallons)
+        if fuel_cat:
+            return fuel_cat
+
+    # 3. Fallback: prefer category matching current scope
+    scope = "business" if context.business_type else "family"
+    for cat in context.categories:
+        if cat.get("scope") == scope:
+            return cat["id"]
+
+    # 4. Last resort: first available category
+    return context.categories[0]["id"]
+
+
+def _resolve_receipt_category_for_scope(
+    merchant: str | None,
+    gallons: float | None,
+    scope: str,
+    context: SessionContext,
+) -> str:
+    """Resolve best category for a receipt with user-chosen scope.
+
+    Like _resolve_receipt_category but forces the target scope instead of auto-detecting.
+    Priority: merchant mapping → fuel category for scope → first category for scope.
+    """
+    # 1. Merchant mapping (may override scope)
+    if merchant and context.merchant_mappings:
+        merchant_lower = merchant.lower()
+        for mapping in context.merchant_mappings:
+            pattern = mapping.get("merchant_pattern", "").lower()
+            if pattern and pattern in merchant_lower:
+                cat_id = mapping.get("category_id")
+                if cat_id:
+                    return cat_id
+
+    # 2. Fuel: find fuel category matching requested scope
+    if gallons:
+        for cat in context.categories:
+            if cat.get("scope") == scope and cat["name"].lower() in _FUEL_CATEGORY_NAMES:
+                return cat["id"]
+        # Fallback: any fuel category
+        for cat in context.categories:
+            if cat["name"].lower() in _FUEL_CATEGORY_NAMES:
+                return cat["id"]
+
+    # 3. First category matching requested scope
+    for cat in context.categories:
+        if cat.get("scope") == scope:
+            return cat["id"]
+
+    # 4. Last resort
+    return context.categories[0]["id"]
 
 
 async def _save_scanned_document(
@@ -1684,8 +1885,6 @@ async def _save_scanned_document(
 
     try:
         async with async_session() as session:
-            from src.core.models.category import Category
-
             # 1. Create Document record with full OCR data + image
             doc = Document(
                 family_id=uuid.UUID(context.family_id),
@@ -1752,13 +1951,14 @@ async def _save_scanned_document(
 
             elif doc_type in ("receipt", "fuel_receipt", "invoice"):
                 # 2b. Save as expense Transaction with full extracted data
-                cat_result = await session.execute(
-                    select(Category)
-                    .where(Category.family_id == uuid.UUID(context.family_id))
-                    .limit(1)
+                # Smart category: merchant mapping → fuel detection → scope fallback
+                category_id = uuid.UUID(
+                    _resolve_receipt_category(
+                        ocr_data.get("merchant") or ocr_data.get("vendor", ""),
+                        ocr_data.get("gallons"),
+                        context,
+                    )
                 )
-                category = cat_result.scalar_one_or_none()
-                category_id = category.id if category else uuid.uuid4()
 
                 if doc_type == "invoice":
                     merchant = ocr_data.get("vendor", "Unknown")

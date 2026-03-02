@@ -32,6 +32,17 @@ _STRINGS = {
         "fuel_header": "\u26fd\ufe0f <b>Fuel receipt recognized</b>\n\n",
         "receipt_header": "\U0001f9fe <b>Receipt recognized</b>\n\n",
         "auto_saved": "\n\n\u2705 Auto-saved (ID: {tx_id})",
+        "label_merchant": "\U0001f3ea <b>Store:</b>",
+        "label_total": "\U0001f4b5 <b>Total:</b>",
+        "label_tax": "tax",
+        "label_date": "\U0001f4c5 <b>Date:</b>",
+        "label_fuel": "\u26fd\ufe0f <b>Fuel:</b>",
+        "label_state": "\U0001f4cd <b>State:</b>",
+        "label_items": "\U0001f4cb <b>Items:</b>",
+        "saved_ok": "\u2705 Receipt saved!",
+        "saved_ok_scope": "\u2705 Receipt saved! {scope_label}",
+        "save_error": "Error saving receipt. Try again.",
+        "receipt_expired": "Receipt data expired. Send the photo again.",
         "btn_correct": "\u2705 Correct",
         "btn_category": "\u270f\ufe0f Category",
         "btn_amount": "\U0001f4b0 Amount",
@@ -45,6 +56,17 @@ _STRINGS = {
         "fuel_header": "\u26fd\ufe0f <b>Заправочный чек распознан</b>\n\n",
         "receipt_header": "\U0001f9fe <b>Чек распознан</b>\n\n",
         "auto_saved": "\n\n\u2705 Автоматически сохранено (ID: {tx_id})",
+        "label_merchant": "\U0001f3ea <b>Магазин:</b>",
+        "label_total": "\U0001f4b5 <b>Сумма:</b>",
+        "label_tax": "налог",
+        "label_date": "\U0001f4c5 <b>Дата:</b>",
+        "label_fuel": "\u26fd\ufe0f <b>Топливо:</b>",
+        "label_state": "\U0001f4cd <b>Штат:</b>",
+        "label_items": "\U0001f4cb <b>Товары:</b>",
+        "saved_ok": "\u2705 Чек записан!",
+        "saved_ok_scope": "\u2705 Чек записан! {scope_label}",
+        "save_error": "Ошибка при записи чека. Попробуйте ещё раз.",
+        "receipt_expired": "Данные чека истекли. Отправьте фото ещё раз.",
         "btn_correct": "\u2705 Верно",
         "btn_category": "\u270f\ufe0f Категория",
         "btn_amount": "\U0001f4b0 Сумма",
@@ -58,6 +80,17 @@ _STRINGS = {
         "fuel_header": "\u26fd\ufe0f <b>Recibo de combustible reconocido</b>\n\n",
         "receipt_header": "\U0001f9fe <b>Recibo reconocido</b>\n\n",
         "auto_saved": "\n\n\u2705 Guardado automaticamente (ID: {tx_id})",
+        "label_merchant": "\U0001f3ea <b>Tienda:</b>",
+        "label_total": "\U0001f4b5 <b>Total:</b>",
+        "label_tax": "impuesto",
+        "label_date": "\U0001f4c5 <b>Fecha:</b>",
+        "label_fuel": "\u26fd\ufe0f <b>Combustible:</b>",
+        "label_state": "\U0001f4cd <b>Estado:</b>",
+        "label_items": "\U0001f4cb <b>Articulos:</b>",
+        "saved_ok": "\u2705 Recibo guardado!",
+        "saved_ok_scope": "\u2705 Recibo guardado! {scope_label}",
+        "save_error": "Error al guardar el recibo. Intenta de nuevo.",
+        "receipt_expired": "Los datos del recibo expiraron. Envia la foto de nuevo.",
         "btn_correct": "\u2705 Correcto",
         "btn_category": "\u270f\ufe0f Categoria",
         "btn_amount": "\U0001f4b0 Monto",
@@ -162,23 +195,31 @@ class ScanReceiptSkill:
         else:
             response = t_cached(_STRINGS, "receipt_header", lang, "scan_receipt")
 
-        response += f"🏪 <b>Магазин:</b> {receipt.merchant}\n"
-        response += f"💵 <b>Сумма:</b> ${receipt.total}"
+        lm = t_cached(_STRINGS, "label_merchant", lang, "scan_receipt")
+        lt = t_cached(_STRINGS, "label_total", lang, "scan_receipt")
+        ltax = t_cached(_STRINGS, "label_tax", lang, "scan_receipt")
+        ld = t_cached(_STRINGS, "label_date", lang, "scan_receipt")
+        lf = t_cached(_STRINGS, "label_fuel", lang, "scan_receipt")
+        ls = t_cached(_STRINGS, "label_state", lang, "scan_receipt")
+        li = t_cached(_STRINGS, "label_items", lang, "scan_receipt")
+
+        response += f"{lm} {receipt.merchant}\n"
+        response += f"{lt} ${receipt.total}"
         if receipt.tax:
-            response += f" (налог: ${receipt.tax})"
+            response += f" ({ltax}: ${receipt.tax})"
         response += "\n"
         if receipt.date:
-            response += f"📅 <b>Дата:</b> {receipt.date}\n"
+            response += f"{ld} {receipt.date}\n"
         if is_fuel:
             response += (
-                f"⛽️ <b>Топливо:</b> {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
+                f"{lf} {receipt.gallons} gal @ ${receipt.price_per_gallon}/gal\n"
             )
         if receipt.state:
-            response += f"📍 <b>Штат:</b> {receipt.state}\n"
+            response += f"{ls} {receipt.state}\n"
 
         # Show items only for non-fuel receipts (fuel info is already above)
         if receipt.items and not is_fuel:
-            response += "\n📋 <b>Товары:</b>\n"
+            response += f"\n{li}\n"
             for item in receipt.items[:10]:
                 name = item.name if isinstance(item, ReceiptItem) else item.get("name", "—")
                 qty = item.quantity if isinstance(item, ReceiptItem) else item.get("quantity", 1)

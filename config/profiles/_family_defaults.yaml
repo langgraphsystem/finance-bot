@@ -20,6 +20,9 @@ family_categories:
   - name: "Транспорт"
     icon: "🚗"
     scope: family
+  - name: "Топливо"
+    icon: "⛽"
+    scope: family
   - name: "Одежда"
     icon: "👕"
     scope: family
