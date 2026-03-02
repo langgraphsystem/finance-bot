@@ -118,8 +118,8 @@ period: week/month/year, date_from/date_to: YYYY-MM-DD
 - generate_invoice: создать счёт/инвойс/PDF для клиента ("invoice Mike for the job", \
 "выставь счёт клиенту", "create invoice", "сделай инвойс", "сделай PDF инвойс", \
 "generate invoice PDF", "PDF счёт для клиента", "generar factura PDF"). \
-Извлеки contact_name: имя клиента, invoice_items: [{description, amount}] если указаны, \
-invoice_due_days: число дней (net 15 → 15), amount: общая сумма если указана
+Извлеки contact_name: имя клиента, amount: общая сумма если указана, \
+invoice_due_days: число дней (net 15 → 15)
 - tax_estimate: оценка налогов, квартальные платежи, вычеты ("сколько налогов?", \
 "tax estimate", "quarterly taxes", "how much do I owe in taxes?", "налоговая оценка")
 - cash_flow_forecast: прогноз денежного потока, можем ли позволить \
@@ -311,18 +311,22 @@ epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 "cifrar PDF"). \
 Извлеки pdf_operation: split/rotate/encrypt/decrypt/watermark/extract_pages, \
 pdf_pages: диапазон страниц, pdf_password: пароль если указан
-- generate_spreadsheet: создать Excel-таблицу ("сделай таблицу в Excel", \
-"create a spreadsheet", "generate Excel report", "таблица расходов за месяц", \
-"crear hoja de calculo", "generar tabla Excel")
+- generate_spreadsheet: создать НОВУЮ Excel-таблицу по описанию ("сделай таблицу в Excel", \
+"create a spreadsheet", "generate Excel report", \
+"crear hoja de calculo", "generar tabla Excel"). \
+НЕ для экспорта реальных данных — для этого используй export_excel
 - compare_documents: сравнить документы ("сравни эти документы", "compare documents", \
 "что изменилось в контракте?", "разница между версиями", "comparar documentos", \
 "diferencias entre versiones")
 - summarize_document: резюме документа ("кратко перескажи", "summarize this document", \
 "резюме контракта", "summary of this PDF", "о чём этот документ?", \
 "resumir documento", "resumen de este PDF")
-- generate_document: создать документ с нуля ("создай NDA", "generate a contract", \
+- generate_document: создать НОВЫЙ документ с нуля \
+по описанию ("создай NDA", "generate a contract", \
 "сделай прайс-лист", "create a price list", "напиши договор", "make a proposal", \
 "crear contrato", "generar documento", "crear NDA"). \
+НЕ для экспорта/выгрузки реальных данных (расходов, доходов) — для этого используй \
+query_report (PDF) или export_excel (Excel). \
 Извлеки document_description: описание документа, output_format: формат (pdf/docx)
 - generate_presentation: создать презентацию ("сделай презентацию", \
 "create a presentation about", "generate PPTX", "презентация расходов за квартал", \
@@ -1192,10 +1196,16 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "analyze_document": 'анализ документа ("проанализируй документ", "какие риски?")',
         "merge_documents": 'объединить PDF ("merge PDFs", "объедини файлы")',
         "pdf_operations": 'операции с PDF ("раздели PDF", "зашифруй", "поверни")',
-        "generate_spreadsheet": 'создать Excel ("таблица расходов", "make spreadsheet")',
+        "generate_spreadsheet": (
+            'создать НОВУЮ Excel по описанию'
+            ' (НЕ экспорт данных — export_excel)'
+        ),
         "compare_documents": 'сравнить документы ("что изменилось?", "compare")',
         "summarize_document": 'резюме документа ("кратко по документу", "summarize")',
-        "generate_document": 'создать документ ("сделай NDA", "create contract")',
+        "generate_document": (
+            'создать НОВЫЙ документ с нуля'
+            ' (НЕ экспорт данных — query_report/export_excel)'
+        ),
         "generate_presentation": 'создать презентацию ("make presentation", "pptx")',
     },
     "sheets": {
