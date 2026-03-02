@@ -41,7 +41,7 @@ async def test_merge_add_first_file(sample_context):
         result = await skill.execute(msg, sample_context, {})
 
     assert "doc1.pdf" in result.response_text
-    assert "1 file" in result.response_text
+    assert "1 file" in result.response_text or "1 файл" in result.response_text
     assert "done" in result.response_text.lower()
     mock_redis.set.assert_called_once()
 
@@ -70,7 +70,7 @@ async def test_merge_add_second_file(sample_context):
         result = await skill.execute(msg, sample_context, {})
 
     assert "doc2.pdf" in result.response_text
-    assert "2 files" in result.response_text
+    assert "2 files" in result.response_text or "2 файлов" in result.response_text
 
 
 async def test_merge_reject_non_pdf(sample_context):
@@ -124,7 +124,7 @@ async def test_merge_finish_happy_path(sample_context):
                 with patch("pypdf.PdfReader", return_value=mock_reader):
                     result = await skill.execute(msg, sample_context, {})
 
-    assert "Merged 2 PDFs" in result.response_text
+    assert "Merged 2 PDFs" in result.response_text or "Объединено 2 PDF" in result.response_text
     assert result.document == merged_output
     assert result.document_name == "merged.pdf"
     mock_redis.delete.assert_called_once()
@@ -166,5 +166,5 @@ async def test_merge_status_check(sample_context, text_message):
         mock_redis.get = AsyncMock(return_value=queued_meta)
         result = await skill.execute(text_message, sample_context, {})
 
-    assert "3 file" in result.response_text
+    assert "3 file" in result.response_text or "3 файл" in result.response_text
     assert "a.pdf" in result.response_text

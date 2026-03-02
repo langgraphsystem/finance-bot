@@ -19,7 +19,7 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import register_strings
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,8 @@ Always include this disclaimer: "This is an estimate, not professional tax advic
 Consult a CPA for your specific situation."
 Format with HTML tags for Telegram. Use <b>bold</b> for key amounts.
 Structure: gross income → deductible expenses → net profit → estimated tax.
-If business_type is set, include self-employment tax (15.3% on 92.35% of net)."""
+If business_type is set, include self-employment tax (15.3% on 92.35% of net).
+Respond in: {language}."""
 
 # US quarterly tax deadlines
 QUARTERLY_DEADLINES = {
@@ -41,6 +42,43 @@ QUARTERLY_DEADLINES = {
     3: "September 15",
     4: "January 15 (next year)",
 }
+
+_STRINGS = {
+    "en": {
+        "no_account": "Set up your account first to get tax estimates.",
+        "no_data": (
+            "No income or expenses recorded for Q{quarter} {year}. "
+            "Start tracking transactions to get tax estimates."
+        ),
+        "data_summary": (
+            "Q{quarter} {year}: income {currency} {income},"
+            " expenses {currency} {expenses}"
+        ),
+    },
+    "ru": {
+        "no_account": "Сначала настройте аккаунт для оценки налогов.",
+        "no_data": (
+            "Нет данных о доходах и расходах за Q{quarter} {year}. "
+            "Начните записывать транзакции для оценки налогов."
+        ),
+        "data_summary": (
+            "Q{quarter} {year}: доход {currency} {income},"
+            " расход {currency} {expenses}"
+        ),
+    },
+    "es": {
+        "no_account": "Configure su cuenta primero para estimaciones de impuestos.",
+        "no_data": (
+            "No hay ingresos ni gastos registrados para Q{quarter} {year}. "
+            "Comience a registrar transacciones para obtener estimaciones."
+        ),
+        "data_summary": (
+            "Q{quarter} {year}: ingresos {currency} {income},"
+            " gastos {currency} {expenses}"
+        ),
+    },
+}
+register_strings("tax_estimate", _STRINGS)
 
 
 def _current_quarter() -> int:
@@ -59,16 +97,13 @@ def _quarter_date_range(quarter: int, year: int | None = None) -> tuple[date, da
     return start, end
 
 
-register_strings("tax_estimate", {"en": {}, "ru": {}, "es": {}})
-
-
 class TaxEstimateSkill:
     name = "tax_estimate"
     intents = ["tax_estimate"]
     model = "claude-sonnet-4-6"
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return TAX_SYSTEM_PROMPT
+        return TAX_SYSTEM_PROMPT.format(language=context.language or "en")
 
     @observe(name="skill_tax_estimate")
     async def execute(
@@ -78,9 +113,12 @@ class TaxEstimateSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         family_id = context.family_id
+        lang = context.language or "en"
         if not family_id:
             return SkillResult(
-                response_text="Set up your account first to get tax estimates."
+                response_text=t_cached(
+                    _STRINGS, "no_account", lang, namespace="tax_estimate"
+                )
             )
 
         quarter = _current_quarter()
@@ -107,8 +145,10 @@ class TaxEstimateSkill:
 
         if gross_income == 0 and total_expenses == 0:
             return SkillResult(
-                response_text=f"No income or expenses recorded for Q{quarter} {year}. "
-                "Start tracking transactions to get tax estimates."
+                response_text=t_cached(
+                    _STRINGS, "no_data", lang, namespace="tax_estimate",
+                    quarter=quarter, year=year,
+                )
             )
 
         # Estimate taxes
@@ -155,10 +195,21 @@ class TaxEstimateSkill:
         model = intent_data.get("_model", self.model)
         response = await generate_text(
             model=model,
-            system_prompt=TAX_SYSTEM_PROMPT,
+            system_prompt=TAX_SYSTEM_PROMPT.format(language=lang),
             user_message=f"{message.text}\n\n--- DATA ---\n{data_text}",
             assembled_context=assembled,
         )
+
+        # Prepend data summary so user sees what data was used
+        summary_line = t_cached(
+            _STRINGS, "data_summary", lang, namespace="tax_estimate",
+            quarter=quarter,
+            year=year,
+            currency=context.currency,
+            income=f"{gross_income:.2f}",
+            expenses=f"{total_expenses:.2f}",
+        )
+        response = f"<i>{summary_line}</i>\n\n{response}"
 
         return SkillResult(response_text=response)
 

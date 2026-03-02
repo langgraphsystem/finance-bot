@@ -22,6 +22,9 @@ _STRINGS = {
             "- <i>price list for salon services</i>\n"
             "- <i>service agreement template</i>"
         ),
+        "generation_failed": "Failed to generate the document. Try again?",
+        "pdf_fallback": "<b>{filename}</b>\n<i>PDF generation unavailable, sending as HTML.</i>",
+        "doc_ready": "<b>{filename}</b> — your document is ready.",
     },
     "ru": {
         "no_description": (
@@ -30,6 +33,9 @@ _STRINGS = {
             "- <i>прайс-лист для салона</i>\n"
             "- <i>шаблон договора на услуги</i>"
         ),
+        "generation_failed": "Не удалось сгенерировать документ. Попробовать снова?",
+        "pdf_fallback": "<b>{filename}</b>\n<i>Генерация PDF недоступна, отправляю как HTML.</i>",
+        "doc_ready": "<b>{filename}</b> — ваш документ готов.",
     },
     "es": {
         "no_description": (
@@ -38,6 +44,12 @@ _STRINGS = {
             "- <i>lista de precios para servicios</i>\n"
             "- <i>plantilla de contrato de servicios</i>"
         ),
+        "generation_failed": "No se pudo generar el documento. Intentar de nuevo?",
+        "pdf_fallback": (
+            "<b>{filename}</b>\n"
+            "<i>Generacion de PDF no disponible, enviando como HTML.</i>"
+        ),
+        "doc_ready": "<b>{filename}</b> — su documento esta listo.",
     },
 }
 register_strings("generate_document", _STRINGS)
@@ -73,9 +85,9 @@ class GenerateDocumentSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         description = (intent_data.get("description") or message.text or "").strip()
+        lang = context.language or "en"
 
         if not description:
-            lang = context.language or "en"
             return SkillResult(
                 response_text=t_cached(_STRINGS, "no_description", lang, "generate_document")
             )
@@ -123,7 +135,11 @@ class GenerateDocumentSkill:
             )
         except Exception as e:
             logger.error("Document HTML generation failed: %s", e)
-            return SkillResult(response_text="Failed to generate the document. Try again?")
+            return SkillResult(
+                response_text=t_cached(
+                    _STRINGS, "generation_failed", lang, "generate_document"
+                )
+            )
 
         # Strip markdown fences if present
         html_content = _strip_markdown_fences(html_content)
@@ -141,9 +157,9 @@ class GenerateDocumentSkill:
                 # Fallback: return as HTML
                 filename = _make_filename(description, "html")
                 return SkillResult(
-                    response_text=(
-                        f"<b>{filename}</b>\n<i>PDF generation unavailable, sending as HTML.</i>"
-                    ),
+                    response_text=t_cached(
+                        _STRINGS, "pdf_fallback", lang, "generate_document"
+                    ).format(filename=filename),
                     document=html_content.encode("utf-8"),
                     document_name=filename,
                 )
@@ -156,7 +172,9 @@ class GenerateDocumentSkill:
                 len(pdf_bytes),
             )
             return SkillResult(
-                response_text=f"<b>{filename}</b> — your document is ready.",
+                response_text=t_cached(
+                    _STRINGS, "doc_ready", lang, "generate_document"
+                ).format(filename=filename),
                 document=pdf_bytes,
                 document_name=filename,
             )
@@ -164,7 +182,9 @@ class GenerateDocumentSkill:
         # HTML output
         filename = _make_filename(description, "html")
         return SkillResult(
-            response_text=f"<b>{filename}</b> — your document is ready.",
+            response_text=t_cached(
+                _STRINGS, "doc_ready", lang, "generate_document"
+            ).format(filename=filename),
             document=html_content.encode("utf-8"),
             document_name=filename,
         )

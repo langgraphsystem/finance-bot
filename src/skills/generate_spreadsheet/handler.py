@@ -19,13 +19,22 @@ _STRINGS = {
         "no_description": (
             "What kind of spreadsheet should I create? Describe the data and structure."
         ),
+        "spreadsheet_ready": "<b>{filename}</b> — your spreadsheet is ready.",
+        "generation_failed": "Failed to generate spreadsheet. Try a simpler description.",
     },
     "ru": {
         "no_description": ("Какую таблицу создать? Опишите данные и структуру."),
+        "spreadsheet_ready": "<b>{filename}</b> — ваша таблица готова.",
+        "generation_failed": "Не удалось создать таблицу. Попробуйте более простое описание.",
     },
     "es": {
         "no_description": (
             "Que tipo de hoja de calculo debo crear? Describa los datos y la estructura."
+        ),
+        "spreadsheet_ready": "<b>{filename}</b> — su hoja de calculo esta lista.",
+        "generation_failed": (
+            "No se pudo generar la hoja de calculo. "
+            "Pruebe una descripcion mas simple."
         ),
     },
 }
@@ -147,9 +156,9 @@ class GenerateSpreadsheetSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         description = (intent_data.get("description") or message.text or "").strip()
+        lang = context.language or "en"
 
         if not description:
-            lang = context.language or "en"
             return SkillResult(
                 response_text=t_cached(_STRINGS, "no_description", lang, "generate_spreadsheet")
             )
@@ -182,7 +191,9 @@ class GenerateSpreadsheetSkill:
                     len(file_bytes),
                 )
                 return SkillResult(
-                    response_text=f"<b>{filename}</b> — your spreadsheet is ready.",
+                    response_text=t_cached(
+                        _STRINGS, "spreadsheet_ready", lang, "generate_spreadsheet"
+                    ).format(filename=filename),
                     document=file_bytes,
                     document_name=filename,
                 )
@@ -201,13 +212,17 @@ class GenerateSpreadsheetSkill:
                 len(file_bytes),
             )
             return SkillResult(
-                response_text=f"<b>{filename}</b> — your spreadsheet is ready.",
+                response_text=t_cached(
+                    _STRINGS, "spreadsheet_ready", lang, "generate_spreadsheet"
+                ).format(filename=filename),
                 document=file_bytes,
                 document_name=filename,
             )
 
         return SkillResult(
-            response_text="Failed to generate spreadsheet. Try a simpler description."
+            response_text=t_cached(
+                _STRINGS, "generation_failed", lang, "generate_spreadsheet"
+            )
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:

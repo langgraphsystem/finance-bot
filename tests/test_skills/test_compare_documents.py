@@ -50,7 +50,8 @@ async def test_compare_single_document_happy_path(sample_context):
             msg, sample_context, {"description": "compare with previous version"}
         )
 
-    assert "Document Analysis" in result.response_text
+    # EN: "Document Analysis" / RU: "Анализ документа"
+    assert "Document Analysis" in result.response_text or "Анализ документа" in result.response_text
     assert "contract_v2.pdf" in result.response_text
     assert (
         "force majeure" in result.response_text.lower()
@@ -94,7 +95,8 @@ async def test_compare_two_documents_via_intent(sample_context):
             },
         )
 
-    assert "Document Analysis" in result.response_text
+    # EN: "Document Analysis" / RU: "Анализ документа"
+    assert "Document Analysis" in result.response_text or "Анализ документа" in result.response_text
     assert "contract_v2.pdf" in result.response_text
 
 
@@ -116,7 +118,12 @@ async def test_compare_empty_text_extraction(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "extract" in result.response_text.lower() or "text" in result.response_text.lower()
+    # EN: "extract text" / RU: "извлечь текст"
+    assert (
+        "extract" in result.response_text.lower()
+        or "text" in result.response_text.lower()
+        or "извлечь" in result.response_text.lower()
+    )
     assert result.document is None
 
 
@@ -138,8 +145,11 @@ async def test_compare_extraction_fails(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
+    # EN: "could not" / "supported" / RU: "не удалось" / "поддерживается"
     assert (
-        "could not" in result.response_text.lower() or "supported" in result.response_text.lower()
+        "could not" in result.response_text.lower()
+        or "supported" in result.response_text.lower()
+        or "не удалось" in result.response_text.lower()
     )
 
 
@@ -166,4 +176,5 @@ async def test_compare_photo_input(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "Document Analysis" in result.response_text
+    # EN: "Document Analysis" / RU: "Анализ документа"
+    assert "Document Analysis" in result.response_text or "Анализ документа" in result.response_text

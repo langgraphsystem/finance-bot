@@ -20,10 +20,44 @@ from src.core.models.enums import TransactionType
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import register_strings
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+_STRINGS = {
+    "en": {
+        "no_account": "Set up your account first to get financial summaries.",
+        "no_data": "No transactions found for {period}. Start recording expenses to get summaries.",
+        "data_summary": "{count} transactions for {period} ({currency} {total})",
+        "period_this_week": "this week",
+        "period_last_week": "last week",
+        "period_last_month": "last month",
+        "period_this_year": "this year",
+        "period_this_month": "this month",
+    },
+    "ru": {
+        "no_account": "Сначала настройте аккаунт для получения финансовых сводок.",
+        "no_data": "За {period} транзакций не найдено. Начните записывать расходы.",
+        "data_summary": "{count} операций за {period} ({currency} {total})",
+        "period_this_week": "эту неделю",
+        "period_last_week": "прошлую неделю",
+        "period_last_month": "прошлый месяц",
+        "period_this_year": "этот год",
+        "period_this_month": "этот месяц",
+    },
+    "es": {
+        "no_account": "Configure su cuenta primero para obtener resúmenes financieros.",
+        "no_data": "No se encontraron transacciones para {period}. Comience a registrar gastos.",
+        "data_summary": "{count} transacciones para {period} ({currency} {total})",
+        "period_this_week": "esta semana",
+        "period_last_week": "la semana pasada",
+        "period_last_month": "el mes pasado",
+        "period_this_year": "este año",
+        "period_this_month": "este mes",
+    },
+}
+register_strings("financial_summary", _STRINGS)
 
 SUMMARY_SYSTEM_PROMPT = """\
 You are a bookkeeper assistant that produces clear financial summaries.
@@ -31,22 +65,33 @@ You receive READY data from SQL. NEVER calculate yourself.
 Format a concise, scannable summary using HTML tags for Telegram.
 Include: category breakdown, top merchants, period comparison, actionable insight.
 Lead with the total, then break down by category.
-Max 8 lines. Use <b>bold</b> for key numbers."""
+Max 8 lines. Use <b>bold</b> for key numbers.
+Respond in: {language}."""
+
+_PERIOD_KEYS = {
+    "week": "period_this_week",
+    "prev_week": "period_last_week",
+    "prev_month": "period_last_month",
+    "year": "period_this_year",
+    "month": "period_this_month",
+}
 
 
-def _resolve_period(intent_data: dict[str, Any]) -> tuple[date, date, str]:
+def _resolve_period(intent_data: dict[str, Any], lang: str = "en") -> tuple[date, date, str]:
     """Resolve period from intent data."""
     today = date.today()
     period = intent_data.get("period") or "month"
+    label = t_cached(_STRINGS, _PERIOD_KEYS.get(period, "period_this_month"), lang,
+                     namespace="financial_summary")
 
     if period == "week":
         start = today - timedelta(days=today.weekday())
-        return start, today + timedelta(days=1), "this week"
+        return start, today + timedelta(days=1), label
 
     if period == "prev_week":
         end = today - timedelta(days=today.weekday())
         start = end - timedelta(days=7)
-        return start, end, "last week"
+        return start, end, label
 
     if period == "prev_month":
         first = today.replace(day=1)
@@ -54,18 +99,15 @@ def _resolve_period(intent_data: dict[str, Any]) -> tuple[date, date, str]:
             start = today.replace(year=today.year - 1, month=12, day=1)
         else:
             start = today.replace(month=today.month - 1, day=1)
-        return start, first, "last month"
+        return start, first, label
 
     if period == "year":
         start = today.replace(month=1, day=1)
-        return start, today + timedelta(days=1), "this year"
+        return start, today + timedelta(days=1), label
 
     # Default: current month
     start = today.replace(day=1)
-    return start, today + timedelta(days=1), "this month"
-
-
-register_strings("financial_summary", {"en": {}, "ru": {}, "es": {}})
+    return start, today + timedelta(days=1), label
 
 
 class FinancialSummarySkill:
@@ -74,7 +116,7 @@ class FinancialSummarySkill:
     model = "claude-sonnet-4-6"
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SUMMARY_SYSTEM_PROMPT
+        return SUMMARY_SYSTEM_PROMPT.format(language=context.language or "en")
 
     @observe(name="skill_financial_summary")
     async def execute(
@@ -84,12 +126,25 @@ class FinancialSummarySkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         family_id = context.family_id
+        lang = context.language or "en"
         if not family_id:
             return SkillResult(
-                response_text="Set up your account first to get financial summaries."
+                response_text=t_cached(
+                    _STRINGS, "no_account", lang, namespace="financial_summary"
+                )
             )
 
-        start_date, end_date, period_label = _resolve_period(intent_data)
+        # Ask for period if request is ambiguous
+        from src.skills._clarification import maybe_ask_period
+
+        clarify = await maybe_ask_period(
+            "financial_summary", intent_data, message.text or "",
+            context.user_id, lang,
+        )
+        if clarify:
+            return clarify
+
+        start_date, end_date, period_label = _resolve_period(intent_data, lang)
 
         # Fetch category breakdown
         categories = await self._get_category_breakdown(
@@ -112,13 +167,16 @@ class FinancialSummarySkill:
 
         if not categories and not income_total:
             return SkillResult(
-                response_text=f"No transactions found for {period_label}. "
-                "Start recording expenses to get summaries."
+                response_text=t_cached(
+                    _STRINGS, "no_data", lang, namespace="financial_summary",
+                    period=period_label,
+                )
             )
 
         # Build data context for LLM
         expense_total = sum(c["amount"] for c in categories)
         prev_total = sum(c["amount"] for c in prev_categories)
+        tx_count = sum(c.get("count", 0) for c in categories)
 
         data_text = self._format_data(
             categories, merchants, income_total, expense_total,
@@ -139,10 +197,20 @@ class FinancialSummarySkill:
         model = intent_data.get("_model", self.model)
         response = await generate_text(
             model=model,
-            system_prompt=SUMMARY_SYSTEM_PROMPT,
+            system_prompt=SUMMARY_SYSTEM_PROMPT.format(language=lang),
             user_message=f"{message.text}\n\n--- DATA ---\n{data_text}",
             assembled_context=assembled,
         )
+
+        # Prepend data summary so user sees what data was used
+        summary_line = t_cached(
+            _STRINGS, "data_summary", lang, namespace="financial_summary",
+            count=tx_count,
+            period=period_label,
+            currency=context.currency,
+            total=f"{expense_total + income_total:.2f}",
+        )
+        response = f"<i>{summary_line}</i>\n\n{response}"
 
         return SkillResult(response_text=response, chart_url=chart_url)
 

@@ -189,7 +189,18 @@ class ExportExcelSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        from src.skills._clarification import maybe_ask_export_type
+
         export_type = _detect_export_type(intent_data, message.text or "")
+
+        # If export_type was a default fallback, ask user to clarify
+        if export_type == "expenses" and not intent_data.get("export_type"):
+            clarify = await maybe_ask_export_type(
+                intent_data, message.text or "",
+                context.user_id, context.language or "en",
+            )
+            if clarify:
+                return clarify
 
         if export_type == "tasks":
             return await self._export_tasks(context)

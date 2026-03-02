@@ -71,7 +71,8 @@ async def test_no_family_id():
     )
     message = _make_message("estimate my taxes")
     result = await skill.execute(message, ctx, {})
-    assert "set up" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "set up" in text_lower or "настройте" in text_lower
 
 
 async def test_current_quarter():
@@ -106,7 +107,8 @@ async def test_no_data_returns_message(sample_context):
     ):
         result = await skill.execute(message, sample_context, intent_data)
 
-    assert "no income or expenses" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "no income" in text_lower or "нет данных" in text_lower
 
 
 async def test_with_data_calls_llm(sample_context):

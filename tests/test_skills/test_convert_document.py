@@ -82,14 +82,16 @@ async def test_convert_no_target_format(skill, ctx):
         ),
     ):
         result = await skill.execute(msg, ctx, {})
-    assert "added" in result.response_text.lower() or "batch" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "added" in text_lower or "batch" in text_lower or "добавлен" in text_lower
 
 
 async def test_convert_same_format(skill, ctx):
     """Source == target → inform user."""
     msg = _make_doc_message(text="convert to docx")
     result = await skill.execute(msg, ctx, {"target_format": "docx"})
-    assert "already in" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "already in" in text_lower or "уже в формате" in text_lower
 
 
 async def test_convert_unsupported_pair(skill, ctx):
@@ -101,7 +103,8 @@ async def test_convert_unsupported_pair(skill, ctx):
         doc_bytes=b"fake-jpg",
     )
     result = await skill.execute(msg, ctx, {"target_format": "mobi"})
-    assert "can't convert" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "can't convert" in text_lower or "не могу конвертировать" in text_lower
     assert "PDF" in result.response_text  # PDF is a supported target for jpg
 
 
@@ -112,7 +115,8 @@ async def test_convert_unknown_source(skill, ctx):
         mime="application/octet-stream",
     )
     result = await skill.execute(msg, ctx, {"target_format": "pdf"})
-    assert "couldn't determine" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "couldn't determine" in text_lower or "не удалось определить" in text_lower
 
 
 async def test_convert_file_too_large(skill, ctx):
@@ -120,7 +124,8 @@ async def test_convert_file_too_large(skill, ctx):
     big_bytes = b"x" * (21 * 1024 * 1024)
     msg = _make_doc_message(doc_bytes=big_bytes)
     result = await skill.execute(msg, ctx, {"target_format": "pdf"})
-    assert "too large" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "too large" in text_lower or "слишком большой" in text_lower
 
 
 async def test_convert_failure(skill, ctx):
@@ -135,7 +140,8 @@ async def test_convert_failure(skill, ctx):
     ):
         result = await skill.execute(msg, ctx, {"target_format": "pdf"})
 
-    assert "conversion failed" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "conversion failed" in text_lower or "конвертация не удалась" in text_lower
     assert result.document is None
 
 

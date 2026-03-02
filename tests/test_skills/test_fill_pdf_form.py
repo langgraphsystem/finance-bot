@@ -51,7 +51,8 @@ async def test_fill_pdf_form_list_fields(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "PDF Form Fields" in result.response_text
+    # EN: "PDF Form Fields" / RU: "Поля PDF-формы"
+    assert "PDF Form Fields" in result.response_text or "PDF-формы" in result.response_text
     assert "name" in result.response_text
     assert "ssn" in result.response_text
     assert "123 Main St" in result.response_text
@@ -106,8 +107,10 @@ async def test_fill_pdf_form_with_values(sample_context):
             msg, sample_context, {"form_values": {"name": "John Smith", "address": "456 Oak Ave"}}
         )
 
-    assert "PDF form filled" in result.response_text
-    assert "2 field" in result.response_text
+    # EN: "PDF form filled" / RU: "PDF-форма заполнена"
+    resp = result.response_text
+    assert "PDF form filled" in resp or "PDF-форма заполнена" in resp
+    assert "2" in result.response_text
     assert "John Smith" in result.response_text
     assert result.document == filled_bytes
     assert result.document_name == "w9_filled.pdf"
@@ -140,8 +143,11 @@ async def test_fill_pdf_form_with_skipped_fields(sample_context):
             {"form_values": {"name": "Jane Doe", "nonexistent_field": "value"}},
         )
 
-    assert "PDF form filled" in result.response_text
-    assert "Skipped" in result.response_text
+    # EN: "PDF form filled" / RU: "PDF-форма заполнена"
+    resp = result.response_text
+    assert "PDF form filled" in resp or "PDF-форма заполнена" in resp
+    # EN: "Skipped" / RU: "Пропущено"
+    assert "Skipped" in result.response_text or "Пропущено" in result.response_text
     assert "nonexistent_field" in result.response_text
     assert result.document == b"filled output"
 
@@ -167,7 +173,12 @@ async def test_fill_pdf_form_no_matching_fields(sample_context):
             {"form_values": {"wrong_field": "value", "also_wrong": "data"}},
         )
 
-    assert "none" in result.response_text.lower() or "match" in result.response_text.lower()
+    # EN: "None...match" / RU: "Ни одно из полей не совпадает"
+    assert (
+        "none" in result.response_text.lower()
+        or "match" in result.response_text.lower()
+        or "не совпадает" in result.response_text.lower()
+    )
     assert result.document is None
 
 
@@ -188,5 +199,9 @@ async def test_fill_pdf_form_read_error(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "failed" in result.response_text.lower() or "valid" in result.response_text.lower()
+    # EN: "Failed to read" / RU: "Не удалось прочитать"
+    assert (
+        "failed" in result.response_text.lower()
+        or "не удалось" in result.response_text.lower()
+    )
     assert result.document is None

@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 _SKILL_ONLY_INTENTS = {
     # Relative/one-shot reminders are handled more reliably by the dedicated skill.
     "set_reminder",
+    # query_stats has proper period resolution, comparison data, and chart generation
+    # that the generic data_tools path lacks (it only sees current-month sql_stats context).
+    "query_stats",
+    # query_report generates PDF reports with dedicated period parsing.
+    "query_report",
 }
 _TOOL_ROUND_EXHAUSTED_RESPONSE = "I needed more steps to complete this request."
 

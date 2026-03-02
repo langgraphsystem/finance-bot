@@ -15,12 +15,44 @@ logger = logging.getLogger(__name__)
 _STRINGS = {
     "en": {
         "no_file": "Upload the documents you want to compare.",
+        "read_failed": "Could not read the document. Make sure it's a supported format.",
+        "no_text": (
+            "Could not extract text from the document. "
+            "If it's a scanned PDF, try uploading a text-based version."
+        ),
+        "compare_failed": "Something went wrong during comparison. Try again?",
+        "analysis_header": (
+            "<b>Document Analysis</b> — {filename}\n"
+            "<i>{size} KB, {chars} characters extracted</i>\n\n"
+        ),
     },
     "ru": {
         "no_file": "Отправьте документы для сравнения.",
+        "read_failed": "Не удалось прочитать документ. Убедитесь, что формат поддерживается.",
+        "no_text": (
+            "Не удалось извлечь текст из документа. "
+            "Если это сканированный PDF, попробуйте текстовую версию."
+        ),
+        "compare_failed": "Ошибка при сравнении. Попробовать снова?",
+        "analysis_header": (
+            "<b>Анализ документа</b> — {filename}\n"
+            "<i>{size} КБ, {chars} символов извлечено</i>\n\n"
+        ),
     },
     "es": {
         "no_file": "Suba los documentos que desea comparar.",
+        "read_failed": (
+            "No se pudo leer el documento. Verifique que el formato sea compatible."
+        ),
+        "no_text": (
+            "No se pudo extraer texto del documento. "
+            "Si es un PDF escaneado, pruebe con una version de texto."
+        ),
+        "compare_failed": "Algo salio mal durante la comparacion. Intentar de nuevo?",
+        "analysis_header": (
+            "<b>Analisis del documento</b> — {filename}\n"
+            "<i>{size} KB, {chars} caracteres extraidos</i>\n\n"
+        ),
     },
 }
 register_strings("compare_documents", _STRINGS)
@@ -37,7 +69,8 @@ Output format (Telegram HTML):
 
 Be precise and concise. Quote specific text when pointing out differences.
 If only one document is provided with a question, analyze that document
-in the context of the question."""
+in the context of the question.
+Respond in: {language}."""
 
 
 class CompareDocumentsSkill:
@@ -54,9 +87,10 @@ class CompareDocumentsSkill:
     ) -> SkillResult:
         from src.tools.document_reader import extract_text
 
+        lang = context.language or "en"
+
         file_bytes = message.document_bytes or message.photo_bytes
         if not file_bytes:
-            lang = context.language or "en"
             return SkillResult(
                 response_text=t_cached(_STRINGS, "no_file", lang, "compare_documents")
             )
@@ -74,15 +108,12 @@ class CompareDocumentsSkill:
         except Exception as e:
             logger.warning("Text extraction failed for %s: %s", filename, e)
             return SkillResult(
-                response_text="Could not read the document. Make sure it's a supported format."
+                response_text=t_cached(_STRINGS, "read_failed", lang, "compare_documents")
             )
 
         if not doc_text.strip():
             return SkillResult(
-                response_text=(
-                    "Could not extract text from the document. "
-                    "If it's a scanned PDF, try uploading a text-based version."
-                )
+                response_text=t_cached(_STRINGS, "no_text", lang, "compare_documents")
             )
 
         # Build comparison prompt
@@ -109,29 +140,34 @@ class CompareDocumentsSkill:
                 "the available text."
             )
 
+        system = COMPARE_SYSTEM_PROMPT.format(language=lang)
         try:
             analysis = await generate_text(
                 model=self.model,
-                system=COMPARE_SYSTEM_PROMPT,
+                system=system,
                 prompt=prompt,
                 max_tokens=2048,
             )
         except Exception as e:
             logger.error("LLM comparison failed: %s", e)
-            return SkillResult(response_text="Something went wrong during comparison. Try again?")
+            return SkillResult(
+                response_text=t_cached(
+                    _STRINGS, "compare_failed", lang, "compare_documents"
+                )
+            )
 
         doc_size_kb = len(file_bytes) / 1024
         text_chars = len(doc_text)
 
-        header = (
-            f"<b>Document Analysis</b> — {filename}\n"
-            f"<i>{doc_size_kb:.0f} KB, {text_chars:,} characters extracted</i>\n\n"
-        )
+        header = t_cached(
+            _STRINGS, "analysis_header", lang, "compare_documents"
+        ).format(filename=filename, size=f"{doc_size_kb:.0f}", chars=f"{text_chars:,}")
 
         return SkillResult(response_text=header + analysis)
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return COMPARE_SYSTEM_PROMPT
+        lang = context.language or "en"
+        return COMPARE_SYSTEM_PROMPT.format(language=lang)
 
 
 skill = CompareDocumentsSkill()

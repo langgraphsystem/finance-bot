@@ -144,7 +144,8 @@ async def test_no_data_returns_message(sample_context):
     ):
         result = await skill.execute(message, sample_context, intent_data)
 
-    assert "no transactions" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "no transactions" in text_lower or "транзакций не найдено" in text_lower
 
 
 async def test_with_data_calls_llm(sample_context):
@@ -184,7 +185,7 @@ async def test_with_data_calls_llm(sample_context):
 async def test_chart_generated_with_categories(sample_context):
     """Pie chart is generated when 2+ categories present."""
     message = _make_message("expenses breakdown")
-    intent_data = {}
+    intent_data = {"period": "month"}
 
     cat_rows = [
         _make_cat_row("Rent", 1000.0, 1),

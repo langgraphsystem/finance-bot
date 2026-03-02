@@ -24,7 +24,8 @@ logger = logging.getLogger(__name__)
 SYSTEM_PROMPT = """\
 You fill document templates (DOCX/XLSX) with user data.
 Upload a template with placeholders like {{name}}, {{date}}, {{amount}}.
-Be concise. Use HTML tags for Telegram."""
+Be concise. Use HTML tags for Telegram.
+Respond in: {language}."""
 
 # Regex to find Jinja2-style placeholders: {{ variable_name }}
 PLACEHOLDER_RE = re.compile(r"\{\{\s*(\w+)\s*\}\}")
@@ -36,6 +37,24 @@ _STRINGS = {
             "Use placeholders like <code>{{name}}</code>, <code>{{date}}</code>, "
             "<code>{{amount}}</code> in your template."
         ),
+        "unsupported_format": (
+            "Unsupported format. Please upload a <b>.docx</b> or <b>.xlsx</b> template."
+        ),
+        "fill_failed": "Failed to process the template. Make sure it's a valid file.",
+        "filled_ok": "<b>Template filled</b> ({format})",
+        "filled_fields": "Filled: {fields}",
+        "unfilled_fields": "Not filled (no data): {fields}",
+        "no_placeholders": "No placeholders found in the template.",
+        "no_templates": (
+            "No saved templates. Upload a DOCX/XLSX and say <b>save as template</b>."
+        ),
+        "templates_header": "<b>Your templates:</b>",
+        "template_saved": (
+            "Template <b>{name}</b> saved. Use <b>list templates</b> to see all."
+        ),
+        "template_not_found": "Template <b>{name}</b> not found.",
+        "template_deleted": "Template <b>{name}</b> deleted.",
+        "ask_template_name": "Which template? Say <b>delete template {name}</b>.",
     },
     "ru": {
         "no_file": (
@@ -43,6 +62,24 @@ _STRINGS = {
             "Используйте заполнители вроде <code>{{name}}</code>, <code>{{date}}</code>, "
             "<code>{{amount}}</code> в шаблоне."
         ),
+        "unsupported_format": (
+            "Формат не поддерживается. Загрузите шаблон <b>.docx</b> или <b>.xlsx</b>."
+        ),
+        "fill_failed": "Не удалось обработать шаблон. Убедитесь, что файл корректен.",
+        "filled_ok": "<b>Шаблон заполнен</b> ({format})",
+        "filled_fields": "Заполнено: {fields}",
+        "unfilled_fields": "Не заполнено (нет данных): {fields}",
+        "no_placeholders": "В шаблоне не найдено заполнителей.",
+        "no_templates": (
+            "Нет сохранённых шаблонов. Загрузите DOCX/XLSX и скажите <b>сохрани как шаблон</b>."
+        ),
+        "templates_header": "<b>Ваши шаблоны:</b>",
+        "template_saved": (
+            "Шаблон <b>{name}</b> сохранён. Скажите <b>мои шаблоны</b> для просмотра."
+        ),
+        "template_not_found": "Шаблон <b>{name}</b> не найден.",
+        "template_deleted": "Шаблон <b>{name}</b> удалён.",
+        "ask_template_name": "Какой шаблон? Скажите <b>удали шаблон {name}</b>.",
     },
     "es": {
         "no_file": (
@@ -50,6 +87,24 @@ _STRINGS = {
             "Use marcadores como <code>{{name}}</code>, <code>{{date}}</code>, "
             "<code>{{amount}}</code> en su plantilla."
         ),
+        "unsupported_format": (
+            "Formato no compatible. Suba una plantilla <b>.docx</b> o <b>.xlsx</b>."
+        ),
+        "fill_failed": "No se pudo procesar la plantilla. Verifique que el archivo sea valido.",
+        "filled_ok": "<b>Plantilla completada</b> ({format})",
+        "filled_fields": "Completados: {fields}",
+        "unfilled_fields": "Sin datos: {fields}",
+        "no_placeholders": "No se encontraron marcadores en la plantilla.",
+        "no_templates": (
+            "No hay plantillas guardadas. Suba un DOCX/XLSX y diga <b>guardar como plantilla</b>."
+        ),
+        "templates_header": "<b>Sus plantillas:</b>",
+        "template_saved": (
+            "Plantilla <b>{name}</b> guardada. Use <b>mis plantillas</b> para ver todas."
+        ),
+        "template_not_found": "Plantilla <b>{name}</b> no encontrada.",
+        "template_deleted": "Plantilla <b>{name}</b> eliminada.",
+        "ask_template_name": "Cual plantilla? Diga <b>eliminar plantilla {name}</b>.",
     },
 }
 register_strings("fill_template", _STRINGS)
@@ -172,6 +227,7 @@ class FillTemplateSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        lang = context.language or "en"
         file_bytes = message.document_bytes
         filename = message.document_file_name or ""
         text = (message.text or "").strip().lower()
@@ -182,13 +238,13 @@ class FillTemplateSkill:
         # --- Template library commands ---
 
         if "list template" in text or "мои шаблон" in text or "my template" in text:
-            return await self._list_templates(context)
+            return await self._list_templates(context, lang)
 
         if "delete template" in text or "удали шаблон" in text:
             template_name = intent_data.get("template_name") or _extract_template_name(
                 text, "delete"
             )
-            return await self._delete_template(context, template_name)
+            return await self._delete_template(context, template_name, lang)
 
         # Save template: file attached + user asks to save as template
         if (
@@ -197,18 +253,19 @@ class FillTemplateSkill:
             and ("template" in text or "шаблон" in text)
         ):
             template_name = intent_data.get("template_name") or _extract_template_name(text, "save")
-            return await self._save_template(context, file_bytes, filename, ext, template_name)
+            return await self._save_template(
+                context, file_bytes, filename, ext, template_name, lang
+            )
 
         # --- Existing fill-template logic ---
 
         if not file_bytes:
-            lang = context.language or "en"
             return SkillResult(response_text=t_cached(_STRINGS, "no_file", lang, "fill_template"))
 
         if ext not in ("docx", "xlsx"):
             return SkillResult(
-                response_text=(
-                    "Unsupported format. Please upload a <b>.docx</b> or <b>.xlsx</b> template."
+                response_text=t_cached(
+                    _STRINGS, "unsupported_format", lang, "fill_template"
                 )
             )
 
@@ -226,19 +283,32 @@ class FillTemplateSkill:
         except Exception as e:
             logger.exception("Template fill failed: %s", e)
             return SkillResult(
-                response_text="Failed to process the template. Make sure it's a valid file."
+                response_text=t_cached(_STRINGS, "fill_failed", lang, "fill_template")
             )
 
         # Build response text
-        parts = [f"<b>Template filled</b> ({ext.upper()})"]
+        fmt = ext.upper()
+        parts = [
+            t_cached(_STRINGS, "filled_ok", lang, "fill_template").format(format=fmt)
+        ]
         if filled:
-            parts.append(f"Filled: {', '.join(f'<code>{f}</code>' for f in filled)}")
-        if unfilled:
+            fields_str = ", ".join(f"<code>{f}</code>" for f in filled)
             parts.append(
-                f"Not filled (no data): {', '.join(f'<code>{u}</code>' for u in unfilled)}"
+                t_cached(_STRINGS, "filled_fields", lang, "fill_template").format(
+                    fields=fields_str
+                )
+            )
+        if unfilled:
+            fields_str = ", ".join(f"<code>{u}</code>" for u in unfilled)
+            parts.append(
+                t_cached(_STRINGS, "unfilled_fields", lang, "fill_template").format(
+                    fields=fields_str
+                )
             )
         if not filled and not unfilled:
-            parts.append("No placeholders found in the template.")
+            parts.append(
+                t_cached(_STRINGS, "no_placeholders", lang, "fill_template")
+            )
 
         output_name = filename.replace(f".{ext}", f"_filled.{ext}")
         return SkillResult(
@@ -247,7 +317,7 @@ class FillTemplateSkill:
             document_name=output_name,
         )
 
-    async def _list_templates(self, context: SessionContext) -> SkillResult:
+    async def _list_templates(self, context: SessionContext, lang: str) -> SkillResult:
         """List user's saved templates."""
         async with async_session() as session:
             result = await session.execute(
@@ -261,12 +331,10 @@ class FillTemplateSkill:
 
         if not templates:
             return SkillResult(
-                response_text=(
-                    "No saved templates. Upload a DOCX/XLSX and say <b>save as template</b>."
-                )
+                response_text=t_cached(_STRINGS, "no_templates", lang, "fill_template")
             )
 
-        lines = ["<b>Your templates:</b>"]
+        lines = [t_cached(_STRINGS, "templates_header", lang, "fill_template")]
         for t in templates:
             name = (t.metadata_extra or {}).get("template_name", t.file_name or "Untitled")
             lines.append(f"  • {name} ({t.file_name})")
@@ -279,6 +347,7 @@ class FillTemplateSkill:
         filename: str,
         ext: str,
         template_name: str,
+        lang: str,
     ) -> SkillResult:
         """Save a file as a reusable template."""
         if not template_name:
@@ -311,15 +380,21 @@ class FillTemplateSkill:
             await session.commit()
 
         return SkillResult(
-            response_text=(
-                f"Template <b>{template_name}</b> saved. Use <b>list templates</b> to see all."
-            )
+            response_text=t_cached(
+                _STRINGS, "template_saved", lang, "fill_template"
+            ).format(name=template_name)
         )
 
-    async def _delete_template(self, context: SessionContext, template_name: str) -> SkillResult:
+    async def _delete_template(
+        self, context: SessionContext, template_name: str, lang: str
+    ) -> SkillResult:
         """Delete a saved template by name."""
         if not template_name:
-            return SkillResult(response_text="Which template? Say <b>delete template {name}</b>.")
+            return SkillResult(
+                response_text=t_cached(
+                    _STRINGS, "ask_template_name", lang, "fill_template"
+                )
+            )
 
         async with async_session() as session:
             result = await session.execute(
@@ -331,14 +406,23 @@ class FillTemplateSkill:
             )
             doc = result.scalar_one_or_none()
             if not doc:
-                return SkillResult(response_text=f"Template <b>{template_name}</b> not found.")
+                return SkillResult(
+                    response_text=t_cached(
+                        _STRINGS, "template_not_found", lang, "fill_template"
+                    ).format(name=template_name)
+                )
             await session.delete(doc)
             await session.commit()
 
-        return SkillResult(response_text=f"Template <b>{template_name}</b> deleted.")
+        return SkillResult(
+            response_text=t_cached(
+                _STRINGS, "template_deleted", lang, "fill_template"
+            ).format(name=template_name)
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return SYSTEM_PROMPT
+        lang = context.language or "en"
+        return SYSTEM_PROMPT.format(language=lang)
 
 
 skill = FillTemplateSkill()

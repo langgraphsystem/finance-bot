@@ -1908,7 +1908,120 @@ async def _handle_callback(
             chat_id=message.chat_id,
         )
 
+    # ------------------------------------------------------------------
+    # Clarification callbacks (period / export type selection)
+    # ------------------------------------------------------------------
+    elif action == "period_select":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        chosen_period = parts[2] if len(parts) > 2 else "month"
+        return await _handle_period_select(pending_id, chosen_period, message, context)
+
+    elif action == "export_select":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        chosen_type = parts[2] if len(parts) > 2 else "expenses"
+        return await _handle_export_select(pending_id, chosen_type, message, context)
+
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+
+
+async def _handle_period_select(
+    pending_id: str,
+    chosen_period: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Resume a skill after user selected a period."""
+    from src.skills._clarification import delete_pending, get_pending
+
+    pending = await get_pending(pending_id) if pending_id else None
+    if not pending:
+        from src.skills._clarification import _STRINGS as _CLR_STRINGS
+        from src.skills._i18n import t_cached
+
+        lang = context.language or "en"
+        return OutgoingMessage(
+            text=t_cached(_CLR_STRINGS, "expired", lang, namespace="clarification"),
+            chat_id=message.chat_id,
+        )
+
+    skill_name = pending["skill"]
+    intent_data = pending.get("intent_data") or {}
+    intent_data["period"] = chosen_period
+    original_text = pending.get("text", "")
+
+    await delete_pending(pending_id)
+
+    registry = get_registry()
+    skill = registry.get(skill_name)
+    if not skill:
+        return OutgoingMessage(text="Skill not found.", chat_id=message.chat_id)
+
+    resume_msg = IncomingMessage(
+        id=message.id,
+        user_id=message.user_id,
+        chat_id=message.chat_id,
+        type=MessageType.text,
+        text=original_text,
+    )
+    skill_result = await skill.execute(resume_msg, context, intent_data)
+
+    return OutgoingMessage(
+        text=skill_result.response_text,
+        chat_id=message.chat_id,
+        buttons=skill_result.buttons,
+        chart_url=skill_result.chart_url,
+        document=skill_result.document,
+        document_name=skill_result.document_name,
+    )
+
+
+async def _handle_export_select(
+    pending_id: str,
+    chosen_type: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Resume export_excel after user selected an export type."""
+    from src.skills._clarification import delete_pending, get_pending
+
+    pending = await get_pending(pending_id) if pending_id else None
+    if not pending:
+        from src.skills._clarification import _STRINGS as _CLR_STRINGS
+        from src.skills._i18n import t_cached
+
+        lang = context.language or "en"
+        return OutgoingMessage(
+            text=t_cached(_CLR_STRINGS, "expired", lang, namespace="clarification"),
+            chat_id=message.chat_id,
+        )
+
+    intent_data = pending.get("intent_data") or {}
+    intent_data["export_type"] = chosen_type
+    original_text = pending.get("text", "")
+
+    await delete_pending(pending_id)
+
+    registry = get_registry()
+    skill = registry.get("export_excel")
+    if not skill:
+        return OutgoingMessage(text="Skill not found.", chat_id=message.chat_id)
+
+    resume_msg = IncomingMessage(
+        id=message.id,
+        user_id=message.user_id,
+        chat_id=message.chat_id,
+        type=MessageType.text,
+        text=original_text,
+    )
+    skill_result = await skill.execute(resume_msg, context, intent_data)
+
+    return OutgoingMessage(
+        text=skill_result.response_text,
+        chat_id=message.chat_id,
+        buttons=skill_result.buttons,
+        document=skill_result.document,
+        document_name=skill_result.document_name,
+    )
 
 
 def _receipt_t(key: str, context: SessionContext, **kwargs: str) -> str:

@@ -32,7 +32,8 @@ async def test_fill_template_unsupported_format(sample_context):
         document_mime_type="text/plain",
     )
     result = await skill.execute(msg, sample_context, {})
-    assert "unsupported" in result.response_text.lower()
+    # EN: "Unsupported format" / RU: "Формат не поддерживается"
+    assert "unsupported" in result.response_text.lower() or "формат" in result.response_text.lower()
     assert result.document is None
 
 
@@ -54,7 +55,8 @@ async def test_fill_template_docx_happy_path(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {"template_values": {"name": "John"}})
 
-    assert "Template filled" in result.response_text
+    # EN: "Template filled" / RU: "Шаблон заполнен"
+    assert "Template filled" in result.response_text or "Шаблон заполнен" in result.response_text
     assert "name" in result.response_text
     assert "date" in result.response_text
     assert result.document == filled_bytes
@@ -79,7 +81,8 @@ async def test_fill_template_xlsx_happy_path(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "Template filled" in result.response_text
+    # EN: "Template filled" / RU: "Шаблон заполнен"
+    assert "Template filled" in result.response_text or "Шаблон заполнен" in result.response_text
     assert "XLSX" in result.response_text
     assert result.document == filled_bytes
     assert result.document_name == "budget_filled.xlsx"
@@ -102,7 +105,11 @@ async def test_fill_template_no_placeholders(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "No placeholders" in result.response_text
+    # EN: "No placeholders" / RU: "не найдено заполнителей"
+    assert (
+        "No placeholders" in result.response_text
+        or "не найдено заполнителей" in result.response_text
+    )
     assert result.document == b"output"
 
 
@@ -123,5 +130,9 @@ async def test_fill_template_processing_error(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {})
 
-    assert "failed" in result.response_text.lower() or "valid" in result.response_text.lower()
+    # EN: "Failed" / RU: "Не удалось"
+    assert (
+        "failed" in result.response_text.lower()
+        or "не удалось" in result.response_text.lower()
+    )
     assert result.document is None

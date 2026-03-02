@@ -54,7 +54,8 @@ async def test_generate_document_pdf_happy_path(sample_context):
 
     assert result.document == pdf_bytes
     assert result.document_name.endswith(".pdf")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готов" in text_lower
 
 
 async def test_generate_document_html_format(sample_context):
@@ -85,7 +86,8 @@ async def test_generate_document_html_format(sample_context):
     assert result.document is not None
     assert result.document_name.endswith(".html")
     assert result.document == html_content.encode("utf-8")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готов" in text_lower
 
 
 async def test_generate_document_pdf_fails_returns_html(sample_context):
@@ -112,7 +114,8 @@ async def test_generate_document_pdf_fails_returns_html(sample_context):
 
     assert result.document is not None
     assert result.document_name.endswith(".html")
-    assert "html" in result.response_text.lower() or "unavailable" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "html" in text_lower or "unavailable" in text_lower or "недоступна" in text_lower
 
 
 async def test_generate_document_llm_fails(sample_context):
@@ -131,7 +134,13 @@ async def test_generate_document_llm_fails(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {"description": "contract"})
 
-    assert "failed" in result.response_text.lower() or "try again" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert (
+        "failed" in text_lower
+        or "try again" in text_lower
+        or "не удалось" in text_lower
+        or "попробовать снова" in text_lower
+    )
     assert result.document is None
 
 

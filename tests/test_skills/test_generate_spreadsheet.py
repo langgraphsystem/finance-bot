@@ -55,7 +55,8 @@ async def test_generate_spreadsheet_e2b_happy_path(sample_context):
 
     assert result.document == xlsx_bytes
     assert result.document_name.endswith(".xlsx")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готова" in text_lower
 
 
 async def test_generate_spreadsheet_e2b_fails_fallback_succeeds(sample_context):
@@ -95,7 +96,8 @@ async def test_generate_spreadsheet_e2b_fails_fallback_succeeds(sample_context):
 
     assert result.document == fallback_xlsx
     assert result.document_name.endswith(".xlsx")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готова" in text_lower
 
 
 async def test_generate_spreadsheet_all_methods_fail(sample_context):
@@ -126,5 +128,11 @@ async def test_generate_spreadsheet_all_methods_fail(sample_context):
     ):
         result = await skill.execute(msg, sample_context, {"description": "a spreadsheet"})
 
-    assert "failed" in result.response_text.lower() or "simpler" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert (
+        "failed" in text_lower
+        or "simpler" in text_lower
+        or "не удалось" in text_lower
+        or "более простое" in text_lower
+    )
     assert result.document is None

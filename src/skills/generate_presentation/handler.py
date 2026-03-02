@@ -18,12 +18,18 @@ logger = logging.getLogger(__name__)
 _STRINGS = {
     "en": {
         "no_topic": "What should the presentation be about?",
+        "presentation_ready": "<b>{filename}</b> — your presentation is ready.",
+        "generation_failed": "Failed to generate presentation. Try a different topic.",
     },
     "ru": {
         "no_topic": "О чём должна быть презентация?",
+        "presentation_ready": "<b>{filename}</b> — ваша презентация готова.",
+        "generation_failed": "Не удалось создать презентацию. Попробуйте другую тему.",
     },
     "es": {
         "no_topic": "Sobre que debe ser la presentacion?",
+        "presentation_ready": "<b>{filename}</b> — su presentacion esta lista.",
+        "generation_failed": "No se pudo generar la presentacion. Pruebe un tema diferente.",
     },
 }
 register_strings("generate_presentation", _STRINGS)
@@ -153,9 +159,9 @@ class GeneratePresentationSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         topic = (intent_data.get("presentation_topic") or message.text or "").strip()
+        lang = context.language or "en"
 
         if not topic:
-            lang = context.language or "en"
             return SkillResult(
                 response_text=t_cached(_STRINGS, "no_topic", lang, "generate_presentation")
             )
@@ -188,7 +194,9 @@ class GeneratePresentationSkill:
                     len(file_bytes),
                 )
                 return SkillResult(
-                    response_text=f"<b>{filename}</b> — your presentation is ready.",
+                    response_text=t_cached(
+                        _STRINGS, "presentation_ready", lang, "generate_presentation"
+                    ).format(filename=filename),
                     document=file_bytes,
                     document_name=filename,
                 )
@@ -207,12 +215,18 @@ class GeneratePresentationSkill:
                 len(file_bytes),
             )
             return SkillResult(
-                response_text=f"<b>{filename}</b> — your presentation is ready.",
+                response_text=t_cached(
+                    _STRINGS, "presentation_ready", lang, "generate_presentation"
+                ).format(filename=filename),
                 document=file_bytes,
                 document_name=filename,
             )
 
-        return SkillResult(response_text="Failed to generate presentation. Try a different topic.")
+        return SkillResult(
+            response_text=t_cached(
+                _STRINGS, "generation_failed", lang, "generate_presentation"
+            )
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return PPTX_SYSTEM_PROMPT

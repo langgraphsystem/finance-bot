@@ -14,8 +14,10 @@ depends_on = None
 
 def upgrade() -> None:
     op.execute("""
-        CREATE TYPE IF NOT EXISTS invoice_status
-        AS ENUM ('draft', 'sent', 'paid', 'cancelled')
+        DO $$ BEGIN
+            CREATE TYPE invoice_status AS ENUM ('draft', 'sent', 'paid', 'cancelled');
+        EXCEPTION WHEN duplicate_object THEN NULL;
+        END $$
     """)
 
     op.execute("""

@@ -32,7 +32,7 @@ async def test_generate_invoice_contact_not_found(sample_context, text_message):
         result = await skill.execute(
             text_message, sample_context, {"contact_name": "Unknown Person"}
         )
-        assert "don't have" in result.response_text
+        assert "don't have" in result.response_text or "нет данных" in result.response_text.lower()
 
 
 async def test_generate_invoice_no_transactions(sample_context, text_message):
@@ -48,7 +48,8 @@ async def test_generate_invoice_no_transactions(sample_context, text_message):
         ),
     ):
         result = await skill.execute(text_message, sample_context, {"contact_name": "Mike"})
-        assert "No recent transactions" in result.response_text
+        text = result.response_text
+        assert "No recent transactions" in text or "Нет недавних транзакций" in text
 
 
 async def test_generate_invoice_success(sample_context, text_message):
@@ -73,7 +74,7 @@ async def test_generate_invoice_success(sample_context, text_message):
         sys.modules["weasyprint"].HTML = mock_html
 
         result = await skill.execute(text_message, sample_context, {"contact_name": "Mike"})
-        assert "Invoice" in result.response_text
+        assert "Invoice" in result.response_text or "Инвойс" in result.response_text
         assert "Mike Chen" in result.response_text
         assert "750.00" in result.response_text
         assert result.document is not None

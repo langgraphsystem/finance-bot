@@ -117,16 +117,60 @@ _STRINGS = {
     "en": {
         "no_account": "Set up your account first to generate invoices.",
         "no_contact": 'Who should I invoice? Try: "generate invoice PDF for Mike Chen"',
+        "contact_not_found": (
+            'I don\'t have {name}\'s info. Add them first: "add contact {name}"'
+        ),
+        "no_transactions": (
+            "No recent transactions found to include in the invoice. "
+            "Add some income entries first."
+        ),
+        "pdf_failed": "Failed to generate PDF. Please try again.",
+        "invoice_ready": (
+            "\U0001f4c4 <b>Invoice #{number}</b>\n"
+            "Client: {name}\n"
+            "Total: {symbol}{total}\n"
+            "Due: {due}"
+        ),
     },
     "ru": {
         "no_account": "Сначала настройте аккаунт для создания инвойсов.",
         "no_contact": 'Кому выставить инвойс? Пример: "сделай PDF инвойс для Mike Chen"',
+        "contact_not_found": (
+            'У меня нет данных {name}. Сначала добавьте: "добавь контакт {name}"'
+        ),
+        "no_transactions": (
+            "Нет недавних транзакций для инвойса. "
+            "Сначала добавьте записи о доходах."
+        ),
+        "pdf_failed": "Не удалось создать PDF. Попробуйте снова.",
+        "invoice_ready": (
+            "\U0001f4c4 <b>Инвойс #{number}</b>\n"
+            "Клиент: {name}\n"
+            "Итого: {symbol}{total}\n"
+            "Оплатить до: {due}"
+        ),
     },
     "es": {
         "no_account": "Configure su cuenta primero para generar facturas.",
         "no_contact": 'A quien debo facturar? Ejemplo: "generar factura PDF para Mike Chen"',
+        "contact_not_found": (
+            'No tengo la informacion de {name}. '
+            'Agr\u00e9guelo primero: "agregar contacto {name}"'
+        ),
+        "no_transactions": (
+            "No se encontraron transacciones recientes para la factura. "
+            "Agregue ingresos primero."
+        ),
+        "pdf_failed": "No se pudo generar el PDF. Intente de nuevo.",
+        "invoice_ready": (
+            "\U0001f4c4 <b>Factura #{number}</b>\n"
+            "Cliente: {name}\n"
+            "Total: {symbol}{total}\n"
+            "Vencimiento: {due}"
+        ),
     },
 }
+_CURRENCY_SYMBOLS = {"USD": "$", "EUR": "\u20ac", "GBP": "\u00a3", "RUB": "\u20bd"}
 register_strings("generate_invoice_pdf", _STRINGS)
 
 
@@ -159,18 +203,21 @@ class GenerateInvoicePdfSkill:
         contact = await self._find_contact(family_id, contact_name)
         if not contact:
             return SkillResult(
-                response_text=f"I don't have {contact_name}'s info. "
-                f'Add them first: "add contact {contact_name}"'
+                response_text=t_cached(
+                    _STRINGS, "contact_not_found", lang, ns
+                ).format(name=contact_name)
             )
 
-        # Get recent income transactions for this contact
+        # Get income transactions for this contact (use intent dates or default 30 days)
         transactions = await self._get_recent_transactions(
-            family_id, contact_name=contact["name"], days=30
+            family_id,
+            contact_name=contact["name"],
+            date_from=intent_data.get("date_from"),
+            date_to=intent_data.get("date_to"),
         )
         if not transactions:
             return SkillResult(
-                response_text="No recent transactions found to include in the invoice. "
-                "Add some income entries first."
+                response_text=t_cached(_STRINGS, "no_transactions", lang, ns)
             )
 
         # Build invoice data
@@ -179,7 +226,7 @@ class GenerateInvoicePdfSkill:
         invoice_num = self._generate_invoice_number()
         total = sum(tx["amount"] for tx in transactions)
         currency = context.currency or "USD"
-        currency_symbol = "$" if currency == "USD" else currency + " "
+        currency_symbol = _CURRENCY_SYMBOLS.get(currency, currency + " ")
 
         # Get business profile info
         profile = context.profile_config
@@ -218,15 +265,20 @@ class GenerateInvoicePdfSkill:
             pdf_bytes = await asyncio.to_thread(HTML(string=html).write_pdf)
         except Exception:
             logger.exception("PDF generation failed")
-            return SkillResult(response_text="Failed to generate PDF. Please try again.")
+            return SkillResult(
+                response_text=t_cached(_STRINGS, "pdf_failed", lang, ns)
+            )
 
         filename = f"invoice_{invoice_num}.pdf"
         return SkillResult(
-            response_text=(
-                f"\U0001f4c4 <b>Invoice #{invoice_num}</b>\n"
-                f"Client: {contact['name']}\n"
-                f"Total: {currency_symbol}{total:.2f}\n"
-                f"Due: {due.strftime('%B %d, %Y')}"
+            response_text=t_cached(
+                _STRINGS, "invoice_ready", lang, ns
+            ).format(
+                number=invoice_num,
+                name=contact["name"],
+                symbol=currency_symbol,
+                total=f"{total:.2f}",
+                due=due.strftime("%B %d, %Y"),
             ),
             document=pdf_bytes,
             document_name=filename,
@@ -255,9 +307,15 @@ class GenerateInvoicePdfSkill:
 
     @staticmethod
     async def _get_recent_transactions(
-        family_id: str, contact_name: str, days: int = 30
+        family_id: str,
+        contact_name: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
     ) -> list[dict[str, Any]]:
-        cutoff = date.today() - timedelta(days=days)
+        cutoff_start = (
+            date.fromisoformat(date_from) if date_from else date.today() - timedelta(days=30)
+        )
+        cutoff_end = date.fromisoformat(date_to) if date_to else date.today()
         fid = uuid.UUID(family_id)
         async with async_session() as session:
             # Try matching by merchant name first
@@ -266,7 +324,8 @@ class GenerateInvoicePdfSkill:
                 .where(
                     Transaction.family_id == fid,
                     Transaction.type == TransactionType.income,
-                    Transaction.date >= cutoff,
+                    Transaction.date >= cutoff_start,
+                    Transaction.date <= cutoff_end,
                     Transaction.merchant.ilike(f"%{contact_name}%"),
                 )
                 .order_by(Transaction.date.desc())
@@ -281,7 +340,8 @@ class GenerateInvoicePdfSkill:
                     .where(
                         Transaction.family_id == fid,
                         Transaction.type == TransactionType.income,
-                        Transaction.date >= cutoff,
+                        Transaction.date >= cutoff_start,
+                        Transaction.date <= cutoff_end,
                     )
                     .order_by(Transaction.date.desc())
                     .limit(20)

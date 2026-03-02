@@ -19,7 +19,7 @@ from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.transaction import Transaction
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import register_strings
+from src.skills._i18n import register_strings, t_cached
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -31,12 +31,38 @@ NEVER calculate yourself — use the provided numbers.
 Provide a clear, actionable forecast using HTML tags for Telegram.
 Structure: current balance trend → recurring obligations → forecast → recommendation.
 Use <b>bold</b> for key amounts. Max 8 lines.
-If data is insufficient (<14 days), say so clearly."""
+If data is insufficient (<14 days), say so clearly.
+Respond in: {language}."""
 
 MIN_HISTORY_DAYS = 14
 
-
-register_strings("cash_flow_forecast", {"en": {}, "ru": {}, "es": {}})
+_STRINGS = {
+    "en": {
+        "no_account": "Set up your account first to get forecasts.",
+        "not_enough_data": (
+            "I need at least {min_days} days of data to forecast. "
+            "You have {days_have} days so far. Keep tracking and check back soon."
+        ),
+        "data_summary": "{days} days of data, forecasting {horizon} days ({currency})",
+    },
+    "ru": {
+        "no_account": "Сначала настройте аккаунт для получения прогнозов.",
+        "not_enough_data": (
+            "Для прогноза нужно минимум {min_days} дней данных. "
+            "У вас пока {days_have} дней. Продолжайте записывать и проверьте позже."
+        ),
+        "data_summary": "{days} дн. данных, прогноз на {horizon} дн. ({currency})",
+    },
+    "es": {
+        "no_account": "Configure su cuenta primero para obtener pronósticos.",
+        "not_enough_data": (
+            "Necesito al menos {min_days} días de datos para pronosticar. "
+            "Tienes {days_have} días hasta ahora. Sigue registrando y vuelve pronto."
+        ),
+        "data_summary": "{days} días de datos, pronóstico de {horizon} días ({currency})",
+    },
+}
+register_strings("cash_flow_forecast", _STRINGS)
 
 
 class CashFlowForecastSkill:
@@ -45,7 +71,7 @@ class CashFlowForecastSkill:
     model = "claude-sonnet-4-6"
 
     def get_system_prompt(self, context: SessionContext) -> str:
-        return FORECAST_SYSTEM_PROMPT
+        return FORECAST_SYSTEM_PROMPT.format(language=context.language or "en")
 
     @observe(name="skill_cash_flow_forecast")
     async def execute(
@@ -55,9 +81,12 @@ class CashFlowForecastSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         family_id = context.family_id
+        lang = context.language or "en"
         if not family_id:
             return SkillResult(
-                response_text="Set up your account first to get forecasts."
+                response_text=t_cached(
+                    _STRINGS, "no_account", lang, namespace="cash_flow_forecast"
+                )
             )
 
         today = date.today()
@@ -67,9 +96,11 @@ class CashFlowForecastSkill:
         if not first_tx_date or (today - first_tx_date).days < MIN_HISTORY_DAYS:
             days_have = (today - first_tx_date).days if first_tx_date else 0
             return SkillResult(
-                response_text=(
-                    f"I need at least {MIN_HISTORY_DAYS} days of data to forecast. "
-                    f"You have {days_have} days so far. Keep tracking and check back soon."
+                response_text=t_cached(
+                    _STRINGS, "not_enough_data", lang,
+                    namespace="cash_flow_forecast",
+                    min_days=MIN_HISTORY_DAYS,
+                    days_have=days_have,
                 )
             )
 
@@ -145,10 +176,20 @@ class CashFlowForecastSkill:
         model = intent_data.get("_model", self.model)
         response = await generate_text(
             model=model,
-            system_prompt=FORECAST_SYSTEM_PROMPT,
+            system_prompt=FORECAST_SYSTEM_PROMPT.format(language=lang),
             user_message=f"{message.text}\n\n--- DATA ---\n{data_text}",
             assembled_context=assembled,
         )
+
+        # Prepend data summary so user sees what data was used
+        history_days = (today - first_tx_date).days if first_tx_date else 0
+        summary_line = t_cached(
+            _STRINGS, "data_summary", lang, namespace="cash_flow_forecast",
+            days=history_days,
+            horizon=horizon_days,
+            currency=context.currency,
+        )
+        response = f"<i>{summary_line}</i>\n\n{response}"
 
         return SkillResult(response_text=response)
 

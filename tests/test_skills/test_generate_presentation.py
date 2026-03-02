@@ -57,7 +57,8 @@ async def test_generate_presentation_e2b_happy_path(sample_context):
 
     assert result.document == pptx_bytes
     assert result.document_name.endswith(".pptx")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готова" in text_lower
 
 
 async def test_generate_presentation_e2b_fails_fallback_succeeds(sample_context):
@@ -93,7 +94,8 @@ async def test_generate_presentation_e2b_fails_fallback_succeeds(sample_context)
 
     assert result.document == fallback_pptx
     assert result.document_name.endswith(".pptx")
-    assert "ready" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert "ready" in text_lower or "готова" in text_lower
 
 
 async def test_generate_presentation_all_methods_fail(sample_context):
@@ -126,7 +128,13 @@ async def test_generate_presentation_all_methods_fail(sample_context):
             msg, sample_context, {"presentation_topic": "quantum computing"}
         )
 
-    assert "failed" in result.response_text.lower() or "different" in result.response_text.lower()
+    text_lower = result.response_text.lower()
+    assert (
+        "failed" in text_lower
+        or "different" in text_lower
+        or "не удалось" in text_lower
+        or "другую" in text_lower
+    )
     assert result.document is None
 
 
