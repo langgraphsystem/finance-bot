@@ -159,7 +159,7 @@ AGENTS: list[AgentConfig] = [
     AgentConfig(
         name="analytics",
         system_prompt=ANALYTICS_AGENT_PROMPT,
-        skills=["query_stats", "complex_query", "query_report"],
+        skills=["query_stats", "complex_query", "query_report", "export_excel"],
         default_model="claude-sonnet-4-6",
         context_config={"mem": "budgets", "hist": 0, "sql": True, "sum": True},
         data_tools_enabled=True,

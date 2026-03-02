@@ -24,6 +24,9 @@ class IntentData(BaseModel):
     date_from: str | None = None  # YYYY-MM-DD for custom range
     date_to: str | None = None  # YYYY-MM-DD for custom range
 
+    # Export fields
+    export_type: str | None = None  # expenses, tasks, contacts
+
     # Life-tracking fields
     tags: list[str] | None = None
     project: str | None = None

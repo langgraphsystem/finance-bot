@@ -24,6 +24,7 @@ from src.skills.delete_data.handler import skill as delete_data_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
+from src.skills.export_excel.handler import skill as export_excel_skill
 from src.skills.extract_table.handler import skill as extract_table_skill
 from src.skills.fill_pdf_form.handler import skill as fill_pdf_form_skill
 from src.skills.fill_template.handler import skill as fill_template_skill
@@ -196,6 +197,8 @@ def create_registry() -> SkillRegistry:
     registry.register(create_sheets_skill)
     # Memory Vault
     registry.register(memory_vault_skill)
+    # Export
+    registry.register(export_excel_skill)
     # Wave 1 Financial Specialists
     registry.register(financial_summary_skill)
     registry.register(generate_invoice_skill)

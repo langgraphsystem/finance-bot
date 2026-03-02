@@ -44,6 +44,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "set_budget": Domain.finance,
     "add_recurring": Domain.finance,
     "complex_query": Domain.finance,
+    "export_excel": Domain.finance,
     # Life-tracking (existing 8 intents)
     "quick_capture": Domain.general,
     "track_food": Domain.general,

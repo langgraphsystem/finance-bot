@@ -90,6 +90,13 @@ rate confirmation, или другого изображения
 "покажи итоги", "PDF", "сгенерируй отчёт", "месячный отчёт", \
 "сделай pdf расходов", "pdf сканов расходов", "отчёт по расходам в pdf", \
 "expense report pdf", "скачать отчёт", "выгрузи расходы")
+- export_excel: экспорт данных в Excel (.xlsx) — расходы, задачи, контакты \
+("экспорт в Excel", "export to Excel", "скачать в Excel", "download xlsx", \
+"выгрузи расходы в таблицу", "excel expenses", "таблица расходов xlsx", \
+"экспортируй задачи", "export contacts", "export transactions", \
+"собери расходы в файл", "save expenses as excel"). \
+Извлеки export_type: expenses/tasks/contacts (default: expenses), \
+period: week/month/year, date_from/date_to: YYYY-MM-DD
 - correct_category: исправление категории ("это не продукты, а бензин")
 - undo_last: отмена последней операции ("отмени последнюю", "undo", "верни обратно")
 - mark_paid: ТОЛЬКО изменить статус груза на "оплачен", БЕЗ суммы \
@@ -1103,6 +1110,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "query_stats": 'статистика ("сколько потратил за неделю")',
         "complex_query": 'сложный аналитический запрос ("анализ трат за 3 месяца")',
         "query_report": 'PDF-отчёт ("отчёт", "report", "месячный отчёт")',
+        "export_excel": 'экспорт в Excel ("экспорт в Excel", "скачать xlsx", "export expenses")',
     },
     "finance_specialist": {
         "financial_summary": 'финансовый обзор по категориям ("куда уходят деньги?")',

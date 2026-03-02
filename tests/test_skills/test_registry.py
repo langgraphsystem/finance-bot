@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 93
+    assert len(skills) == 94
 
 
 def test_registry_routes_intents(skill_registry):
@@ -111,6 +111,8 @@ def test_registry_routes_intents(skill_registry):
         "memory_show",
         "memory_forget",
         "memory_save",
+        # Export
+        "export_excel",
         # Universal Receptionist
         "receptionist",
     ]

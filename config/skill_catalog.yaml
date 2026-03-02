@@ -36,7 +36,7 @@ domains:
       - delete_data
 
   analytics:
-    description: "Financial reports, statistics, complex queries, spending analysis"
+    description: "Financial reports, statistics, complex queries, spending analysis, Excel export"
     triggers:
       - report
       - statistic
@@ -46,11 +46,16 @@ domains:
       - отчёт
       - статистик
       - сравни
+      - export
+      - экспорт
+      - xlsx
+      - выгруз
     agent: analytics
     skills:
       - query_stats
       - complex_query
       - query_report
+      - export_excel
 
   finance_specialist:
     description: "Financial summaries, invoices, tax estimates, cash flow forecasts"

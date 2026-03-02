@@ -58,6 +58,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "scan_document": {"mem": "mappings", "hist": 1, "sql": False, "sum": False},
     "query_stats": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
     "query_report": {"mem": "profile", "hist": 0, "sql": True, "sum": False},
+    "export_excel": {"mem": False, "hist": 0, "sql": False, "sum": False},
     "correct_category": {"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     "complex_query": {"mem": "all", "hist": 5, "sql": True, "sum": True},
     "general_chat": {"mem": "profile", "hist": 5, "sql": False, "sum": False},

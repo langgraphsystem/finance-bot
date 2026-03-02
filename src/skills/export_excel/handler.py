@@ -207,11 +207,13 @@ class ExportExcelSkill:
         async with async_session() as session:
             result = await session.execute(
                 text("""
-                    SELECT date, merchant, category, amount, description
-                    FROM transactions
-                    WHERE family_id = :fid AND type = 'expense'
-                      AND date >= :start AND date <= :end
-                    ORDER BY date DESC
+                    SELECT t.date, t.merchant, c.name AS category,
+                           t.amount, t.description, t.scope
+                    FROM transactions t
+                    LEFT JOIN categories c ON c.id = t.category_id
+                    WHERE t.family_id = :fid AND t.type = 'expense'
+                      AND t.date >= :start AND t.date <= :end
+                    ORDER BY t.date DESC
                 """),
                 {"fid": context.family_id, "start": date_from, "end": date_to},
             )
@@ -333,7 +335,7 @@ class ExportExcelSkill:
         async with async_session() as session:
             result = await session.execute(
                 text("""
-                    SELECT title, status, deadline, created_at, description
+                    SELECT title, status, due_at, created_at, description
                     FROM tasks
                     WHERE family_id = :fid
                     ORDER BY created_at DESC
@@ -378,7 +380,7 @@ class ExportExcelSkill:
                 [
                     r.title or "",
                     r.status or "",
-                    str(r.deadline) if r.deadline else "",
+                    str(r.due_at) if r.due_at else "",
                     str(r.created_at) if r.created_at else "",
                     r.description or "",
                 ]
