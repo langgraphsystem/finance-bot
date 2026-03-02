@@ -180,28 +180,24 @@ async def resolve_sales_tax_for_invoice(invoice_data: dict[str, Any]) -> dict[st
     except Exception:
         logger.exception("Sales-tax cache read failed")
 
-    stripe = StripeClient()
-    if not stripe.is_configured:
-        return {
-            "ok": False,
-            "reason": "stripe_not_configured",
-            "message_key": "tax_provider_unavailable",
-        }
-
     line_items: list[dict[str, Any]] = []
+    invoice_tax_code = str(invoice_data.get("invoice_tax_category_code") or "").strip()
     for idx, item in enumerate(invoice_data.get("items", [])):
         amount = _to_money(item.get("amount"))
         amount_cents = int((amount * Decimal("100")).to_integral_value(rounding=ROUND_HALF_UP))
         if amount_cents <= 0:
             continue
+        line_tax_code = str(item.get("tax_code") or invoice_tax_code).strip()
+        if not line_tax_code:
+            return {
+                "ok": False,
+                "reason": "missing_tax_category",
+                "message_key": "tax_missing_category",
+            }
         line_items.append({
             "amount": amount_cents,
             "reference": f"line_{idx + 1}",
-            "tax_code": (
-                item.get("tax_code")
-                or invoice_data.get("invoice_tax_category_code")
-                or settings.stripe_tax_default_code
-            ),
+            "tax_code": line_tax_code,
         })
 
     if not line_items:
@@ -209,6 +205,14 @@ async def resolve_sales_tax_for_invoice(invoice_data: dict[str, Any]) -> dict[st
             "ok": False,
             "reason": "no_taxable_items",
             "message_key": "tax_no_taxable_items",
+        }
+
+    stripe = StripeClient()
+    if not stripe.is_configured:
+        return {
+            "ok": False,
+            "reason": "stripe_not_configured",
+            "message_key": "tax_provider_unavailable",
         }
 
     try:

@@ -42,7 +42,7 @@ def _make_context(
             business_name="Test Seller LLC",
             address="10 Market Street",
             phone="555-0000",
-            tax={},
+            tax={"collect_sales_tax": False},
         )
     return SessionContext(
         user_id=str(uuid.uuid4()),
@@ -447,6 +447,7 @@ async def test_company_info_from_profile():
     profile.business_name = "Chen Plumbing LLC"
     profile.address = "123 Main St"
     profile.phone = "555-0000"
+    profile.tax = {"collect_sales_tax": False}
     ctx = SessionContext(
         user_id=str(uuid.uuid4()),
         family_id=str(uuid.uuid4()),
@@ -804,3 +805,129 @@ async def test_contact_candidate_resolution_supports_numeric_choice():
     resolved = _resolve_contact_name_from_candidates("2", candidates)
     assert resolved is not None
     assert resolved["name"] == "Michael Scott"
+
+
+async def test_fsm_asks_sales_tax_when_not_specified():
+    ctx = _make_context(with_profile=False)
+    msg = _make_message("invoice Mike for plumbing repair $100")
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [{"description": "Work", "quantity": 1, "unit_price": 100.0}],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._find_contacts",
+            new_callable=AsyncMock,
+            return_value=[{"id": str(uuid.uuid4()), "name": "Mike", "email": None, "phone": None}],
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(
+            msg,
+            ctx,
+            {"company_name": "Seller Inc", "company_address": "1 Main St"},
+        )
+
+    assert "sales tax" in result.response_text.lower() or "налог" in result.response_text.lower()
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "collect_tax"
+    assert stored["requires_sales_tax"] is None
+
+
+async def test_fsm_taxable_requires_tax_category_before_preview():
+    ctx = _make_context()
+    msg = _make_message("invoice Mike for plumbing repair $100")
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [{"description": "Work", "quantity": 1, "unit_price": 100.0}],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._find_contacts",
+            new_callable=AsyncMock,
+            return_value=[{"id": str(uuid.uuid4()), "name": "Mike", "email": None, "phone": None}],
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(
+            msg,
+            ctx,
+            {
+                "requires_sales_tax": True,
+                "seller_state": "NY",
+                "company_name": "Seller Inc",
+                "company_address": "1 Main St",
+                "buyer_address_line1": "1 Market St",
+                "buyer_city": "San Francisco",
+                "buyer_state": "CA",
+                "buyer_postal_code": "94105",
+            },
+        )
+
+    assert "category" in result.response_text.lower() or "категор" in result.response_text.lower()
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "collect_tax"
+    assert stored["requires_sales_tax"] is True
+
+
+async def test_fsm_tax_category_selection_by_number_generates_preview():
+    ctx = _make_context()
+    pending_id = "abc12345"
+    draft = {
+        "pending_id": pending_id,
+        "family_id": ctx.family_id,
+        "user_id": ctx.user_id,
+        "draft_state": "collect_tax",
+        "contact_id": str(uuid.uuid4()),
+        "contact_name": "Mike",
+        "company_name": "Seller Inc",
+        "company_address": "1 Main St",
+        "seller_state": "NY",
+        "requires_sales_tax": True,
+        "buyer_address_line1": "1 Market St",
+        "buyer_city": "San Francisco",
+        "buyer_state": "CA",
+        "buyer_postal_code": "94105",
+        "buyer_country": "US",
+        "raw_items": [{"description": "Work", "quantity": 1, "unit_price": 100.0}],
+    }
+    with (
+        patch(
+            "src.skills.generate_invoice.handler.get_active_pending_invoice",
+            new_callable=AsyncMock,
+            return_value=draft,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler._find_contact_by_id",
+            new_callable=AsyncMock,
+            return_value={"id": draft["contact_id"], "name": "Mike", "email": None, "phone": None},
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(_make_message("2"), ctx, {})
+
+    assert result.buttons is not None
+    stored = mock_store.call_args[0][1]
+    assert stored["draft_state"] == "await_confirm"
+    assert stored["invoice_tax_category_code"] == "txcd_10103000"

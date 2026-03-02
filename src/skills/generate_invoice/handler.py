@@ -43,6 +43,7 @@ class InvoiceDraftState(StrEnum):
     collect_seller = "collect_seller"
     collect_buyer = "collect_buyer"
     collect_items = "collect_items"
+    collect_tax = "collect_tax"
     await_confirm = "await_confirm"
     confirmed = "confirmed"
     cancelled = "cancelled"
@@ -103,6 +104,11 @@ _STRINGS = {
         "tax_provider_unavailable": "Tax provider is not configured. Try again later.",
         "tax_provider_error": "Couldn't calculate sales tax right now. Please retry.",
         "tax_no_taxable_items": "No taxable items found in this invoice.",
+        "tax_missing_category": (
+            "I need the product/service tax category before sales-tax calculation."
+        ),
+        "tax_ask_required": "Should I apply US sales tax for this invoice? Reply: yes or no.",
+        "tax_need_category": "Select tax category:\n{options}",
         "tax_invalid_subtotal": "Invoice subtotal is invalid for tax calculation.",
         "edit_hint": (
             "Send corrections:\n"
@@ -166,6 +172,9 @@ _STRINGS = {
         "tax_provider_unavailable": "Налоговый провайдер не настроен. Попробуйте позже.",
         "tax_provider_error": "Не удалось рассчитать налог. Повторите попытку.",
         "tax_no_taxable_items": "В инвойсе нет налогооблагаемых позиций.",
+        "tax_missing_category": "Перед расчетом налога нужна категория товара/услуги.",
+        "tax_ask_required": "Начислять налог с продаж для этого инвойса? Ответьте: да или нет.",
+        "tax_need_category": "Выберите налоговую категорию:\n{options}",
         "tax_invalid_subtotal": "Некорректный подытог инвойса для расчёта налога.",
         "edit_hint": (
             "Отправьте исправления:\n"
@@ -229,6 +238,11 @@ _STRINGS = {
         "tax_provider_unavailable": "El proveedor de impuestos no está configurado.",
         "tax_provider_error": "No se pudo calcular el impuesto. Inténtalo de nuevo.",
         "tax_no_taxable_items": "No hay partidas gravables en esta factura.",
+        "tax_missing_category": (
+            "Necesito la categoria de producto/servicio antes de calcular impuestos."
+        ),
+        "tax_ask_required": "¿Aplico impuesto de ventas a esta factura? Responde: si o no.",
+        "tax_need_category": "Selecciona categoria fiscal:\n{options}",
         "tax_invalid_subtotal": "Subtotal inválido para calcular impuesto.",
         "edit_hint": (
             "Envía correcciones:\n"
@@ -239,6 +253,83 @@ _STRINGS = {
     },
 }
 register_strings("generate_invoice", _STRINGS)
+
+# Human categories used in chat; each maps to a Stripe txcd code.
+_TAX_CATEGORY_OPTIONS = [
+    {
+        "key": "general_goods",
+        "code": "txcd_10000000",
+        "labels": {
+            "en": "General goods",
+            "ru": "Обычные товары",
+            "es": "Bienes generales",
+        },
+        "aliases": ("goods", "product", "товар", "товары", "bienes", "producto"),
+    },
+    {
+        "key": "digital_services",
+        "code": "txcd_10103000",
+        "labels": {
+            "en": "Digital services / SaaS",
+            "ru": "Цифровые услуги / SaaS",
+            "es": "Servicios digitales / SaaS",
+        },
+        "aliases": ("saas", "software", "digital", "цифров", "servicio digital"),
+    },
+    {
+        "key": "professional_services",
+        "code": "txcd_99999999",
+        "labels": {
+            "en": "Professional services",
+            "ru": "Профессиональные услуги",
+            "es": "Servicios profesionales",
+        },
+        "aliases": ("service", "consult", "услуг", "servicio", "consulting"),
+    },
+]
+
+
+def _parse_yes_no(text: str) -> bool | None:
+    raw = text.strip().lower()
+    yes = {"yes", "y", "да", "ага", "si", "sí"}
+    no = {"no", "n", "нет", "nope"}
+    if raw in yes:
+        return True
+    if raw in no:
+        return False
+    return None
+
+
+def _tax_category_options_text(lang: str) -> str:
+    lines = []
+    for idx, option in enumerate(_TAX_CATEGORY_OPTIONS, start=1):
+        label = option["labels"].get(lang, option["labels"]["en"])
+        lines.append(f"{idx}. {label}")
+    return "\n".join(lines)
+
+
+def _resolve_tax_category_choice(
+    *,
+    text: str,
+    explicit_category: str | None,
+) -> tuple[str, str] | None:
+    candidate = (explicit_category or "").strip().lower()
+    raw_text = text.strip().lower()
+    if raw_text.isdigit():
+        idx = int(raw_text) - 1
+        if 0 <= idx < len(_TAX_CATEGORY_OPTIONS):
+            selected = _TAX_CATEGORY_OPTIONS[idx]
+            return selected["key"], selected["code"]
+    for option in _TAX_CATEGORY_OPTIONS:
+        if candidate and candidate == option["key"]:
+            return option["key"], option["code"]
+        if raw_text:
+            if option["key"] in raw_text:
+                return option["key"], option["code"]
+            if any(alias in raw_text for alias in option["aliases"]):
+                return option["key"], option["code"]
+    return None
+
 
 # ---------------------------------------------------------------------------
 # LLM extraction prompt
@@ -517,6 +608,25 @@ def _requires_sales_tax(context: SessionContext, intent_data: dict[str, Any]) ->
     )
 
 
+def _resolve_sales_tax_requirement(
+    context: SessionContext,
+    intent_data: dict[str, Any],
+    draft: dict[str, Any],
+) -> bool | None:
+    if intent_data.get("requires_sales_tax") is not None:
+        return bool(intent_data.get("requires_sales_tax"))
+    if draft.get("requires_sales_tax") is not None:
+        return bool(draft.get("requires_sales_tax"))
+    profile_tax = {}
+    if context.profile_config and isinstance(getattr(context.profile_config, "tax", None), dict):
+        profile_tax = context.profile_config.tax or {}
+    if profile_tax.get("collect_sales_tax") is not None:
+        return bool(profile_tax.get("collect_sales_tax"))
+    if profile_tax.get("sales_tax_required") is not None:
+        return bool(profile_tax.get("sales_tax_required"))
+    return None
+
+
 def _extract_seller_state(context: SessionContext, intent_data: dict[str, Any]) -> str:
     profile_tax = {}
     if context.profile_config and isinstance(getattr(context.profile_config, "tax", None), dict):
@@ -546,6 +656,10 @@ def _extract_fsm_hints_from_text(text: str) -> dict[str, Any]:
     phone_re = re.compile(r"\+?[0-9][0-9\-\s()]{6,}")
     for line in lines:
         if ":" not in line:
+            yes_no = _parse_yes_no(line)
+            if yes_no is not None:
+                hints["requires_sales_tax"] = yes_no
+                continue
             # Fallback: detect email/phone anywhere in line
             email_match = email_re.search(line)
             if email_match and "contact_email" not in hints:
@@ -589,6 +703,10 @@ def _extract_fsm_hints_from_text(text: str) -> dict[str, Any]:
             hints["invoice_notes"] = value
         elif key in {"sales_tax", "requires_sales_tax"}:
             hints["requires_sales_tax"] = value.lower() in {"1", "true", "yes", "y", "да"}
+        elif key in {"invoice_tax_category", "tax_category", "category"}:
+            hints["invoice_tax_category"] = value.lower().strip()
+        elif key in {"invoice_tax_category_code", "tax_code"}:
+            hints["invoice_tax_category_code"] = value.strip()
         elif key in {"item", "line", "line_item"}:
             # Format: item: Description, qty: 2, price: 99.5
             parts = [p.strip() for p in value.split(",") if p.strip()]
@@ -936,6 +1054,14 @@ class GenerateInvoiceSkill:
             active_draft = None
 
         draft = active_draft or {}
+        if (
+            draft.get("draft_state") == InvoiceDraftState.collect_tax.value
+            and merged.get("requires_sales_tax") is None
+        ):
+            yes_no = _parse_yes_no(user_text)
+            if yes_no is not None:
+                merged["requires_sales_tax"] = yes_no
+
         pending_id = draft.get("pending_id") or uuid.uuid4().hex[:8]
 
         currency = str(
@@ -948,13 +1074,8 @@ class GenerateInvoiceSkill:
         )
         notes = str(merged.get("invoice_notes") or draft.get("notes") or "").strip() or None
 
-        requires_sales_tax = bool(
-            merged.get("requires_sales_tax")
-            if merged.get("requires_sales_tax") is not None
-            else draft.get("requires_sales_tax")
-            if draft.get("requires_sales_tax") is not None
-            else _requires_sales_tax(context, merged)
-        )
+        sales_tax_requirement = _resolve_sales_tax_requirement(context, merged, draft)
+        requires_sales_tax = bool(sales_tax_requirement)
 
         profile = context.profile_config
         company_name = str(
@@ -1002,11 +1123,19 @@ class GenerateInvoiceSkill:
         buyer_country = str(
             merged.get("buyer_country") or draft.get("buyer_country") or "US"
         ).strip().upper()
+        invoice_tax_category = str(
+            merged.get("invoice_tax_category") or draft.get("invoice_tax_category") or ""
+        ).strip().lower()
+        invoice_tax_category_code = str(
+            merged.get("invoice_tax_category_code") or draft.get("invoice_tax_category_code") or ""
+        ).strip()
 
         # Parse item hints / LLM extraction for current message
         raw_items: list[dict[str, Any]] = []
         if isinstance(draft.get("raw_items"), list):
             raw_items = list(draft["raw_items"])
+        elif isinstance(draft.get("items"), list):
+            raw_items = list(draft["items"])
         if isinstance(merged.get("invoice_items"), list):
             raw_items = merged["invoice_items"]
 
@@ -1350,6 +1479,182 @@ class GenerateInvoiceSkill:
                 )
             )
 
+        if sales_tax_requirement is None:
+            draft_data = {
+                **draft,
+                "pending_id": pending_id,
+                "family_id": family_id,
+                "user_id": context.user_id,
+                "draft_state": InvoiceDraftState.collect_tax.value,
+                "contact_id": contact["id"],
+                "contact_name": contact["name"],
+                "contact_email": contact.get("email") or contact_email or None,
+                "contact_phone": contact.get("phone") or contact_phone or None,
+                "company_name": company_name,
+                "company_address": company_address,
+                "company_phone": company_phone or None,
+                "seller_state": seller_state or None,
+                "requires_sales_tax": None,
+                "due_days": due_days,
+                "notes": notes,
+                "currency": currency,
+                "currency_symbol": symbol,
+                "invoice_tax_category": invoice_tax_category or None,
+                "invoice_tax_category_code": invoice_tax_category_code or None,
+                "buyer_address_line1": buyer_line1 or None,
+                "buyer_city": buyer_city or None,
+                "buyer_state": buyer_state or None,
+                "buyer_postal_code": buyer_postal_code or None,
+                "buyer_country": buyer_country,
+                "raw_items": raw_items,
+                "items": items,
+            }
+            await store_pending_invoice(pending_id, draft_data)
+            return SkillResult(response_text=t(_STRINGS, "tax_ask_required", lang))
+
+        if requires_sales_tax:
+            missing_seller_for_tax: list[str] = []
+            if not seller_state:
+                missing_seller_for_tax.append("seller_state")
+            if missing_seller_for_tax:
+                draft_data = {
+                    **draft,
+                    "pending_id": pending_id,
+                    "family_id": family_id,
+                    "user_id": context.user_id,
+                    "draft_state": InvoiceDraftState.collect_seller.value,
+                    "contact_id": contact["id"],
+                    "contact_name": contact["name"],
+                    "contact_email": contact.get("email") or contact_email or None,
+                    "contact_phone": contact.get("phone") or contact_phone or None,
+                    "company_name": company_name,
+                    "company_address": company_address,
+                    "company_phone": company_phone or None,
+                    "seller_state": seller_state or None,
+                    "requires_sales_tax": True,
+                    "due_days": due_days,
+                    "notes": notes,
+                    "currency": currency,
+                    "currency_symbol": symbol,
+                    "invoice_tax_category": invoice_tax_category or None,
+                    "invoice_tax_category_code": invoice_tax_category_code or None,
+                    "buyer_address_line1": buyer_line1 or None,
+                    "buyer_city": buyer_city or None,
+                    "buyer_state": buyer_state or None,
+                    "buyer_postal_code": buyer_postal_code or None,
+                    "buyer_country": buyer_country,
+                    "raw_items": raw_items,
+                    "items": items,
+                    "missing_seller_fields": missing_seller_for_tax,
+                }
+                await store_pending_invoice(pending_id, draft_data)
+                return SkillResult(
+                    response_text=t(
+                        _STRINGS,
+                        "need_seller_fields",
+                        lang,
+                        fields=_format_missing_fields(missing_seller_for_tax, lang),
+                    )
+                )
+
+            missing_buyer_for_tax: list[str] = []
+            if not buyer_line1:
+                missing_buyer_for_tax.append("buyer_address_line1")
+            if not buyer_city:
+                missing_buyer_for_tax.append("buyer_city")
+            if not buyer_state:
+                missing_buyer_for_tax.append("buyer_state")
+            if not buyer_postal_code:
+                missing_buyer_for_tax.append("buyer_postal_code")
+            if missing_buyer_for_tax:
+                draft_data = {
+                    **draft,
+                    "pending_id": pending_id,
+                    "family_id": family_id,
+                    "user_id": context.user_id,
+                    "draft_state": InvoiceDraftState.collect_buyer.value,
+                    "contact_id": contact["id"],
+                    "contact_name": contact["name"],
+                    "contact_email": contact.get("email") or contact_email or None,
+                    "contact_phone": contact.get("phone") or contact_phone or None,
+                    "company_name": company_name,
+                    "company_address": company_address,
+                    "company_phone": company_phone or None,
+                    "seller_state": seller_state,
+                    "requires_sales_tax": True,
+                    "due_days": due_days,
+                    "notes": notes,
+                    "currency": currency,
+                    "currency_symbol": symbol,
+                    "invoice_tax_category": invoice_tax_category or None,
+                    "invoice_tax_category_code": invoice_tax_category_code or None,
+                    "buyer_address_line1": buyer_line1 or None,
+                    "buyer_city": buyer_city or None,
+                    "buyer_state": buyer_state or None,
+                    "buyer_postal_code": buyer_postal_code or None,
+                    "buyer_country": buyer_country,
+                    "raw_items": raw_items,
+                    "items": items,
+                    "missing_buyer_fields": missing_buyer_for_tax,
+                }
+                await store_pending_invoice(pending_id, draft_data)
+                return SkillResult(
+                    response_text=t(
+                        _STRINGS,
+                        "need_buyer_fields",
+                        lang,
+                        fields=_format_missing_fields(missing_buyer_for_tax, lang),
+                    )
+                )
+
+            if not invoice_tax_category_code:
+                selected_tax_category = _resolve_tax_category_choice(
+                    text=user_text,
+                    explicit_category=invoice_tax_category,
+                )
+                if selected_tax_category is not None:
+                    invoice_tax_category, invoice_tax_category_code = selected_tax_category
+
+            if not invoice_tax_category_code:
+                draft_data = {
+                    **draft,
+                    "pending_id": pending_id,
+                    "family_id": family_id,
+                    "user_id": context.user_id,
+                    "draft_state": InvoiceDraftState.collect_tax.value,
+                    "contact_id": contact["id"],
+                    "contact_name": contact["name"],
+                    "contact_email": contact.get("email") or contact_email or None,
+                    "contact_phone": contact.get("phone") or contact_phone or None,
+                    "company_name": company_name,
+                    "company_address": company_address,
+                    "company_phone": company_phone or None,
+                    "seller_state": seller_state,
+                    "requires_sales_tax": True,
+                    "due_days": due_days,
+                    "notes": notes,
+                    "currency": currency,
+                    "currency_symbol": symbol,
+                    "invoice_tax_category": invoice_tax_category or None,
+                    "invoice_tax_category_code": None,
+                    "buyer_address_line1": buyer_line1 or None,
+                    "buyer_city": buyer_city or None,
+                    "buyer_state": buyer_state or None,
+                    "buyer_postal_code": buyer_postal_code or None,
+                    "buyer_country": buyer_country,
+                    "raw_items": raw_items,
+                    "items": items,
+                }
+                await store_pending_invoice(pending_id, draft_data)
+                return SkillResult(
+                    response_text=t(
+                        _STRINGS,
+                        "tax_need_category",
+                        lang,
+                        options=_tax_category_options_text(lang),
+                    )
+                )
+
         today = date.today()
         due = today + timedelta(days=due_days)
         invoice_number = draft.get("invoice_number") or _generate_invoice_number()
@@ -1385,16 +1690,8 @@ class GenerateInvoiceSkill:
             "client_email": contact.get("email") or contact_email,
             "client_phone": contact.get("phone") or contact_phone,
             "requires_sales_tax": requires_sales_tax,
-            "invoice_tax_category": str(
-                merged.get("invoice_tax_category")
-                or draft.get("invoice_tax_category")
-                or "general"
-            ),
-            "invoice_tax_category_code": str(
-                merged.get("invoice_tax_category_code")
-                or draft.get("invoice_tax_category_code")
-                or ""
-            ),
+            "invoice_tax_category": invoice_tax_category or "general",
+            "invoice_tax_category_code": invoice_tax_category_code,
             "seller_state": seller_state,
             "buyer_address_line1": buyer_line1,
             "buyer_city": buyer_city,

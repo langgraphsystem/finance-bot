@@ -16,6 +16,7 @@ def _invoice_payload(**overrides):
         "buyer_address_line1": "1 Market St",
         "buyer_country": "US",
         "currency": "USD",
+        "invoice_tax_category_code": "txcd_10000000",
         "items": [{"amount": 100.0, "description": "Service"}],
         "invoice_date": "2026-03-02",
     }
@@ -52,6 +53,17 @@ async def test_cache_hit_skips_stripe_call():
     assert result["cached"] is True
     assert result["tax_amount"] == 8.25
     assert result["total"] == 108.25
+
+
+async def test_missing_tax_category_fails_fast():
+    result = await resolve_sales_tax_for_invoice(
+        _invoice_payload(
+            invoice_tax_category_code="",
+            items=[{"amount": 100.0, "description": "X"}],
+        )
+    )
+    assert result["ok"] is False
+    assert result["message_key"] == "tax_missing_category"
 
 
 async def test_stripe_not_configured_returns_error():
