@@ -779,6 +779,23 @@ def render_report_html(
     )
 
 
+async def has_transactions_for_period(
+    family_id: str, year: int, month: int,
+) -> bool:
+    """Check if any transactions exist for the given year/month."""
+    start_date = date(year, month, 1)
+    end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    async with async_session() as session:
+        result = await session.execute(
+            select(func.count()).select_from(Transaction).where(
+                Transaction.family_id == uuid.UUID(family_id),
+                Transaction.date >= start_date,
+                Transaction.date < end_date,
+            )
+        )
+        return (result.scalar() or 0) > 0
+
+
 @observe(name="generate_report")
 async def generate_monthly_report(
     family_id: str,
