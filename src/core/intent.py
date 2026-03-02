@@ -828,6 +828,33 @@ _PROGRAM_NOUNS_EN = (
     "tool",
 )
 
+# Words that indicate the message is NOT a programming request
+# (e.g., invoice line items mentioning "Website Development")
+_PROGRAM_NEGATIVE_EN = (
+    "invoice",
+    "client name",
+    "due date",
+    "line item",
+    "payment",
+    "receipt",
+    "booking",
+    "reservation",
+    "quantity",
+    "unit price",
+)
+_PROGRAM_NEGATIVE_RU = (
+    "инвойс",
+    "счёт на оплату",
+    "счет на оплату",
+    "клиент:",
+    "срок оплаты",
+    "позиции",
+    "оплата",
+    "бронирован",
+    "количество",
+    "цена за единицу",
+)
+
 
 _MODIFY_VERBS_RU = ("измени", "исправь", "обнови", "доработай", "поменяй", "переделай")
 _MODIFY_VERBS_EN = ("modify", "fix", "update", "change", "adjust", "tweak", "improve")
@@ -963,6 +990,10 @@ def _rule_based_generate_program(text: str) -> IntentDetectionResult | None:
     """Fast-path generate_program for clear 'write a program' requests."""
     lower = text.lower().strip()
     if not lower:
+        return None
+
+    # Skip if text contains business/financial context markers
+    if any(neg in lower for neg in _PROGRAM_NEGATIVE_EN + _PROGRAM_NEGATIVE_RU):
         return None
 
     has_verb = any(v in lower for v in _PROGRAM_VERBS_RU + _PROGRAM_VERBS_EN)
