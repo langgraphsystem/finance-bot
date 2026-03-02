@@ -12,6 +12,7 @@ from src.skills.generate_invoice.handler import (
     _generate_invoice_number,
     delete_pending_invoice,
     get_pending_invoice,
+    is_pending_invoice_owner,
     skill,
     store_pending_invoice,
 )
@@ -594,3 +595,66 @@ async def test_intent_data_items_override():
     assert len(stored["items"]) == 1
     assert stored["items"][0]["description"] == "Custom item"
     assert stored["total"] == 500.0
+
+
+async def test_invalid_item_payload_is_sanitized():
+    """Malformed LLM items are ignored instead of crashing the skill."""
+    ctx = _make_context()
+    msg = _make_message("invoice Mike")
+    intent_data = {"contact_name": "Mike"}
+    contact = _mock_contact(name="Mike")
+    contact_sess = _mock_async_session(scalar_value=contact)
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [
+                    {"description": "", "quantity": "oops", "unit_price": "x"},
+                    {"description": "Work", "quantity": "2", "unit_price": "100"},
+                ],
+                "due_days": "abc",
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(msg, ctx, intent_data)
+    assert result.buttons is not None
+    stored = mock_store.call_args[0][1]
+    assert len(stored["items"]) == 1
+    assert stored["items"][0]["amount"] == 200.0
+
+
+async def test_preview_marks_tax_pending_when_enabled():
+    data = {
+        "invoice_number": "202603-ABCD",
+        "client_name": "Client",
+        "client_email": None,
+        "currency_symbol": "$",
+        "subtotal": 100.0,
+        "total": 100.0,
+        "due_date": "March 31, 2026",
+        "items": [{"description": "Work", "quantity": 1, "unit_price": 100.0, "amount": 100.0}],
+        "notes": None,
+        "requires_sales_tax": True,
+        "tax_amount": 0.0,
+        "tax_rate": 0.0,
+    }
+    preview = _format_preview(data, "en")
+    assert "Sales tax: calculated on confirmation" in preview
+
+
+async def test_pending_invoice_owner_check():
+    ctx = _make_context()
+    payload = {"user_id": ctx.user_id, "family_id": ctx.family_id}
+    assert is_pending_invoice_owner(payload, ctx) is True
+    assert is_pending_invoice_owner({"user_id": "x", "family_id": ctx.family_id}, ctx) is False

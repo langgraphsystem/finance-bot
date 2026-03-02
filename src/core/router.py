@@ -137,6 +137,39 @@ async def _persist_message(
         logger.warning("Failed to persist conversation message: %s", e)
 
 
+# ---------------------------------------------------------------------------
+# Session buffer: extract key facts from intent_data after skill execution
+# ---------------------------------------------------------------------------
+_FACT_BEARING_INTENTS: dict[str, list[tuple[str, str]]] = {
+    # intent: [(field_key, category), ...]
+    "add_expense": [("amount", "spending_pattern"), ("description", "merchant_mapping")],
+    "add_income": [("amount", "income"), ("description", "income")],
+    "set_budget": [("amount", "budget_limit")],
+    "add_recurring": [("amount", "recurring_expense"), ("description", "recurring_expense")],
+    "correct_category": [("new_category", "correction_rule")],
+    "track_food": [("food_name", "life_pattern")],
+    "track_drink": [("drink_name", "life_pattern")],
+}
+
+
+def _extract_session_facts(
+    intent: str, intent_data: dict[str, Any]
+) -> list[tuple[str, str]]:
+    """Extract human-readable facts from intent_data for session buffer.
+
+    Returns list of (fact_text, category) tuples.
+    """
+    fields = _FACT_BEARING_INTENTS.get(intent)
+    if not fields:
+        return []
+    facts: list[tuple[str, str]] = []
+    for field_key, category in fields:
+        value = intent_data.get(field_key)
+        if value:
+            facts.append((f"{field_key}: {value}", category))
+    return facts
+
+
 _LAST_FILE_TTL = 300  # 5 minutes
 
 
@@ -538,6 +571,20 @@ async def _dispatch_message(
         except Exception:
             pass  # Translation warm-up is best-effort
 
+    # Tiered rate limit: check per-intent cost tier after intent detection
+    try:
+        from src.core.rate_limiter import check_rate_limit as check_tiered_rate_limit
+        from src.core.rate_limiter import get_limit_message
+
+        tiered_ok, tier = await check_tiered_rate_limit(context.user_id, intent_name)
+        if not tiered_ok:
+            return OutgoingMessage(
+                text=get_limit_message(tier, context.language or "en"),
+                chat_id=message.chat_id,
+            )
+    except Exception as e:
+        logger.debug("Tiered rate limit check failed: %s — allowing", e)
+
     # Route through DomainRouter (domain -> agent -> context assembly -> skill)
     domain_router = get_domain_router()
     try:
@@ -569,8 +616,53 @@ async def _dispatch_message(
             )
         )
 
+    # Log token usage from context assembly (C1: wire log_usage)
+    try:
+        assembled = intent_data.get("_assembled")
+        if assembled and hasattr(assembled, "token_usage"):
+            from src.billing.usage_tracker import log_usage
+
+            tu = assembled.token_usage
+            overflow_dropped = []
+            if tu.get("mem0", 0) == 0 and "mem" in str(
+                intent_data.get("_context_config", "")
+            ):
+                overflow_dropped.append("mem0")
+            if tu.get("sql", 0) == 0 and intent_data.get("_context_config_sql"):
+                overflow_dropped.append("sql")
+
+            asyncio.create_task(
+                log_usage(
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    domain=intent_data.get("_agent", ""),
+                    skill=intent_name,
+                    model=intent_data.get("_model", ""),
+                    tokens_input=tu.get("total", 0),
+                    tokens_output=0,
+                    cache_read_tokens=tu.get("identity", 0),
+                    overflow_layers_dropped=(
+                        ",".join(overflow_dropped) if overflow_dropped else None
+                    ),
+                )
+            )
+    except Exception as e:
+        logger.debug("Usage logging failed: %s", e)
+
     # Layer 5: Trigger incremental dialog summarization in the background
     asyncio.create_task(summarize_dialog(context.user_id, context.family_id))
+
+    # C2: Write key facts to session buffer for immediate availability
+    try:
+        from src.core.memory.session_buffer import update_session_buffer
+
+        _session_buffer_facts = _extract_session_facts(intent_name, intent_data)
+        for fact, category in _session_buffer_facts:
+            asyncio.create_task(
+                update_session_buffer(context.user_id, fact, category)
+            )
+    except Exception as e:
+        logger.debug("Session buffer write failed: %s", e)
 
     # Execute background tasks (properly handle coroutines)
     for task_fn in skill_result.background_tasks:
@@ -1850,10 +1942,12 @@ async def _handle_callback(
     # ------------------------------------------------------------------
     elif action == "invoice_confirm":
         pending_id = parts[1] if len(parts) > 1 else ""
+        from src.billing.sales_tax import resolve_sales_tax_for_invoice
         from src.skills.generate_invoice.handler import (
             delete_pending_invoice,
             generate_invoice_pdf,
             get_pending_invoice,
+            is_pending_invoice_owner,
             save_invoice_to_db,
         )
 
@@ -1863,8 +1957,27 @@ async def _handle_callback(
                 text=_invoice_t("expired", context),
                 chat_id=message.chat_id,
             )
+        if not is_pending_invoice_owner(inv_data, context):
+            return OutgoingMessage(
+                text=_invoice_t("not_allowed", context),
+                chat_id=message.chat_id,
+            )
 
         try:
+            tax_result = await resolve_sales_tax_for_invoice(inv_data)
+            if not tax_result.get("ok"):
+                return OutgoingMessage(
+                    text=_invoice_t(tax_result.get("message_key", "tax_provider_error"), context),
+                    chat_id=message.chat_id,
+                )
+            inv_data["subtotal"] = tax_result["subtotal"]
+            inv_data["tax_amount"] = tax_result["tax_amount"]
+            inv_data["tax_rate"] = tax_result["tax_rate"]
+            inv_data["tax_source"] = tax_result.get("source")
+            inv_data["tax_jurisdiction"] = tax_result.get("jurisdiction")
+            inv_data["total"] = tax_result["total"]
+            inv_data["draft_state"] = "confirmed"
+
             pdf_bytes = await generate_invoice_pdf(inv_data)
             await save_invoice_to_db(inv_data)
             await delete_pending_invoice(pending_id)
@@ -2186,6 +2299,14 @@ async def _save_scanned_document(
             )
             session.add(doc)
             await session.flush()
+
+            # Queue background embedding for semantic search
+            try:
+                from src.core.tasks.document_tasks import async_embed_document
+
+                await async_embed_document.kiq(str(doc.id))
+            except Exception:
+                pass  # Non-critical: batch_embed_documents cron picks up missed docs
 
             if doc_type == "rate_confirmation":
                 # 2a. Save as Load record with all extracted fields

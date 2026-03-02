@@ -12,9 +12,11 @@ import json
 import logging
 import uuid
 from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
+from enum import StrEnum
 from typing import Any
 
-from jinja2 import BaseLoader, Environment
+from jinja2 import BaseLoader, Environment, select_autoescape
 from sqlalchemy import select
 
 from src.core.context import SessionContext
@@ -34,6 +36,12 @@ from src.skills.base import SkillResult
 logger = logging.getLogger(__name__)
 
 PENDING_INVOICE_TTL = 600  # 10 minutes
+
+
+class InvoiceDraftState(StrEnum):
+    await_confirm = "await_confirm"
+    confirmed = "confirmed"
+    cancelled = "cancelled"
 
 # ---------------------------------------------------------------------------
 # i18n strings
@@ -58,12 +66,16 @@ _STRINGS = {
         "preview_client": "Client: {name}",
         "preview_email": "  ✉️ {email}",
         "preview_total": "\n<b>Total: {symbol}{total}</b>",
+        "preview_subtotal": "Subtotal: {symbol}{subtotal}",
+        "preview_tax_pending": "Sales tax: calculated on confirmation",
+        "preview_tax": "Sales tax ({rate}%): {symbol}{tax}",
         "preview_due": "Due: {date}",
         "preview_notes": "Notes: {notes}",
         "btn_confirm": "✅ Generate PDF",
         "btn_edit": "✏️ Edit",
         "btn_cancel": "❌ Cancel",
         "expired": "Invoice preview expired. Please try again.",
+        "not_allowed": "This invoice draft belongs to another user.",
         "cancelled": "Invoice cancelled.",
         "generated": (
             "📄 <b>Invoice #{number}</b>\n"
@@ -72,6 +84,13 @@ _STRINGS = {
             "Due: {due}"
         ),
         "pdf_failed": "Failed to generate PDF. Please try again.",
+        "tax_missing_address": (
+            "To calculate US sales tax, send buyer address fields: state and ZIP code."
+        ),
+        "tax_provider_unavailable": "Tax provider is not configured. Try again later.",
+        "tax_provider_error": "Couldn't calculate sales tax right now. Please retry.",
+        "tax_no_taxable_items": "No taxable items found in this invoice.",
+        "tax_invalid_subtotal": "Invoice subtotal is invalid for tax calculation.",
         "edit_hint": (
             "Send corrections:\n"
             "• Add: 'add: description $100'\n"
@@ -98,12 +117,16 @@ _STRINGS = {
         "preview_client": "Клиент: {name}",
         "preview_email": "  ✉️ {email}",
         "preview_total": "\n<b>Итого: {symbol}{total}</b>",
+        "preview_subtotal": "Подытог: {symbol}{subtotal}",
+        "preview_tax_pending": "Налог с продаж: будет рассчитан при подтверждении",
+        "preview_tax": "Налог с продаж ({rate}%): {symbol}{tax}",
         "preview_due": "Оплатить до: {date}",
         "preview_notes": "Примечание: {notes}",
         "btn_confirm": "✅ Создать PDF",
         "btn_edit": "✏️ Изменить",
         "btn_cancel": "❌ Отменить",
         "expired": "Предпросмотр истёк. Попробуйте снова.",
+        "not_allowed": "Этот черновик инвойса принадлежит другому пользователю.",
         "cancelled": "Инвойс отменён.",
         "generated": (
             "📄 <b>Инвойс #{number}</b>\n"
@@ -112,6 +135,13 @@ _STRINGS = {
             "Оплатить до: {due}"
         ),
         "pdf_failed": "Не удалось создать PDF. Попробуйте снова.",
+        "tax_missing_address": (
+            "Чтобы рассчитать налог с продаж в США, пришлите штат и ZIP покупателя."
+        ),
+        "tax_provider_unavailable": "Налоговый провайдер не настроен. Попробуйте позже.",
+        "tax_provider_error": "Не удалось рассчитать налог. Повторите попытку.",
+        "tax_no_taxable_items": "В инвойсе нет налогооблагаемых позиций.",
+        "tax_invalid_subtotal": "Некорректный подытог инвойса для расчёта налога.",
         "edit_hint": (
             "Отправьте исправления:\n"
             "• Добавить: 'добавить: описание $100'\n"
@@ -138,12 +168,16 @@ _STRINGS = {
         "preview_client": "Cliente: {name}",
         "preview_email": "  ✉️ {email}",
         "preview_total": "\n<b>Total: {symbol}{total}</b>",
+        "preview_subtotal": "Subtotal: {symbol}{subtotal}",
+        "preview_tax_pending": "Impuesto de ventas: se calculara al confirmar",
+        "preview_tax": "Impuesto de ventas ({rate}%): {symbol}{tax}",
         "preview_due": "Vencimiento: {date}",
         "preview_notes": "Notas: {notes}",
         "btn_confirm": "✅ Generar PDF",
         "btn_edit": "✏️ Editar",
         "btn_cancel": "❌ Cancelar",
         "expired": "La vista previa expiró. Inténtalo de nuevo.",
+        "not_allowed": "Este borrador de factura pertenece a otro usuario.",
         "cancelled": "Factura cancelada.",
         "generated": (
             "📄 <b>Factura #{number}</b>\n"
@@ -152,6 +186,13 @@ _STRINGS = {
             "Vencimiento: {due}"
         ),
         "pdf_failed": "No se pudo generar el PDF. Inténtalo de nuevo.",
+        "tax_missing_address": (
+            "Para calcular impuesto en EE.UU., envia estado y codigo postal del cliente."
+        ),
+        "tax_provider_unavailable": "El proveedor de impuestos no está configurado.",
+        "tax_provider_error": "No se pudo calcular el impuesto. Inténtalo de nuevo.",
+        "tax_no_taxable_items": "No hay partidas gravables en esta factura.",
+        "tax_invalid_subtotal": "Subtotal inválido para calcular impuesto.",
         "edit_hint": (
             "Envía correcciones:\n"
             "• Agregar: 'agregar: descripción $100'\n"
@@ -268,7 +309,21 @@ INVOICE_HTML_TEMPLATE = """<!DOCTYPE html>
       </tr>
       {% endfor %}
       <tr class="total-row">
-        <td colspan="4"><b>Total</b></td>
+        <td colspan="4"><b>Subtotal</b></td>
+        <td class="amount">
+          <b>{{ currency_symbol }}{{ "%.2f"|format(subtotal) }}</b>
+        </td>
+      </tr>
+      {% if tax_amount and tax_amount > 0 %}
+      <tr class="total-row">
+        <td colspan="4"><b>Sales Tax ({{ "%.2f"|format((tax_rate or 0) * 100) }}%)</b></td>
+        <td class="amount">
+          <b>{{ currency_symbol }}{{ "%.2f"|format(tax_amount) }}</b>
+        </td>
+      </tr>
+      {% endif %}
+      <tr class="total-row">
+        <td colspan="4"><b>Total Due</b></td>
         <td class="amount total-amount">
           <b>{{ currency_symbol }}{{ "%.2f"|format(total) }}</b>
         </td>
@@ -323,6 +378,80 @@ def _generate_invoice_number() -> str:
 def _currency_symbol(currency: str) -> str:
     symbols = {"USD": "$", "EUR": "€", "GBP": "£", "RUB": "₽"}
     return symbols.get(currency, currency + " ")
+
+
+def _parse_money(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    try:
+        return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except (InvalidOperation, TypeError, ValueError):
+        return default
+
+
+def _parse_due_days(value: Any, default: int = 30) -> int:
+    try:
+        parsed = int(value)
+        if 1 <= parsed <= 365:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return default
+
+
+def _normalize_invoice_items(raw_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sanitize LLM-extracted line items; ignore malformed entries."""
+    normalized: list[dict[str, Any]] = []
+    for item in raw_items:
+        description = str(item.get("description", "")).strip()
+        if not description:
+            continue
+        qty_raw = item.get("quantity", 1)
+        unit_raw = item.get("unit_price", item.get("amount", 0))
+        try:
+            qty = int(qty_raw)
+        except (TypeError, ValueError):
+            qty = 1
+        if qty <= 0:
+            qty = 1
+        unit_price = _parse_money(unit_raw)
+        if unit_price < 0:
+            unit_price = Decimal("0")
+        amount = (unit_price * qty).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        normalized.append({
+            "description": description,
+            "quantity": qty,
+            "unit_price": float(unit_price),
+            "amount": float(amount),
+        })
+    return normalized
+
+
+def _requires_sales_tax(context: SessionContext, intent_data: dict[str, Any]) -> bool:
+    profile_tax = {}
+    if context.profile_config and isinstance(getattr(context.profile_config, "tax", None), dict):
+        profile_tax = context.profile_config.tax or {}
+    return bool(
+        intent_data.get("requires_sales_tax")
+        or profile_tax.get("collect_sales_tax")
+        or profile_tax.get("sales_tax_required")
+    )
+
+
+def _extract_seller_state(context: SessionContext, intent_data: dict[str, Any]) -> str:
+    profile_tax = {}
+    if context.profile_config and isinstance(getattr(context.profile_config, "tax", None), dict):
+        profile_tax = context.profile_config.tax or {}
+    return (
+        str(intent_data.get("seller_state") or profile_tax.get("seller_state") or "")
+        .strip()
+        .upper()
+    )
+
+
+def is_pending_invoice_owner(invoice_data: dict[str, Any], context: SessionContext) -> bool:
+    return (
+        str(invoice_data.get("user_id", "")).strip() == str(context.user_id).strip()
+        and str(invoice_data.get("family_id", "")).strip() == str(context.family_id).strip()
+    )
 
 
 async def _parse_invoice_request(
@@ -467,6 +596,30 @@ def _format_preview(invoice_data: dict, lang: str) -> str:
             total=f"{invoice_data['total']:.2f}",
         )
     )
+    if invoice_data.get("subtotal") is not None:
+        parts.append(
+            t(
+                _STRINGS,
+                "preview_subtotal",
+                lang,
+                symbol=invoice_data["currency_symbol"],
+                subtotal=f"{invoice_data['subtotal']:.2f}",
+            )
+        )
+    if invoice_data.get("requires_sales_tax"):
+        if invoice_data.get("tax_amount", 0) > 0:
+            parts.append(
+                t(
+                    _STRINGS,
+                    "preview_tax",
+                    lang,
+                    rate=f"{(invoice_data.get('tax_rate', 0) * 100):.2f}",
+                    symbol=invoice_data["currency_symbol"],
+                    tax=f"{invoice_data.get('tax_amount', 0):.2f}",
+                )
+            )
+        else:
+            parts.append(t(_STRINGS, "preview_tax_pending", lang))
     parts.append(t(_STRINGS, "preview_due", lang, date=invoice_data["due_date"]))
 
     if invoice_data.get("notes"):
@@ -499,11 +652,37 @@ class GenerateInvoiceSkill:
         currency = context.currency or "USD"
         symbol = _currency_symbol(currency)
         user_text = message.text or ""
+        requires_sales_tax = _requires_sales_tax(context, intent_data)
+        seller_state = _extract_seller_state(context, intent_data)
+
+        # Company info snapshot (kept stable in invoice records)
+        profile = context.profile_config
+        company_name = (
+            getattr(profile, "business_name", None)
+            or getattr(profile, "name", None)
+            or context.user_profile.get("display_name")
+            or "My Business"
+        )
+        company_address = (
+            getattr(profile, "address", None) or context.user_profile.get("company_address") or ""
+        )
+        company_phone = (
+            getattr(profile, "phone", None) or context.user_profile.get("phone") or ""
+        )
+
+        # Buyer address fields for US sales-tax (required only when tax is enabled)
+        buyer_line1 = str(intent_data.get("buyer_address_line1") or "").strip()
+        buyer_city = str(intent_data.get("buyer_city") or "").strip()
+        buyer_state = str(intent_data.get("buyer_state") or "").strip().upper()
+        buyer_postal_code = str(intent_data.get("buyer_postal_code") or "").strip()
+        buyer_country = str(intent_data.get("buyer_country") or "US").strip().upper()
+        if requires_sales_tax and (not seller_state or not buyer_state or not buyer_postal_code):
+            return SkillResult(response_text=t(_STRINGS, "tax_missing_address", lang))
 
         # 1. Get contact name from intent or LLM extraction
         contact_name = intent_data.get("contact_name")
         parsed_items: list[dict] = []
-        due_days = intent_data.get("invoice_due_days") or 30
+        due_days = _parse_due_days(intent_data.get("invoice_due_days"), default=30)
         notes = intent_data.get("invoice_notes")
 
         # Try LLM extraction if we have user text with potential items
@@ -514,7 +693,7 @@ class GenerateInvoiceSkill:
             if parsed.get("items"):
                 parsed_items = parsed["items"]
             if parsed.get("due_days"):
-                due_days = parsed["due_days"]
+                due_days = _parse_due_days(parsed["due_days"], default=due_days)
             if parsed.get("notes") and not notes:
                 notes = parsed["notes"]
 
@@ -536,15 +715,7 @@ class GenerateInvoiceSkill:
         items: list[dict] = []
 
         # a) From parsed user text
-        for pi in parsed_items:
-            qty = pi.get("quantity", 1)
-            unit_price = pi.get("unit_price", pi.get("amount", 0))
-            items.append({
-                "description": pi["description"],
-                "quantity": qty,
-                "unit_price": unit_price,
-                "amount": round(qty * unit_price, 2),
-            })
+        items.extend(_normalize_invoice_items(parsed_items))
 
         # b) From DB transactions (only if no explicit items)
         if not items:
@@ -562,19 +733,10 @@ class GenerateInvoiceSkill:
 
         # 5. Build invoice data
         today = date.today()
-        due = today + timedelta(days=int(due_days))
+        due = today + timedelta(days=due_days)
         invoice_number = _generate_invoice_number()
-        total = sum(item.get("amount", 0) for item in items)
-
-        # Company info from profile
-        profile = context.profile_config
-        company_name = "My Business"
-        company_address = ""
-        company_phone = ""
-        if profile:
-            company_name = getattr(profile, "business_name", None) or company_name
-            company_address = getattr(profile, "address", None) or ""
-            company_phone = getattr(profile, "phone", None) or ""
+        subtotal = sum(_parse_money(item.get("amount")) for item in items)
+        total = float(subtotal)
 
         invoice_data = {
             "family_id": family_id,
@@ -586,6 +748,11 @@ class GenerateInvoiceSkill:
             "due_date_iso": due.isoformat(),
             "currency": currency,
             "currency_symbol": symbol,
+            "subtotal": float(subtotal),
+            "tax_amount": 0.0,
+            "tax_rate": 0.0,
+            "tax_source": None,
+            "tax_jurisdiction": None,
             "total": total,
             "items": items,
             "notes": notes,
@@ -595,6 +762,16 @@ class GenerateInvoiceSkill:
             "client_name": contact["name"],
             "client_email": contact.get("email"),
             "client_phone": contact.get("phone"),
+            "requires_sales_tax": requires_sales_tax,
+            "invoice_tax_category": str(intent_data.get("invoice_tax_category") or "general"),
+            "invoice_tax_category_code": str(intent_data.get("invoice_tax_category_code") or ""),
+            "seller_state": seller_state,
+            "buyer_address_line1": buyer_line1,
+            "buyer_city": buyer_city,
+            "buyer_state": buyer_state,
+            "buyer_postal_code": buyer_postal_code,
+            "buyer_country": buyer_country,
+            "draft_state": InvoiceDraftState.await_confirm.value,
         }
 
         # 6. Store in Redis, show preview with confirm/edit/cancel buttons
@@ -639,7 +816,7 @@ async def generate_invoice_pdf(invoice_data: dict) -> bytes:
     """Render invoice HTML → PDF via WeasyPrint in a thread."""
     import asyncio
 
-    env = Environment(loader=BaseLoader())
+    env = Environment(loader=BaseLoader(), autoescape=select_autoescape(default=True))
     template = env.from_string(INVOICE_HTML_TEMPLATE)
     html = template.render(
         company_name=invoice_data["company_name"],
@@ -654,6 +831,9 @@ async def generate_invoice_pdf(invoice_data: dict) -> bytes:
         currency=invoice_data["currency"],
         currency_symbol=invoice_data["currency_symbol"],
         items=invoice_data["items"],
+        subtotal=invoice_data.get("subtotal", invoice_data.get("total", 0)),
+        tax_amount=invoice_data.get("tax_amount", 0),
+        tax_rate=invoice_data.get("tax_rate", 0),
         total=invoice_data["total"],
         notes=invoice_data.get("notes") or "Payment due upon receipt.",
     )
@@ -677,6 +857,11 @@ async def save_invoice_to_db(invoice_data: dict, document_id: uuid.UUID | None =
         invoice_date=date.fromisoformat(invoice_data["invoice_date"]),
         due_date=date.fromisoformat(invoice_data["due_date_iso"]),
         currency=invoice_data["currency"],
+        subtotal=invoice_data.get("subtotal"),
+        tax_amount=invoice_data.get("tax_amount", 0),
+        tax_rate=invoice_data.get("tax_rate", 0),
+        tax_source=invoice_data.get("tax_source"),
+        tax_jurisdiction=invoice_data.get("tax_jurisdiction"),
         total=invoice_data["total"],
         items=invoice_data["items"],
         notes=invoice_data.get("notes"),

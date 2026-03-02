@@ -34,6 +34,11 @@ class Invoice(Base, TimestampMixin):
     invoice_date: Mapped[date] = mapped_column(Date)
     due_date: Mapped[date] = mapped_column(Date)
     currency: Mapped[str] = mapped_column(String(10), default="USD")
+    subtotal: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    tax_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    tax_rate: Mapped[float] = mapped_column(Numeric(8, 6), default=0)
+    tax_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    tax_jurisdiction: Mapped[str | None] = mapped_column(String(128), nullable=True)
     total: Mapped[float] = mapped_column(Numeric(12, 2))
 
     items: Mapped[list] = mapped_column(JSONB, default=list)

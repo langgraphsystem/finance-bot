@@ -42,6 +42,7 @@ from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.monitor import Monitor
 from src.core.models.oauth_token import OAuthToken
 from src.core.models.recurring_payment import RecurringPayment
+from src.core.models.sales_tax_rate import SalesTaxRateCache
 from src.core.models.session_summary import SessionSummary
 from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.models.subscription import Subscription
@@ -90,6 +91,7 @@ __all__ = [
     "SessionSummary",
     "AuditLog",
     "RecurringPayment",
+    "SalesTaxRateCache",
     "Budget",
     "CalendarCache",
     "ChannelLink",

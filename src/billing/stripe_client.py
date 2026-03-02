@@ -98,6 +98,42 @@ class StripeClient:
         return resp.json()
 
     # ------------------------------------------------------------------
+    # Tax
+    # ------------------------------------------------------------------
+    async def create_tax_calculation(
+        self,
+        *,
+        currency: str,
+        line_items: list[dict[str, Any]],
+        customer_details: dict[str, str],
+        tax_date: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a Stripe Tax calculation for final invoice confirmation."""
+        client = await self._get_client()
+        data: dict[str, str] = {
+            "currency": currency.lower(),
+            "customer_details[address_source]": "shipping",
+            "customer_details[address][country]": customer_details.get("country", "US"),
+            "customer_details[address][line1]": customer_details.get("line1", ""),
+            "customer_details[address][city]": customer_details.get("city", ""),
+            "customer_details[address][state]": customer_details.get("state", ""),
+            "customer_details[address][postal_code]": customer_details.get("postal_code", ""),
+        }
+        if tax_date:
+            data["tax_date"] = tax_date
+
+        for idx, item in enumerate(line_items):
+            data[f"line_items[{idx}][amount]"] = str(item.get("amount", 0))
+            data[f"line_items[{idx}][reference]"] = item.get("reference", f"item_{idx + 1}")
+            if item.get("tax_code"):
+                data[f"line_items[{idx}][tax_code]"] = item["tax_code"]
+
+        resp = await client.post("/tax/calculations", data=data)
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Stripe tax calculation failed: {resp.status_code} {resp.text}")
+        return resp.json()
+
+    # ------------------------------------------------------------------
     # Webhook signature verification
     # ------------------------------------------------------------------
     @staticmethod

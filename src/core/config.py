@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     stripe_price_id: str = ""
+    stripe_tax_default_code: str = ""
+    invoice_tax_cache_ttl_hours: int = 168
 
     # E2B (code sandbox execution)
     e2b_api_key: str = ""
@@ -106,6 +108,7 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     log_level: str = "INFO"
+    health_secret: str = ""  # When set, /health/detailed requires Authorization: Bearer <token>
     rate_limit_per_minute: int = 30
     ff_locale_v2_read: bool = True
     ff_locale_v2_write: bool = True

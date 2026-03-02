@@ -155,6 +155,15 @@ class IntentData(BaseModel):
     invoice_items: list[dict] | None = None  # [{description, amount, quantity?}]
     invoice_due_days: int | None = None  # "net 15" → 15
     invoice_notes: str | None = None  # custom notes
+    requires_sales_tax: bool | None = None
+    invoice_tax_category: str | None = None
+    invoice_tax_category_code: str | None = None
+    seller_state: str | None = None
+    buyer_address_line1: str | None = None
+    buyer_city: str | None = None
+    buyer_state: str | None = None
+    buyer_postal_code: str | None = None
+    buyer_country: str | None = None
 
     # Memory Vault fields
     memory_query: str | None = None  # search/delete/save content for memory_vault
