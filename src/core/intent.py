@@ -1067,7 +1067,7 @@ async def _detect_with_gemini(
 ) -> IntentDetectionResult:
     client = google_client()
     response = await client.aio.models.generate_content(
-        model="gemini-3.1-pro-preview",
+        model="gemini-3-flash-preview",
         contents=f"{system_prompt}\n\nЯзык ответа: {language}\n\n{user_prompt}",
         config={"response_mime_type": "application/json"},
     )
