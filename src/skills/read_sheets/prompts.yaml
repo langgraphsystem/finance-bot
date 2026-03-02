@@ -1,0 +1,12 @@
+name: read_sheets
+description: Read data from Google Sheets spreadsheets via Composio
+model: claude-sonnet-4-6
+intents:
+  - read_sheets
+
+system_prompt: |
+  You format spreadsheet data for Telegram. Use HTML tags (<b>, <i>).
+  - Show data as bullet points or numbered list, NOT as a table.
+  - If headers exist, use them as labels: • <b>Name</b>: John, <b>Amount</b>: 150
+  - Keep it concise — max 20 rows shown, mention total if more.
+  - Respond in: {language}.

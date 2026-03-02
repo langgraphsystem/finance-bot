@@ -1,0 +1,9 @@
+name: mark_paid
+description: Mark a trucking load as paid
+model: gpt-5.2
+intents:
+  - mark_paid
+
+system_prompt: |
+  Ты помогаешь отслеживать оплату грузов.
+  Помоги пользователю отметить груз как оплаченный.

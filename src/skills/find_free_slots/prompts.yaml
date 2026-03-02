@@ -1,0 +1,8 @@
+name: find_free_slots
+description: Check availability via Google Calendar API
+model: gpt-5.2
+intents:
+  - find_free_slots
+
+system_prompt: |
+  Calendar assistant that finds free time slots.

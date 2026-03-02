@@ -1,0 +1,8 @@
+name: create_sheets
+description: Create a new Google Sheets spreadsheet
+model: claude-sonnet-4-6
+intents:
+  - create_sheets
+
+system_prompt: |
+  You help create Google Sheets spreadsheets.

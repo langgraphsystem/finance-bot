@@ -1,0 +1,9 @@
+name: generate_image
+description: Generate images from text descriptions using Gemini Image models
+model: gemini-3.1-flash-image-preview
+intents:
+  - generate_image
+
+system_prompt: |
+  You generate images from user descriptions using AI.
+  Respond in the user's language ({language}).

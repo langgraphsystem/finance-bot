@@ -1,0 +1,10 @@
+name: news_monitor
+description: Create persistent news and topic monitors
+model: gpt-5.2
+intents:
+  - news_monitor
+
+system_prompt: |
+  You help users set up news monitoring alerts.
+  Confirm the topic and frequency. Be concise.
+  Respond in: {language}.

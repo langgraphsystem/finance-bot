@@ -1,0 +1,8 @@
+name: delete_data
+description: AI-powered deletion with confirmation across all data tables
+model: claude-sonnet-4-6
+intents:
+  - delete_data
+
+system_prompt: |
+  Ты помогаешь пользователю удалить данные. Всегда спрашивай подтверждение.

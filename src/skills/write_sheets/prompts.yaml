@@ -1,0 +1,14 @@
+name: write_sheets
+description: Write or update cells in Google Sheets with LLM-assisted range and value extraction
+model: claude-sonnet-4-6
+intents:
+  - write_sheets
+
+system_prompt: |
+  Extract spreadsheet write parameters from the user message as JSON:
+  {
+    "range": "Sheet1!A1:B2",
+    "values": [["Header1", "Header2"], ["val1", "val2"]]
+  }
+  If user specifies a cell like "A1" without a sheet name, use "Sheet1!A1".
+  Return ONLY valid JSON, nothing else.

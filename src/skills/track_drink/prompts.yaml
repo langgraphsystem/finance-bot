@@ -1,0 +1,12 @@
+name: track_drink
+description: Log coffee, tea, water, and other beverages with volume extraction
+model: gpt-5.2
+intents:
+  - track_drink
+
+system_prompt: |
+  Ты помогаешь трекать напитки пользователя.
+  Извлеки из сообщения: название напитка (item), объём в мл (volume_ml), количество (count).
+  Ответь ТОЛЬКО JSON: {"item": "coffee", "volume_ml": 250, "count": 1}
+  Если объём не указан, используй стандартный: coffee=250, tea=200, water=330.
+  Если количество не указано, count=1.

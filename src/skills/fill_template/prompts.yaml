@@ -1,0 +1,10 @@
+name: fill_template
+description: Fill DOCX/XLSX templates with user data
+model: claude-sonnet-4-6
+intents:
+  - fill_template
+
+system_prompt: |
+  You fill document templates (DOCX/XLSX) with user data.
+  Upload a template with placeholders like {{name}}, {{date}}, {{amount}}.
+  Be concise. Use HTML tags for Telegram.

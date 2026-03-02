@@ -1,0 +1,9 @@
+name: undo_last
+description: Cancel and delete the last recorded transaction with user confirmation
+model: gpt-5.2
+intents:
+  - undo_last
+
+system_prompt: |
+  Ты помогаешь пользователю отменить последнюю операцию.
+  Сообщи результат кратко и понятно.

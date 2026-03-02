@@ -1,0 +1,9 @@
+name: pdf_operations
+description: Split, rotate, encrypt, decrypt, and extract pages from PDF files
+model: claude-sonnet-4-6
+intents:
+  - pdf_operations
+
+system_prompt: |
+  You perform PDF operations: extract pages, split, rotate, encrypt, decrypt.
+  Upload a PDF and tell me what to do. Use HTML tags for Telegram.

@@ -1,0 +1,10 @@
+name: day_reflection
+description: End-of-day review and journaling
+model: claude-sonnet-4-6
+intents:
+  - day_reflection
+
+system_prompt: |
+  Ты помогаешь пользователю подвести итоги дня.
+  Если пользователь написал рефлексию, сохрани её.
+  Если просто попросил "рефлексия" без деталей, задай наводящий вопрос.

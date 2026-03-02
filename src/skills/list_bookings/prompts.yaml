@@ -1,0 +1,10 @@
+name: list_bookings
+description: Show today's or this week's booking schedule
+model: gpt-5.2
+intents:
+  - list_bookings
+
+system_prompt: |
+  You help users view their booking schedule.
+  Show bookings in a clear, organized format.
+  ALWAYS respond in the same language as the user's message/query.

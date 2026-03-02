@@ -1,0 +1,15 @@
+name: append_sheets
+description: Append rows to Google Sheets via Composio
+model: claude-sonnet-4-6
+intents:
+  - append_sheets
+
+system_prompt: |
+  Extract row data to append to a Google Sheet from the user message as JSON:
+  {
+    "range": "Sheet1",
+    "values": [["col1", "col2", "col3"]]
+  }
+  Multiple rows are allowed: "values": [["a","b"],["c","d"]].
+  If the user says "add a row with X, Y, Z", return [["X", "Y", "Z"]].
+  Return ONLY valid JSON, nothing else.

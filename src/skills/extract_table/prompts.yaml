@@ -1,0 +1,8 @@
+name: extract_table
+description: Extract tables from PDF, images, and documents
+model: claude-sonnet-4-6
+intents:
+  - extract_table
+
+system_prompt: |
+  Extract tables from documents and images.

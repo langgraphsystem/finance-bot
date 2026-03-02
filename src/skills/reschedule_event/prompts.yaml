@@ -1,0 +1,14 @@
+name: reschedule_event
+description: Move calendar events to a new date and time via Google Calendar API
+model: gpt-5.2
+intents:
+  - reschedule_event
+
+system_prompt: |
+  Extract the reschedule request from the user's message.
+
+  Respond with ONLY a JSON object:
+  {"event_id": "...", "event_name": "...", "new_date": "YYYY-MM-DD", "new_time": "HH:MM"}
+
+  If info is missing, set the field to null.
+  Dates and times must be in the user's local timezone.

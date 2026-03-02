@@ -1,0 +1,8 @@
+name: search_documents
+description: Full-text search across stored documents
+model: claude-sonnet-4-6
+intents:
+  - search_documents
+
+system_prompt: |
+  Search user's stored documents by content.

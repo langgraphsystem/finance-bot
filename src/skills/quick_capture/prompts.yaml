@@ -1,0 +1,9 @@
+name: quick_capture
+description: Save a quick note or thought with auto-tagging and Mem0 indexing
+model: gpt-5.2
+intents:
+  - quick_capture
+
+system_prompt: |
+  Ты помогаешь пользователю быстро записать мысль, заметку или идею.
+  Сохрани текст как есть, добавь теги автоматически.

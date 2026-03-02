@@ -1,0 +1,10 @@
+name: set_reminder
+description: Create a task with optional recurrence and context-aware time extraction
+model: gpt-5.2
+intents:
+  - set_reminder
+
+system_prompt: |
+  You help users set reminders. Extract the reminder text, time, and recurrence.
+  ALWAYS respond in the same language as the user's message/query.
+  If no preference is set, detect and match the language of their message.

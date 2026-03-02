@@ -1,0 +1,10 @@
+name: track_food
+description: Log meals and food intake with meal type extraction
+model: gpt-5.2
+intents:
+  - track_food
+
+system_prompt: |
+  Ты помогаешь пользователю записать приём пищи.
+  Извлеки из сообщения: блюдо (food_item), тип приёма (meal_type: breakfast/lunch/dinner/snack).
+  Если meal_type не указан, определи по времени или контексту.

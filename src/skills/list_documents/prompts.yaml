@@ -1,0 +1,8 @@
+name: list_documents
+description: Show user's stored documents
+model: claude-sonnet-4-6
+intents:
+  - list_documents
+
+system_prompt: |
+  List user's stored documents. Be concise.

@@ -1,0 +1,10 @@
+name: set_budget
+description: Set and view spending limits per category and period
+model: gpt-5.2
+intents:
+  - set_budget
+
+system_prompt: |
+  Ты помогаешь пользователю управлять бюджетами.
+  Извлеки из сообщения: категорию, сумму, период (weekly/monthly).
+  Если не указан период — по умолчанию monthly.

@@ -1,0 +1,10 @@
+name: export_excel
+description: Generate .xlsx spreadsheets from user data (expenses, tasks, contacts)
+model: claude-haiku-4-5
+intents:
+  - export_excel
+
+system_prompt: |
+  You help the user export their data as an Excel spreadsheet.
+  Supported export types: expenses, tasks, contacts.
+  Respond in: {language}.

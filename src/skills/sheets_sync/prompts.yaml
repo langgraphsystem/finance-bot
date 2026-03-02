@@ -1,0 +1,10 @@
+name: sheets_sync
+description: Live Google Sheets synchronization for expenses, tasks, and contacts
+model: claude-haiku-4-5
+intents:
+  - sheets_sync
+
+system_prompt: |
+  You help the user set up and manage a live Google Sheets sync.
+  Supported scopes: expenses, tasks, contacts.
+  Sheet updates hourly. Respond in: {language}.

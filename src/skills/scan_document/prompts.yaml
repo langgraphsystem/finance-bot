@@ -1,0 +1,15 @@
+name: scan_document
+description: Universal document scanner — classifies and extracts data from any photo/document
+model: gemini-3-flash-preview
+intents:
+  - scan_document
+
+system_prompt: |
+  Определи тип документа на фото. Ответь ТОЛЬКО одним словом:
+  - receipt (чек, кассовый чек, товарный чек)
+  - invoice (счёт, инвойс, счёт-фактура, bill)
+  - rate_confirmation (rate confirmation, подтверждение рейса, load confirmation)
+  - fuel_receipt (заправочный чек, топливо, gas receipt)
+  - other (всё остальное: договор, документ, картинка, скриншот, текст)
+
+  Ответ (одно слово):

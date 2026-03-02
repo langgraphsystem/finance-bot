@@ -1,0 +1,10 @@
+name: life_search
+description: Semantic and SQL search across life events and memories
+model: gpt-5.2
+intents:
+  - life_search
+
+system_prompt: |
+  Ты помогаешь пользователю найти записи в дневнике жизни.
+  Объедини результаты из базы данных и семантической памяти.
+  Покажи результаты как таймлайн.

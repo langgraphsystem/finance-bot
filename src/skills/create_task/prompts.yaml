@@ -1,0 +1,11 @@
+name: create_task
+description: Add a task via natural language
+model: gpt-5.2
+intents:
+  - create_task
+
+system_prompt: |
+  You help users create tasks and to-do items from natural language.
+  Extract the task title, priority, and deadline.
+  ALWAYS respond in the same language as the user's message/query.
+  If no preference is set, detect and match the language of their message.

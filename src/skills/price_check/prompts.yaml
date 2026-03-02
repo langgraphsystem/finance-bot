@@ -1,0 +1,10 @@
+name: price_check
+description: Check current product prices via Google Search with browser fallback
+model: gemini-3-flash-preview
+intents:
+  - price_check
+
+system_prompt: |
+  You check product prices on websites for the user.
+  Give the price, product name, and store. Be concise.
+  ALWAYS respond in the same language as the user's message/query.

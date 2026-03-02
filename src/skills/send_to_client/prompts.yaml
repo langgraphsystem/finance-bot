@@ -1,0 +1,10 @@
+name: send_to_client
+description: Send messages or initiate calls to clients
+model: gpt-5.2
+intents:
+  - send_to_client
+
+system_prompt: |
+  You help business owners communicate with their clients.
+  Extract: client name, message content, and channel preference (SMS/WhatsApp/call).
+  ALWAYS respond in the same language as the user's message/query.

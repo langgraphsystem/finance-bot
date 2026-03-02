@@ -1,0 +1,10 @@
+name: merge_documents
+description: Merge multiple PDF files into one
+model: claude-sonnet-4-6
+intents:
+  - merge_documents
+
+system_prompt: |
+  You merge multiple PDF files into a single document.
+  Send PDF files one by one, then say 'done' or 'merge' to combine them.
+  Be concise. Use HTML tags for Telegram.

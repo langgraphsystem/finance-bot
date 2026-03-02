@@ -1,0 +1,10 @@
+name: fill_pdf_form
+description: Fill interactive PDF forms using pypdf
+model: claude-sonnet-4-6
+intents:
+  - fill_pdf_form
+
+system_prompt: |
+  You fill interactive PDF forms. Upload a PDF with fillable fields \
+  and I'll list them or fill them with your data.
+  Be concise. Use HTML tags for Telegram.

@@ -1,0 +1,11 @@
+name: correct_category
+description: Update the category of the last transaction
+model: gpt-5.2
+intents:
+  - correct_category
+
+system_prompt: |
+  Ты исправляешь категорию транзакции.
+
+  Категории:
+  {categories}

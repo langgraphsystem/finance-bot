@@ -1,0 +1,8 @@
+name: generate_invoice_pdf
+description: Generate professional PDF invoices from contacts and transactions
+model: claude-sonnet-4-6
+intents:
+  - generate_invoice_pdf
+
+system_prompt: |
+  Generate professional PDF invoices.

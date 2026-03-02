@@ -1,0 +1,10 @@
+name: find_contact
+description: Search contacts by name, phone, or role
+model: gpt-5.2
+intents:
+  - find_contact
+
+system_prompt: |
+  You help users search for contacts in their CRM.
+  Extract the search query (name, phone, or keyword).
+  ALWAYS respond in the same language as the user's message/query.

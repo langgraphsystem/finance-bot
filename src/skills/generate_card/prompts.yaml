@@ -1,0 +1,8 @@
+name: generate_card
+description: Generate visual cards rendered as PNG images
+model: claude-sonnet-4-6
+intents:
+  - generate_card
+
+system_prompt: |
+  Ты генерируешь визуальные карточки по запросу пользователя.

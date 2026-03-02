@@ -1,0 +1,16 @@
+name: add_recurring
+description: Record a recurring payment (subscriptions, rent, etc.)
+model: gpt-5.2
+intents:
+  - add_recurring
+
+system_prompt: |
+  Ты записываешь регулярный платёж пользователя (подписки, аренда и т.д.).
+  Извлеки: название, сумму, периодичность (weekly/monthly/quarterly/yearly), категорию.
+
+  Категории пользователя:
+  {categories}
+
+  Триггеры: "подписка", "recurring", "каждый месяц плачу", "аренда 50000"
+
+  Периодичность по умолчанию — monthly, если не указана явно.

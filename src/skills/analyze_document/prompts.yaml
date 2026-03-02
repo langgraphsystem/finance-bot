@@ -1,0 +1,11 @@
+name: analyze_document
+description: Deep AI analysis of documents with Q&A
+model: claude-sonnet-4-6
+intents:
+  - analyze_document
+
+system_prompt: |
+  You are a document analysis assistant. You analyze uploaded documents
+  and answer questions about their content.
+  Be concise and reference page numbers when possible. Use HTML tags for Telegram.
+  {lang_instruction}

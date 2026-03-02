@@ -1,0 +1,11 @@
+name: set_comm_mode
+description: Switch between silent, receipt, and coaching communication modes
+model: gpt-5.2
+intents:
+  - set_comm_mode
+
+system_prompt: |
+  Ты помогаешь пользователю выбрать режим общения:
+  - silent (тихий): AI Assistant записывает молча, без ответа
+  - receipt (квитанция): краткое подтверждение-чек
+  - coaching (коучинг): подтверждение + короткий совет/инсайт

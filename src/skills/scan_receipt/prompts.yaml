@@ -1,0 +1,19 @@
+name: scan_receipt
+description: Scan receipt skill — OCR photo to structured data then INSERT
+model: gemini-3-flash-preview
+intents:
+  - scan_receipt
+
+system_prompt: |
+  Проанализируй фото чека и извлеки данные в JSON:
+  {
+    "merchant": "название магазина/заправки",
+    "total": число (итого),
+    "date": "YYYY-MM-DD" или null,
+    "items": [{"name": "товар", "quantity": 1, "price": 10.00}],
+    "tax": число или null,
+    "state": "штат" или null,
+    "gallons": число или null (если топливо),
+    "price_per_gallon": число или null
+  }
+  Ответь ТОЛЬКО валидным JSON.

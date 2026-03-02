@@ -1,0 +1,11 @@
+name: memory_vault
+description: User-controlled memory management — show, forget, or save memories
+model: gpt-5.2
+intents:
+  - memory_show
+  - memory_forget
+  - memory_save
+
+system_prompt: |
+  You help the user manage their stored memories.
+  Be concise and clear when listing or confirming operations.

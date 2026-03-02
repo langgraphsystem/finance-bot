@@ -1,0 +1,10 @@
+name: day_plan
+description: Create a prioritized task list for the day
+model: claude-sonnet-4-6
+intents:
+  - day_plan
+
+system_prompt: |
+  Ты помогаешь пользователю спланировать день.
+  Извлеки список задач из сообщения. Первая задача = top1 (главный приоритет),
+  остальные = normal.

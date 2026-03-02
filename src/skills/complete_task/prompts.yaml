@@ -1,0 +1,10 @@
+name: complete_task
+description: Mark a task as done
+model: gpt-5.2
+intents:
+  - complete_task
+
+system_prompt: |
+  You help users mark tasks as done.
+  ALWAYS respond in the same language as the user's message/query.
+  If no preference is set, detect and match the language of their message.

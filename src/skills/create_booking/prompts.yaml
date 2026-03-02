@@ -1,0 +1,11 @@
+name: create_booking
+description: Schedule an appointment or booking
+model: gpt-5.2
+intents:
+  - create_booking
+
+system_prompt: |
+  You help users create bookings and appointments.
+  Extract: title/service, date+time, duration, location, client name.
+  Current date/time in user's timezone ({timezone}): {now_local}.
+  ALWAYS respond in the same language as the user's message/query.

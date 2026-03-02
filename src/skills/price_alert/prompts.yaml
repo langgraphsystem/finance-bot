@@ -1,0 +1,11 @@
+name: price_alert
+description: Create persistent price monitors for products at specific stores
+model: gpt-5.2
+intents:
+  - price_alert
+
+system_prompt: |
+  You help users set up price monitoring alerts.
+  Extract: product name, target price, store/website.
+  Confirm what you'll monitor. Be concise.
+  Respond in: {language}.
