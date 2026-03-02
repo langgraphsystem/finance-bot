@@ -2,7 +2,7 @@
 
 import json
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.context import SessionContext
@@ -194,24 +194,21 @@ async def test_explicit_items_from_text():
             return_value=contact_sess,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ),
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ),
+        ) as mock_store,
     ):
         result = await skill.execute(msg, ctx, intent_data)
 
-    # Should show invoice summary with totals
+    # Should show preview with totals
     assert "650.00" in result.response_text
     assert "Mike Chen" in result.response_text
-    # Should return PDF document
-    assert result.document == b"fake-pdf"
-    assert result.document_name is not None
-    assert result.document_name.endswith(".pdf")
+    # Should have 3 buttons (confirm, edit, cancel) — no PDF yet
+    assert result.buttons is not None
+    assert len(result.buttons) == 3
+    assert result.document is None
+    # Redis store called
+    mock_store.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -255,20 +252,18 @@ async def test_contact_with_transactions():
             side_effect=session_factory,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ),
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ),
+        ) as mock_store,
     ):
         result = await skill.execute(msg, ctx, intent_data)
 
     assert "Sarah" in result.response_text
     assert "1500.00" in result.response_text or "1,500" in result.response_text
-    assert result.document == b"fake-pdf"
+    assert result.buttons is not None
+    assert len(result.buttons) == 3
+    assert result.document is None
+    mock_store.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -350,24 +345,19 @@ async def test_custom_due_days():
             return_value=contact_sess,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ),
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ) as mock_save,
+        ) as mock_store,
     ):
         result = await skill.execute(msg, ctx, intent_data)
 
-    # Verify PDF was generated and save was called
-    assert result.document == b"fake-pdf"
-    mock_save.assert_called_once()
-    saved_data = mock_save.call_args[0][0]
-    due_iso = saved_data["due_date_iso"]
-    today = date.today()
-    expected_due = today.replace(day=today.day) + __import__("datetime").timedelta(days=15)
+    # Verify preview returned with buttons
+    assert result.buttons is not None
+    assert result.document is None
+    mock_store.assert_called_once()
+    stored_data = mock_store.call_args[0][1]
+    due_iso = stored_data["due_date_iso"]
+    expected_due = date.today() + timedelta(days=15)
     assert due_iso == expected_due.isoformat()
 
 
@@ -375,8 +365,8 @@ async def test_custom_due_days():
 # Preview has confirm buttons
 # ---------------------------------------------------------------------------
 
-async def test_generates_pdf_directly():
-    """Invoice generates PDF directly without preview buttons."""
+async def test_preview_has_confirm_buttons():
+    """Invoice shows preview with confirm/edit/cancel buttons."""
     ctx = _make_context()
     msg = _make_message("invoice Mike for consulting $1000")
     intent_data = {"contact_name": "Mike"}
@@ -401,22 +391,21 @@ async def test_generates_pdf_directly():
             return_value=contact_sess,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ) as mock_pdf,
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ) as mock_save,
+        ) as mock_store,
     ):
         result = await skill.execute(msg, ctx, intent_data)
 
-    mock_pdf.assert_called_once()
-    mock_save.assert_called_once()
-    assert result.document == b"fake-pdf"
-    assert result.document_name.endswith(".pdf")
+    mock_store.assert_called_once()
+    assert result.buttons is not None
+    assert len(result.buttons) == 3
+    callbacks = [b["callback"] for b in result.buttons]
+    assert any(cb.startswith("invoice_confirm:") for cb in callbacks)
+    assert any(cb.startswith("invoice_edit:") for cb in callbacks)
+    assert any(cb.startswith("invoice_cancel:") for cb in callbacks)
     assert "1000.00" in result.response_text or "1,000" in result.response_text
+    assert result.document is None
 
 
 # ---------------------------------------------------------------------------
@@ -477,20 +466,15 @@ async def test_company_info_from_profile():
             return_value=contact_sess,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ),
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ) as mock_save,
+        ) as mock_store,
     ):
         await skill.execute(msg, ctx, intent_data)
 
-    saved = mock_save.call_args[0][0]
-    assert saved["company_name"] == "Chen Plumbing LLC"
-    assert saved["company_address"] == "123 Main St"
+    stored = mock_store.call_args[0][1]
+    assert stored["company_name"] == "Chen Plumbing LLC"
+    assert stored["company_address"] == "123 Main St"
 
 
 # ---------------------------------------------------------------------------
@@ -600,18 +584,13 @@ async def test_intent_data_items_override():
             return_value=contact_sess,
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_invoice_pdf",
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value=b"fake-pdf",
-        ),
-        patch(
-            "src.skills.generate_invoice.handler.save_invoice_to_db",
-            new_callable=AsyncMock,
-        ) as mock_save,
+        ) as mock_store,
     ):
         await skill.execute(msg, ctx, intent_data)
 
-    saved = mock_save.call_args[0][0]
-    assert len(saved["items"]) == 1
-    assert saved["items"][0]["description"] == "Custom item"
-    assert saved["total"] == 500.0
+    stored = mock_store.call_args[0][1]
+    assert len(stored["items"]) == 1
+    assert stored["items"][0]["description"] == "Custom item"
+    assert stored["total"] == 500.0

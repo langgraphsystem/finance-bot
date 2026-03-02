@@ -597,28 +597,28 @@ class GenerateInvoiceSkill:
             "client_phone": contact.get("phone"),
         }
 
-        # 6. Generate PDF immediately, save to DB
-        try:
-            pdf_bytes = await generate_invoice_pdf(invoice_data)
-            await save_invoice_to_db(invoice_data)
-            filename = f"invoice_{invoice_number}.pdf"
-            return SkillResult(
-                response_text=t(
-                    _STRINGS, "generated", lang,
-                    number=invoice_number,
-                    name=invoice_data["client_name"],
-                    symbol=symbol,
-                    total=f"{total:.2f}",
-                    due=invoice_data["due_date"],
-                ),
-                document=pdf_bytes,
-                document_name=filename,
-            )
-        except Exception as e:
-            logger.error("Invoice PDF generation failed: %s", e)
-            return SkillResult(
-                response_text=t(_STRINGS, "pdf_failed", lang),
-            )
+        # 6. Store in Redis, show preview with confirm/edit/cancel buttons
+        pending_id = uuid.uuid4().hex[:8]
+        await store_pending_invoice(pending_id, invoice_data)
+
+        preview_text = _format_preview(invoice_data, lang)
+        return SkillResult(
+            response_text=preview_text,
+            buttons=[
+                {
+                    "text": t(_STRINGS, "btn_confirm", lang),
+                    "callback": f"invoice_confirm:{pending_id}",
+                },
+                {
+                    "text": t(_STRINGS, "btn_edit", lang),
+                    "callback": f"invoice_edit:{pending_id}",
+                },
+                {
+                    "text": t(_STRINGS, "btn_cancel", lang),
+                    "callback": f"invoice_cancel:{pending_id}",
+                },
+            ],
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         from datetime import datetime
