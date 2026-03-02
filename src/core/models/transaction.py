@@ -32,8 +32,12 @@ class Transaction(Base, TimestampMixin):
     document_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True
     )
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id"), nullable=True
+    )
     ai_confidence: Mapped[float] = mapped_column(Numeric(3, 2), default=1.0)
     is_corrected: Mapped[bool] = mapped_column(Boolean, default=False)
 
     category = relationship("Category")
+    contact = relationship("Contact")
     user = relationship("User")

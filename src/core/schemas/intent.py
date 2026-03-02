@@ -151,6 +151,11 @@ class IntentData(BaseModel):
     # Receptionist fields
     receptionist_topic: str | None = None  # "services", "hours", "faq", "general"
 
+    # Invoice fields
+    invoice_items: list[dict] | None = None  # [{description, amount, quantity?}]
+    invoice_due_days: int | None = None  # "net 15" → 15
+    invoice_notes: str | None = None  # custom notes
+
     # Memory Vault fields
     memory_query: str | None = None  # search/delete/save content for memory_vault
 

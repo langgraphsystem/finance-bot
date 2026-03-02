@@ -68,7 +68,6 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "list_documents": Domain.document,
     "search_documents": Domain.document,
     "extract_table": Domain.document,
-    "generate_invoice_pdf": Domain.document,
     "fill_template": Domain.document,
     "fill_pdf_form": Domain.document,
     "analyze_document": Domain.document,

@@ -37,7 +37,6 @@ from src.skills.generate_card.handler import skill as generate_card_skill
 from src.skills.generate_document.handler import skill as generate_document_skill
 from src.skills.generate_image.handler import skill as generate_image_skill
 from src.skills.generate_invoice.handler import skill as generate_invoice_skill
-from src.skills.generate_invoice_pdf.handler import skill as generate_invoice_pdf_skill
 from src.skills.generate_presentation.handler import skill as generate_presentation_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
 from src.skills.generate_spreadsheet.handler import skill as generate_spreadsheet_skill
@@ -179,7 +178,6 @@ def create_registry() -> SkillRegistry:
     registry.register(list_documents_skill)
     registry.register(search_documents_skill)
     registry.register(extract_table_skill)
-    registry.register(generate_invoice_pdf_skill)
     registry.register(fill_template_skill)
     registry.register(fill_pdf_form_skill)
     registry.register(analyze_document_skill)

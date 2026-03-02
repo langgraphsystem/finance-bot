@@ -140,7 +140,6 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "list_documents": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "search_documents": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "extract_table": {"mem": False, "hist": 1, "sql": False, "sum": False},
-    "generate_invoice_pdf": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "fill_template": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "fill_pdf_form": {"mem": "profile", "hist": 2, "sql": False, "sum": False},
     "analyze_document": {"mem": False, "hist": 2, "sql": False, "sum": False},
@@ -158,7 +157,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "create_sheets": {"mem": "profile", "hist": 1, "sql": False, "sum": False},
     # Wave 1 Financial Specialists
     "financial_summary": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
-    "generate_invoice": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "generate_invoice": {"mem": "profile", "hist": 3, "sql": True, "sum": False},
     "tax_estimate": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
     "cash_flow_forecast": {"mem": "budgets", "hist": 0, "sql": True, "sum": True},
 }

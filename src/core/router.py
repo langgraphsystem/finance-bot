@@ -1166,6 +1166,140 @@ async def _execute_pending_action(
     return OutgoingMessage(text=result_text, chat_id=message.chat_id)
 
 
+async def _handle_stats_callback(
+    sub: str,
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Handle stats:weekly and stats:trend callbacks with multi-period data."""
+    from datetime import timedelta
+
+    from sqlalchemy import func, select
+
+    from src.core.charts import create_pie_chart
+    from src.core.models.category import Category
+
+    today = date.today()
+    fid = uuid.UUID(context.family_id)
+
+    if sub == "weekly":
+        # Last 4 full weeks breakdown
+        # Current week start (Monday)
+        week_start = today - timedelta(days=today.weekday())
+        weeks: list[tuple[date, date, str]] = []
+        for i in range(4):
+            end = week_start - timedelta(weeks=i)
+            start = end - timedelta(days=7)
+            label = f"{start.strftime('%d.%m')}–{(end - timedelta(days=1)).strftime('%d.%m')}"
+            weeks.append((start, end, label))
+        weeks.reverse()
+
+        lines: list[str] = ["<b>📊 Расходы по неделям</b>\n"]
+        grand_total = Decimal("0")
+        async with async_session() as session:
+            for start, end, label in weeks:
+                result = await session.execute(
+                    select(func.sum(Transaction.amount)).where(
+                        Transaction.family_id == fid,
+                        Transaction.date >= start,
+                        Transaction.date < end,
+                        Transaction.type == TransactionType.expense,
+                    )
+                )
+                total = result.scalar() or Decimal("0")
+                grand_total += total
+                bar = "█" * max(1, int(float(total) / 50)) if total > 0 else "░"
+                lines.append(f"{label}: <b>${float(total):.2f}</b> {bar}")
+
+        lines.append(f"\nИтого: <b>${float(grand_total):.2f}</b>")
+        return OutgoingMessage(text="\n".join(lines), chat_id=message.chat_id)
+
+    elif sub == "trend":
+        # Last 3 months trend with category breakdown
+        months: list[tuple[date, date, str]] = []
+        for i in range(3):
+            if today.month - i > 0:
+                m_start = today.replace(month=today.month - i, day=1)
+            else:
+                m_start = today.replace(year=today.year - 1, month=today.month - i + 12, day=1)
+            if m_start.month == 12:
+                m_end = m_start.replace(year=m_start.year + 1, month=1, day=1)
+            else:
+                m_end = m_start.replace(month=m_start.month + 1, day=1)
+            month_names = {
+                1: "Янв", 2: "Фев", 3: "Мар", 4: "Апр", 5: "Май", 6: "Июн",
+                7: "Июл", 8: "Авг", 9: "Сен", 10: "Окт", 11: "Ноя", 12: "Дек",
+            }
+            label = f"{month_names[m_start.month]} {m_start.year}"
+            months.append((m_start, m_end, label))
+        months.reverse()
+
+        lines = ["<b>📈 Тренд расходов</b>\n"]
+        totals: list[float] = []
+        chart_labels: list[str] = []
+        chart_values: list[float] = []
+        async with async_session() as session:
+            for m_start, m_end, label in months:
+                result = await session.execute(
+                    select(func.sum(Transaction.amount)).where(
+                        Transaction.family_id == fid,
+                        Transaction.date >= m_start,
+                        Transaction.date < m_end,
+                        Transaction.type == TransactionType.expense,
+                    )
+                )
+                total = float(result.scalar() or 0)
+                totals.append(total)
+                chart_labels.append(label)
+                chart_values.append(total)
+
+                change = ""
+                if len(totals) >= 2 and totals[-2] > 0:
+                    pct = ((total - totals[-2]) / totals[-2]) * 100
+                    arrow = "📈" if pct > 0 else "📉"
+                    change = f" {arrow} {pct:+.0f}%"
+                lines.append(f"{label}: <b>${total:.2f}</b>{change}")
+
+            # Top categories for the full period
+            cat_result = await session.execute(
+                select(
+                    Category.name,
+                    func.sum(Transaction.amount).label("total"),
+                )
+                .join(Category, Transaction.category_id == Category.id)
+                .where(
+                    Transaction.family_id == fid,
+                    Transaction.date >= months[0][0],
+                    Transaction.date < months[-1][1],
+                    Transaction.type == TransactionType.expense,
+                )
+                .group_by(Category.name)
+                .order_by(func.sum(Transaction.amount).desc())
+                .limit(5)
+            )
+            top_cats = cat_result.all()
+
+        grand = sum(totals)
+        lines.append(f"\nИтого за 3 мес: <b>${grand:.2f}</b>")
+
+        if top_cats:
+            lines.append("\nТоп категории:")
+            for name, amount in top_cats:
+                lines.append(f"  • {name}: ${float(amount):.2f}")
+
+        chart_url = None
+        if any(v > 0 for v in chart_values):
+            chart_url = create_pie_chart(chart_labels, chart_values, "Тренд расходов")
+
+        return OutgoingMessage(
+            text="\n".join(lines),
+            chat_id=message.chat_id,
+            chart_url=chart_url,
+        )
+
+    return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+
+
 async def _handle_callback(
     message: IncomingMessage,
     context: SessionContext,
@@ -1315,47 +1449,15 @@ async def _handle_callback(
 
     elif action == "stats":
         sub = parts[1] if len(parts) > 1 else ""
-        if sub == "weekly":
-            # Redirect to query_stats with period=week
-            registry = get_registry()
-            skill = registry.get("query_stats")
-            if skill:
-                stats_message = IncomingMessage(
-                    id=message.id,
-                    user_id=message.user_id,
-                    chat_id=message.chat_id,
-                    type=MessageType.text,
-                    text="статистика за неделю",
-                )
-                intent_data: dict[str, Any] = {"period": "week"}
-                skill_result = await skill.execute(stats_message, context, intent_data)
-                return OutgoingMessage(
-                    text=skill_result.response_text,
-                    chat_id=message.chat_id,
-                    buttons=skill_result.buttons,
-                    chart_url=skill_result.chart_url,
-                )
-        elif sub == "trend":
-            # Show 3-month trend via query_stats
-            registry = get_registry()
-            skill = registry.get("query_stats")
-            if skill:
-                stats_message = IncomingMessage(
-                    id=message.id,
-                    user_id=message.user_id,
-                    chat_id=message.chat_id,
-                    type=MessageType.text,
-                    text="тренд расходов за 3 месяца",
-                )
-                intent_data = {"period": "month"}
-                skill_result = await skill.execute(stats_message, context, intent_data)
-                return OutgoingMessage(
-                    text=skill_result.response_text,
-                    chat_id=message.chat_id,
-                    buttons=skill_result.buttons,
-                    chart_url=skill_result.chart_url,
-                )
-        return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
+        try:
+            result = await _handle_stats_callback(sub, message, context)
+            return result
+        except Exception as e:
+            logger.exception("stats:%s callback failed: %s", sub, e)
+            return OutgoingMessage(
+                text="Не удалось загрузить статистику. Попробуйте позже.",
+                chat_id=message.chat_id,
+            )
 
     elif action == "life_search":
         # Period shortcut buttons from life_search results
@@ -1743,6 +1845,69 @@ async def _handle_callback(
             await delete_pending_receipt(cancel_pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
+    # ------------------------------------------------------------------
+    # Invoice callbacks
+    # ------------------------------------------------------------------
+    elif action == "invoice_confirm":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        from src.skills.generate_invoice.handler import (
+            delete_pending_invoice,
+            generate_invoice_pdf,
+            get_pending_invoice,
+            save_invoice_to_db,
+        )
+
+        inv_data = await get_pending_invoice(pending_id) if pending_id else None
+        if not inv_data:
+            return OutgoingMessage(
+                text=_invoice_t("expired", context),
+                chat_id=message.chat_id,
+            )
+
+        try:
+            pdf_bytes = await generate_invoice_pdf(inv_data)
+            await save_invoice_to_db(inv_data)
+            await delete_pending_invoice(pending_id)
+            filename = f"invoice_{inv_data['invoice_number']}.pdf"
+            return OutgoingMessage(
+                text=_invoice_t(
+                    "generated",
+                    context,
+                    number=inv_data["invoice_number"],
+                    name=inv_data["client_name"],
+                    symbol=inv_data["currency_symbol"],
+                    total=f"{inv_data['total']:.2f}",
+                    due=inv_data["due_date"],
+                ),
+                chat_id=message.chat_id,
+                document=pdf_bytes,
+                document_name=filename,
+            )
+        except Exception as e:
+            logger.error("Invoice PDF generation failed: %s", e)
+            return OutgoingMessage(
+                text=_invoice_t("pdf_failed", context),
+                chat_id=message.chat_id,
+            )
+
+    elif action == "invoice_edit":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        return OutgoingMessage(
+            text=_invoice_t("edit_hint", context),
+            chat_id=message.chat_id,
+        )
+
+    elif action == "invoice_cancel":
+        pending_id = parts[1] if len(parts) > 1 else ""
+        if pending_id:
+            from src.skills.generate_invoice.handler import delete_pending_invoice
+
+            await delete_pending_invoice(pending_id)
+        return OutgoingMessage(
+            text=_invoice_t("cancelled", context),
+            chat_id=message.chat_id,
+        )
+
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
 
 
@@ -1753,6 +1918,15 @@ def _receipt_t(key: str, context: SessionContext, **kwargs: str) -> str:
 
     lang = context.language or "en"
     return t_cached(_STRINGS, key, lang, "scan_receipt", **kwargs)
+
+
+def _invoice_t(key: str, context: SessionContext, **kwargs: str) -> str:
+    """Get a localized invoice string using generate_invoice i18n."""
+    from src.skills._i18n import t_cached
+    from src.skills.generate_invoice.handler import _STRINGS as _INV_STRINGS
+
+    lang = context.language or "en"
+    return t_cached(_INV_STRINGS, key, lang, "generate_invoice", **kwargs)
 
 
 _FUEL_CATEGORY_NAMES = {"дизель", "diesel", "fuel", "топливо", "gasoline", "бензин"}

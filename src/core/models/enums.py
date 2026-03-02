@@ -127,6 +127,13 @@ class ChannelType(enum.StrEnum):
     sms = "sms"
 
 
+class InvoiceStatus(enum.StrEnum):
+    draft = "draft"
+    sent = "sent"
+    paid = "paid"
+    cancelled = "cancelled"
+
+
 class BookingStatus(enum.StrEnum):
     scheduled = "scheduled"
     confirmed = "confirmed"

@@ -21,6 +21,7 @@ from src.core.models.enums import (
     DocumentType,
     InteractionChannel,
     InteractionDirection,
+    InvoiceStatus,
     LifeEventType,
     LoadStatus,
     MessageRole,
@@ -34,6 +35,7 @@ from src.core.models.enums import (
     UserRole,
 )
 from src.core.models.family import Family
+from src.core.models.invoice import Invoice
 from src.core.models.life_event import LifeEvent
 from src.core.models.load import Load
 from src.core.models.merchant_mapping import MerchantMapping
@@ -62,6 +64,8 @@ __all__ = [
     "DocumentType",
     "InteractionChannel",
     "InteractionDirection",
+    "Invoice",
+    "InvoiceStatus",
     "LifeEventType",
     "LoadStatus",
     "MessageRole",

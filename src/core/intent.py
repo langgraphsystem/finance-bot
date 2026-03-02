@@ -115,8 +115,11 @@ period: week/month/year, date_from/date_to: YYYY-MM-DD
 анализ расходов по категориям ("куда уходят деньги?", "where does my money go?", \
 "financial summary", "анализ расходов за месяц", "итоги по категориям", \
 "покажи структуру расходов", "spending breakdown")
-- generate_invoice: создать счёт/инвойс для клиента ("invoice Mike for the job", \
-"выставь счёт клиенту", "create invoice", "сделай инвойс")
+- generate_invoice: создать счёт/инвойс/PDF для клиента ("invoice Mike for the job", \
+"выставь счёт клиенту", "create invoice", "сделай инвойс", "сделай PDF инвойс", \
+"generate invoice PDF", "PDF счёт для клиента", "generar factura PDF"). \
+Извлеки contact_name: имя клиента, invoice_items: [{description, amount}] если указаны, \
+invoice_due_days: число дней (net 15 → 15), amount: общая сумма если указана
 - tax_estimate: оценка налогов, квартальные платежи, вычеты ("сколько налогов?", \
 "tax estimate", "quarterly taxes", "how much do I owe in taxes?", "налоговая оценка")
 - cash_flow_forecast: прогноз денежного потока, можем ли позволить \
@@ -286,10 +289,7 @@ epub, mobi, fb2, rtf, odt, ods, xls, pptx, jpg, png, tiff)
 - extract_table: извлечь таблицу из документа или фото ("извлечь таблицу", \
 "extract table", "данные из таблицы", "таблицу из PDF", "parse this table", \
 "extraer tabla", "tabla del documento")
-- generate_invoice_pdf: создать PDF-инвойс ("сделай PDF инвойс", \
-"generate invoice PDF", "PDF счёт для клиента", "invoice PDF for Mike", \
-"generar factura PDF"). \
-Извлеки contact_name: имя клиента
+- generate_invoice_pdf: DEPRECATED — use generate_invoice instead
 - fill_template: заполнить шаблон документа ("заполни шаблон", "fill template", \
 "заполни договор данными", "fill this template with my info", \
 "llenar plantilla", "completar plantilla"). \
@@ -1114,7 +1114,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
     },
     "finance_specialist": {
         "financial_summary": 'финансовый обзор по категориям ("куда уходят деньги?")',
-        "generate_invoice": 'создать инвойс ("invoice Mike for the job")',
+        "generate_invoice": 'создать инвойс/PDF ("invoice Mike for the job", "invoice PDF")',
         "tax_estimate": 'оценка налогов ("quarterly taxes", "сколько налогов?")',
         "cash_flow_forecast": 'прогноз ("can we afford?", "forecast")',
     },
@@ -1187,7 +1187,6 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "list_documents": 'список документов ("мои документы", "покажи файлы")',
         "search_documents": 'поиск в документах ("найди в документах", "search invoices")',
         "extract_table": 'извлечь таблицу из документа ("вытащи таблицу")',
-        "generate_invoice_pdf": 'создать PDF инвойс ("invoice PDF for Mike")',
         "fill_template": 'заполнить шаблон документа ("заполни контракт", "fill template")',
         "fill_pdf_form": 'заполнить PDF форму ("заполни W-9", "fill form")',
         "analyze_document": 'анализ документа ("проанализируй документ", "какие риски?")',

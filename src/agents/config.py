@@ -137,7 +137,6 @@ AGENTS: list[AgentConfig] = [
             "list_documents",
             "search_documents",
             "extract_table",
-            "generate_invoice_pdf",
             "fill_template",
             "fill_pdf_form",
             "analyze_document",

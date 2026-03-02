@@ -1,10 +1,24 @@
-"""Tests for GenerateInvoiceSkill."""
+"""Tests for unified GenerateInvoiceSkill (preview → confirm → PDF)."""
 
+import json
+import uuid
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.generate_invoice.handler import skill
+from src.skills.generate_invoice.handler import (
+    _format_preview,
+    _generate_invoice_number,
+    delete_pending_invoice,
+    get_pending_invoice,
+    skill,
+    store_pending_invoice,
+)
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 def _make_message(text: str) -> IncomingMessage:
     return IncomingMessage(
@@ -16,10 +30,24 @@ def _make_message(text: str) -> IncomingMessage:
     )
 
 
-def _mock_contact(name="Mike Chen", email="mike@test.com", phone="555-1234"):
-    """Create a mock Contact ORM object."""
-    import uuid
+def _make_context(
+    lang="en", currency="USD", family_id=None, business_type="plumber",
+) -> SessionContext:
+    return SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=family_id or str(uuid.uuid4()),
+        role="owner",
+        language=lang,
+        currency=currency,
+        business_type=business_type,
+        categories=[],
+        merchant_mappings=[],
+    )
 
+
+def _mock_contact(
+    name="Mike Chen", email="mike@test.com", phone="555-1234",
+):
     contact = MagicMock()
     contact.name = name
     contact.email = email
@@ -28,175 +56,536 @@ def _mock_contact(name="Mike Chen", email="mike@test.com", phone="555-1234"):
     return contact
 
 
-def _mock_transaction(date_str, description, amount):
-    """Create a mock Transaction ORM object."""
-    from datetime import date
-
+def _mock_transaction(date_str, description, amount, contact_id=None):
     tx = MagicMock()
     tx.date = date.fromisoformat(date_str)
     tx.merchant = description
     tx.description = description
     tx.amount = amount
+    tx.id = uuid.uuid4()
+    tx.contact_id = contact_id
     return tx
 
 
-# ---------------------------------------------------------------------------
-# Tests
-# ---------------------------------------------------------------------------
+_UNSET = object()
 
+
+def _mock_async_session(scalar_value=_UNSET, scalars_list=None):
+    """Create a mock async session context manager.
+
+    Use scalar_value for single-object queries (_find_contact),
+    scalars_list for multi-row queries (_pull_contact_transactions).
+    """
+    mock_sess = AsyncMock()
+    if scalar_value is not _UNSET:
+        mock_sess.scalar = AsyncMock(return_value=scalar_value)
+    if scalars_list is not None:
+        mock_scalars = MagicMock()
+        mock_scalars.all.return_value = scalars_list
+        mock_sess.scalars = AsyncMock(return_value=mock_scalars)
+        mock_sess.execute = AsyncMock()
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=mock_sess)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    return ctx
+
+
+# ---------------------------------------------------------------------------
+# Basic attribute tests
+# ---------------------------------------------------------------------------
 
 async def test_skill_attributes():
-    """Skill has required attributes."""
     assert skill.name == "generate_invoice"
     assert "generate_invoice" in skill.intents
+    assert skill.model == "claude-sonnet-4-6"
 
+
+async def test_get_system_prompt():
+    ctx = _make_context()
+    prompt = skill.get_system_prompt(ctx)
+    assert "invoice" in prompt.lower()
+
+
+# ---------------------------------------------------------------------------
+# No family / no contact
+# ---------------------------------------------------------------------------
 
 async def test_no_family_id():
-    """Returns setup message when no family_id."""
-    from src.core.context import SessionContext
-
     ctx = SessionContext(
         user_id="u1", family_id=None, role="owner",
         language="en", currency="USD",
         business_type=None, categories=[], merchant_mappings=[],
     )
-    message = _make_message("invoice Mike")
-    result = await skill.execute(message, ctx, {})
-    assert "set up" in result.response_text.lower()
+    msg = _make_message("invoice Mike")
+    with patch(
+        "src.skills.generate_invoice.handler._parse_invoice_request",
+        new_callable=AsyncMock,
+        return_value={"contact_name": "Mike", "items": [], "due_days": 30, "notes": None},
+    ):
+        result = await skill.execute(msg, ctx, {})
+    assert "account" in result.response_text.lower() or "аккаунт" in result.response_text.lower()
 
 
-async def test_no_contact_name():
-    """Returns help message when no contact name provided."""
-    message = _make_message("create invoice")
-    intent_data = {}
-
-    from src.core.context import SessionContext
-
-    ctx = SessionContext(
-        user_id="u1", family_id="fam-123", role="owner",
-        language="en", currency="USD",
-        business_type=None, categories=[], merchant_mappings=[],
-    )
-    result = await skill.execute(message, ctx, intent_data)
-    assert "who should i invoice" in result.response_text.lower()
+async def test_no_contact_name_asks():
+    """Returns help when no contact name can be determined."""
+    ctx = _make_context()
+    msg = _make_message("invoice")
+    with patch(
+        "src.skills.generate_invoice.handler._parse_invoice_request",
+        new_callable=AsyncMock,
+        return_value={"contact_name": None, "items": [], "due_days": 30, "notes": None},
+    ):
+        result = await skill.execute(msg, ctx, {})
+    assert "who" in result.response_text.lower() or "кому" in result.response_text.lower()
 
 
-async def test_contact_not_found(sample_context):
-    """Returns message when contact not found."""
-    message = _make_message("invoice John Doe")
+async def test_contact_not_found():
+    ctx = _make_context()
+    msg = _make_message("invoice John Doe for work")
     intent_data = {"contact_name": "John Doe"}
 
-    mock_sess = AsyncMock()
-    mock_sess.scalar = AsyncMock(return_value=None)
+    contact_sess = _mock_async_session(scalar_value=None)
 
-    ctx = MagicMock()
-    ctx.__aenter__ = AsyncMock(return_value=mock_sess)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-
-    with patch(
-        "src.skills.generate_invoice.handler.async_session",
-        return_value=ctx,
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={"contact_name": "John Doe", "items": [], "due_days": 30, "notes": None},
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
     ):
-        result = await skill.execute(message, sample_context, intent_data)
+        result = await skill.execute(msg, ctx, intent_data)
 
-    assert "don't have" in result.response_text.lower()
     assert "John Doe" in result.response_text
 
 
-async def test_invoice_generated_with_contact(sample_context):
-    """Invoice is generated when contact and transactions exist."""
-    message = _make_message("invoice Mike Chen for plumbing work")
-    intent_data = {"contact_name": "Mike Chen"}
+# ---------------------------------------------------------------------------
+# Explicit items from user text (LLM extraction)
+# ---------------------------------------------------------------------------
 
+async def test_explicit_items_from_text():
+    """LLM parses items from user text → preview with buttons."""
+    ctx = _make_context()
+    msg = _make_message("invoice Mike Chen for plumbing repair $500 and pipe installation $150")
+    intent_data = {"contact_name": "Mike Chen"}
     contact = _mock_contact()
-    transactions = [
-        _mock_transaction("2026-02-20", "Plumbing repair", 500.0),
-        _mock_transaction("2026-02-15", "Parts", 150.0),
+
+    contact_sess = _mock_async_session(scalar_value=contact)
+
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike Chen",
+                "items": [
+                    {"description": "Plumbing repair", "quantity": 1, "unit_price": 500.0},
+                    {"description": "Pipe installation", "quantity": 1, "unit_price": 150.0},
+                ],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        result = await skill.execute(msg, ctx, intent_data)
+
+    # Should show preview with totals
+    assert "650.00" in result.response_text
+    assert "Mike Chen" in result.response_text
+    # Should have 3 buttons
+    assert result.buttons is not None
+    assert len(result.buttons) == 3
+    # Callbacks should be invoice_confirm/edit/cancel
+    callbacks = [b["callback"] for b in result.buttons]
+    assert any("invoice_confirm" in c for c in callbacks)
+    assert any("invoice_edit" in c for c in callbacks)
+    assert any("invoice_cancel" in c for c in callbacks)
+    # Should store in Redis
+    mock_store.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Contact with DB transactions
+# ---------------------------------------------------------------------------
+
+async def test_contact_with_transactions():
+    """Pulls DB transactions when no explicit items."""
+    ctx = _make_context()
+    msg = _make_message("invoice Sarah for this month's work")
+    intent_data = {"contact_name": "Sarah"}
+    contact = _mock_contact(name="Sarah", email="sarah@test.com")
+    contact_id = contact.id
+    txns = [
+        _mock_transaction("2026-02-10", "Web design", 1200.0, contact_id),
+        _mock_transaction("2026-02-18", "Logo revision", 300.0, contact_id),
     ]
 
-    # Mock for _find_contact (scalar returns contact)
-    mock_sess_contact = AsyncMock()
-    mock_sess_contact.scalar = AsyncMock(return_value=contact)
-    ctx_contact = MagicMock()
-    ctx_contact.__aenter__ = AsyncMock(return_value=mock_sess_contact)
-    ctx_contact.__aexit__ = AsyncMock(return_value=False)
+    contact_sess = _mock_async_session(scalar_value=contact)
+    tx_sess = _mock_async_session(scalars_list=txns)
+    call_count = 0
 
-    # Mock for _get_recent_transactions (scalars returns list)
-    mock_scalars = MagicMock()
-    mock_scalars.all.return_value = transactions
-    mock_sess_tx = AsyncMock()
-    mock_sess_tx.scalars = AsyncMock(return_value=mock_scalars)
-    ctx_tx = MagicMock()
-    ctx_tx.__aenter__ = AsyncMock(return_value=mock_sess_tx)
-    ctx_tx.__aexit__ = AsyncMock(return_value=False)
+    def session_factory():
+        nonlocal call_count
+        call_count += 1
+        return contact_sess if call_count == 1 else tx_sess
 
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Sarah",
+                "items": [],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            side_effect=session_factory,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ),
+    ):
+        result = await skill.execute(msg, ctx, intent_data)
+
+    assert "Sarah" in result.response_text
+    assert "1500.00" in result.response_text or "1,500" in result.response_text
+    assert result.buttons is not None
+
+
+# ---------------------------------------------------------------------------
+# No items and no transactions → asks
+# ---------------------------------------------------------------------------
+
+async def test_contact_no_transactions_no_fallback():
+    """Returns 'no items' message when contact exists but no transactions."""
+    ctx = _make_context()
+    msg = _make_message("invoice Bob")
+    intent_data = {"contact_name": "Bob"}
+    contact = _mock_contact(name="Bob")
+
+    contact_sess = _mock_async_session(scalar_value=contact)
+    empty_tx_sess = _mock_async_session(scalars_list=[])
+    # Need two calls for the two queries in _pull_contact_transactions
+    empty_tx_sess2 = _mock_async_session(scalars_list=[])
     call_count = 0
 
     def session_factory():
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return ctx_contact
-        return ctx_tx
+            return contact_sess
+        if call_count == 2:
+            return empty_tx_sess
+        return empty_tx_sess2
 
     with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Bob",
+                "items": [],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
         patch(
             "src.skills.generate_invoice.handler.async_session",
             side_effect=session_factory,
         ),
-        patch(
-            "src.skills.generate_invoice.handler.generate_text",
-            new_callable=AsyncMock,
-            return_value="<b>Invoice for Mike Chen</b>\nPlumbing: $500\nParts: $150\nTotal: $650",
-        ) as mock_llm,
     ):
-        result = await skill.execute(message, sample_context, intent_data)
+        result = await skill.execute(msg, ctx, intent_data)
 
-    mock_llm.assert_called_once()
-    assert result.response_text is not None
+    text_lower = result.response_text.lower()
+    assert "no items" in text_lower or "нет позиций" in text_lower
+    assert result.buttons is None
 
 
-async def test_invoice_no_transactions(sample_context):
-    """Invoice still generated when contact exists but no transactions."""
-    message = _make_message("invoice Sarah")
-    intent_data = {"contact_name": "Sarah"}
+# ---------------------------------------------------------------------------
+# Custom due days
+# ---------------------------------------------------------------------------
 
-    contact = _mock_contact(name="Sarah", email="sarah@test.com")
-
-    mock_sess_contact = AsyncMock()
-    mock_sess_contact.scalar = AsyncMock(return_value=contact)
-    ctx_contact = MagicMock()
-    ctx_contact.__aenter__ = AsyncMock(return_value=mock_sess_contact)
-    ctx_contact.__aexit__ = AsyncMock(return_value=False)
-
-    mock_scalars = MagicMock()
-    mock_scalars.all.return_value = []
-    mock_sess_tx = AsyncMock()
-    mock_sess_tx.scalars = AsyncMock(return_value=mock_scalars)
-    ctx_tx = MagicMock()
-    ctx_tx.__aenter__ = AsyncMock(return_value=mock_sess_tx)
-    ctx_tx.__aexit__ = AsyncMock(return_value=False)
-
-    call_count = 0
-
-    def session_factory():
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            return ctx_contact
-        return ctx_tx
+async def test_custom_due_days():
+    """Respects invoice_due_days from intent_data."""
+    ctx = _make_context()
+    msg = _make_message("invoice Mike net 15")
+    intent_data = {"contact_name": "Mike", "invoice_due_days": 15}
+    contact = _mock_contact(name="Mike")
+    contact_sess = _mock_async_session(scalar_value=contact)
 
     with (
         patch(
-            "src.skills.generate_invoice.handler.async_session",
-            side_effect=session_factory,
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [
+                    {"description": "Work", "quantity": 1, "unit_price": 100.0},
+                ],
+                "due_days": 15,
+                "notes": None,
+            },
         ),
         patch(
-            "src.skills.generate_invoice.handler.generate_text",
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
             new_callable=AsyncMock,
-            return_value="Invoice for Sarah — no recent transactions to include.",
-        ) as mock_llm,
+        ) as mock_store,
     ):
-        await skill.execute(message, sample_context, intent_data)
+        await skill.execute(msg, ctx, intent_data)
 
-    mock_llm.assert_called_once()
+    # Verify due date in stored data
+    stored_data = mock_store.call_args[0][1]
+    due_iso = stored_data["due_date_iso"]
+    today = date.today()
+    expected_due = today.replace(day=today.day) + __import__("datetime").timedelta(days=15)
+    assert due_iso == expected_due.isoformat()
+
+
+# ---------------------------------------------------------------------------
+# Preview has confirm buttons
+# ---------------------------------------------------------------------------
+
+async def test_preview_has_confirm_buttons():
+    """Preview always has exactly 3 buttons: confirm, edit, cancel."""
+    ctx = _make_context()
+    msg = _make_message("invoice Mike for consulting $1000")
+    intent_data = {"contact_name": "Mike"}
+    contact = _mock_contact(name="Mike")
+    contact_sess = _mock_async_session(scalar_value=contact)
+
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [
+                    {"description": "Consulting", "quantity": 1, "unit_price": 1000.0},
+                ],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ),
+    ):
+        result = await skill.execute(msg, ctx, intent_data)
+
+    assert result.buttons is not None
+    assert len(result.buttons) == 3
+    assert "confirm" in result.buttons[0]["callback"]
+    assert "edit" in result.buttons[1]["callback"]
+    assert "cancel" in result.buttons[2]["callback"]
+
+
+# ---------------------------------------------------------------------------
+# Invoice number format
+# ---------------------------------------------------------------------------
+
+async def test_invoice_number_format():
+    """Invoice number is YYYYMM-XXXX format."""
+    num = _generate_invoice_number()
+    today = date.today()
+    prefix = today.strftime("%Y%m")
+    assert num.startswith(prefix + "-")
+    assert len(num.split("-")[1]) == 4
+
+
+# ---------------------------------------------------------------------------
+# Company info from profile
+# ---------------------------------------------------------------------------
+
+async def test_company_info_from_profile():
+    """Company name comes from profile_config if available."""
+    ctx = _make_context()
+    profile = MagicMock()
+    profile.business_name = "Chen Plumbing LLC"
+    profile.address = "123 Main St"
+    profile.phone = "555-0000"
+    ctx = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="en",
+        currency="USD",
+        business_type="plumber",
+        categories=[],
+        merchant_mappings=[],
+        profile_config=profile,
+    )
+    msg = _make_message("invoice Mike for work $500")
+    intent_data = {"contact_name": "Mike"}
+    contact = _mock_contact(name="Mike")
+    contact_sess = _mock_async_session(scalar_value=contact)
+
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [
+                    {"description": "Work", "quantity": 1, "unit_price": 500.0},
+                ],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        await skill.execute(msg, ctx, intent_data)
+
+    stored = mock_store.call_args[0][1]
+    assert stored["company_name"] == "Chen Plumbing LLC"
+    assert stored["company_address"] == "123 Main St"
+
+
+# ---------------------------------------------------------------------------
+# i18n: Russian and Spanish previews
+# ---------------------------------------------------------------------------
+
+async def test_i18n_preview_russian():
+    """Preview uses Russian strings."""
+    data = {
+        "invoice_number": "202603-ABCD",
+        "client_name": "Иванов Иван",
+        "client_email": "ivan@test.com",
+        "currency_symbol": "$",
+        "total": 1000.0,
+        "due_date": "March 31, 2026",
+        "items": [{"description": "Ремонт", "quantity": 1, "unit_price": 1000.0, "amount": 1000.0}],
+        "notes": None,
+    }
+    preview = _format_preview(data, "ru")
+    assert "Предпросмотр" in preview
+    assert "Иванов" in preview
+    assert "1000.00" in preview
+
+
+async def test_i18n_preview_spanish():
+    """Preview uses Spanish strings."""
+    data = {
+        "invoice_number": "202603-ABCD",
+        "client_name": "Carlos",
+        "client_email": None,
+        "currency_symbol": "$",
+        "total": 500.0,
+        "due_date": "March 31, 2026",
+        "items": [
+            {"description": "Plumbing", "quantity": 1, "unit_price": 500.0, "amount": 500.0},
+        ],
+        "notes": None,
+    }
+    preview = _format_preview(data, "es")
+    assert "Vista previa" in preview
+    assert "Carlos" in preview
+
+
+# ---------------------------------------------------------------------------
+# Redis pending helpers (unit tests)
+# ---------------------------------------------------------------------------
+
+async def test_store_and_get_pending():
+    """Store and retrieve pending invoice via Redis."""
+    pid = "test1234"
+    data = {"invoice_number": "202603-TEST", "total": 100.0}
+
+    with patch("src.skills.generate_invoice.handler.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        mock_redis.get = AsyncMock(return_value=json.dumps(data))
+        mock_redis.delete = AsyncMock()
+
+        await store_pending_invoice(pid, data)
+        mock_redis.set.assert_called_once()
+        assert "invoice_pending:test1234" in mock_redis.set.call_args[0][0]
+
+        result = await get_pending_invoice(pid)
+        assert result["invoice_number"] == "202603-TEST"
+
+        await delete_pending_invoice(pid)
+        mock_redis.delete.assert_called_once()
+
+
+async def test_get_pending_returns_none_when_expired():
+    """Returns None for expired/missing pending invoice."""
+    with patch("src.skills.generate_invoice.handler.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value=None)
+        result = await get_pending_invoice("expired123")
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Intent data items pass-through
+# ---------------------------------------------------------------------------
+
+async def test_intent_data_items_override():
+    """Items from intent_data.invoice_items override LLM extraction."""
+    ctx = _make_context()
+    msg = _make_message("invoice Mike for stuff")
+    intent_data = {
+        "contact_name": "Mike",
+        "invoice_items": [
+            {"description": "Custom item", "quantity": 2, "unit_price": 250.0},
+        ],
+    }
+    contact = _mock_contact(name="Mike")
+    contact_sess = _mock_async_session(scalar_value=contact)
+
+    with (
+        patch(
+            "src.skills.generate_invoice.handler._parse_invoice_request",
+            new_callable=AsyncMock,
+            return_value={
+                "contact_name": "Mike",
+                "items": [],
+                "due_days": 30,
+                "notes": None,
+            },
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.async_session",
+            return_value=contact_sess,
+        ),
+        patch(
+            "src.skills.generate_invoice.handler.store_pending_invoice",
+            new_callable=AsyncMock,
+        ) as mock_store,
+    ):
+        await skill.execute(msg, ctx, intent_data)
+
+    stored = mock_store.call_args[0][1]
+    assert len(stored["items"]) == 1
+    assert stored["items"][0]["description"] == "Custom item"
+    assert stored["total"] == 500.0

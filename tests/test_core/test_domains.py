@@ -86,7 +86,6 @@ def test_document_intents_map_correctly():
         "list_documents",
         "search_documents",
         "extract_table",
-        "generate_invoice_pdf",
         "fill_template",
         "fill_pdf_form",
         "analyze_document",
@@ -153,7 +152,6 @@ def test_all_current_intents_are_mapped():
         "list_documents",
         "search_documents",
         "extract_table",
-        "generate_invoice_pdf",
     }
     for intent in current_intents:
         assert intent in INTENT_DOMAIN_MAP, f"{intent} missing from INTENT_DOMAIN_MAP"

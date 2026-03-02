@@ -268,7 +268,6 @@ class TestAgentConfigCompleteness:
         "list_documents",
         "search_documents",
         "extract_table",
-        "generate_invoice_pdf",
     ]
 
     def test_all_intents_have_agents(self, agent_router):

@@ -3,7 +3,7 @@
 
 def test_registry_has_all_skills(skill_registry):
     skills = skill_registry.all_skills()
-    assert len(skills) == 94
+    assert len(skills) == 93
 
 
 def test_registry_routes_intents(skill_registry):
@@ -86,7 +86,6 @@ def test_registry_routes_intents(skill_registry):
         "list_documents",
         "search_documents",
         "extract_table",
-        "generate_invoice_pdf",
         "fill_template",
         "fill_pdf_form",
         "analyze_document",
