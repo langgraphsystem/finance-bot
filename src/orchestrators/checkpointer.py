@@ -57,6 +57,21 @@ def get_checkpointer() -> BaseCheckpointSaver:
     return _checkpointer
 
 
+async def is_healthy() -> bool:
+    """Check if the checkpointer backend is responsive."""
+    cp = get_checkpointer()
+    if isinstance(cp, MemorySaver):
+        return True
+    try:
+        if hasattr(cp, "conn") and hasattr(cp.conn, "getconn"):
+            async with cp.conn.connection() as conn:
+                await conn.execute("SELECT 1")
+            return True
+    except Exception:
+        return False
+    return True
+
+
 async def setup_checkpointer() -> None:
     """Open the connection pool and create checkpoint tables if using PostgreSQL.
 

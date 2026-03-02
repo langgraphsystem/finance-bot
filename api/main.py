@@ -6,8 +6,9 @@ import os
 import uuid as _uuid
 from contextlib import asynccontextmanager
 from datetime import UTC
+from typing import Any
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -642,6 +643,16 @@ async def lifespan(app: FastAPI):
 
         await setup_checkpointer()
 
+        # Recover interrupted graphs from previous run
+        try:
+            from src.orchestrators.recovery import recover_pending_graphs
+
+            stats = await recover_pending_graphs()
+            if stats.get("hitl_pending"):
+                logger.info("Graph recovery: %s", stats)
+        except Exception as e:
+            logger.warning("Graph recovery failed (non-critical): %s", e)
+
     yield
 
     if gateway:
@@ -718,6 +729,64 @@ async def health():
     except Exception:
         checks["database"] = "error"
     status = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
+    return {"status": status, **checks}
+
+
+@app.get("/health/detailed")
+async def health_detailed(request: Request):
+    """Detailed health check with circuit breaker states, Mem0, and Langfuse.
+
+    Protected by HEALTH_SECRET when configured: pass Authorization: Bearer <token>.
+    """
+    if settings.health_secret:
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ") != settings.health_secret:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+    checks: dict[str, Any] = {"api": "ok"}
+
+    # Redis
+    try:
+        await redis.ping()
+        checks["redis"] = "ok"
+    except Exception:
+        checks["redis"] = "error"
+
+    # Database
+    try:
+        async with async_session() as session:
+            await session.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "error"
+
+    # Circuit breakers
+    try:
+        from src.core.circuit_breaker import all_circuit_statuses
+
+        checks["circuits"] = all_circuit_statuses()
+    except Exception:
+        checks["circuits"] = "unavailable"
+
+    # Mem0
+    try:
+        from src.core.memory.mem0_client import get_memory
+
+        get_memory()
+        checks["mem0"] = "ok"
+    except Exception:
+        checks["mem0"] = "error"
+
+    # Langfuse
+    try:
+        from src.core.observability import get_langfuse
+
+        lf = get_langfuse()
+        checks["langfuse"] = "ok" if lf else "not_configured"
+    except Exception:
+        checks["langfuse"] = "error"
+
+    core_checks = {k: v for k, v in checks.items() if k in ("api", "redis", "database")}
+    status = "ok" if all(v == "ok" for v in core_checks.values()) else "degraded"
     return {"status": status, **checks}
 
 

@@ -120,12 +120,14 @@ class BrowserActionSkill:
 
         # 4. Hotel search / booking request → new multi-step flow
         if self._is_hotel_request(task, domain):
-            # Start new hotel search flow (Gemini preview + platform selection)
+            # Build pre-parsed hotel data from intent detection (avoids redundant LLM call)
+            pre_parsed = self._build_hotel_pre_parsed(intent_data)
             search_result = await browser_booking.start_flow(
                 user_id=context.user_id,
                 family_id=context.family_id,
                 task=task,
                 language=context.language or "en",
+                pre_parsed=pre_parsed,
             )
             return SkillResult(
                 response_text=search_result["text"],
@@ -199,6 +201,28 @@ class BrowserActionSkill:
                 "Don't have the extension? Send /extension to get started."
             ),
         )
+
+    @staticmethod
+    def _build_hotel_pre_parsed(intent_data: dict[str, Any]) -> dict[str, Any] | None:
+        """Build pre-parsed hotel data from intent detection fields.
+
+        Intent detection extracts hotel_city, hotel_check_in, hotel_check_out,
+        hotel_guests, hotel_budget, hotel_platform. If at least city is present,
+        return a dict that browser_booking.start_flow() can use directly.
+        """
+        city = intent_data.get("hotel_city")
+        if not city:
+            return None
+        result: dict[str, Any] = {"city": city}
+        if intent_data.get("hotel_check_in"):
+            result["check_in"] = intent_data["hotel_check_in"]
+        if intent_data.get("hotel_check_out"):
+            result["check_out"] = intent_data["hotel_check_out"]
+        if intent_data.get("hotel_guests"):
+            result["guests"] = intent_data["hotel_guests"]
+        if intent_data.get("hotel_budget"):
+            result["budget_per_night"] = intent_data["hotel_budget"]
+        return result
 
     def _is_hotel_request(self, task: str, domain: str) -> bool:
         """Check if this is a hotel search/booking request.

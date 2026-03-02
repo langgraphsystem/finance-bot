@@ -33,7 +33,7 @@ alembic upgrade head
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # Task queue worker (full command with all task modules)
-TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks"
+TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks src.core.tasks.crossdomain_tasks"
 python -m taskiq worker src.core.tasks.broker:broker $TASK_MODULES
 
 # Task queue scheduler (separate process, needed for cron tasks)
@@ -53,8 +53,9 @@ railway up -d
 Telegram/Slack/WhatsApp/SMS webhook
   → api/main.py
   → src/core/router.py builds SessionContext
+  → src/core/rate_limiter.py tiered rate check (Redis INCR+EXPIRE)
   → src/core/guardrails.py input safety check (Claude Haiku)
-  → src/core/intent.py detects intent (Gemini Pro primary, Claude Haiku fallback)
+  → src/core/intent.py detects intent (Gemini Flash primary, Claude Haiku fallback)
   → CLARIFY gate: if ambiguous → disambiguation buttons via Redis
   → src/core/domain_router.py checks for orchestrator (email, brief domains)
     → If orchestrator registered → LangGraph graph.invoke()
@@ -68,10 +69,10 @@ Telegram/Slack/WhatsApp/SMS webhook
 ### Key Abstractions
 
 - **SessionContext** (`src/core/context.py`): Immutable per-request context. Core fields: `user_id`, `family_id`, `role` (owner/member), `language`, `currency`, `business_type`, `categories`, `merchant_mappings`, `profile_config`, `channel`, `timezone`, `user_profile`. Enforces multi-tenant isolation via `filter_query()`.
-- **AgentConfig** (`src/agents/config.py`): 12 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
+- **AgentConfig** (`src/agents/config.py`): 13 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
 - **BaseSkill** protocol (`src/skills/base.py`): `name`, `intents[]`, `model`, `execute(message, context, intent_data) → SkillResult`, `get_system_prompt(context)`.
 - **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `document_name`, `photo_url`, `photo_bytes`, `chart_url`, `reply_keyboard`, `background_tasks`.
-- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 89 skills registered.
+- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 93 skills registered.
 - **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email, brief, booking (if `ff_langgraph_booking`). Approval orchestrator invoked directly via `start_approval()`.
 
 ### Model Routing
@@ -107,24 +108,61 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 | document | claude-sonnet-4-6 | scan_document, convert_document, list_documents, search_documents, extract_table, generate_invoice_pdf, fill_template, fill_pdf_form, analyze_document, merge_documents, pdf_operations, generate_spreadsheet, compare_documents, summarize_document, generate_document, generate_presentation |
 | finance_specialist | claude-sonnet-4-6 | financial_summary, generate_invoice, tax_estimate, cash_flow_forecast |
 
-### Context Assembly & Token Budget
+### Context Assembly & Memory Layers
 
-`src/core/memory/context.py` — `QUERY_CONTEXT_MAP` defines per-intent which layers to load (Mem0 memories, SQL stats, sliding window history, session summary). Total budget: 200K * 0.75 = 150K tokens. Overflow priority drops old messages first, then summary, then SQL, then Mem0. System prompt and current message are never dropped. Uses Lost-in-the-Middle positioning. Progressive context disclosure skips heavy layers for simple inputs like "100 кофе" or "да".
+`src/core/memory/context.py` — `QUERY_CONTEXT_MAP` defines per-intent which layers to load. Total budget: 200K * 0.75 = 150K tokens. Progressive context disclosure skips heavy layers for simple inputs like "100 кофе" or "да".
+
+**Memory layers (loaded in cache-optimal order):**
+
+| # | Layer | Source | Tokens | Cacheable |
+|---|-------|--------|--------|-----------|
+| 0 | Core Identity | `src/core/identity.py` → `user_profiles.core_identity` JSONB | ~3K | Yes |
+| 1 | System Prompt | Agent config + specialist knowledge | ~20K | Yes |
+| 2 | Procedures | `src/core/memory/procedural.py` → Mem0 `procedures` domain | ~3-5K | Yes |
+| 3 | Session Buffer | `src/core/memory/session_buffer.py` → Redis `session_facts:{uid}` | ~1K | No |
+| 4 | Mem0 Memories | `src/core/memory/mem0_client.py` → domain-scoped search | ~8-30K | No |
+| 5 | SQL Analytics | Per-intent stats from database | ~30K | No |
+| 6 | Session Summary | `src/core/memory/summarization.py` | ~2K | No |
+| 7 | Episodic | `src/core/memory/episodic.py` → past episodes for generative skills | ~2K | No |
+| 8 | Observational | `src/core/memory/observational.py` → behavioral patterns | ~2K | No |
+| 9 | Graph | `src/core/memory/graph_memory.py` → entity relationships | ~1K | No |
+| 10 | History | Sliding window from Redis | varies | No |
+
+**Overflow priority** (drop order): old history → non-core Mem0 → summary → SQL (compress to 2K first) → core Mem0 → NEVER: system prompt + identity + user message.
+
+**Mem0 Domain Segmentation** (`src/core/memory/mem0_domains.py`): 11 namespaces with hard isolation via scoped user_id `{user_id}:{domain}`. Domains: core, finance, life, contacts, documents, content, tasks, calendar, research, episodes, procedures.
 
 ### Database
 
-SQLAlchemy 2.0 async with `asyncpg`. 30 tables across 15 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
+SQLAlchemy 2.0 async with `asyncpg`. 35+ tables across 28 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
 
 ### LangGraph Orchestrators
 
-- **EmailOrchestrator** (`src/orchestrators/email/`): `planner → reader → writer → reviewer → approval → END` with revision loop (max 2 revisions) and HITL interrupt. For `send_email` and `draft_reply`.
-- **BriefOrchestrator** (`src/orchestrators/brief/`): Parallel fan-out (Deferred Nodes) collecting calendar, tasks, finance, email, overdue payments → Claude Sonnet synthesizer. Node caching (60s TTL). For `morning_brief` and `evening_recap`. Business-type aware via plugin_loader.
-- **BookingOrchestrator** (`src/orchestrators/booking/`): LangGraph FSM for multi-step hotel booking with interrupt-based user confirmation. Gated by `ff_langgraph_booking`.
-- **ApprovalOrchestrator** (`src/orchestrators/approval/`): 2-node graph (`ask_approval → execute_action → END`) with `interrupt()`/`resume()`. Replaces Redis pending_actions for dangerous actions (send_email, create_event, delete).
+- **EmailOrchestrator** (`src/orchestrators/email/`): `planner → reader → writer → reviewer → approval → END` with revision loop (max 2 revisions) and HITL interrupt. Nodes decorated with `@with_retry` + `@with_timeout`. DLQ on fatal failure.
+- **BriefOrchestrator** (`src/orchestrators/brief/`): Parallel fan-out collecting calendar, tasks, finance, email, overdue payments → Claude Sonnet synthesizer. Node caching (60s TTL). All collectors: `@with_retry(1)` + `@with_timeout(15)`.
+- **BookingOrchestrator** (`src/orchestrators/booking/`): LangGraph FSM for multi-step hotel booking with interrupt-based user confirmation. Gated by `ff_langgraph_booking`. Search/execute nodes: `@with_timeout(60)`.
+- **ApprovalOrchestrator** (`src/orchestrators/approval/`): 2-node graph (`ask_approval → execute_action → END`) with `interrupt()`/`resume()`.
+
+**Resilience** (`src/orchestrators/resilience.py`): `@with_timeout(seconds)`, `@with_retry(max_retries, backoff_base)` decorators. `save_to_dlq()` persists failed state to `orchestrator_dlq` table. State sanitized via `_sanitize_state()` before JSONB storage.
+
+**Recovery** (`src/orchestrators/recovery.py`): `recover_pending_graphs()` scans checkpointer at startup for interrupted HITL threads (24h window). `get_dlq_entries()` for monitoring. Integrated into `api/main.py` lifespan.
+
+### Infrastructure Modules
+
+- **Rate Limiter** (`src/core/rate_limiter.py`): Tiered limits — default 30/min, llm_heavy 10/min, browser 3/5min, document_gen 5/5min, image_gen 5/5min. Redis INCR+EXPIRE. `INTENT_TIER_MAP` maps expensive intents to tiers.
+- **Circuit Breaker** (`src/core/circuit_breaker.py`): CLOSED→OPEN→HALF_OPEN pattern. Named instances for Mem0, Anthropic/OpenAI/Google, Redis. Prevents cascading failures.
+- **Prompt Registry** (`src/core/prompt_registry.py`): Loads all `prompts.yaml`, SHA-256 versioning. `get(skill_name)`, `get_version(skill_name)`.
+- **Health** (`api/main.py`): `/health` (basic) + `/health/detailed` (authenticated, includes circuit breaker states). Checkpointer health via `src/orchestrators/checkpointer.py:is_healthy()`.
+
+### AI Data Tools (LLM Function Calling)
+
+`src/tools/data_tools.py` — 5 universal database tools (`query_data`, `create_record`, `update_record`, `delete_record`, `aggregate_data`). LLM decides which tools to call via multi-provider function calling (`src/core/llm/clients.py:generate_text_with_tools()`). Enabled on 6 agents: analytics, chat, tasks, life, booking, finance_specialist (`data_tools_enabled=True`). Security: family_id injection, table whitelist (13 tables), column validation, confirm-before-delete for important tables.
+
+**Progressive Tool Loading** (`src/tools/data_tool_schemas.py`): `get_schemas_for_domain(agent_name)` returns only the tables relevant to an agent's domain (~70% token reduction). `DOMAIN_TABLES` maps 6 domains to table groups. `_ADJACENT_DOMAINS` enables cross-domain queries (e.g., tasks agent sees shopping tables). `_AGENT_DOMAIN_MAP` routes agent names to primary domains. Unknown agents fall back to full schemas.
 
 ### Background Tasks
 
-Taskiq + Redis (`src/core/tasks/broker.py`). 13 cron tasks across 8 task modules: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning, document cleanup (daily 03:00), recurring document generation (daily 09:00). Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
+Taskiq + Redis (`src/core/tasks/broker.py`). 9 task modules: `memory_tasks`, `notification_tasks`, `life_tasks`, `reminder_tasks`, `profile_tasks`, `proactivity_tasks`, `booking_tasks`, `document_tasks`, `crossdomain_tasks`. Cron tasks include: daily budget alerts, weekly pattern analysis, recurring payment processing, life digests, morning/evening reminders, task reminders (every minute), proactive triggers (every 10 min), booking reminders, no-show detection, nightly profile learning, document cleanup (daily 03:00), recurring document generation (daily 09:00), weekly cross-domain insights, weekly procedural memory update. Skills can return `background_tasks` in SkillResult for async Mem0 updates, merchant mapping, budget checks.
 
 ### Multi-Channel Gateways
 
@@ -134,13 +172,9 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 `maps_search` and `youtube_search` use **Gemini Google Search Grounding** as default (quick mode). Direct REST APIs (Google Maps Platform, YouTube Data API v3) activate only when `detail_mode=True` AND the respective API key is configured. YouTube also supports direct URL analysis — sending a YouTube link triggers Gemini to analyze that specific video.
 
-### AI Data Tools (LLM Function Calling)
-
-`src/tools/data_tools.py` — 5 universal database tools (`query_data`, `create_record`, `update_record`, `delete_record`, `aggregate_data`). LLM decides which tools to call via multi-provider function calling (`src/core/llm/clients.py:generate_text_with_tools()`). Enabled on 5 agents: analytics, chat, tasks, life, booking (`data_tools_enabled=True` in AgentConfig). Security: family_id injection, table whitelist (11 tables), column validation, confirm-before-delete for important tables. Schemas in `src/tools/data_tool_schemas.py`, executor in `src/tools/tool_executor.py`.
-
 ### Supervisor Routing & Skill Catalog
 
-`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 13 domains, 89 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
+`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 13 domains, 93 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
 
 ### Specialist Config Engine
 
@@ -148,11 +182,15 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 ### Document Agent
 
-13th agent (`src/agents/config.py`), model `claude-sonnet-4-6`, 16 skills spanning 4 phases. Skills: scan_document, convert_document (batch via Redis queue + zip), list_documents, search_documents (pg_trgm GIN indexes), extract_table, generate_invoice_pdf (WeasyPrint), fill_template (docxtpl/openpyxl + template library: save/list/delete), fill_pdf_form (pypdf), analyze_document (dual text/vision via Gemini), merge_documents (Redis multi-file queue), pdf_operations (split/rotate/encrypt/decrypt via pypdf), generate_spreadsheet (E2B + openpyxl fallback), compare_documents (text extraction + Claude diff), summarize_document, generate_document (contracts/NDAs via Claude + WeasyPrint), generate_presentation (E2B + python-pptx fallback). Document versioning via `version` + `parent_document_id` columns. Feature flag `ff_extended_context` gates 1M token context for heavy multi-doc analysis. Cron tasks: `cleanup_old_documents` (daily 03:00, 90-day retention, preserves templates/invoices), `generate_recurring_documents` (daily 09:00, metadata_extra scheduling).
+13th agent (`src/agents/config.py`), model `claude-sonnet-4-6`, 16 skills spanning 4 phases. Skills: scan_document, convert_document (batch via Redis queue + zip), list_documents, search_documents (pg_trgm GIN indexes + pgvector hybrid via `src/core/memory/document_vectors.py`), extract_table, generate_invoice_pdf (WeasyPrint), fill_template (docxtpl/openpyxl + template library: save/list/delete), fill_pdf_form (pypdf), analyze_document (dual text/vision via Gemini), merge_documents (Redis multi-file queue), pdf_operations (split/rotate/encrypt/decrypt via pypdf), generate_spreadsheet (E2B + openpyxl fallback), compare_documents (text extraction + Claude diff), summarize_document, generate_document (contracts/NDAs via Claude + WeasyPrint), generate_presentation (E2B + python-pptx fallback). Document versioning via `version` + `parent_document_id` columns. Feature flag `ff_extended_context` gates 1M token context for heavy multi-doc analysis. Cron tasks: `cleanup_old_documents` (daily 03:00, 90-day retention, preserves templates/invoices), `generate_recurring_documents` (daily 09:00, metadata_extra scheduling).
 
 ### Browser Tools
 
 `src/tools/browser.py` (Browser-Use + Playwright fallback), `src/tools/browser_booking.py` (Playwright booking with saved card detection), `src/tools/browser_login.py` (Telegram login flow with Fernet-encrypted cookies in Supabase), `src/tools/browser_service.py` (service layer). The `browser_action` skill uses authenticated Playwright sessions; `web_action` uses headless browsing for simpler tasks.
+
+### Callback Handler (Inline Buttons)
+
+`src/core/router.py:_handle_callback()` — central dispatcher for ALL inline button presses. Callbacks use colon-delimited format: `action:subaction:param`. Key prefixes: `confirm`/`cancel` (transaction), `onboard:` (language/account), `stats:` (weekly/trend), `correct:` (category), `life_search:` (period), `clarify:` (disambiguation), `confirm_action:`/`cancel_action:` (pending actions from Redis), `graph_resume:` (LangGraph HITL), `hotel_*` (booking flow), `receipt_confirm:` (receipt parsing). For complex data, store in Redis with 8-char ID and pass the ID in the callback string.
 
 ## Adding a New Skill
 
@@ -174,7 +212,16 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 `detect_intent()` → `IntentDetectionResult.data` → `model_dump()` → dict passed to `handler.execute()`. Handler `intent_data.get()` keys **MUST** match `IntentData` field names exactly.
 
 ### Alembic + PostgreSQL enums
-Never use `sa.Enum(create_type=False)` in `op.create_table` — SQLAlchemy ignores it. Use raw SQL: `CREATE TYPE IF NOT EXISTS` + `CREATE TABLE IF NOT EXISTS`. Watch for multiple heads after branch merges — use `down_revision = ("rev_a", "rev_b")` tuple for merge points. Always run `alembic heads` before creating a new migration.
+Never use `sa.Enum(create_type=False)` in `op.create_table` — SQLAlchemy ignores it. PostgreSQL does NOT support `CREATE TYPE IF NOT EXISTS`. Use `DO $$ BEGIN CREATE TYPE ... AS ENUM (...); EXCEPTION WHEN duplicate_object THEN NULL; END $$`. Tables: use `CREATE TABLE IF NOT EXISTS`. Watch for multiple heads after branch merges — use `down_revision = ("rev_a", "rev_b")` tuple for merge points. Always run `alembic heads` before creating a new migration.
+
+### Intent prompt `.format()` escaping
+`INTENT_DETECTION_PROMPT` in `src/core/intent.py` uses `.format(today=...)`. Any literal curly braces in the prompt (e.g., JSON examples like `{description, amount}`) MUST be doubled `{{description, amount}}` to avoid KeyError.
+
+### `_SKILL_ONLY_INTENTS` — bypass data_tools
+Agents with `data_tools_enabled=True` (analytics, chat, tasks, life, booking, finance_specialist) route through LLM function calling by default. Intents listed in `_SKILL_ONLY_INTENTS` (`src/agents/base.py`) skip this and use their dedicated skill handler instead. Currently: `set_reminder`, `query_stats`, `query_report`. Add intents here when the dedicated handler has logic (period resolution, charts, PDF generation) that the generic data_tools path cannot replicate.
+
+### Lazy imports in orchestrator modules
+`src/orchestrators/resilience.py` and `src/orchestrators/recovery.py` use lazy imports inside functions (e.g., `from src.core.db import async_session` inside `save_to_dlq()`). When writing tests, patch at the **source** module (`src.core.db.async_session`), not at the consumer module.
 
 ### Gemini Google Search Grounding pattern
 ```python

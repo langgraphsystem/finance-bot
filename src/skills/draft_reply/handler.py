@@ -75,6 +75,21 @@ class DraftReplySkill:
         # LLM drafts reply
         draft = await _draft_reply(thread_text, user_instruction, context.language)
 
+        try:
+            from src.core.memory.episodic import store_episode
+
+            await store_episode(
+                user_id=str(context.user_id),
+                family_id=str(context.family_id),
+                intent="draft_reply",
+                result_metadata={
+                    "type": "email_reply",
+                    "subject": parsed[-1].get("subject", "")[:100] if parsed else "",
+                },
+            )
+        except Exception as e:
+            logger.debug("Episode storage failed: %s", e)
+
         original = parsed[-1] if parsed else {}
         return SkillResult(
             response_text=(

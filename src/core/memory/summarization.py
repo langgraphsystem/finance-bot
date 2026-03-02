@@ -46,7 +46,8 @@ FINANCIAL_SUMMARY_PROMPT = """
 ОБНОВЛЁННОЕ САММАРИ:
 """
 
-SUMMARY_THRESHOLD = 15  # Trigger summarization after 15 messages
+SUMMARY_THRESHOLD = 15  # Trigger summarization after 15 messages (fallback)
+TOKEN_THRESHOLD = 25_000  # Primary trigger: token-based (Phase 3.1)
 
 
 @observe(name="summarize_dialog")
@@ -94,6 +95,21 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
             if not new_messages:
                 return existing_text
 
+            # Phase 3.1: Check token threshold for Observer trigger
+            run_observer = False
+            try:
+                from src.core.memory.observational import (
+                    OBSERVER_TOKEN_THRESHOLD,
+                    estimate_tokens,
+                )
+
+                total_tokens = sum(
+                    estimate_tokens(m.content or "") for m in new_messages
+                )
+                run_observer = total_tokens > OBSERVER_TOKEN_THRESHOLD
+            except Exception as e:
+                logger.debug("Token threshold check failed: %s", e)
+
             # Format messages for prompt (reverse to chronological order)
             messages_text = "\n".join(
                 f"{m.role.value}: {m.content}" for m in reversed(list(new_messages))
@@ -113,13 +129,15 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
             summary_text = response.text
 
             # Save or update summary
+            target_summary: SessionSummary
             if existing:
                 existing.summary = summary_text
                 existing.message_count = msg_count
                 existing.token_count = len(summary_text.split())  # rough estimate
                 existing.updated_at = datetime.now(UTC)
+                target_summary = existing
             else:
-                new_summary = SessionSummary(
+                target_summary = SessionSummary(
                     user_id=uuid.UUID(user_id),
                     family_id=uuid.UUID(family_id),
                     session_id=uuid.uuid4(),
@@ -127,9 +145,43 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
                     message_count=msg_count,
                     token_count=len(summary_text.split()),
                 )
-                session.add(new_summary)
+                session.add(target_summary)
+
+            # Phase 3.2: Extract episode metadata before commit (single txn)
+            try:
+                from src.core.memory.episodic import extract_episode_metadata
+
+                episode_meta = await extract_episode_metadata(summary_text)
+                if episode_meta:
+                    meta = target_summary.episode_metadata or {}
+                    meta["episode_info"] = episode_meta
+                    target_summary.episode_metadata = meta
+            except Exception as e:
+                logger.debug("Episode metadata extraction failed: %s", e)
 
             await session.commit()
+
+            # Phase 3.1: Run Observer alongside summarization
+            if run_observer:
+                try:
+                    from src.core.memory.observational import (
+                        extract_observations,
+                        load_user_observations,
+                        save_user_observations,
+                    )
+
+                    msg_dicts = [
+                        {"role": m.role.value, "content": m.content or ""}
+                        for m in reversed(list(new_messages))
+                    ]
+                    existing_obs = await load_user_observations(user_id)
+                    updated_obs = await extract_observations(
+                        msg_dicts, existing_obs
+                    )
+                    await save_user_observations(user_id, updated_obs)
+                except Exception as e:
+                    logger.debug("Observer alongside summarization failed: %s", e)
+
             return summary_text
 
     except Exception as e:

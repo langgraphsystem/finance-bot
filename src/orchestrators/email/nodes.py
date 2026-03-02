@@ -5,6 +5,7 @@ from typing import Any
 
 from src.core.config import settings
 from src.orchestrators.email.state import EmailState
+from src.orchestrators.resilience import with_retry, with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,8 @@ async def email_planner(state: EmailState) -> dict[str, Any]:
     return {"intent": intent}
 
 
+@with_retry(max_retries=2, backoff_base=1.0)
+@with_timeout(30)
 async def email_reader(state: EmailState) -> dict[str, Any]:
     """Read emails from Gmail (via Google Workspace client)."""
     return {
@@ -26,6 +29,8 @@ async def email_reader(state: EmailState) -> dict[str, Any]:
     }
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(30)
 async def email_writer(state: EmailState) -> dict[str, Any]:
     """Draft an email response using Claude Sonnet."""
     revision_count = state.get("revision_count", 0) + 1
@@ -64,6 +69,7 @@ async def email_approval(state: EmailState) -> dict[str, Any]:
     return {"user_approved": True}
 
 
+@with_timeout(15)
 async def email_finalizer(state: EmailState) -> dict[str, Any]:
     """Execute the send or return cancellation message."""
     if not state.get("user_approved", False):

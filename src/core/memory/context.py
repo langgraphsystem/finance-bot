@@ -35,14 +35,13 @@ BUDGET_SUMMARY = 0.10  # 10%
 BUDGET_HISTORY = 0.20  # 15-20%
 BUDGET_USER_MSG = 0.05  # 5%
 
-# Overflow priority (lower number = NEVER drop)
-# Priority 1: Current user message   — NEVER drop
-# Priority 2: System prompt          — NEVER drop
-# Priority 3: Mem0 memory            — trim (keep top-K relevant)
-# Priority 4: SQL analytics          — trim (current month only)
-# Priority 5: Sliding window         — reduce count from 10 to 5
-# Priority 6: Summary                — compress/shorten
-# Priority 7: Old messages           — drop FIRST
+# Overflow priority — revised (lower number = drop FIRST)
+# Drop 1: Old history messages         — first to drop
+# Drop 2: Mem0 non-core namespaces     — life, tasks, research, etc.
+# Drop 3: Session summary              — compress/shorten
+# Drop 4: SQL analytics                — compress before drop (~2K summary)
+# Drop 5: Mem0 core + finance          — last among Mem0 to drop
+# NEVER:  System prompt + core_identity + session buffer + user message
 
 # Minimum sliding window messages to keep during trimming
 MIN_SLIDING_WINDOW = 5
@@ -384,41 +383,90 @@ async def _load_memories(
     mem_type: str | bool,
     current_message: str,
     user_id: str,
+    intent: str = "",
 ) -> list[dict]:
-    """Load Mem0 memories based on the mem_type configuration."""
+    """Load Mem0 memories based on the mem_type configuration.
+
+    Uses domain segmentation when possible: searches only relevant
+    domains for the intent, falling back to unscoped search.
+    For temporal-history intents, also loads archived ``fact_history`` entries.
+    """
     if not mem_type:
         return []
 
     try:
-        if mem_type == "all":
-            return await mem0_client.search_memories(current_message, user_id, limit=20)
+        from src.core.memory.mem0_domains import (
+            TEMPORAL_HISTORY_INTENTS,
+            MemoryDomain,
+            get_domains_for_intent,
+        )
+
+        domains = get_domains_for_intent(intent, mem_type)
+
+        if domains:
+            # Domain-scoped search — parallel across relevant domains
+            memories = await mem0_client.search_memories_multi_domain(
+                current_message,
+                user_id,
+                domains=domains,
+                limit_per_domain=5,
+            )
+            # Fallback for pre-migration users: if scoped namespaces are empty,
+            # search the legacy unscoped user_id so old memories aren't lost
+            # until a data-migration task copies them into domain namespaces.
+            if not memories:
+                memories = await mem0_client.search_memories(
+                    current_message, user_id, limit=20
+                )
+        # Fallback: unscoped search for unmapped intents
+        elif mem_type == "all":
+            memories = await mem0_client.search_memories(
+                current_message, user_id, limit=20
+            )
         elif mem_type == "mappings":
-            return await mem0_client.search_memories(
+            memories = await mem0_client.search_memories(
                 current_message,
                 user_id,
                 limit=10,
-                filters={"category": "merchant_mapping"},
+                domain=MemoryDomain.finance,
             )
         elif mem_type == "profile":
-            return await mem0_client.get_all_memories(user_id)
+            memories = await mem0_client.get_all_memories(
+                user_id, domain=MemoryDomain.core
+            )
         elif mem_type == "budgets":
-            return await mem0_client.search_memories(
+            memories = await mem0_client.search_memories(
                 "budget limits goals",
                 user_id,
                 limit=10,
+                domain=MemoryDomain.finance,
             )
         elif mem_type == "life":
             memories = await mem0_client.search_memories(
                 current_message,
                 user_id,
                 limit=10,
+                domain=MemoryDomain.life,
             )
-            # Filter to life-related memories
-            return [
-                m for m in memories if m.get("metadata", {}).get("category", "").startswith("life_")
-            ]
         else:
-            return []
+            memories = []
+
+        # Temporal fact history: for analytical intents, also load archived facts
+        if intent in TEMPORAL_HISTORY_INTENTS and memories:
+            try:
+                history = await mem0_client.search_memories(
+                    current_message,
+                    user_id,
+                    limit=5,
+                    filters={"category": "fact_history"},
+                    domain=MemoryDomain.finance,
+                )
+                if history:
+                    memories.extend(history)
+            except Exception as e:
+                logger.debug("Temporal history load failed: %s", e)
+
+        return memories
     except Exception as e:
         logger.warning("Mem0 search failed: %s", e)
         return []
@@ -452,10 +500,45 @@ def _trim_memories(memories: list[dict], max_tokens: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Overflow trimming — respects priority order
 # ---------------------------------------------------------------------------
+def _split_memories_by_priority(
+    memories: list[dict],
+) -> tuple[list[dict], list[dict]]:
+    """Split memories into core (high priority) and non-core (low priority).
+
+    Core domains (finance, core, contacts) are kept longest during overflow.
+    Non-core (life, tasks, research, etc.) are dropped first.
+    """
+    from src.core.memory.mem0_domains import MemoryDomain
+
+    core_domains = {
+        MemoryDomain.core.value,
+        MemoryDomain.finance.value,
+        MemoryDomain.contacts.value,
+    }
+    core_mems: list[dict] = []
+    noncore_mems: list[dict] = []
+    for m in memories:
+        # Domain is embedded in scoped user_id metadata or category
+        domain = m.get("metadata", {}).get("domain", "")
+        category = m.get("metadata", {}).get("category", "")
+        from src.core.memory.mem0_domains import CATEGORY_DOMAIN_MAP
+
+        resolved_domain = CATEGORY_DOMAIN_MAP.get(category, MemoryDomain.core).value
+        if domain:
+            resolved_domain = domain
+        if resolved_domain in core_domains:
+            core_mems.append(m)
+        else:
+            noncore_mems.append(m)
+    return core_mems, noncore_mems
+
+
 def _apply_overflow_trimming(
     *,
     system_prompt_tokens: int,
     user_msg_tokens: int,
+    session_buffer_tokens: int = 0,
+    observations_tokens: int = 0,
     mem_block: str,
     sql_block: str,
     summary_block: str,
@@ -463,22 +546,25 @@ def _apply_overflow_trimming(
     memories: list[dict],
     total_budget: int,
 ) -> tuple[str, str, str, list[dict[str, str]], list[dict]]:
-    """Trim layers following overflow priority until within budget.
+    """Trim layers following revised overflow priority until within budget.
 
-    Returns (mem_block, sql_block, summary_block, history_messages, memories)
-    after trimming.
+    Returns (mem_block, sql_block, summary_block, history_messages, memories).
 
-    Priority (what to drop first -> last):
-      7. Old messages from sliding window (drop FIRST)
-      6. Summary (shorten)
-      5. Sliding window (reduce count from 10->5)
-      4. SQL analytics (trim to current month only)
-      3. Mem0 memory (trim top-K)
-      1-2. User message + System prompt (NEVER drop)
+    Drop order (first to drop → last to drop):
+      1. Old history messages from sliding window
+      2. Mem0 non-core namespaces (life, tasks, research, etc.)
+      3. Session summary (compress/shorten)
+      4. SQL analytics (compress before full drop)
+      5. Mem0 core + finance + contacts (last Mem0 to drop)
+      NEVER: System prompt + core_identity + session buffer + user message
     """
+    # Tokens from layers that are never trimmed — must be counted in every check.
+    _fixed_tokens = (
+        system_prompt_tokens + user_msg_tokens + session_buffer_tokens + observations_tokens
+    )
 
     def _current_total() -> int:
-        total = system_prompt_tokens + user_msg_tokens
+        total = _fixed_tokens
         if mem_block:
             total += count_tokens(mem_block)
         if sql_block:
@@ -488,11 +574,23 @@ def _apply_overflow_trimming(
         total += sum(count_tokens(m["content"]) for m in history_messages)
         return total
 
-    # Priority 7: Drop oldest messages from sliding window first
+    # Step 1: Drop oldest history messages first
     while _current_total() > total_budget and len(history_messages) > MIN_SLIDING_WINDOW:
-        history_messages = history_messages[1:]  # drop oldest
+        history_messages = history_messages[1:]
 
-    # Priority 6: Compress summary
+    # Drop remaining history if still over budget
+    while _current_total() > total_budget and len(history_messages) > 0:
+        history_messages = history_messages[1:]
+
+    # Step 2: Drop non-core Mem0 memories (keep core/finance/contacts)
+    if _current_total() > total_budget and mem_block and memories:
+        core_mems, noncore_mems = _split_memories_by_priority(memories)
+        if noncore_mems:
+            # Remove non-core memories first
+            memories = core_mems
+            mem_block = _format_memories_block(memories)
+
+    # Step 3: Compress/drop summary
     if _current_total() > total_budget and summary_block:
         over = _current_total() - total_budget
         allowed = max(0, count_tokens(summary_block) - over)
@@ -501,20 +599,17 @@ def _apply_overflow_trimming(
         else:
             summary_block = _truncate_to_budget(summary_block, allowed)
 
-    # Priority 5: Reduce sliding window further (below MIN if needed)
-    while _current_total() > total_budget and len(history_messages) > 0:
-        history_messages = history_messages[1:]
-
-    # Priority 4: Trim SQL analytics
+    # Step 4: Compress SQL before dropping entirely
     if _current_total() > total_budget and sql_block:
-        over = _current_total() - total_budget
-        allowed = max(0, count_tokens(sql_block) - over)
-        if allowed <= 0:
+        # First try truncating to ~2K tokens
+        sql_tokens = count_tokens(sql_block)
+        if sql_tokens > 2000:
+            sql_block = _truncate_to_budget(sql_block, 2000)
+        # If still over, drop SQL entirely
+        if _current_total() > total_budget:
             sql_block = ""
-        else:
-            sql_block = _truncate_to_budget(sql_block, allowed)
 
-    # Priority 3: Trim Mem0 memories (keep fewer)
+    # Step 5: Trim core Mem0 memories (last resort)
     if _current_total() > total_budget and mem_block:
         over = _current_total() - total_budget
         allowed = max(0, count_tokens(mem_block) - over)
@@ -523,7 +618,6 @@ def _apply_overflow_trimming(
             memories = []
         else:
             mem_block = _truncate_to_budget(mem_block, allowed)
-            # Re-derive memories list to match trimmed block
             kept = 0
             block_so_far = count_tokens("\n\n## Что я знаю о вас:\n")
             for m in memories:
@@ -580,7 +674,23 @@ async def assemble_context(
     token_usage: dict[str, int] = {}
 
     # ------------------------------------------------------------------
-    # 2. System prompt (Priority 2 — NEVER drop, but cap)
+    # 2. Core Identity (Priority 0 — NEVER drop, loaded before system prompt)
+    # ------------------------------------------------------------------
+    identity_block = ""
+    try:
+        from src.core.identity import format_identity_block, get_core_identity
+
+        identity = await get_core_identity(user_id)
+        identity_block = format_identity_block(identity)
+    except Exception as e:
+        logger.debug("Core identity load failed: %s", e)
+    if identity_block:
+        # Prepend identity to system prompt (inside cache prefix)
+        system_prompt = identity_block + "\n" + system_prompt
+    token_usage["identity"] = count_tokens(identity_block) if identity_block else 0
+
+    # ------------------------------------------------------------------
+    # 2b. System prompt (Priority 2 — NEVER drop, but cap)
     # ------------------------------------------------------------------
     system_tokens = count_tokens(system_prompt)
     if system_tokens > budget_system:
@@ -595,6 +705,95 @@ async def assemble_context(
     token_usage["user_message"] = user_msg_tokens
 
     # ------------------------------------------------------------------
+    # 3b. Session buffer (Priority 2.5 — fresh facts from current session)
+    # ------------------------------------------------------------------
+    buffer_block = ""
+    try:
+        from src.core.memory.session_buffer import format_buffer_block, get_session_buffer
+
+        buffer_facts = await get_session_buffer(user_id)
+        buffer_block = format_buffer_block(buffer_facts)
+    except Exception as e:
+        logger.debug("Session buffer load failed: %s", e)
+    token_usage["session_buffer"] = count_tokens(buffer_block) if buffer_block else 0
+
+    # ------------------------------------------------------------------
+    # 3c. Behavioral observations (for analytics/forecast intents)
+    # ------------------------------------------------------------------
+    observations_block = ""
+    try:
+        from src.core.memory.observational import (
+            OBSERVATION_INTENTS,
+            format_observations_block,
+            load_user_observations,
+        )
+
+        if intent in OBSERVATION_INTENTS:
+            observations = await load_user_observations(user_id)
+            observations_block = format_observations_block(observations)
+    except Exception as e:
+        logger.debug("Observations load failed: %s", e)
+    token_usage["observations"] = (
+        count_tokens(observations_block) if observations_block else 0
+    )
+
+    # ------------------------------------------------------------------
+    # 3d. Procedural memory (learned rules from corrections)
+    # ------------------------------------------------------------------
+    procedures_block = ""
+    try:
+        from src.core.memory.procedural import (
+            PROCEDURAL_INTENTS,
+            format_procedures_block,
+            get_domain_for_intent,
+            get_procedures,
+        )
+
+        if intent in PROCEDURAL_INTENTS:
+            proc_domain = get_domain_for_intent(intent)
+            procedures = await get_procedures(user_id, domain=proc_domain)
+            procedures_block = format_procedures_block(procedures)
+    except Exception as e:
+        logger.debug("Procedures load failed: %s", e)
+    token_usage["procedures"] = (
+        count_tokens(procedures_block) if procedures_block else 0
+    )
+
+    # ------------------------------------------------------------------
+    # 3e. Episodic memory (past episodes as few-shot for generative intents)
+    # ------------------------------------------------------------------
+    episodes_block = ""
+    try:
+        from src.core.memory.episodic import (
+            EPISODIC_INTENTS,
+            format_episodes_block,
+            search_episodes,
+        )
+
+        if intent in EPISODIC_INTENTS:
+            episodes = await search_episodes(user_id, topic=intent, limit=3)
+            episodes_block = format_episodes_block(episodes)
+    except Exception as e:
+        logger.debug("Episodes load failed: %s", e)
+    token_usage["episodes"] = count_tokens(episodes_block) if episodes_block else 0
+
+    # ------------------------------------------------------------------
+    # 3f. Graph memory (entity relationships for CRM/booking/email intents)
+    # ------------------------------------------------------------------
+    graph_block = ""
+    try:
+        from src.core.memory.graph_memory import GRAPH_INTENTS, format_graph_block
+
+        if intent in GRAPH_INTENTS:
+            from src.core.memory.graph_memory import get_relationships
+
+            edges = await get_relationships(family_id, "person", user_id, limit=10)
+            graph_block = format_graph_block(edges)
+    except Exception as e:
+        logger.debug("Graph memory load failed: %s", e)
+    token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
+
+    # ------------------------------------------------------------------
     # 4. Mem0 memories (Priority 3)
     # ------------------------------------------------------------------
     memories: list[dict] = []
@@ -602,7 +801,7 @@ async def assemble_context(
     if ctx_config["mem"]:
         try:
             memories = await asyncio.wait_for(
-                _load_memories(ctx_config["mem"], current_message, user_id),
+                _load_memories(ctx_config["mem"], current_message, user_id, intent=intent),
                 timeout=5.0,
             )
         except TimeoutError:
@@ -675,6 +874,11 @@ async def assemble_context(
     total_used = (
         system_tokens
         + user_msg_tokens
+        + token_usage.get("session_buffer", 0)
+        + token_usage.get("observations", 0)
+        + token_usage.get("procedures", 0)
+        + token_usage.get("episodes", 0)
+        + token_usage.get("graph", 0)
         + token_usage.get("mem0", 0)
         + token_usage.get("sql", 0)
         + token_usage.get("summary", 0)
@@ -685,6 +889,11 @@ async def assemble_context(
         mem_block, sql_block, summary_block, history_messages, memories = _apply_overflow_trimming(
             system_prompt_tokens=system_tokens,
             user_msg_tokens=user_msg_tokens,
+            session_buffer_tokens=token_usage.get("session_buffer", 0),
+            observations_tokens=token_usage.get("observations", 0)
+            + token_usage.get("procedures", 0)
+            + token_usage.get("episodes", 0)
+            + token_usage.get("graph", 0),
             mem_block=mem_block,
             sql_block=sql_block,
             summary_block=summary_block,
@@ -701,6 +910,11 @@ async def assemble_context(
     token_usage["total"] = (
         token_usage["system_prompt"]
         + token_usage["user_message"]
+        + token_usage.get("session_buffer", 0)
+        + token_usage.get("observations", 0)
+        + token_usage.get("procedures", 0)
+        + token_usage.get("episodes", 0)
+        + token_usage.get("graph", 0)
         + token_usage.get("mem0", 0)
         + token_usage.get("sql", 0)
         + token_usage.get("summary", 0)
@@ -716,18 +930,39 @@ async def assemble_context(
     # END      (high priority):  Mem0 memory, last 2-3 messages, current msg
     # ------------------------------------------------------------------
 
-    # Build the enriched system prompt with Lost-in-the-Middle ordering:
-    #   base system prompt (BEGINNING)
-    #   + SQL block (MIDDLE — lower priority content)
-    #   + summary block (MIDDLE)
-    #   + mem block (END of system prompt — high priority, close to recent msgs)
+    # Build the enriched system prompt with cache-friendly ordering:
+    #   STATIC PREFIX (cacheable — identical across requests for the same agent):
+    #     base system prompt (role, rules, categories)
+    #   CACHE BREAKPOINT
+    #   DYNAMIC SUFFIX (changes per request):
+    #     SQL block (MIDDLE — lower priority)
+    #     summary block (MIDDLE)
+    #     mem block (END of system prompt — high priority, close to recent msgs)
+    from src.core.llm.prompts import CACHE_BREAKPOINT
+
+    has_dynamic = bool(
+        sql_block or summary_block or mem_block or buffer_block
+        or observations_block or procedures_block or episodes_block or graph_block
+    )
     enriched_prompt_parts = [system_prompt]
-    if sql_block:
-        enriched_prompt_parts.append(sql_block)
-    if summary_block:
-        enriched_prompt_parts.append(summary_block)
-    if mem_block:
-        enriched_prompt_parts.append(mem_block)
+    if has_dynamic:
+        enriched_prompt_parts.append(CACHE_BREAKPOINT)
+        if sql_block:
+            enriched_prompt_parts.append(sql_block)
+        if summary_block:
+            enriched_prompt_parts.append(summary_block)
+        if observations_block:
+            enriched_prompt_parts.append(observations_block)
+        if procedures_block:
+            enriched_prompt_parts.append(procedures_block)
+        if episodes_block:
+            enriched_prompt_parts.append(episodes_block)
+        if graph_block:
+            enriched_prompt_parts.append(graph_block)
+        if mem_block:
+            enriched_prompt_parts.append(mem_block)
+        if buffer_block:
+            enriched_prompt_parts.append(buffer_block)
     enriched_prompt = "".join(enriched_prompt_parts)
 
     # Build messages list with Lost-in-the-Middle positioning:

@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 from src.core.db import redis
 
-PENDING_ACTION_TTL = 600  # 10 minutes
+PENDING_ACTION_TTL = 120  # 2 minutes — stale approvals are dangerous for HITL
 
 
 async def store_pending_action(

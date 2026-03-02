@@ -176,8 +176,13 @@ class AgentRouter:
         for individual skill handlers for basic CRUD operations.
         """
         from src.core.llm.clients import generate_text_with_tools
-        from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
+        from src.core.observability import update_trace_user
+        from src.core.prompt_registry import prompt_registry
+        from src.tools.data_tool_schemas import get_schemas_for_domain
         from src.tools.tool_executor import execute_tool_call
+
+        update_trace_user(context.user_id)
+        pv = prompt_registry.get_version(intent)
 
         agent = self.get_agent(intent)
         if not agent:
@@ -222,15 +227,43 @@ class AgentRouter:
             return await execute_tool_call(name, args, context)
 
         model = agent.default_model if agent else "gpt-5.2"
+        agent_name = agent.name if agent else None
+        tool_schemas = get_schemas_for_domain(agent_name)
+
+        # Check plan cache for a previously successful tool-call sequence
+        from src.core.plan_cache import TOOL_PLAN_TTL, plan_cache
+
+        plan_params = dict(agent=agent_name, intent=intent)
+        cached_plan = await plan_cache.get("tools", **plan_params)
+        if cached_plan and cached_plan.get("tool_hint"):
+            # Inject cached plan as a hint so the LLM reuses the same tools
+            hint = cached_plan["tool_hint"]
+            system_prompt += (
+                f"\n\nFor this type of request, you previously used these tools "
+                f"in this order: {hint}. Use the same approach if appropriate."
+            )
+
         response_text, tool_log = await generate_text_with_tools(
             model=model,
             system=system_prompt,
             messages=[m for m in messages if m.get("role") in ("user", "assistant")],
-            tools=DATA_TOOL_SCHEMAS,
+            tools=tool_schemas,
             tool_executor=_tool_executor,
+            prompt_version=pv,
         )
         if response_text.strip() == _TOOL_ROUND_EXHAUSTED_RESPONSE:
             raise RuntimeError("Tool-calling exhausted maximum rounds")
+
+        # Cache the tool-call sequence for future reuse
+        if tool_log:
+            tool_names = [entry.get("name", "") for entry in tool_log if entry.get("name")]
+            if tool_names:
+                await plan_cache.put(
+                    "tools",
+                    {"tool_hint": ", ".join(tool_names)},
+                    ttl=TOOL_PLAN_TTL,
+                    **plan_params,
+                )
 
         # Check tool results for pending actions (delete confirmations)
         buttons = None
@@ -262,6 +295,9 @@ class AgentRouter:
         If the agent-based routing fails at any step, falls back to
         direct skill dispatch for backward compatibility.
         """
+        from src.core.observability import update_trace_user
+
+        update_trace_user(context.user_id)
         agent = self.get_agent(intent)
         if not agent:
             # Fallback to onboarding agent (handles general_chat)

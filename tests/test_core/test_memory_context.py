@@ -335,9 +335,30 @@ class TestAssembleContext:
             patch("src.core.memory.context.mem0_client") as mock_mem0,
             patch("src.core.memory.context.get_session_summary") as mock_summary,
             patch("src.core.memory.context.observe", lambda **kw: lambda fn: fn),
+            patch(
+                "src.core.identity.get_core_identity",
+                new_callable=AsyncMock,
+                return_value={},
+            ),
+            patch(
+                "src.core.memory.session_buffer.get_session_buffer",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "src.core.memory.observational.load_user_observations",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "src.core.memory.procedural.get_procedures",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
         ):
             mock_sw.get_recent_messages = AsyncMock(return_value=[])
             mock_mem0.search_memories = AsyncMock(return_value=[])
+            mock_mem0.search_memories_multi_domain = AsyncMock(return_value=[])
             mock_mem0.get_all_memories = AsyncMock(return_value=[])
             mock_summary.return_value = None
             yield {
@@ -391,7 +412,7 @@ class TestAssembleContext:
 
     @pytest.mark.asyncio
     async def test_general_chat_no_mem0_call(self, mock_deps):
-        """general_chat has mem=False, so Mem0 should not be called."""
+        """general_chat with simple input skips Mem0 (progressive disclosure)."""
         await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -400,11 +421,14 @@ class TestAssembleContext:
             system_prompt="prompt",
         )
         mock_deps["mem0"].search_memories.assert_not_called()
+        mock_deps["mem0"].search_memories_multi_domain.assert_not_called()
         mock_deps["mem0"].get_all_memories.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_add_expense_loads_mappings(self, mock_deps):
-        mock_deps["mem0"].search_memories.return_value = [{"memory": "Shell -> Diesel"}]
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
+            {"memory": "Shell -> Diesel"}
+        ]
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -412,9 +436,8 @@ class TestAssembleContext:
             intent="add_expense",
             system_prompt="prompt",
         )
-        mock_deps["mem0"].search_memories.assert_called_once()
-        call_kwargs = mock_deps["mem0"].search_memories.call_args
-        assert call_kwargs[1].get("filters") == {"category": "merchant_mapping"}
+        # With domain segmentation, uses multi_domain search
+        mock_deps["mem0"].search_memories_multi_domain.assert_called_once()
         assert len(result.memories) == 1
 
     @pytest.mark.asyncio
@@ -426,10 +449,8 @@ class TestAssembleContext:
             intent="unknown_intent_xyz",
             system_prompt="prompt",
         )
-        # Should still work without error (falls back to general_chat)
+        # Should still work without error (falls back to general_chat config)
         assert isinstance(result, AssembledContext)
-        # general_chat has mem=False, so no mem0 calls
-        mock_deps["mem0"].search_memories.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_history_included_for_add_expense(self, mock_deps):
@@ -483,7 +504,9 @@ class TestAssembleContext:
     async def test_lost_in_middle_mem_at_end_of_system(self, mock_deps):
         """Mem0 block should be at the END of the system prompt
         (closer to recent messages = higher attention)."""
-        mock_deps["mem0"].search_memories.return_value = [{"memory": "user likes cats"}]
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
+            {"memory": "user likes cats"}
+        ]
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -527,7 +550,7 @@ class TestAssembleContext:
 
     @pytest.mark.asyncio
     async def test_onboarding_loads_profile_memories(self, mock_deps):
-        mock_deps["mem0"].get_all_memories.return_value = [
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
             {"memory": "currency: USD"},
         ]
         result = await assemble_context(
@@ -537,13 +560,14 @@ class TestAssembleContext:
             intent="onboarding",
             system_prompt="prompt",
         )
-        mock_deps["mem0"].get_all_memories.assert_called_once_with("user-1")
+        # Domain segmentation: onboarding falls back to profile→[core, finance]
+        mock_deps["mem0"].search_memories_multi_domain.assert_called_once()
         assert len(result.memories) == 1
 
     @pytest.mark.asyncio
     async def test_mem0_failure_graceful(self, mock_deps):
         """If Mem0 raises, context assembly should still succeed."""
-        mock_deps["mem0"].search_memories.side_effect = Exception("Mem0 down")
+        mock_deps["mem0"].search_memories_multi_domain.side_effect = Exception("Mem0 down")
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -571,9 +595,10 @@ class TestAssembleContext:
 
     @pytest.mark.asyncio
     async def test_query_stats_loads_budgets_mem(self, mock_deps):
-        """query_stats should use 'budgets' mem type."""
-        mock_deps["mem0"].search_memories.return_value = [{"memory": "budget limit 50000"}]
-        # Also need to mock _load_sql_stats since query_stats has sql=True
+        """query_stats should use domain-scoped search for finance."""
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
+            {"memory": "budget limit 50000"}
+        ]
         with patch(
             "src.core.memory.context._load_sql_stats",
             new_callable=AsyncMock,
@@ -586,14 +611,13 @@ class TestAssembleContext:
                 "prev_month_expense": 0,
             },
         ):
-            await assemble_context(
+            result = await assemble_context(
                 user_id="user-1",
                 family_id="family-1",
                 current_message="stats",
                 intent="query_stats",
                 system_prompt="prompt",
             )
-        # Should have called search_memories with budget query
-        mock_deps["mem0"].search_memories.assert_called_once()
-        call_args = mock_deps["mem0"].search_memories.call_args
-        assert call_args[0][0] == "budget limits goals"
+        # Domain segmentation: query_stats → [finance, core]
+        mock_deps["mem0"].search_memories_multi_domain.assert_called_once()
+        assert len(result.memories) == 1

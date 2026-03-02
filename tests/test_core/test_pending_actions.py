@@ -28,7 +28,7 @@ async def test_store_pending_action():
     assert payload["intent"] == "send_email"
     assert payload["user_id"] == "u1"
     assert payload["action_data"]["email_to"] == "a@b.com"
-    assert call_args[1]["ex"] == 600
+    assert call_args[1]["ex"] == 120  # HITL TTL: stale approvals are dangerous
 
 
 @pytest.mark.asyncio

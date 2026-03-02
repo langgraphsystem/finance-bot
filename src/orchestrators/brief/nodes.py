@@ -29,6 +29,7 @@ from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.task import Task
 from src.core.models.transaction import Transaction
 from src.orchestrators.brief.state import BriefState
+from src.orchestrators.resilience import with_retry, with_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ COLLECTOR_TIMEOUT_S = 3.0
 # ---------------------------------------------------------------------------
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(15)
 async def collect_calendar(state: BriefState) -> dict[str, Any]:
     """Fetch today's events from Google Calendar."""
     user_id = state.get("user_id", "")
@@ -70,6 +73,8 @@ async def collect_calendar(state: BriefState) -> dict[str, Any]:
         return {"calendar_data": ""}
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(15)
 async def collect_tasks(state: BriefState) -> dict[str, Any]:
     """Fetch open or completed tasks from DB."""
     intent = state.get("intent", "morning_brief")
@@ -136,6 +141,8 @@ async def _collect_completed_tasks(user_id: str, family_id: str) -> dict[str, An
     return {"tasks_data": f"Completed today ({len(tasks)}):\n" + "\n".join(lines)}
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(15)
 async def collect_finance(state: BriefState) -> dict[str, Any]:
     """Fetch spending data from DB."""
     family_id = state.get("family_id", "")
@@ -204,6 +211,8 @@ async def _collect_today_spending(family_id: str) -> dict[str, Any]:
     return {"finance_data": (f"Spending today:\n- ${total:.2f} across {count} transactions")}
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(15)
 async def collect_email(state: BriefState) -> dict[str, Any]:
     """Fetch unread important emails from Gmail."""
     user_id = state.get("user_id", "")
@@ -228,6 +237,8 @@ async def collect_email(state: BriefState) -> dict[str, Any]:
         return {"email_data": ""}
 
 
+@with_retry(max_retries=1, backoff_base=1.0)
+@with_timeout(15)
 async def collect_outstanding(state: BriefState) -> dict[str, Any]:
     """Fetch overdue recurring payments."""
     family_id = state.get("family_id", "")
@@ -289,6 +300,7 @@ Rules:
 - Respond in: {language}."""
 
 
+@with_timeout(30)
 async def synthesize(state: BriefState) -> dict[str, Any]:
     """Combine all collected data and generate the final message via LLM."""
     intent = state.get("intent", "morning_brief")

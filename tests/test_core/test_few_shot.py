@@ -2,8 +2,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from src.core.few_shot import (
     format_few_shot_block,
     retrieve_few_shot_examples,

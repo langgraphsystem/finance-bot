@@ -201,6 +201,18 @@ class BookingOrchestrator:
             return self._build_result(result, thread_id)
         except Exception as e:
             logger.warning("Booking graph failed: %s", e)
+            try:
+                from src.orchestrators.resilience import save_to_dlq
+
+                await save_to_dlq(
+                    graph_name="booking",
+                    thread_id=thread_id,
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    error=str(e),
+                )
+            except Exception:
+                pass
             if self._agent_router:
                 return await self._agent_router.route(
                     "create_booking", message, context, intent_data

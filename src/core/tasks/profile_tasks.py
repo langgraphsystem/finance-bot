@@ -85,6 +85,44 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
     # Analyze personality traits
     personality = _analyze_personality(messages)
 
+    # Phase 3.1: Observational pattern analysis
+    day_of_week_counts = Counter(
+        m.created_at.strftime("%A") for m in messages if m.created_at
+    )
+    hour_distribution = {str(h): c for h, c in hour_counts.items()} if hour_counts else {}
+    day_distribution = dict(day_of_week_counts)
+
+    observation_patterns = {
+        "hour_distribution": hour_distribution,
+        "day_distribution": day_distribution,
+        "peak_hours": sorted(hour_counts, key=hour_counts.get, reverse=True)[:3]
+        if hour_counts
+        else [],
+        "peak_days": sorted(
+            day_of_week_counts, key=day_of_week_counts.get, reverse=True
+        )[:3]
+        if day_of_week_counts
+        else [],
+    }
+
+    # Run Reflector on accumulated observations
+    existing_observations: list[str] = []
+    try:
+        from src.core.memory.observational import (
+            load_user_observations,
+            restructure_observations,
+            save_user_observations,
+        )
+
+        existing_observations = await load_user_observations(user_id)
+        if existing_observations:
+            existing_observations = await restructure_observations(
+                existing_observations
+            )
+            await save_user_observations(user_id, existing_observations)
+    except Exception as e:
+        logger.debug("Reflector run failed for user %s: %s", user_id, e)
+
     # Build learned_patterns
     patterns = {
         "active_hours": {"start": active_start, "end": active_end},
@@ -92,6 +130,7 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
         "message_count_7d": len(messages),
         "last_analyzed": datetime.now(UTC).isoformat(),
         "personality": personality,
+        "observation_patterns": observation_patterns,
     }
 
     # Update user profile
@@ -102,10 +141,16 @@ async def _learn_for_user(user_id: str, family_id: str) -> None:
         profile = result.scalar_one_or_none()
 
         if profile:
-            # Merge with existing patterns (preserve suppressed_triggers)
+            # Merge with existing patterns (preserve suppressed_triggers + observations)
             existing = profile.learned_patterns or {}
             if "suppressed_triggers" in existing:
                 patterns["suppressed_triggers"] = existing["suppressed_triggers"]
+            if "observations" in existing:
+                patterns["observations"] = existing["observations"]
+            if "procedures" in existing:
+                patterns["procedures"] = existing["procedures"]
+            if "corrections" in existing:
+                patterns["corrections"] = existing["corrections"]
             profile.learned_patterns = patterns
             profile.active_hours_start = active_start
             profile.active_hours_end = active_end

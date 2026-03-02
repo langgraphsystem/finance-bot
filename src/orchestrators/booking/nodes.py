@@ -19,6 +19,8 @@ from typing import Any
 
 from langgraph.types import interrupt
 
+from src.orchestrators.resilience import with_timeout
+
 logger = logging.getLogger(__name__)
 
 
@@ -203,6 +205,7 @@ async def ask_login(state: dict[str, Any]) -> dict[str, Any]:
     return {"step": "login_ready"}
 
 
+@with_timeout(60)
 async def search_hotels(state: dict[str, Any]) -> dict[str, Any]:
     """Execute browser search on the selected platform."""
     if state.get("step") in ("error", "cancelled"):
@@ -329,6 +332,7 @@ async def confirm_selection(state: dict[str, Any]) -> dict[str, Any]:
     return {"step": "results_ready"}
 
 
+@with_timeout(60)
 async def execute_booking_node(state: dict[str, Any]) -> dict[str, Any]:
     """Execute the actual browser booking on the hotel site."""
     if state.get("step") != "confirmed":

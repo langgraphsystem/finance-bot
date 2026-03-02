@@ -1,12 +1,22 @@
-"""Layer 3: Mem0 — long-term memory with pgvector."""
+"""Layer 3: Mem0 — long-term memory with pgvector.
+
+Supports domain segmentation: when `domain` is passed, user_id is scoped
+to `{user_id}:{domain}` for namespace isolation.
+"""
+
+from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from mem0 import Memory
 
+from src.core.circuit_breaker import get_circuit
 from src.core.config import settings
+
+if TYPE_CHECKING:
+    from src.core.memory.mem0_domains import MemoryDomain
 
 logger = logging.getLogger(__name__)
 
@@ -105,68 +115,202 @@ def _reset_memory() -> None:
     _memory = None
 
 
+def _resolve_user_id(user_id: str, domain: MemoryDomain | None) -> str:
+    """Scope user_id by domain for namespace isolation."""
+    if domain is None:
+        return user_id
+    from src.core.memory.mem0_domains import scoped_user_id
+
+    return scoped_user_id(user_id, domain)
+
+
 async def search_memories(
     query: str,
     user_id: str,
     limit: int = 10,
     filters: dict[str, Any] | None = None,
+    domain: MemoryDomain | None = None,
 ) -> list[dict]:
-    """Search Mem0 for relevant memories."""
+    """Search Mem0 for relevant memories.
+
+    When *domain* is set, searches only that domain's namespace.
+    """
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping search")
+        return []
     try:
         memory = get_memory()
-        kwargs: dict[str, Any] = {"query": query, "user_id": user_id, "limit": limit}
+        scoped_uid = _resolve_user_id(user_id, domain)
+        kwargs: dict[str, Any] = {"query": query, "user_id": scoped_uid, "limit": limit}
         if filters:
             kwargs["filters"] = filters
         results = memory.search(**kwargs)
+        cb.record_success()
         return results.get("results", []) if isinstance(results, dict) else results
     except Exception as e:
         logger.warning("Mem0 search failed: %s", e)
+        cb.record_failure()
         _reset_memory()
         return []
+
+
+async def search_memories_multi_domain(
+    query: str,
+    user_id: str,
+    domains: list[MemoryDomain],
+    limit_per_domain: int = 5,
+) -> list[dict]:
+    """Search across multiple domains and merge results."""
+    import asyncio
+
+    tasks = [
+        search_memories(query, user_id, limit=limit_per_domain, domain=d)
+        for d in domains
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    merged: list[dict] = []
+    for r in results:
+        if isinstance(r, list):
+            merged.extend(r)
+    return merged
+
+
+async def _archive_superseded_fact(
+    content: str,
+    user_id: str,
+    domain: MemoryDomain | None,
+    original_category: str,
+) -> None:
+    """Archive old value before Mem0 overwrites it (temporal fact tracking).
+
+    Searches for existing similar fact; if found with high similarity,
+    stores the old value as a ``fact_history`` entry with timestamps.
+    """
+    from datetime import date
+
+    from src.core.memory.mem0_domains import (
+        TEMPORAL_SIMILARITY_THRESHOLD,
+        UPDATABLE_CATEGORIES,
+    )
+
+    if original_category not in UPDATABLE_CATEGORIES:
+        return
+
+    try:
+        existing = await search_memories(content, user_id, limit=1, domain=domain)
+        if not existing:
+            return
+        top = existing[0]
+        score = top.get("score", 0)
+        if score < TEMPORAL_SIMILARITY_THRESHOLD:
+            return
+        old_text = top.get("memory", top.get("text", ""))
+        if not old_text or old_text == content:
+            return
+        archive_meta = {
+            "category": "fact_history",
+            "superseded_at": date.today().isoformat(),
+            "old_value": old_text,
+            "new_value": content,
+            "original_category": original_category,
+        }
+        memory = get_memory()
+        scoped_uid = _resolve_user_id(user_id, domain)
+        memory.add(f"[Archived] {old_text}", user_id=scoped_uid, metadata=archive_meta)
+    except Exception as e:
+        logger.debug("Temporal archive failed (non-critical): %s", e)
 
 
 async def add_memory(
     content: str,
     user_id: str,
     metadata: dict[str, Any] | None = None,
+    domain: MemoryDomain | None = None,
 ) -> dict:
-    """Add a memory to Mem0."""
+    """Add a memory to Mem0.
+
+    When *domain* is set, stores in that domain's namespace.
+    If not set, auto-derives domain from metadata category.
+    Temporal tracking: archives superseded facts for updatable categories.
+    """
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping add")
+        return {}
     try:
+        # Auto-derive domain from metadata category if not explicitly set
+        if domain is None and metadata and "category" in metadata:
+            from src.core.memory.mem0_domains import get_domain_for_category
+
+            domain = get_domain_for_category(metadata["category"])
+
+        # Temporal tracking: archive old fact before overwrite
+        category = (metadata or {}).get("category", "")
+        if category and category != "fact_history":
+            await _archive_superseded_fact(content, user_id, domain, category)
+
         memory = get_memory()
-        return memory.add(content, user_id=user_id, metadata=metadata or {})
+        scoped_uid = _resolve_user_id(user_id, domain)
+        result = memory.add(content, user_id=scoped_uid, metadata=metadata or {})
+        cb.record_success()
+        return result
     except Exception as e:
         logger.warning("Mem0 add failed: %s", e)
+        cb.record_failure()
         _reset_memory()
         return {}
 
 
-async def get_all_memories(user_id: str) -> list[dict]:
-    """Get all memories for a user."""
+async def get_all_memories(
+    user_id: str,
+    domain: MemoryDomain | None = None,
+) -> list[dict]:
+    """Get all memories for a user (optionally scoped to a domain)."""
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping get_all")
+        return []
     try:
         memory = get_memory()
-        results = memory.get_all(user_id=user_id)
+        scoped_uid = _resolve_user_id(user_id, domain)
+        results = memory.get_all(user_id=scoped_uid)
+        cb.record_success()
         return results.get("results", []) if isinstance(results, dict) else results
     except Exception as e:
         logger.warning("Mem0 get_all failed: %s", e)
+        cb.record_failure()
         _reset_memory()
         return []
 
 
 async def delete_memory(memory_id: str, user_id: str) -> None:
     """Delete a single memory by its ID."""
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping delete")
+        return
     try:
         memory = get_memory()
         memory.delete(memory_id=memory_id)
+        cb.record_success()
     except Exception as e:
         logger.warning("Mem0 delete_memory(%s) failed: %s", memory_id, e)
+        cb.record_failure()
         _reset_memory()
 
 
 async def delete_all_memories(user_id: str) -> None:
     """Delete all memories for a user (GDPR)."""
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping delete_all")
+        return
     try:
         memory = get_memory()
         memory.delete_all(user_id=user_id)
+        cb.record_success()
     except Exception as e:
         logger.warning("Mem0 delete_all failed: %s", e)
+        cb.record_failure()
         _reset_memory()

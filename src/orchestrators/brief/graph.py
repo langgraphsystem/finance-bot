@@ -139,7 +139,25 @@ class BriefOrchestrator:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        """Run the brief orchestrator graph."""
+        """Run the brief orchestrator graph.
+
+        Checks the plan cache first — if a recent brief/recap was
+        synthesized for this user, returns it immediately (saves ~5
+        LLM calls).  Otherwise runs the full graph and caches the result.
+        """
+        from src.core.plan_cache import BRIEF_TTL, plan_cache
+
+        # Check plan cache for recent synthesized result
+        cache_params = dict(
+            user_id=context.user_id,
+            intent=intent,
+            business_type=context.business_type,
+        )
+        cached = await plan_cache.get("brief", **cache_params)
+        if cached and cached.get("response_text"):
+            logger.debug("Brief plan cache hit for %s/%s", context.user_id, intent)
+            return SkillResult(response_text=cached["response_text"])
+
         plugin = plugin_loader.load(context.business_type)
 
         if intent == "evening_recap":
@@ -171,12 +189,33 @@ class BriefOrchestrator:
             result = await _get_brief_graph().ainvoke(initial_state, config or None)
             text = result.get("response_text", "")
             if text:
+                # Cache the synthesized result
+                await plan_cache.put(
+                    "brief",
+                    {"response_text": text},
+                    ttl=BRIEF_TTL,
+                    **cache_params,
+                )
                 return SkillResult(response_text=text)
             return SkillResult(
                 response_text="Couldn't prepare your brief. Try again later."
             )
         except Exception as e:
             logger.exception("Brief orchestrator failed: %s", e)
+            try:
+                from src.orchestrators.resilience import save_to_dlq
+
+                await save_to_dlq(
+                    graph_name="brief",
+                    thread_id=config.get("configurable", {}).get(
+                        "thread_id", ""
+                    ),
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    error=str(e),
+                )
+            except Exception:
+                pass
             return SkillResult(
                 response_text="Couldn't prepare your brief. Try again later."
             )

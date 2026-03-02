@@ -41,8 +41,11 @@ async def log_usage(
     model: str = "",
     tokens_input: int = 0,
     tokens_output: int = 0,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
     duration_ms: int = 0,
     success: bool = True,
+    overflow_layers_dropped: str | None = None,
 ) -> None:
     """Persist a usage log entry. Fire-and-forget — errors are logged, not raised."""
     try:
@@ -58,9 +61,12 @@ async def log_usage(
                     model=model,
                     tokens_input=tokens_input,
                     tokens_output=tokens_output,
+                    cache_read_tokens=cache_read_tokens,
+                    cache_creation_tokens=cache_creation_tokens,
                     cost_usd=cost,
                     duration_ms=duration_ms,
                     success=success,
+                    overflow_layers_dropped=overflow_layers_dropped,
                 )
             )
             await session.commit()

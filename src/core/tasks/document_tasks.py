@@ -17,6 +17,44 @@ from src.tools.storage import delete_document
 logger = logging.getLogger(__name__)
 
 
+@broker.task()
+async def async_embed_document(document_id: str) -> int:
+    """Background task: chunk and embed a document for semantic search."""
+    from src.core.memory.document_vectors import embed_document
+
+    return await embed_document(document_id)
+
+
+@broker.task(schedule=[{"cron": "30 3 * * *"}])  # Daily at 03:30 UTC
+async def batch_embed_documents() -> None:
+    """Embed documents that have extracted_text but no embeddings yet."""
+    from sqlalchemy import text as sql_text
+
+    async with async_session() as session:
+        result = await session.execute(
+            sql_text("""
+                SELECT d.id FROM documents d
+                WHERE d.extracted_text IS NOT NULL
+                  AND length(d.extracted_text) > 20
+                  AND NOT EXISTS (
+                      SELECT 1 FROM document_embeddings de
+                      WHERE de.document_id = d.id
+                  )
+                LIMIT 50
+            """)
+        )
+        doc_ids = [str(row[0]) for row in result.fetchall()]
+
+    for doc_id in doc_ids:
+        try:
+            await async_embed_document.kiq(doc_id)
+        except Exception as e:
+            logger.error("Failed to queue embedding for %s: %s", doc_id, e)
+
+    if doc_ids:
+        logger.info("Queued %d documents for embedding", len(doc_ids))
+
+
 @broker.task(schedule=[{"cron": "0 3 * * *"}])  # Daily at 03:00 UTC
 async def cleanup_old_documents() -> None:
     """Delete documents older than 90 days, skipping templates, invoices, and parents."""

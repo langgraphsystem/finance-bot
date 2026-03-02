@@ -190,6 +190,7 @@ class GenerateSpreadsheetSkill:
                     context.user_id,
                     len(file_bytes),
                 )
+                await _store_episode(context, description, len(file_bytes), "e2b")
                 return SkillResult(
                     response_text=t_cached(
                         _STRINGS, "spreadsheet_ready", lang, "generate_spreadsheet"
@@ -211,6 +212,7 @@ class GenerateSpreadsheetSkill:
                 context.user_id,
                 len(file_bytes),
             )
+            await _store_episode(context, description, len(file_bytes), "local")
             return SkillResult(
                 response_text=t_cached(
                     _STRINGS, "spreadsheet_ready", lang, "generate_spreadsheet"
@@ -227,6 +229,28 @@ class GenerateSpreadsheetSkill:
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return SPREADSHEET_SYSTEM_PROMPT
+
+
+async def _store_episode(
+    context: SessionContext, description: str, size: int, method: str
+) -> None:
+    """Store episodic memory after successful generation."""
+    try:
+        from src.core.memory.episodic import store_episode
+
+        await store_episode(
+            user_id=str(context.user_id),
+            family_id=str(context.family_id),
+            intent="generate_spreadsheet",
+            result_metadata={
+                "format": "xlsx",
+                "description": description[:100],
+                "size": size,
+                "method": method,
+            },
+        )
+    except Exception as e:
+        logger.debug("Episode storage failed: %s", e)
 
 
 def _make_filename(description: str) -> str:

@@ -1,5 +1,9 @@
 from typing import Any
 
+# Sentinel marker inserted by assemble_context() between static (cacheable)
+# and dynamic (per-request) sections of the system prompt.
+CACHE_BREAKPOINT = "\n<!-- CACHE_BREAKPOINT -->\n"
+
 SYSTEM_PROMPT_TEMPLATE = """<role>
 Ты — AI Assistant для финансов и жизни в Telegram.
 Ты помогаешь {user_name} ({business_type}) вести учёт доходов, расходов,
@@ -41,10 +45,27 @@ class PromptAdapter:
         messages: list[dict[str, str]],
         cache: bool = True,
     ) -> dict[str, Any]:
-        """Format for Anthropic Claude API with 1h TTL prompt caching."""
-        system_blocks = [{"type": "text", "text": system}]
-        if cache:
-            system_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
+        """Format for Anthropic Claude API with 1h TTL prompt caching.
+
+        If *system* contains CACHE_BREAKPOINT, the text before the marker is
+        treated as static (cacheable) and the text after is dynamic. Only the
+        static prefix receives ``cache_control``, maximising cache hit rate.
+        """
+        if cache and CACHE_BREAKPOINT in system:
+            static_part, dynamic_part = system.split(CACHE_BREAKPOINT, 1)
+            system_blocks: list[dict[str, Any]] = [
+                {
+                    "type": "text",
+                    "text": static_part,
+                    "cache_control": {"type": "ephemeral", "ttl": "1h"},
+                },
+            ]
+            if dynamic_part.strip():
+                system_blocks.append({"type": "text", "text": dynamic_part})
+        else:
+            system_blocks = [{"type": "text", "text": system}]
+            if cache:
+                system_blocks[0]["cache_control"] = {"type": "ephemeral", "ttl": "1h"}
 
         return {
             "system": system_blocks,

@@ -76,6 +76,22 @@ class WritePostSkill:
             topic = f"[Platform: {platform}] {topic}"
 
         post = await generate_post(topic, lang)
+
+        try:
+            from src.core.memory.episodic import store_episode
+
+            await store_episode(
+                user_id=str(context.user_id),
+                family_id=str(context.family_id),
+                intent="write_post",
+                result_metadata={
+                    "topic": topic[:100],
+                    "platform": platform or "general",
+                },
+            )
+        except Exception as e:
+            logger.debug("Episode storage failed: %s", e)
+
         return SkillResult(response_text=post)
 
     def get_system_prompt(self, context: SessionContext) -> str:

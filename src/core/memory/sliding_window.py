@@ -1,4 +1,8 @@
-"""Layer 1: Sliding window — last N messages in Redis + PostgreSQL backup."""
+"""Layer 1: Sliding window — last N messages in Redis + PostgreSQL backup.
+
+Uses rolling TTL: each new message resets the 24h expiry timer,
+so active conversations don't lose context at midnight.
+"""
 
 import json
 import logging
@@ -9,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 REDIS_KEY_PREFIX = "conv"
 DEFAULT_WINDOW_SIZE = 10
-TTL_SECONDS = 86400  # 24 hours
+TTL_SECONDS = 86400  # 24 hours — rolling, reset on each message
 
 
 async def add_message(
@@ -18,7 +22,7 @@ async def add_message(
     content: str,
     intent: str | None = None,
 ) -> None:
-    """Add a message to the sliding window."""
+    """Add a message to the sliding window. Resets rolling TTL."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"
     message = json.dumps(
         {
@@ -31,6 +35,7 @@ async def add_message(
 
     await redis.rpush(key, message)
     await redis.ltrim(key, -DEFAULT_WINDOW_SIZE, -1)
+    # Rolling TTL — reset on every message so active conversations persist
     await redis.expire(key, TTL_SECONDS)
 
 

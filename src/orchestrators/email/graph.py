@@ -163,6 +163,20 @@ class EmailOrchestrator:
                     intent,
                     e,
                 )
+                try:
+                    from src.orchestrators.resilience import save_to_dlq
+
+                    await save_to_dlq(
+                        graph_name="email",
+                        thread_id=config.get("configurable", {}).get(
+                            "thread_id", ""
+                        ),
+                        user_id=context.user_id,
+                        family_id=context.family_id,
+                        error=str(e),
+                    )
+                except Exception:
+                    pass
 
         if self._agent_router:
             return await self._agent_router.route(

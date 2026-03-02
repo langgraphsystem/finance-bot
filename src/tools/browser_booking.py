@@ -348,17 +348,30 @@ async def start_flow(
     family_id: str,
     task: str,
     language: str = "en",
+    pre_parsed: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Start the hotel booking flow.
 
-    1. Parse request with Gemini Flash
+    1. Parse request with Gemini Flash (or use pre_parsed from intent detection)
     2. Quick Gemini Grounding price preview
     3. Return platform selection buttons
 
     Returns dict with: text, buttons, parsed (or error).
     """
-    # Parse the booking request
-    parsed = await parse_booking_request(task, language)
+    # Use pre-parsed data from intent detection if available, else parse with LLM
+    parsed = None
+    if pre_parsed and pre_parsed.get("city"):
+        parsed = pre_parsed
+        parsed.setdefault("guests", 2)
+        parsed.setdefault("currency", "USD")
+        parsed.setdefault("amenities", [])
+        parsed.setdefault("sort_by", "best_value")
+        logger.info(
+            "Booking using pre-parsed data: city=%s, dates=%s-%s",
+            parsed.get("city"), parsed.get("check_in"), parsed.get("check_out"),
+        )
+    else:
+        parsed = await parse_booking_request(task, language)
     if not parsed or not parsed.get("city"):
         return {
             "text": (

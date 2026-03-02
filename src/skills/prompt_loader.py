@@ -4,6 +4,10 @@ Skills can externalize system prompts into `prompts.yaml` files alongside
 their handler modules. The loader reads these at first access and caches
 them for the lifetime of the process.
 
+Delegates to :class:`~src.core.prompt_registry.PromptRegistry` for
+centralized, versioned prompt management.  The ``load_prompt()`` API is
+retained for backward compatibility.
+
 Usage in a skill handler::
 
     from pathlib import Path
@@ -34,11 +38,24 @@ _cache: dict[str, dict[str, Any]] = {}
 def load_prompt(skill_dir: Path) -> dict[str, Any]:
     """Load ``prompts.yaml`` for a skill directory.
 
-    Returns the parsed dict or ``{}`` when no YAML file exists.
+    First tries the centralized :pydata:`prompt_registry` by directory name.
+    Falls back to direct YAML read if the skill is not in the registry.
     Results are cached by directory string so each file is read only once.
     """
     key = str(skill_dir)
     if key not in _cache:
+        # Try registry first (already loaded & versioned)
+        try:
+            from src.core.prompt_registry import prompt_registry
+
+            skill_name = skill_dir.name
+            data = prompt_registry.get(skill_name)
+            if data:
+                _cache[key] = data
+                return data
+        except Exception:
+            pass  # Fall through to direct YAML read
+
         yaml_path = skill_dir / "prompts.yaml"
         if yaml_path.exists():
             try:

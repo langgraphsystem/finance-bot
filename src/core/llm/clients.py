@@ -1,3 +1,4 @@
+import contextvars
 import json
 import logging
 from collections.abc import Callable
@@ -9,6 +10,13 @@ from google import genai
 from openai import AsyncOpenAI
 
 from src.core.config import settings
+from src.core.observability import (
+    LLMUsage,
+    extract_usage_anthropic,
+    extract_usage_gemini,
+    extract_usage_openai,
+    traced_llm_call,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +86,18 @@ def google_client() -> genai.Client:
     return _google
 
 
+# Context variable for last LLM call usage — allows callers to retrieve
+# token counts after generate_text() without changing its return type.
+_last_usage: contextvars.ContextVar[LLMUsage] = contextvars.ContextVar(
+    "_last_usage", default=LLMUsage()
+)
+
+
+def get_last_usage() -> LLMUsage:
+    """Get token usage from the most recent generate_text() call in this context."""
+    return _last_usage.get()
+
+
 async def generate_text(
     model: str,
     system: str,
@@ -85,6 +105,10 @@ async def generate_text(
     max_tokens: int = 1024,
     *,
     prompt: str | None = None,
+    trace_name: str = "generate_text",
+    trace_user_id: str = "",
+    trace_intent: str = "",
+    prompt_version: str = "",
 ) -> str:
     """Unified LLM call — routes to the correct SDK based on model ID.
 
@@ -98,48 +122,126 @@ async def generate_text(
     if not messages:
         raise ValueError("Either messages or prompt is required")
 
+    from src.core.circuit_breaker import circuits
     from src.core.llm.prompts import PromptAdapter
 
     if model.startswith(("gpt-", "grok-")):
-        client = xai_client() if model.startswith("grok-") else openai_client()
-        resp = await client.chat.completions.create(
-            model=model,
-            max_completion_tokens=max_tokens,
-            **PromptAdapter.for_openai(system, messages),
-        )
-        return resp.choices[0].message.content or ""
+        circuit_name = "openai"
+        cb = circuits.get(circuit_name)
+        if cb and not cb.can_execute():
+            logger.warning("Circuit %s OPEN, skipping %s", circuit_name, model)
+            raise ConnectionError(f"Circuit breaker {circuit_name} is open")
+        try:
+            client = xai_client() if model.startswith("grok-") else openai_client()
+            async with traced_llm_call(
+                trace_name,
+                model=model,
+                user_id=trace_user_id,
+                intent=trace_intent,
+                prompt_version=prompt_version,
+            ) as _span:
+                resp = await client.chat.completions.create(
+                    model=model,
+                    max_completion_tokens=max_tokens,
+                    **PromptAdapter.for_openai(system, messages),
+                )
+                _u = extract_usage_openai(resp)
+                _span.tokens_input = _u.tokens_input
+                _span.tokens_output = _u.tokens_output
+                _span.cache_read_tokens = _u.cache_read_tokens
+            if cb:
+                cb.record_success()
+            _last_usage.set(_u)
+            return resp.choices[0].message.content or ""
+        except ConnectionError:
+            raise
+        except Exception as e:
+            if cb:
+                cb.record_failure()
+            raise e
+
     elif model.startswith("claude-"):
-        client = anthropic_client()
-        resp = await client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            **PromptAdapter.for_claude(system, messages),
-        )
-        return resp.content[0].text
+        cb = circuits.get("anthropic")
+        if cb and not cb.can_execute():
+            logger.warning("Circuit anthropic OPEN, skipping %s", model)
+            raise ConnectionError("Circuit breaker anthropic is open")
+        try:
+            client = anthropic_client()
+            async with traced_llm_call(
+                trace_name,
+                model=model,
+                user_id=trace_user_id,
+                intent=trace_intent,
+                prompt_version=prompt_version,
+            ) as _span:
+                resp = await client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    **PromptAdapter.for_claude(system, messages),
+                )
+                _u = extract_usage_anthropic(resp)
+                _span.tokens_input = _u.tokens_input
+                _span.tokens_output = _u.tokens_output
+                _span.cache_read_tokens = _u.cache_read_tokens
+                _span.cache_creation_tokens = _u.cache_creation_tokens
+            if cb:
+                cb.record_success()
+            _last_usage.set(_u)
+            return resp.content[0].text
+        except ConnectionError:
+            raise
+        except Exception as e:
+            if cb:
+                cb.record_failure()
+            raise e
+
     elif model.startswith("gemini-"):
         from google.genai import types
 
-        client = google_client()
-        # Single message → pass as plain string; multi-turn → structured contents
-        if len(messages) == 1:
-            contents = messages[0]["content"]
-        else:
-            contents = [
-                {
-                    "role": ("user" if m["role"] == "user" else "model"),
-                    "parts": [{"text": m["content"]}],
-                }
-                for m in messages
-            ]
-        resp = await client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system,
-                max_output_tokens=max_tokens,
-            ),
-        )
-        return resp.text or ""
+        cb = circuits.get("google")
+        if cb and not cb.can_execute():
+            logger.warning("Circuit google OPEN, skipping %s", model)
+            raise ConnectionError("Circuit breaker google is open")
+        try:
+            client = google_client()
+            if len(messages) == 1:
+                contents = messages[0]["content"]
+            else:
+                contents = [
+                    {
+                        "role": ("user" if m["role"] == "user" else "model"),
+                        "parts": [{"text": m["content"]}],
+                    }
+                    for m in messages
+                ]
+            async with traced_llm_call(
+                trace_name,
+                model=model,
+                user_id=trace_user_id,
+                intent=trace_intent,
+                prompt_version=prompt_version,
+            ) as _span:
+                resp = await client.aio.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system,
+                        max_output_tokens=max_tokens,
+                    ),
+                )
+                _u = extract_usage_gemini(resp)
+                _span.tokens_input = _u.tokens_input
+                _span.tokens_output = _u.tokens_output
+            if cb:
+                cb.record_success()
+            _last_usage.set(_u)
+            return resp.text or ""
+        except ConnectionError:
+            raise
+        except Exception as e:
+            if cb:
+                cb.record_failure()
+            raise e
     else:
         raise ValueError(f"Unknown model prefix: {model}")
 
@@ -187,6 +289,7 @@ async def generate_text_with_tools(
     tool_executor: Callable | None = None,
     max_tokens: int = 2048,
     max_tool_rounds: int = 3,
+    prompt_version: str = "",
 ) -> tuple[str, list[dict]]:
     """LLM call with function calling / tool_use support.
 
