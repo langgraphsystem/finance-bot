@@ -27,10 +27,9 @@ def test_estimate_cost_zero_tokens():
     assert cost == Decimal("0")
 
 
-def test_estimate_cost_grok():
-    cost = _estimate_cost("grok-4-1-fast-reasoning", tokens_in=1000, tokens_out=500)
+def test_estimate_cost_gemini_pro():
+    cost = _estimate_cost("gemini-3.1-pro-preview", tokens_in=1000, tokens_out=500)
     assert isinstance(cost, Decimal)
     assert cost > 0
-    # Grok is much cheaper than GPT
-    gpt_cost = _estimate_cost("gpt-5.2", tokens_in=1000, tokens_out=500)
-    assert cost < gpt_cost
+    flash_cost = _estimate_cost("gemini-3-flash-preview", tokens_in=1000, tokens_out=500)
+    assert cost > flash_cost
