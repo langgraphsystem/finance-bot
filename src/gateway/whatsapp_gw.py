@@ -337,6 +337,8 @@ class WhatsAppGateway:
 
         text = message.text or ""
         text = self._strip_html(text)
+        # Remove surrogates that break JSON serialization
+        text = text.encode("utf-8", errors="replace").decode("utf-8")
 
         # Truncate to WhatsApp limit
         if len(text) > WA_TEXT_LIMIT:
