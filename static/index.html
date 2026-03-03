@@ -1,382 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="lenis">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | AI-powered Life & Business Assistant</title>
-    <meta name="description" content="Finance Bot — AI assistant with 12 agents, 74+ skills, receipt OCR, budgets, email, calendar, CRM, and life tracking. Telegram, WhatsApp, Slack, SMS.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-        rel="stylesheet">
+    <title>Finance Bot | AI Agent Ecosystem</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
+    <div class="grid-bg"></div>
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
 
-    <!-- Subtle grain texture for premium feel -->
-    <div class="grain-overlay"></div>
-
-    <!-- Floating gradient orbs -->
-    <div class="floating-orb orb-1"></div>
-    <div class="floating-orb orb-2"></div>
-    <div class="floating-orb orb-3"></div>
-
-    <!-- Radial Glow Backgrounds -->
-    <div class="glow-bg glow-top"></div>
-
-    <!-- Navigation -->
-    <nav class="navbar reveal">
+    <nav class="navbar">
         <div class="logo">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" />
-                <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" />
-                <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round" />
-            </svg>
+            <i class="fa-solid fa-cube clr-indigo"></i>
             <span>Finance AI</span>
         </div>
-        <div class="nav-menu" id="nav-menu">
-            <div class="nav-links">
-                <a href="#features" data-i18n="nav_rube" class="nav-link">RUBE(MCP)</a>
-                <a href="#pricing" data-i18n="nav_pricing" class="nav-link">PRICING</a>
-                <a href="#blog" data-i18n="nav_blog" class="nav-link">BLOG</a>
-                <a href="#solutions" data-i18n="nav_solutions" class="nav-link">SOLUTIONS</a>
-                <a href="#docs" data-i18n="nav_docs" class="nav-link">DOCS</a>
-                <a href="#toolkits" data-i18n="nav_toolkits" class="nav-link">TOOLKITS</a>
-            </div>
-            <div class="nav-actions">
-                <div class="lang-selector">
-                    <select id="language-select" class="btn-outline">
-                        <option value="ru">RU</option>
-                        <option value="en" selected>EN</option>
-                        <option value="es">ES</option>
-                    </select>
-                </div>
-                <a href="https://t.me/YourBotName" class="btn btn-primary nav-btn" data-i18n="nav_login">SIGN IN</a>
-            </div>
-        </div>
-        <div class="mobile-menu-btn" id="mobile-menu-btn">
-            <i class="fa-solid fa-bars"></i>
+        <div class="nav-links">
+            <a href="#features" class="nav-link">Features</a>
+            <a href="#agents" class="nav-link">Agents</a>
+            <a href="#pricing" class="nav-link">Pricing</a>
+            <a href="https://t.me/YourBotName" class="btn btn-primary">Sign In</a>
         </div>
     </nav>
 
-    <!-- Hero Section -->
-    <section class="hero text-center">
-        <div class="hero-content reveal mx-auto" style="max-width: 800px;">
-            <h1 class="hero-title" data-i18n="hero_title">Skills that <span
-                    class="gradient-text type-effect">evolve</span> with <br>your Agents</h1>
-            <p class="hero-subtitle mx-auto" data-i18n="hero_subtitle" style="margin: 0 auto 48px;">
-                More than just integrations, 10,000+ tools that can adapt — turning automation into intuition.</p>
-            <div class="hero-cta justify-center mt-4" style="justify-content: center;">
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large btn-glow" data-i18n="hero_btn_start"
-                    style="text-transform: uppercase;">GET STARTED FOR FREE</a>
-                <a href="#docs" class="btn btn-outline btn-large" data-i18n="hero_btn_docs"
-                    style="text-transform: uppercase;"><i class="fa-solid fa-arrow-right"></i> EXPLORE DOCS</a>
+    <main>
+        <section class="hero">
+            <div class="hero-badge reveal">V5.0 ARCHITECTURE IS LIVE</div>
+            <h1 class="hero-title reveal">
+                Connect your Life to <br>
+                <span class="gradient-text">AI Agent Ecosystem</span>
+            </h1>
+            <p class="hero-subtitle reveal">
+                12 specialized agents, 74+ skills. Orchestrated by LangGraph. 
+                From financial automation to document intelligence, unified in one chat.
+            </p>
+            <div class="hero-cta reveal">
+                <a href="https://t.me/YourBotName" class="btn btn-primary">Start Building Free</a>
+                <a href="#features" class="btn btn-outline">Explore Capabilities</a>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Stats Section -->
-    <section class="stats-section section-padding reveal">
-        <div class="stats-grid">
-            <div class="stat-card hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="12">0</span></div>
-                <div class="stat-label" data-i18n="stat_agents">AI Agents</div>
-            </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(37, 99, 235, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="74">0</span></div>
-                <div class="stat-label" data-i18n="stat_skills">Skills</div>
-            </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="stat-value"><span class="counter" data-target="4">0</span></div>
-                <div class="stat-label" data-i18n="stat_channels">Channels</div>
-            </div>
-            <div class="stat-card hover-glow" data-glow-color="rgba(217, 119, 6, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="stat-value"
-                    style="display: flex; justify-content: center; gap: 14px; align-items: center; min-height: 48px;">
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                        <path
-                            d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A6.0651 6.0651 0 0 0 19.022 19.818a5.9847 5.9847 0 0 0 3.9977-2.9001 6.051 6.051 0 0 0-.7378-7.0968z" />
-                    </svg>
-                    <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M17.373 21h4.15l-8.62-18h-4.32l8.79 18zm-8.31 0H4.91L1.24 13.5l1.83-3.8 6 11.3z" />
-                    </svg>
-                    <i class="fa-brands fa-google" style="font-size: 24px;"></i>
-                </div>
-                <div class="stat-label" data-i18n="stat_models">AI Models</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Integrations Logos -->
-    <section class="integrations reveal">
-        <p class="section-label text-center" data-i18n="integrations_label">INTEGRATES WITH YOUR FAVORITE TOOLS</p>
-        <div class="marquee-wrapper">
-            <div class="marquee-content" style="display: flex;">
+        <section class="marquee-wrapper reveal">
+            <div class="marquee-content">
                 <div class="integration-logo"><i class="fab fa-telegram"></i> Telegram</div>
                 <div class="integration-logo"><i class="fab fa-whatsapp"></i> WhatsApp</div>
                 <div class="integration-logo"><i class="fab fa-slack"></i> Slack</div>
-                <div class="integration-logo"><i class="fas fa-comment-sms"></i> SMS</div>
-                <div class="integration-logo"><i class="fab fa-google"></i> Google Calendar</div>
-                <div class="integration-logo"><i class="fa-solid fa-envelope"></i> Gmail</div>
+                <div class="integration-logo"><i class="fab fa-google"></i> Gmail</div>
+                <div class="integration-logo"><i class="fa-solid fa-calendar"></i> Calendar</div>
                 <div class="integration-logo"><i class="fab fa-stripe"></i> Stripe</div>
-                <div class="integration-logo"><i class="fab fa-cc-visa"></i> Visa</div>
-                <div class="integration-logo"><i class="fa-solid fa-file-invoice"></i> PDF Invoices</div>
-                <div class="integration-logo"><i class="fa-solid fa-microphone"></i> Voice Notes</div>
+                <!-- Clones for infinite scroll -->
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Bento Box Features -->
-    <section id="features" class="features section-padding section-fade-top">
-        <div class="section-header reveal">
-            <h2 class="section-title" data-i18n="features_title">Everything you need. <br>In <span
-                    class="gradient-text">one</span> chat.</h2>
-            <p class="section-subtitle" data-i18n="features_subtitle">Forget complex spreadsheets and dozens of apps. Just send a command or a photo.</p>
-        </div>
-
-        <div class="bento-grid">
-            <!-- Feature 1: OCR -->
-            <div class="bento-card card-large reveal hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
+        <section id="features" class="section-padding">
+            <div class="bento-grid">
+                <div class="bento-card f-ocr reveal">
                     <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
-                    <h3 data-i18n="f1_title">Smart Receipt OCR</h3>
-                    <p class="clr-dim" data-i18n="f1_desc">Send a photo of a crumpled receipt. AI instantly recognizes merchant, items, taxes, and categorizes them using Gemini Flash 3.</p>
+                    <h3>Intelligent OCR</h3>
+                    <p>Powered by Gemini 3 Flash. Instant data extraction from receipts, invoices, and hand-written notes with 98% accuracy.</p>
+                    <!-- Small code snippet visualization could go here -->
+                </div>
+                
+                <div class="bento-card f-email reveal">
+                    <div class="icon-box"><i class="fa-solid fa-envelope"></i></div>
+                    <h3>Email Orchestrator</h3>
+                    <p>Autonomous inbox management via Claude Sonnet 4.6.</p>
+                </div>
 
-                    <div class="code-preview mt-4">
-                        <div class="code-header">receipt_parser.py</div>
-                        <pre><code><span class="clr-pink">import</span> finance_ai
+                <div class="bento-card f-cal reveal">
+                    <div class="icon-box"><i class="fa-solid fa-calendar"></i></div>
+                    <h3>Smart Calendar</h3>
+                    <p>Proactive scheduling and morning briefings.</p>
+                </div>
 
-receipt = finance_ai.scan(<span class="clr-green">"photo.jpg"</span>)
-<span class="clr-blue">print</span>(receipt.merchant) <span class="clr-dim"># -> "Shell"</span>
-<span class="clr-blue">print</span>(receipt.total)    <span class="clr-dim"># -> 150.00</span></code></pre>
-                    </div>
+                <div class="bento-card f-doc reveal">
+                    <div class="icon-box"><i class="fa-solid fa-file-pdf"></i></div>
+                    <h3>Document Agent</h3>
+                    <p>Generate Excel reports, PPTX presentations, and fill PDF templates using E2B Code Execution sandbox.</p>
+                </div>
+
+                <div class="bento-card f-analyze reveal">
+                    <div class="icon-box"><i class="fa-solid fa-chart-line"></i></div>
+                    <h3>Financial Analysis</h3>
+                    <p>Deep reasoning across transactions. Forecast cash flow and detect anomalies automatically.</p>
                 </div>
             </div>
+        </section>
+    </main>
 
-            <!-- Feature 2: Email -->
-            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-envelope-open-text"></i></div>
-                    <h3 data-i18n="f_email_title">Email Orchestrator</h3>
-                    <p class="clr-dim" data-i18n="f_email_desc">Auto-read incoming emails, draft replies and follow-ups powered by Claude Sonnet with human-in-the-loop approval.</p>
-                </div>
-            </div>
-
-            <!-- Feature 3: Calendar -->
-            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(217, 119, 6, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-calendar-check"></i></div>
-                    <h3 data-i18n="f_cal_title">Calendar & Morning Brief</h3>
-                    <p class="clr-dim" data-i18n="f_cal_desc">Sync with Google Calendar. Get proactive morning briefings and plan your day right in the chat.</p>
-                </div>
-            </div>
-
-            <!-- Feature 4: Analytics -->
-            <div class="bento-card card-wide reveal delay-1 hover-glow" data-glow-color="rgba(219, 39, 119, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-chart-pie"></i></div>
-                    <h3 data-i18n="f4_title">Multi-agent Analytics</h3>
-                    <p class="clr-dim" data-i18n="f4_desc">Request complex reports: "Show my car expenses for 6 months by month." Generates accurate charts directly in the chat.</p>
-                </div>
-                <div class="bento-visual">
-                    <div class="chart-demo-code">
-                        <pre><code><span class="clr-pink">{</span>
-  <span class="clr-green">"query"</span>: <span class="clr-blue" id="code_query">"Auto for half a year"</span>,
-  <span class="clr-green">"result"</span>: <span class="clr-pink">{</span>
-    <span class="clr-green">"Jul"</span>: 120, <span class="clr-green">"Aug"</span>: 150, <span class="clr-green">"Sep"</span>: 300,
-    <span class="clr-green">"Oct"</span>: 110, <span class="clr-green">"Nov"</span>: 180, <span class="clr-green">"Dec"</span>: 90
-  <span class="clr-pink">}</span>
-<span class="clr-pink">}</span></code></pre>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Feature 5: Research -->
-            <div class="bento-card card-wide reveal delay-2 hover-glow" data-glow-color="rgba(37, 99, 235, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-magnifying-glass-chart"></i></div>
-                    <h3 data-i18n="f_res_title">Research & Search</h3>
-                    <p class="clr-dim" data-i18n="f_res_desc">Deep analysis via Google Search Grounding. Maps search, link parsing, YouTube video summaries, and news monitoring.</p>
-                </div>
-            </div>
-
-            <!-- Feature 6: Voice -->
-            <div class="bento-card card-medium reveal delay-1 hover-glow" data-glow-color="rgba(124, 58, 237, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-microphone-lines"></i></div>
-                    <h3 data-i18n="f2_title">Voice Input</h3>
-                    <p class="clr-dim" data-i18n="f2_desc">Perfectly recognizes and structures any language in real time. Just dictate your income and expenses on the go.</p>
-                </div>
-            </div>
-
-            <!-- Feature 7: Booking -->
-            <div class="bento-card card-medium reveal delay-2 hover-glow" data-glow-color="rgba(5, 150, 105, 0.08)">
-                <div class="glow-mouse"></div>
-                <div class="bento-content">
-                    <div class="icon-box"><i class="fa-solid fa-address-book"></i></div>
-                    <h3 data-i18n="f_book_title">Booking & CRM</h3>
-                    <p class="clr-dim" data-i18n="f_book_desc">Built-in CRM for business: client appointments, cancellations, automatic reminders, and notifications.</p>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Agents Grid -->
-    <section id="agents" class="agents section-padding">
-        <div class="section-header reveal">
-            <div class="badge-wrap">
-                <div class="badge">
-                    <div class="badge-dot"></div>
-                    <span class="badge-text" data-i18n="agents_badge">ECOSYSTEM</span>
-                </div>
-            </div>
-            <h2 class="section-title" data-i18n="agents_title">Your team of <span class="gradient-text">12
-                    AI agents</span></h2>
-            <p class="section-subtitle" data-i18n="agents_subtitle">Each agent specializes in its domain and works within a unified multi-layer memory system.</p>
-        </div>
-
-        <div class="agents-grid reveal">
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-money-bill-transfer"></i></div>
-                <div class="agent-name">Finance</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-chart-line"></i></div>
-                <div class="agent-name">Analytics</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-heart-pulse"></i></div>
-                <div class="agent-name">Life Tracker</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-regular fa-calendar-days"></i></div>
-                <div class="agent-name">Calendar</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-list-check"></i></div>
-                <div class="agent-name">Tasks</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-flask"></i></div>
-                <div class="agent-name">Research</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-pen-nib"></i></div>
-                <div class="agent-name">Writing</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
-                <div class="agent-name">Email</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-calendar-plus"></i></div>
-                <div class="agent-name">Booking</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                <div class="agent-name">Finance Pro</div>
-            </div>
-            <div class="agent-card hover-glow">
-                <div class="glow-mouse"></div>
-                <div class="agent-icon"><i class="fa-solid fa-user-astronaut"></i></div>
-                <div class="agent-name">Onboarding</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Pricing / Bottom CTA -->
-    <section id="pricing" class="cta-section section-padding reveal-scale reveal">
-        <div class="glow-bg glow-bottom"></div>
-        <div class="cta-box">
-            <h2 class="section-title" data-i18n="pricing_title">Ready to delegate chaos to <span
-                    class="gradient-text">AI</span>?</h2>
-            <p class="clr-dim" data-i18n="pricing_subtitle">Build your finances like code. Without downloading unnecessary apps.</p>
-
-            <div class="pricing-card">
-                <div class="price">
-                    <span class="currency">$</span>
-                    <span class="amount">49</span>
-                    <span class="period" data-i18n="pricing_period">/month</span>
-                </div>
-                <p class="pricing-sub" data-i18n="pricing_desc">Full access to all AI modules, 12 agents, receipt OCR, calendar and email integration. Multi-tenant support for business and family.</p>
-                <a href="https://t.me/YourBotName" class="btn btn-primary btn-large btn-glow w-full"><span
-                        data-i18n="pricing_btn">Go to Telegram</span> <i class="fa-solid fa-arrow-right"></i></a>
-            </div>
-        </div>
-    </section>
-
-    <!-- Footer -->
     <footer>
-        <div class="footer-content">
-            <div class="footer-col brand">
-                <div class="logo">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2"
-                            stroke-linecap="round" stroke-linejoin="round" />
-                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
-                    </svg>
-                    <span>Finance AI</span>
-                </div>
-                <p class="clr-dim mt-2" style="margin-top: 12px;" data-i18n="footer_copy">© 2026 Finance Bot. All rights reserved.</p>
-            </div>
-            <div class="footer-links">
-                <div class="link-group">
-                    <h4 data-i18n="footer_prod">Product</h4>
-                    <a href="#features" data-i18n="nav_features">Features</a>
-                    <a href="#agents" data-i18n="nav_agents">Agents</a>
-                    <a href="#pricing" data-i18n="nav_pricing">Pricing</a>
-                    <a href="#">Changelog</a>
-                </div>
-                <div class="link-group">
-                    <h4 data-i18n="footer_res">Resources</h4>
-                    <a href="#" data-i18n="nav_docs">Docs</a>
-                    <a href="#" data-i18n="nav_blog">Blog</a>
-                    <a href="#" data-i18n="footer_sup">Support</a>
-                </div>
-                <div class="link-group">
-                    <h4 data-i18n="footer_comp">Company</h4>
-                    <a href="#" data-i18n="footer_about">About Us</a>
-                    <a href="/privacy" data-i18n="footer_priv">Privacy Policy</a>
-                    <a href="/terms" data-i18n="footer_terms">Terms of Service</a>
-                </div>
-            </div>
+        <div class="footer-links">
+            <a href="#" class="nav-link">Documentation</a>
+            <a href="#" class="nav-link">Security</a>
+            <a href="#" class="nav-link">Privacy</a>
         </div>
+        <p class="footer-bottom">© 2026 Finance Bot. All rights reserved.</p>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-    <script src="https://unpkg.com/split-type"></script>
     <script src="script.js"></script>
 </body>
 
