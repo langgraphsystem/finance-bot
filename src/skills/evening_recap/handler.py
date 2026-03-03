@@ -7,6 +7,7 @@ wrap-up tone: tasks completed, money spent, events attended.
 import asyncio
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -71,20 +72,23 @@ class EveningRecapSkill:
         plugin = plugin_loader.load(context.business_type)
         sections = plugin.evening_recap_sections
 
-        collectors: dict[str, Any] = {
-            "completed_tasks": self._collect_completed_tasks(context),
-            "completed_jobs": self._collect_completed_tasks(context),
-            "spending_total": self._collect_spending(context),
-            "invoices_sent": self._collect_invoices_sent(context),
+        collectors: dict[str, Callable[[], Awaitable[str]]] = {
+            "completed_tasks": lambda: self._collect_completed_tasks(context),
+            "completed_jobs": lambda: self._collect_completed_tasks(context),
+            "spending_total": lambda: self._collect_spending(context),
+            "invoices_sent": lambda: self._collect_invoices_sent(context),
         }
 
-        active = {k: v for k, v in collectors.items() if k in sections}
+        active = {key: factory for key, factory in collectors.items() if key in sections}
 
         if not active:
             return SkillResult(response_text="Your evening recap has no sections configured.")
 
         results = await asyncio.gather(
-            *(asyncio.wait_for(coro, timeout=COLLECTOR_TIMEOUT_S) for coro in active.values()),
+            *(
+                asyncio.wait_for(factory(), timeout=COLLECTOR_TIMEOUT_S)
+                for factory in active.values()
+            ),
             return_exceptions=True,
         )
 

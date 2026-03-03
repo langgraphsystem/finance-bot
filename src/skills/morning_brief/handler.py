@@ -11,6 +11,7 @@ that section is silently skipped.
 import asyncio
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -79,24 +80,27 @@ class MorningBriefSkill:
         plugin = plugin_loader.load(context.business_type)
         sections = plugin.morning_brief_sections
 
-        # Map section keys to coroutines
-        collectors: dict[str, Any] = {
-            "schedule": self._collect_events(context),
-            "jobs_today": self._collect_events(context),
-            "tasks": self._collect_tasks(context),
-            "money_summary": self._collect_finance(context),
-            "email_highlights": self._collect_emails(context),
-            "outstanding": self._collect_outstanding(context),
+        # Build coroutine factories so inactive sections don't create unawaited coroutines.
+        collectors: dict[str, Callable[[], Awaitable[str]]] = {
+            "schedule": lambda: self._collect_events(context),
+            "jobs_today": lambda: self._collect_events(context),
+            "tasks": lambda: self._collect_tasks(context),
+            "money_summary": lambda: self._collect_finance(context),
+            "email_highlights": lambda: self._collect_emails(context),
+            "outstanding": lambda: self._collect_outstanding(context),
         }
 
-        # Only run sections configured in plugin
-        active = {k: v for k, v in collectors.items() if k in sections}
+        # Only run sections configured in plugin.
+        active = {key: factory for key, factory in collectors.items() if key in sections}
 
         if not active:
             return SkillResult(response_text="Your morning brief has no sections configured.")
 
         results = await asyncio.gather(
-            *(asyncio.wait_for(coro, timeout=COLLECTOR_TIMEOUT_S) for coro in active.values()),
+            *(
+                asyncio.wait_for(factory(), timeout=COLLECTOR_TIMEOUT_S)
+                for factory in active.values()
+            ),
             return_exceptions=True,
         )
 
