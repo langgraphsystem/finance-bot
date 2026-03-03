@@ -66,6 +66,17 @@ class IntentData(BaseModel):
     task_priority: str | None = None
     reminder_recurrence: str | None = None  # "daily", "weekly", "monthly"
     reminder_end_date: str | None = None  # "YYYY-MM-DD"
+    schedule_frequency: str | None = None  # once, daily, weekly, monthly, weekdays, cron
+    schedule_time: str | None = None  # "08:00", "7:30 AM"
+    schedule_day_of_week: str | None = None  # monday, пн, Mon-Fri
+    schedule_day_of_month: int | None = None  # 1..31
+    schedule_sources: list[str] | None = None  # ["calendar", "tasks", "money_summary"]
+    schedule_instruction: str | None = None  # what to include in summary
+    schedule_output_mode: str | None = None  # compact, decision_ready
+    schedule_end_date: str | None = None  # YYYY-MM-DD
+    schedule_max_runs: int | None = None  # stop after N runs
+    managed_action_title: str | None = None  # target action title for management ops
+    manage_operation: str | None = None  # pause, resume, delete, reschedule
 
     # Research fields (Phase 3)
     search_topic: str | None = None

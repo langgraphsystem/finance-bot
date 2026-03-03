@@ -96,6 +96,36 @@ class TaskPriority(enum.StrEnum):
     urgent = "urgent"
 
 
+class ScheduleKind(enum.StrEnum):
+    once = "once"
+    daily = "daily"
+    weekly = "weekly"
+    monthly = "monthly"
+    weekdays = "weekdays"
+    cron = "cron"
+
+
+class ActionStatus(enum.StrEnum):
+    active = "active"
+    paused = "paused"
+    completed = "completed"
+    deleted = "deleted"
+
+
+class RunStatus(enum.StrEnum):
+    pending = "pending"
+    running = "running"
+    success = "success"
+    partial = "partial"
+    failed = "failed"
+    skipped = "skipped"
+
+
+class OutputMode(enum.StrEnum):
+    compact = "compact"
+    decision_ready = "decision_ready"
+
+
 class ContactRole(enum.StrEnum):
     client = "client"
     vendor = "vendor"

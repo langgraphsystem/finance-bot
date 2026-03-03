@@ -70,6 +70,7 @@ from src.skills.reschedule_booking.handler import skill as reschedule_booking_sk
 from src.skills.reschedule_event.handler import skill as reschedule_event_skill
 from src.skills.scan_document.handler import skill as scan_document_skill
 from src.skills.scan_receipt.handler import skill as scan_receipt_skill
+from src.skills.schedule_action.handler import skill as schedule_action_skill
 from src.skills.search_documents.handler import skill as search_documents_skill
 from src.skills.send_email.handler import skill as send_email_skill
 from src.skills.send_to_client.handler import skill as send_to_client_skill
@@ -124,6 +125,7 @@ def create_registry() -> SkillRegistry:
     registry.register(create_task_skill)
     registry.register(list_tasks_skill)
     registry.register(set_reminder_skill)
+    registry.register(schedule_action_skill)
     registry.register(complete_task_skill)
     registry.register(quick_answer_skill)
     registry.register(web_search_skill)

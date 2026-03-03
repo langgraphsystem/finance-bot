@@ -192,15 +192,23 @@ domains:
       - create_sheets
 
   tasks:
-    description: "Create tasks, reminders, to-do lists, shopping lists"
+    description: "Create tasks, reminders, scheduled actions, to-do lists, shopping lists"
     triggers:
       - task
       - remind
+      - schedule
+      - automate
+      - recurring
+      - scheduled
       - todo
       - shopping
       - list
       - задач
       - напомн
+      - запланир
+      - регулярн
+      - расписан
+      - programar
       - список
       - покупк
     agent: tasks
@@ -208,6 +216,7 @@ domains:
       - create_task
       - list_tasks
       - set_reminder
+      - schedule_action
       - complete_task
       - shopping_list_add
       - shopping_list_view

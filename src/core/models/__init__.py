@@ -13,6 +13,7 @@ from src.core.models.conversation import ConversationMessage
 from src.core.models.document import Document
 from src.core.models.email_cache import EmailCache
 from src.core.models.enums import (
+    ActionStatus,
     BookingStatus,
     BudgetPeriod,
     ChannelType,
@@ -26,7 +27,10 @@ from src.core.models.enums import (
     LoadStatus,
     MessageRole,
     MonitorType,
+    OutputMode,
     PaymentFrequency,
+    RunStatus,
+    ScheduleKind,
     Scope,
     SubscriptionStatus,
     TaskPriority,
@@ -43,6 +47,8 @@ from src.core.models.monitor import Monitor
 from src.core.models.oauth_token import OAuthToken
 from src.core.models.recurring_payment import RecurringPayment
 from src.core.models.sales_tax_rate import SalesTaxRateCache
+from src.core.models.scheduled_action import ScheduledAction
+from src.core.models.scheduled_action_run import ScheduledActionRun
 from src.core.models.session_summary import SessionSummary
 from src.core.models.shopping_list import ShoppingList, ShoppingListItem
 from src.core.models.subscription import Subscription
@@ -56,6 +62,7 @@ from src.core.models.user_profile import UserProfile
 __all__ = [
     "Base",
     "Booking",
+    "ActionStatus",
     "BookingStatus",
     "BudgetPeriod",
     "ChannelType",
@@ -71,7 +78,10 @@ __all__ = [
     "LoadStatus",
     "MessageRole",
     "MonitorType",
+    "OutputMode",
     "PaymentFrequency",
+    "RunStatus",
+    "ScheduleKind",
     "Scope",
     "SubscriptionStatus",
     "TaskPriority",
@@ -92,6 +102,8 @@ __all__ = [
     "AuditLog",
     "RecurringPayment",
     "SalesTaxRateCache",
+    "ScheduledAction",
+    "ScheduledActionRun",
     "Budget",
     "CalendarCache",
     "ChannelLink",

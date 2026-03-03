@@ -155,6 +155,12 @@ invoice_due_days: число дней (net 15 → 15)
 "напоминание: ...", "remind me to pick up Emma at 3:15", \
 "напоминай каждый день в 5 утра", "daily reminder at 7pm", \
 "напоминание каждую неделю"). Поддерживает повторяющиеся напоминания (daily/weekly/monthly).
+- schedule_action: запланировать AI-сводку/автодействие \
+("every day at 8 send me calendar and tasks", \
+"каждое утро в 8 отправляй сводку по задачам и календарю", \
+"programa un resumen semanal con tareas y finanzas"). \
+Извлеки schedule_frequency, schedule_time, schedule_day_of_week, \
+schedule_sources, schedule_instruction, schedule_output_mode.
 - complete_task: отметить задачу выполненной ("done with ...", "готово: ...", \
 "выполнил ...", "задача выполнена", "mark done: ...")
 - quick_answer: фактический вопрос, ответ из знаний ("сколько чашек в галлоне?", \
@@ -372,6 +378,8 @@ general_chat — крайний случай. Если сообщение хот
 "соль" после "купил макароны" → shopping_list_remove
 - "задача: ..." или "add task: ..." → create_task (всегда)
 - "напомни ..." или "remind me ..." → set_reminder (всегда)
+- "каждый день/каждую неделю/каждый месяц" + "сводка/summary/дайджест/digest" \
+или явный запрос "schedule/programar/запланируй" → schedule_action
 - ВАЖНО для set_reminder: task_title = ДЕЙСТВИЕ (что сделать), НЕ время. \
 Относительное время ("через N минут", "in N minutes") → вычисли task_deadline, \
 а task_title = текст ПОСЛЕ времени. \
@@ -602,6 +610,19 @@ intent_type: "action", confidence: 0.92
     "task_priority": "low" или "medium" или "high" или "urgent" или null,
     "reminder_recurrence": "daily" или "weekly" или "monthly" или null,
     "reminder_end_date": "YYYY-MM-DD" (конец повторений) или null,
+    "schedule_frequency": "once" или "daily" или "weekly" или "monthly" \
+или "weekdays" или "cron" или null,
+    "schedule_time": "HH:MM" или null,
+    "schedule_day_of_week": "monday"/"понедельник"/"lunes" или null,
+    "schedule_day_of_month": число 1..31 или null,
+    "schedule_sources": ["calendar", "tasks", "money_summary", \
+"email_highlights", "outstanding"] или null,
+    "schedule_instruction": "что включать в сводку" или null,
+    "schedule_output_mode": "compact" или "decision_ready" или null,
+    "schedule_end_date": "YYYY-MM-DD" или null,
+    "schedule_max_runs": число или null,
+    "managed_action_title": "название запланированного действия" или null,
+    "manage_operation": "pause" или "resume" или "delete" или "reschedule" или null,
     "search_topic": "тема поиска/вопроса" или null,
     "maps_query": "что искать на карте" или null,
     "maps_mode": "search" или "directions" или null,
@@ -1160,6 +1181,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "create_task": 'создать задачу ("add task: ...", "задача: ...")',
         "list_tasks": 'показать задачи ("мои задачи", "my tasks")',
         "set_reminder": 'напоминание ("напомни ...", "remind me ...")',
+        "schedule_action": 'запланировать AI-сводку ("every day at 8 send summary")',
         "complete_task": 'отметить выполненной ("готово", "done with ...")',
         "shopping_list_add": 'добавить товары в список ("добавь молоко")',
         "shopping_list_view": 'показать список покупок ("мой список")',
@@ -1277,6 +1299,11 @@ _SCOPED_DATA_RULES = """\
 - task_title: название задачи или null
 - task_deadline: "YYYY-MM-DDTHH:MM:SS" или null
 - reminder_recurrence: "daily"/"weekly"/"monthly" или null
+- schedule_frequency: "once"/"daily"/"weekly"/"monthly"/"weekdays"/"cron" или null
+- schedule_time: "HH:MM" или null
+- schedule_day_of_week: "monday"/"понедельник"/"lunes" или null
+- schedule_sources: список источников или null
+- schedule_instruction: текст инструкции для сводки или null
 - search_query/search_topic: текст поиска или null
 - Остальные поля: извлеки если релевантны
 

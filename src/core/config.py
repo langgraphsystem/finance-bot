@@ -121,6 +121,8 @@ class Settings(BaseSettings):
     ff_reverse_prompting: bool = False
     ff_extended_context: bool = False
     ff_langgraph_document: bool = False
+    ff_scheduled_actions: bool = False
+    ff_sia_synthesis: bool = False
 
     @property
     def is_production(self) -> bool:

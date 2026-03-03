@@ -194,6 +194,7 @@ AGENTS: list[AgentConfig] = [
             "create_task",
             "list_tasks",
             "set_reminder",
+            "schedule_action",
             "complete_task",
             "shopping_list_add",
             "shopping_list_view",
