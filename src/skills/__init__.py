@@ -45,7 +45,9 @@ from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
 from src.skills.list_documents.handler import skill as list_documents_skill
 from src.skills.list_events.handler import skill as list_events_skill
+from src.skills.list_scheduled_actions.handler import skill as list_scheduled_actions_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
+from src.skills.manage_scheduled_action.handler import skill as manage_scheduled_action_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
 from src.skills.memory_vault.handler import skill as memory_vault_skill
@@ -126,6 +128,8 @@ def create_registry() -> SkillRegistry:
     registry.register(list_tasks_skill)
     registry.register(set_reminder_skill)
     registry.register(schedule_action_skill)
+    registry.register(list_scheduled_actions_skill)
+    registry.register(manage_scheduled_action_skill)
     registry.register(complete_task_skill)
     registry.register(quick_answer_skill)
     registry.register(web_search_skill)

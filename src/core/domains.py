@@ -59,6 +59,8 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "list_tasks": Domain.tasks,
     "set_reminder": Domain.tasks,
     "schedule_action": Domain.tasks,
+    "list_scheduled_actions": Domain.tasks,
+    "manage_scheduled_action": Domain.tasks,
     "complete_task": Domain.tasks,
     # Research & Answers (3 new intents)
     "quick_answer": Domain.research,
