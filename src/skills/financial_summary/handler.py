@@ -193,13 +193,12 @@ class FinancialSummarySkill:
             )
 
         # LLM generates natural response
-        assembled = intent_data.get("_assembled")
         model = intent_data.get("_model", self.model)
         response = await generate_text(
             model=model,
-            system_prompt=SUMMARY_SYSTEM_PROMPT.format(language=lang),
-            user_message=f"{message.text}\n\n--- DATA ---\n{data_text}",
-            assembled_context=assembled,
+            system=SUMMARY_SYSTEM_PROMPT.format(language=lang),
+            prompt=f"{message.text}\n\n--- DATA ---\n{data_text}",
+            max_tokens=2048,
         )
 
         # Prepend data summary so user sees what data was used

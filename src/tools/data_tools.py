@@ -124,6 +124,23 @@ def _coerce_enum(model: type, col_name: str, value: Any) -> Any:
     return value
 
 
+def _coerce_uuids(model: type, data: dict[str, Any]) -> None:
+    """Convert string UUIDs to uuid.UUID for UUID-typed columns in-place."""
+    from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+
+    for col_name, value in list(data.items()):
+        if not isinstance(value, str):
+            continue
+        col = model.__table__.columns.get(col_name)
+        if col is None:
+            continue
+        if isinstance(col.type, PG_UUID):
+            try:
+                data[col_name] = uuid.UUID(value)
+            except ValueError:
+                pass
+
+
 def _apply_filters(stmt: Any, model: type, filters: dict[str, Any], family_id: str) -> Any:
     """Apply family_id + user filters to a select statement."""
     stmt = stmt.where(model.family_id == uuid.UUID(family_id))
@@ -223,9 +240,10 @@ async def create_record(
     record_id = uuid.uuid4()
     data["id"] = record_id
 
-    # Coerce enum values
+    # Coerce enum values and UUID foreign keys
     for k, v in list(data.items()):
         data[k] = _coerce_enum(model, k, v)
+    _coerce_uuids(model, data)
 
     async with async_session() as session:
         record = model(**data)
@@ -264,9 +282,10 @@ async def update_record(
     for forbidden in ("family_id", "user_id", "id"):
         data.pop(forbidden, None)
 
-    # Coerce enum values
+    # Coerce enum values and UUID foreign keys
     for k, v in list(data.items()):
         data[k] = _coerce_enum(model, k, v)
+    _coerce_uuids(model, data)
 
     async with async_session() as session:
         record = await session.scalar(

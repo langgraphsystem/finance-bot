@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.models.category import Category
 from src.core.models.enums import ConversationState, Scope, UserRole
 from src.core.models.family import Family
+from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.user import User
 from src.core.models.user_context import UserContext
 from src.core.models.user_profile import UserProfile
@@ -363,7 +364,7 @@ async def _create_business_categories(
     family_id: uuid.UUID,
     business_type: str,
 ) -> None:
-    """Create business categories from profile YAML."""
+    """Create business categories and merchant mappings from profile YAML."""
     from src.core.profiles import ProfileLoader
 
     loader = ProfileLoader("config/profiles")
@@ -381,3 +382,15 @@ async def _create_business_categories(
             business_type=business_type,
         )
         session.add(cat)
+        await session.flush()
+
+        # Auto-create merchant mappings from profile YAML
+        for merchant in cat_data.get("merchants", []):
+            mapping = MerchantMapping(
+                family_id=family_id,
+                merchant_pattern=merchant.lower(),
+                category_id=cat.id,
+                scope=Scope.business,
+                confidence=0.9,
+            )
+            session.add(mapping)
