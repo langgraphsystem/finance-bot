@@ -5,15 +5,13 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv
+
 # Load .env BEFORE importing anything else (override system env vars)
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from dotenv import load_dotenv
-
 load_dotenv(os.path.join(ROOT, ".env"), override=True)
-
-from src.core.llm.clients import anthropic_client, google_client, openai_client
 
 SYSTEM_PROMPT = """Ты — финансовый помощник в Telegram-боте.
 Отвечай на русском языке. Будь дружелюбным и кратким (2-4 предложения).
@@ -30,6 +28,8 @@ QUESTIONS = [
 
 
 async def ask_claude(question: str) -> tuple[str, float]:
+    from src.core.llm.clients import anthropic_client
+
     client = anthropic_client()
     start = time.time()
     resp = await client.messages.create(
@@ -43,6 +43,8 @@ async def ask_claude(question: str) -> tuple[str, float]:
 
 
 async def ask_gpt(question: str) -> tuple[str, float]:
+    from src.core.llm.clients import openai_client
+
     client = openai_client()
     start = time.time()
     resp = await client.responses.create(
@@ -56,6 +58,8 @@ async def ask_gpt(question: str) -> tuple[str, float]:
 
 
 async def ask_gemini(question: str) -> tuple[str, float]:
+    from src.core.llm.clients import google_client
+
     client = google_client()
     start = time.time()
     resp = await client.aio.models.generate_content(

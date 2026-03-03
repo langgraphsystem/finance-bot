@@ -15,17 +15,13 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from dotenv import load_dotenv
-
 load_dotenv(os.path.join(ROOT, ".env"), override=True)
-
-from openai import AsyncOpenAI
-from src.core.config import settings
-from src.core.llm.clients import openai_client, xai_client
-from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
 
 SYSTEM_PROMPT = """\
 You help users manage tasks, reminders, to-do lists, and shopping lists.
@@ -44,7 +40,11 @@ TEST_CASES = [
     ("Удали задачу с id 550e8400-e29b-41d4-a716-446655440000", "delete_record", {"table": "tasks"}),
     ("Create a task: call dentist tomorrow, high priority", "create_record", {"table": "tasks"}),
     ("Show my shopping list", "query_data", {"table": "shopping_list_items"}),
-    ("Отметь задачу 550e8400-e29b-41d4-a716-446655440000 как выполненную", "update_record", {"table": "tasks"}),
+    (
+        "Отметь задачу 550e8400-e29b-41d4-a716-446655440000 как выполненную",
+        "update_record",
+        {"table": "tasks"},
+    ),
     ("Clear my shopping list", "delete_record", {"table": "shopping_list_items"}),
 ]
 
@@ -54,15 +54,11 @@ MODELS = [
     ("gpt-5.2 (low)", "gpt-5.2", "openai", "low"),
     ("gpt-5.2 (medium)", "gpt-5.2", "openai", "medium"),
     ("gpt-5.2 (high)", "gpt-5.2", "openai", "high"),
-    ("grok-4-1-fast-reasoning", "grok-4-1-fast-reasoning", "xai", None),
-    ("grok-4-1-fast-non-reason", "grok-4-1-fast-non-reasoning", "xai", None),
 ]
 
 # Cost per 1K tokens (input, output)
 COST_MAP = {
     "gpt-5.2": (0.005, 0.015),
-    "grok-4-1-fast-reasoning": (0.0002, 0.0005),
-    "grok-4-1-fast-non-reasoning": (0.0002, 0.0005),
 }
 
 
@@ -153,19 +149,21 @@ def check_result(result: dict, expected_tool: str, expected_args: dict) -> tuple
 
 
 async def run_comparison():
+    from src.core.llm.clients import openai_client
+    from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
+
     clients = {
         "openai": openai_client(),
-        "xai": xai_client(),
     }
 
     labels = [label for label, *_ in MODELS]
-    scores: dict[str, int] = {l: 0 for l in labels}
-    times: dict[str, float] = {l: 0.0 for l in labels}
-    costs: dict[str, float] = {l: 0.0 for l in labels}
+    scores: dict[str, int] = {label: 0 for label in labels}
+    times: dict[str, float] = {label: 0.0 for label in labels}
+    costs: dict[str, float] = {label: 0.0 for label in labels}
 
     print("=" * 110)
-    print(f"{'TOOL CALLING COMPARISON — 6 MODEL VARIANTS':^110}")
-    print(f"{'GPT-5.2 (none/low/med/high) vs Grok Reasoning vs Grok Non-Reasoning':^110}")
+    print(f"{'TOOL CALLING COMPARISON — 4 MODEL VARIANTS':^110}")
+    print(f"{'GPT-5.2 reasoning levels: none/low/medium/high':^110}")
     print(f"{'Tasks Agent workload — ' + str(len(TEST_CASES)) + ' test cases':^110}")
     print("=" * 110)
 
@@ -175,7 +173,7 @@ async def run_comparison():
         print(f"  Expected: {expected_tool}({expected_args})")
         print(f"{'─' * 110}")
 
-        # Run all 6 in parallel
+        # Run all model variants in parallel.
         results = await asyncio.gather(
             *[
                 call_model(clients[provider], model_id, label, msg, reasoning)
@@ -216,34 +214,34 @@ async def run_comparison():
 
     col_w = 15
     print(f"  {'Metric':<16s}", end="")
-    for l in labels:
-        print(f"  {l[:col_w]:>{col_w}s}", end="")
+    for label in labels:
+        print(f"  {label[:col_w]:>{col_w}s}", end="")
     print()
     print(f"  {'─' * (16 + (col_w + 2) * len(labels))}")
 
     # Accuracy
     print(f"  {'Accuracy':<16s}", end="")
-    for l in labels:
-        s = scores[l]
+    for label in labels:
+        s = scores[label]
         print(f"  {f'{s}/{total} ({s/total*100:.0f}%)':>{col_w}s}", end="")
     print()
 
     # Avg latency
     print(f"  {'Avg latency':<16s}", end="")
-    for l in labels:
-        print(f"  {f'{times[l]/total:.2f}s':>{col_w}s}", end="")
+    for label in labels:
+        print(f"  {f'{times[label]/total:.2f}s':>{col_w}s}", end="")
     print()
 
     # Total cost
     print(f"  {'Total cost':<16s}", end="")
-    for l in labels:
-        print(f"  {f'${costs[l]:.5f}':>{col_w}s}", end="")
+    for label in labels:
+        print(f"  {f'${costs[label]:.5f}':>{col_w}s}", end="")
     print()
 
     # Winners
-    best_acc = max(labels, key=lambda l: (scores[l], -times[l]))
-    best_lat = min(labels, key=lambda l: times[l])
-    best_cost = min(labels, key=lambda l: costs[l])
+    best_acc = max(labels, key=lambda label: (scores[label], -times[label]))
+    best_lat = min(labels, key=lambda label: times[label])
+    best_cost = min(labels, key=lambda label: costs[label])
 
     print(f"\n  Best accuracy:  {best_acc} ({scores[best_acc]}/{total})")
     print(f"  Best latency:   {best_lat} ({times[best_lat]/total:.2f}s avg)")
@@ -256,14 +254,17 @@ async def run_comparison():
     if base_cost > 0 and base_time > 0:
         print(f"\n  {'Model':<28s}  {'vs GPT none: cost':>18s}  {'speed':>8s}  {'accuracy':>10s}")
         print(f"  {'─' * 68}")
-        for l in labels:
-            if l == base:
+        for label in labels:
+            if label == base:
                 continue
-            sav = (1 - costs[l] / base_cost) * 100 if base_cost else 0
-            spd = base_time / times[l] if times[l] > 0 else 0
-            acc_diff = scores[l] - scores[base]
+            sav = (1 - costs[label] / base_cost) * 100 if base_cost else 0
+            spd = base_time / times[label] if times[label] > 0 else 0
+            acc_diff = scores[label] - scores[base]
             sign = "+" if acc_diff >= 0 else ""
-            print(f"  {l:<28s}  {sav:>+16.0f}% cost  {spd:>6.2f}x  {sign}{acc_diff:>8d} tests")
+            print(
+                f"  {label:<28s}  {sav:>+16.0f}% cost  {spd:>6.2f}x  "
+                f"{sign}{acc_diff:>8d} tests"
+            )
 
 
 if __name__ == "__main__":

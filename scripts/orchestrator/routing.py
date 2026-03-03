@@ -4,11 +4,31 @@ from __future__ import annotations
 
 ROUTING_RULES: dict[str, dict] = {
     # Codex — well-defined, pattern-based, tedious tasks
-    "write_tests": {"agent": "codex", "model": "gpt-5.3-codex", "reason": "pattern-based test generation"},
-    "bulk_refactor": {"agent": "codex", "model": "gpt-5.3-codex", "reason": "large-scope mechanical changes"},
-    "code_review": {"agent": "codex", "model": "gpt-5.3-codex", "reason": "catches edge-cases"},
-    "fix_bug": {"agent": "codex", "model": "gpt-5.3-codex", "reason": "clear repro, scoped fix"},
-    "migrate_api": {"agent": "codex", "model": "gpt-5.3-codex", "reason": "version migration is methodical"},
+    "write_tests": {
+        "agent": "codex",
+        "model": "gpt-5.3-codex",
+        "reason": "pattern-based test generation",
+    },
+    "bulk_refactor": {
+        "agent": "codex",
+        "model": "gpt-5.3-codex",
+        "reason": "large-scope mechanical changes",
+    },
+    "code_review": {
+        "agent": "codex",
+        "model": "gpt-5.3-codex",
+        "reason": "catches edge-cases",
+    },
+    "fix_bug": {
+        "agent": "codex",
+        "model": "gpt-5.3-codex",
+        "reason": "clear repro, scoped fix",
+    },
+    "migrate_api": {
+        "agent": "codex",
+        "model": "gpt-5.3-codex",
+        "reason": "version migration is methodical",
+    },
     # Gemini — fast prototyping, large context, text generation
     "ui_prototype": {"agent": "gemini", "reason": "fast UI generation"},
     "research_codebase": {"agent": "gemini", "reason": "1M context for codebase analysis"},
