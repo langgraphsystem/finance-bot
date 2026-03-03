@@ -115,18 +115,33 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
                 f"{m.role.value}: {m.content}" for m in reversed(list(new_messages))
             )
 
-            # Call Gemini 3 Flash for summarization
+            # Call Gemini 3 Flash for summarization (Claude Haiku fallback on 429)
             prompt = FINANCIAL_SUMMARY_PROMPT.format(
                 existing_summary=existing_text,
                 new_messages=messages_text,
             )
 
-            client = google_client()
-            response = await client.aio.models.generate_content(
-                model="gemini-3-flash-preview",
-                contents=prompt,
-            )
-            summary_text = response.text
+            summary_text: str
+            try:
+                client = google_client()
+                response = await client.aio.models.generate_content(
+                    model="gemini-3-flash-preview",
+                    contents=prompt,
+                )
+                summary_text = response.text
+            except Exception as gemini_err:
+                if "429" in str(gemini_err) or "RESOURCE_EXHAUSTED" in str(gemini_err):
+                    logger.warning("Gemini rate limit hit, falling back to Claude Haiku")
+                    from src.core.llm.clients import anthropic_client
+                    haiku = anthropic_client()
+                    haiku_resp = await haiku.messages.create(
+                        model="claude-haiku-4-5",
+                        max_tokens=512,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    summary_text = haiku_resp.content[0].text
+                else:
+                    raise
 
             # Save or update summary
             target_summary: SessionSummary

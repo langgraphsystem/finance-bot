@@ -13,6 +13,9 @@ def md_to_telegram_html(text: str) -> str:
     if not text:
         return text
 
+    # Convert unsupported HTML list tags to bullet points BEFORE escaping
+    text = _convert_html_lists(text)
+
     # Escape bare HTML characters first (but preserve our own tags later)
     text = _escape_html(text)
 
@@ -52,6 +55,21 @@ def md_to_telegram_html(text: str) -> str:
     text = _convert_tables(text)
 
     return text.strip()
+
+
+def _convert_html_lists(text: str) -> str:
+    """Convert HTML list tags to Telegram-safe bullet points.
+
+    <li>item</li>  → • item
+    <ul>, </ul>, <ol>, </ol>  → stripped
+    """
+    # <li>...</li> → • ...
+    text = re.sub(r"<li[^>]*>(.*?)</li>", lambda m: f"• {m.group(1).strip()}", text, flags=re.DOTALL | re.IGNORECASE)
+    # Bare <li> without closing tag
+    text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
+    # Strip container tags
+    text = re.sub(r"</?(?:ul|ol)[^>]*>", "", text, flags=re.IGNORECASE)
+    return text
 
 
 def _convert_tables(text: str) -> str:
