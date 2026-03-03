@@ -337,8 +337,8 @@ class WhatsAppGateway:
 
         text = message.text or ""
         text = self._strip_html(text)
-        # Remove surrogates that break JSON serialization
-        text = text.encode("utf-8", errors="replace").decode("utf-8")
+        # Remove lone surrogates that break JSON serialization
+        text = re.sub(r"[\ud800-\udfff]", "\ufffd", text)
 
         # Truncate to WhatsApp limit
         if len(text) > WA_TEXT_LIMIT:
@@ -378,7 +378,14 @@ class WhatsAppGateway:
                 "text": {"body": text},
             }
 
-        resp = await client.post(f"/{self._phone_id}/messages", json=payload)
+        import json as _json
+
+        body = _json.dumps(payload, ensure_ascii=True)
+        resp = await client.post(
+            f"/{self._phone_id}/messages",
+            content=body,
+            headers={"Content-Type": "application/json"},
+        )
         if resp.status_code != 200:
             logger.error(
                 "WhatsApp send failed: %s %s",
