@@ -1170,3 +1170,79 @@ footer {
         padding: 20px;
     }
 }
+
+/* ─── LENIS SMOOTH SCROLL ─── */
+html.lenis, html.lenis body {
+    height: auto;
+}
+.lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+    overflow: hidden;
+}
+.lenis.lenis-smooth iframe {
+    pointer-events: none;
+}
+
+/* ─── ANIMATED GRAIN ─── */
+@keyframes grainAnim {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(-5%, -10%); }
+    20% { transform: translate(-15%, 5%); }
+    30% { transform: translate(7%, -25%); }
+    40% { transform: translate(-5%, 25%); }
+    50% { transform: translate(-15%, 10%); }
+    60% { transform: translate(15%, 0%); }
+    70% { transform: translate(0%, 15%); }
+    80% { transform: translate(3%, 35%); }
+    90% { transform: translate(-10%, 10%); }
+}
+.grain-overlay {
+    animation: grainAnim 8s steps(10) infinite;
+    width: 300vw;
+    height: 300vh;
+    left: -100vw;
+    top: -100vh;
+}
+
+/* ─── BENTO BORDER ANIMATION ─── */
+.bento-card {
+    transform-style: preserve-3d;
+}
+.bento-card::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    background: conic-gradient(from var(--border-angle, 0deg) at 50% 50%, transparent 70%, var(--accent-green) 100%);
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.4s;
+    animation: borderRotate 4s linear infinite;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    padding: 1px;
+}
+.bento-card:hover::after {
+    opacity: 0.5;
+}
+
+@property --border-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+@keyframes borderRotate {
+    to { --border-angle: 360deg; }
+}
+
+/* GSAP overrides */
+.reveal, .reveal-left, .reveal-right, .reveal-scale {
+    opacity: 0; /* Let GSAP handle initial state */
+}
