@@ -49,7 +49,14 @@ _STRINGS = {
         "need_time": "What new time should I use?",
         "cannot_resume_once": "This one-time action is in the past. Please reschedule it.",
         "rescheduled": "🕒 Rescheduled: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ <b>Action evolved!</b>\n📌 {title}\n\n{changes}\n\nNext run: {next_run}",
+        "edited": (
+            "✏️ <b>Action evolved!</b> <i>Updated</i>\n"
+            "📌 {title}\n\n"
+            "{changes}\n\n"
+            "Before:\n{before}\n"
+            "After:\n{after}\n\n"
+            "Next run: {next_run}"
+        ),
         "change_item": "• {label}: {old} → <b>{new}</b>",
     },
     "ru": {
@@ -65,7 +72,14 @@ _STRINGS = {
         "need_time": "На какое новое время перенести?",
         "cannot_resume_once": "Разовый запуск уже в прошлом. Перенесите его на новое время.",
         "rescheduled": "🕒 Перенесено: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ <b>Настройка обновлена!</b>\n📌 {title}\n\n{changes}\n\nЗапуск: {next_run}",
+        "edited": (
+            "✏️ <b>Настройка обновлена!</b>\n"
+            "📌 {title}\n\n"
+            "{changes}\n\n"
+            "До:\n{before}\n"
+            "После:\n{after}\n\n"
+            "Запуск: {next_run}"
+        ),
         "change_item": "• {label}: {old} → <b>{new}</b>",
     },
     "es": {
@@ -81,7 +95,14 @@ _STRINGS = {
         "need_time": "Que nueva hora debo usar?",
         "cannot_resume_once": "Esta accion unica ya paso. Reprogramala con nueva hora.",
         "rescheduled": "🕒 Reprogramado: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ <b>¡Acción actualizada!</b>\n📌 {title}\n\n{changes}\n\nPróximo: {next_run}",
+        "edited": (
+            "✏️ <b>¡Acción actualizada!</b>\n"
+            "📌 {title}\n\n"
+            "{changes}\n\n"
+            "Antes:\n{before}\n"
+            "Después:\n{after}\n\n"
+            "Próximo: {next_run}"
+        ),
         "change_item": "• {label}: {old} → <b>{new}</b>",
     },
 }
@@ -496,6 +517,8 @@ class ManageScheduledActionSkill:
             source_labels = _SOURCE_LABELS.get(lang, _SOURCE_LABELS["en"])
 
             changes = []
+            before_lines: list[str] = []
+            after_lines: list[str] = []
 
             # 1. Frequency
             old_kind = target.schedule_kind
@@ -513,6 +536,8 @@ class ManageScheduledActionSkill:
                         new=new_k_txt,
                     ),
                 )
+                before_lines.append(f"• {lang_labels['kind']}: {old_k_txt}")
+                after_lines.append(f"• {lang_labels['kind']}: <b>{new_k_txt}</b>")
 
             # 2. Sources
             old_sources = list(target.sources or [])
@@ -528,6 +553,8 @@ class ManageScheduledActionSkill:
                         new=new_s_txt,
                     ),
                 )
+                before_lines.append(f"• {lang_labels['sources']}: {old_s_txt}")
+                after_lines.append(f"• {lang_labels['sources']}: <b>{new_s_txt}</b>")
 
             # 3. Instruction
             old_inst = target.instruction or "—"
@@ -542,6 +569,8 @@ class ManageScheduledActionSkill:
                         new=new_inst,
                     ),
                 )
+                before_lines.append(f"• {lang_labels['instruction']}: {old_inst}")
+                after_lines.append(f"• {lang_labels['instruction']}: <b>{new_inst}</b>")
 
             # 4. Time/Next Run
             old_cfg = dict(target.schedule_config or {})
@@ -570,6 +599,8 @@ class ManageScheduledActionSkill:
                             new=new_time_value,
                         ),
                     )
+                    before_lines.append(f"• {lang_labels['time']}: {old_time_value}")
+                    after_lines.append(f"• {lang_labels['time']}: <b>{new_time_value}</b>")
             elif intent_data.get("schedule_time"):
                 return SkillResult(response_text=_t("need_time", lang))
 
@@ -592,6 +623,8 @@ class ManageScheduledActionSkill:
                     lang,
                     title=target.title,
                     changes="\n".join(changes),
+                    before="\n".join(before_lines) if before_lines else "—",
+                    after="\n".join(after_lines) if after_lines else "—",
                     next_run=next_run_txt,
                 )
             )
