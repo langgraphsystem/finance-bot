@@ -147,7 +147,7 @@ async def format_action_message(
     sources_status: dict[str, dict[str, Any]] | None = None,
     *,
     allow_synthesis: bool = False,
-) -> tuple[str, str | None, int | None]:
+) -> tuple[str, str | None, int | None, bool]:
     """Return formatted message text and model marker."""
     text = format_compact_message(action, payload, sources_status=sources_status)
     language = action.language or "en"
@@ -156,7 +156,7 @@ async def format_action_message(
         input_text = _build_synthesis_input(payload, action.sources or [])
         if input_text:
             system = _decision_ready_system(language)
-            for model in _DECISION_READY_MODELS:
+            for idx, model in enumerate(_DECISION_READY_MODELS):
                 try:
                     generated = await generate_text(
                         model=model,
@@ -170,10 +170,10 @@ async def format_action_message(
                     if generated and generated.strip():
                         usage = get_last_usage()
                         tokens_used = usage.tokens_input + usage.tokens_output
-                        return generated.strip(), model, tokens_used
+                        return generated.strip(), model, tokens_used, idx > 0
                 except Exception:
                     continue
 
         # Fallback to deterministic output if all synthesis models fail.
-        return text, "template_fallback", None
-    return text, None, None
+        return text, "template_fallback", None, True
+    return text, None, None, False

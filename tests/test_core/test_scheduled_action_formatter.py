@@ -28,7 +28,7 @@ async def test_format_action_message_compact_mode():
     action = _action(OutputMode.compact)
     payload = {"tasks": "Open tasks:\n- Pay bill", "calendar": "Today's calendar:\n- 10:00 Call"}
 
-    text, model_used, tokens_used = await format_action_message(
+    text, model_used, tokens_used, fallback_used = await format_action_message(
         action,
         payload,
         allow_synthesis=False,
@@ -38,6 +38,7 @@ async def test_format_action_message_compact_mode():
     assert "Pay bill" in text
     assert model_used is None
     assert tokens_used is None
+    assert fallback_used is False
 
 
 async def test_format_action_message_decision_ready_with_fallback_chain():
@@ -61,7 +62,7 @@ async def test_format_action_message_decision_ready_with_fallback_chain():
             return_value=LLMUsage(tokens_input=100, tokens_output=40),
         ),
     ):
-        text, model_used, tokens_used = await format_action_message(
+        text, model_used, tokens_used, fallback_used = await format_action_message(
             action,
             payload,
             allow_synthesis=True,
@@ -70,6 +71,7 @@ async def test_format_action_message_decision_ready_with_fallback_chain():
     assert "Top priorities" in text
     assert model_used == "gpt-5.2"
     assert tokens_used == 140
+    assert fallback_used is True
 
 
 async def test_format_action_message_decision_ready_full_fallback_to_template():
@@ -81,7 +83,7 @@ async def test_format_action_message_decision_ready_full_fallback_to_template():
         new_callable=AsyncMock,
         side_effect=RuntimeError("all providers failed"),
     ):
-        text, model_used, tokens_used = await format_action_message(
+        text, model_used, tokens_used, fallback_used = await format_action_message(
             action,
             payload,
             allow_synthesis=True,
@@ -90,3 +92,4 @@ async def test_format_action_message_decision_ready_full_fallback_to_template():
     assert "Pay bill" in text
     assert model_used == "template_fallback"
     assert tokens_used is None
+    assert fallback_used is True

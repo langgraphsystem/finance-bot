@@ -58,6 +58,53 @@ def _has_failed_sources(sources_status: dict[str, dict[str, object]]) -> bool:
     return any(meta.get("status") == "failed" for meta in sources_status.values())
 
 
+def _log_action_triggered(action: ScheduledAction) -> None:
+    logger.info(
+        "scheduled_action_triggered action_id=%s user_id=%s family_id=%s schedule_kind=%s "
+        "output_mode=%s language=%s timezone=%s planned_run_at=%s",
+        action.id,
+        action.user_id,
+        action.family_id,
+        action.schedule_kind,
+        action.output_mode,
+        action.language,
+        action.timezone,
+        action.next_run_at,
+    )
+
+
+def _log_run_event(
+    event_name: str,
+    action: ScheduledAction,
+    run: ScheduledActionRun,
+    *,
+    fallback_used: bool = False,
+) -> None:
+    sources_status = run.sources_status or {}
+    failed_sources = sum(1 for meta in sources_status.values() if meta.get("status") == "failed")
+    logger.info(
+        "%s action_id=%s user_id=%s family_id=%s status=%s schedule_kind=%s output_mode=%s "
+        "language=%s timezone=%s model_used=%s fallback_used=%s tokens_used=%s duration_ms=%s "
+        "error_code=%s failed_sources=%s source_count=%s",
+        event_name,
+        action.id,
+        action.user_id,
+        action.family_id,
+        run.status,
+        action.schedule_kind,
+        action.output_mode,
+        action.language,
+        action.timezone,
+        run.model_used,
+        fallback_used,
+        run.tokens_used,
+        run.duration_ms,
+        run.error_code,
+        failed_sources,
+        len(action.sources or []),
+    )
+
+
 @broker.task(schedule=[{"cron": "* * * * *"}])
 async def dispatch_scheduled_actions() -> None:
     """Fetch due scheduled actions and execute them."""
@@ -108,6 +155,8 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         logger.info("SIA run already exists for action %s at %s", action.id, action.next_run_at)
         return
 
+    _log_action_triggered(action)
+
     telegram_id = await session.scalar(select(User.telegram_id).where(User.id == action.user_id))
     if telegram_id is None:
         run.status = RunStatus.failed
@@ -115,6 +164,7 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         run.finished_at = now_utc()
         run.duration_ms = _run_duration_ms(run)
         apply_failure(action, now)
+        _log_run_event("scheduled_action_run_failed", action, run)
         return
 
     comm_mode = await get_communication_mode(str(action.user_id))
@@ -124,6 +174,7 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         run.finished_at = now_utc()
         run.duration_ms = _run_duration_ms(run)
         apply_success(action, now)
+        _log_run_event("scheduled_action_run_skipped", action, run)
         return
 
     profile_row = await session.execute(
@@ -139,10 +190,11 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         run.finished_at = now_utc()
         run.duration_ms = _run_duration_ms(run)
         apply_success(action, now)
+        _log_run_event("scheduled_action_run_skipped", action, run)
         return
 
     payload, sources_status = await collect_sources(action)
-    message_text, model_used, tokens_used = await format_action_message(
+    message_text, model_used, tokens_used, fallback_used = await format_action_message(
         action,
         payload,
         sources_status=sources_status,
@@ -158,9 +210,17 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         run.error_text = str(exc)[:500]
         run.sources_status = sources_status
         run.payload_snapshot = payload
+        run.model_used = model_used
+        run.tokens_used = tokens_used
         run.finished_at = now_utc()
         run.duration_ms = _run_duration_ms(run)
         apply_failure(action, now)
+        _log_run_event(
+            "scheduled_action_run_failed",
+            action,
+            run,
+            fallback_used=fallback_used,
+        )
         return
 
     run.status = RunStatus.partial if _has_failed_sources(sources_status) else RunStatus.success
@@ -172,3 +232,9 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
     run.finished_at = now_utc()
     run.duration_ms = _run_duration_ms(run)
     apply_success(action, now)
+    event_name = (
+        "scheduled_action_run_partial"
+        if run.status == RunStatus.partial
+        else "scheduled_action_run_succeeded"
+    )
+    _log_run_event(event_name, action, run, fallback_used=fallback_used)
