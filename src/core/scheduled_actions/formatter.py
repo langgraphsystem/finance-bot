@@ -194,7 +194,7 @@ def format_compact_message(
         if action.instruction:
             lines.append(html.escape(action.instruction[:300]))
         else:
-            lines.append("• ...")
+            lines.append(f"• {t('empty_payload_fallback', language)}")
         lines.append("")
 
     status_map = sources_status or {}

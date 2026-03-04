@@ -24,7 +24,7 @@ async def launch_and_wait_for_login():
 
     print(f"\n{'='*60}")
     print(f"  Launching Chrome → {LOGIN_URL}")
-    print(f"  Log in manually — I'll detect it automatically.")
+    print("  Log in manually — I'll detect it automatically.")
     print(f"{'='*60}\n")
 
     async with async_playwright() as p:
@@ -129,14 +129,12 @@ async def test_browser_search():
       --pool                    Only show hotels with pool
       --book 2                  Book hotel #N from results
     """
-    import re
-
     import os
+    import re
     import tempfile
 
     from browser_use import Agent as BrowserAgent
-    from browser_use import BrowserProfile
-    from browser_use import ChatAnthropic
+    from browser_use import BrowserProfile, ChatAnthropic
 
     if not COOKIES_FILE.exists():
         print("  No cookies file found. Run without --search first.")
@@ -410,7 +408,7 @@ IMPORTANT:
             else:
                 print(f"\n  Invalid hotel index: {book_index}")
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("\n  TIMEOUT after 5 minutes")
     except Exception as e:
         print(f"\n  ERROR: {type(e).__name__}: {e}")
@@ -424,8 +422,7 @@ async def test_booking(hotel, city, checkin, checkout, guests, storage_state):
     import tempfile
 
     from browser_use import Agent as BrowserAgent
-    from browser_use import BrowserProfile
-    from browser_use import ChatAnthropic
+    from browser_use import BrowserProfile, ChatAnthropic
 
     hotel_name = hotel.get("name", "Unknown")
 
@@ -525,7 +522,7 @@ IMPORTANT:
                       f, indent=2, ensure_ascii=False)
         print(f"\n  Saved to {booking_file}")
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("\n  BOOKING TIMEOUT after 3 minutes")
     except Exception as e:
         print(f"\n  BOOKING ERROR: {type(e).__name__}: {e}")

@@ -23,7 +23,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -36,10 +35,9 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(SCRIPT_DIR))
 
-import yaml
-
-from review import ReviewResult, format_report, review_worktree
-from routing import route_task
+import yaml  # noqa: E402
+from review import format_report, review_worktree  # noqa: E402
+from routing import route_task  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Config
@@ -423,7 +421,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--files", help="Scope: specific files/dirs the agent should focus on"
     )
-    parser.add_argument("--config", help="Path to config.yaml (default: scripts/orchestrator/config.yaml)")
+    parser.add_argument(
+        "--config",
+        help="Path to config.yaml (default: scripts/orchestrator/config.yaml)",
+    )
     return parser.parse_args()
 
 

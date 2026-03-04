@@ -10,14 +10,12 @@ Graph structure (true parallel fan-out → fan-in)::
 
 All collector nodes run in parallel (fan-out from START).
 The synthesize node runs after all collectors complete (fan-in).
-Collector nodes are cached for 60 seconds to avoid redundant queries.
 """
 
 import logging
 from typing import Any
 
 from langgraph.graph import END, START, StateGraph
-from langgraph.types import CachePolicy
 
 from src.core.config import settings
 from src.core.context import SessionContext
@@ -52,18 +50,12 @@ _COLLECTOR_FUNCS = {
     "collect_outstanding": collect_outstanding,
 }
 
-# Cache collector results for 60 seconds — avoids redundant DB/API
-# queries when the user triggers multiple briefs in quick succession.
-COLLECTOR_CACHE_TTL = 60
-_collector_cache_policy = CachePolicy(ttl=COLLECTOR_CACHE_TTL)
-
-
 def build_brief_graph_parallel() -> StateGraph:
     """Build the brief graph with true parallel fan-out from START."""
     graph = StateGraph(BriefState)
 
     for name, fn in _COLLECTOR_FUNCS.items():
-        graph.add_node(name, fn, cache_policy=_collector_cache_policy)
+        graph.add_node(name, fn)
     graph.add_node("synthesize", synthesize)
 
     # Fan-out: START → all collectors in parallel
@@ -84,7 +76,7 @@ def build_brief_graph_sequential() -> StateGraph:
     graph = StateGraph(BriefState)
 
     for name, fn in _COLLECTOR_FUNCS.items():
-        graph.add_node(name, fn, cache_policy=_collector_cache_policy)
+        graph.add_node(name, fn)
     graph.add_node("synthesize", synthesize)
 
     graph.add_edge(START, "collect_calendar")

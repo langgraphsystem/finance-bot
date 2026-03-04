@@ -32,7 +32,12 @@ RESET = "\033[0m"
 # Test scenarios: (message, expected_substrings, description)
 REMINDER_TESTS = [
     # ── Russian ──
-    ("ru", "напомни позвонить врачу в 6 вечера", ["🔔", "позвонить врачу"], "RU: one-shot with time"),
+    (
+        "ru",
+        "напомни позвонить врачу в 6 вечера",
+        ["🔔", "позвонить врачу"],
+        "RU: one-shot with time",
+    ),
     ("ru", "напоминай каждый день в 8 утра пить воду", ["🔔", "пить воду"], "RU: daily recurring"),
     (
         "ru",
@@ -198,12 +203,12 @@ async def main():
     print(f"{BOLD}Results: {color}{passed}/{total} passed{RESET}")
 
     # Per-language breakdown
-    for l in ["ru", "en", "es"]:
-        lang_results = [r for r in results if r[0] == l]
+    for lang_code in ["ru", "en", "es"]:
+        lang_results = [r for r in results if r[0] == lang_code]
         if lang_results:
             lang_pass = sum(1 for r in lang_results if r[2] == "PASS")
             c = GREEN if lang_pass == len(lang_results) else YELLOW
-            print(f"  {l.upper()}: {c}{lang_pass}/{len(lang_results)}{RESET}")
+            print(f"  {lang_code.upper()}: {c}{lang_pass}/{len(lang_results)}{RESET}")
 
     if failed > 0:
         print(f"\n{YELLOW}Failed tests:{RESET}")

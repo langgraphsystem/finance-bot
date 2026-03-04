@@ -108,7 +108,10 @@ async def main():
         print("ERROR: User not found")
         return
 
-    print(f"Context: user_id={context.user_id}, lang={context.language}, currency={context.currency}")
+    print(
+        "Context: "
+        f"user_id={context.user_id}, lang={context.language}, currency={context.currency}"
+    )
 
     # Mock contact since DB has none yet
     fake_contact = {

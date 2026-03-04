@@ -75,7 +75,8 @@ class CancelBookingSkill:
                     query = query.where(Booking.title.ilike(f"%{search}%"))
 
             result = await session.execute(query.limit(5))
-            candidates = result.scalars().all()
+            raw_candidates = result.scalars().all()
+            candidates = [item for item in raw_candidates if isinstance(item, Booking)]
             booking = None
             if candidates and search:
                 best = fuzzy_find(search, [b.title for b in candidates if b.title])

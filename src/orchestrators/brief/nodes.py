@@ -20,7 +20,9 @@ from src.core.db import async_session
 from src.core.google_auth import parse_email_headers
 from src.core.llm.clients import anthropic_client
 from src.core.llm.prompts import PromptAdapter
+from src.core.models.budget import Budget
 from src.core.models.enums import (
+    BudgetPeriod,
     TaskPriority,
     TaskStatus,
     TransactionType,
@@ -181,6 +183,17 @@ async def _collect_finance_summary(family_id: str) -> dict[str, Any]:
         )
         month_expense = float(result2.scalar() or 0)
 
+        # Epic G2: Fetch total monthly budget (where category_id is null)
+        budget_result = await session.execute(
+            select(Budget.amount).where(
+                Budget.family_id == uuid.UUID(family_id),
+                Budget.category_id.is_(None),
+                Budget.period == BudgetPeriod.monthly,
+                Budget.is_active.is_(True),
+            )
+        )
+        total_budget = float(budget_result.scalar() or 0)
+
     if yesterday_expense == 0 and month_expense == 0:
         return {"finance_data": ""}
 
@@ -188,6 +201,9 @@ async def _collect_finance_summary(family_id: str) -> dict[str, Any]:
     if yesterday_expense > 0:
         parts.append(f"Yesterday: ${yesterday_expense:.2f} spent")
     parts.append(f"This month: ${month_expense:.2f} total")
+    if total_budget > 0:
+        parts.append(f"Monthly budget: ${total_budget:.2f}")
+        parts.append(f"Budget usage: {month_expense/total_budget:.2%}")
     return {"finance_data": "Money:\n" + "\n".join(f"- {p}" for p in parts)}
 
 

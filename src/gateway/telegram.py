@@ -1,11 +1,21 @@
 """Telegram Gateway — aiogram v3 implementation."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Awaitable, Callable
 
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import BufferedInputFile
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+try:
+    from aiogram import Bot, Dispatcher, types
+    from aiogram.types import BufferedInputFile
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    _AIOGRAM_AVAILABLE = True
+except ModuleNotFoundError:  # pragma: no cover - optional dependency in CI
+    Bot = Dispatcher = types = None  # type: ignore[assignment]
+    BufferedInputFile = None  # type: ignore[assignment]
+    InlineKeyboardBuilder = None  # type: ignore[assignment]
+    _AIOGRAM_AVAILABLE = False
 
 from src.core.formatting import md_to_telegram_html
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
@@ -13,12 +23,38 @@ from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 logger = logging.getLogger(__name__)
 
 
+class _NoopDispatcher:
+    def message(self):
+        def decorator(func):  # noqa: ANN001, ANN202
+            return func
+
+        return decorator
+
+    def callback_query(self):
+        def decorator(func):  # noqa: ANN001, ANN202
+            return func
+
+        return decorator
+
+    async def feed_update(self, bot, update) -> None:  # noqa: ANN001, ARG002
+        raise RuntimeError("aiogram is not installed")
+
+
+def _require_aiogram(operation: str) -> None:
+    if _AIOGRAM_AVAILABLE:
+        return
+    raise RuntimeError(
+        "Telegram gateway requires aiogram "
+        f"(operation: {operation}). Install aiogram."
+    )
+
+
 class TelegramGateway:
     """Gateway implementation for Telegram via aiogram v3."""
 
     def __init__(self, token: str, webhook_url: str = ""):
-        self.bot = Bot(token=token)
-        self.dp = Dispatcher()
+        self.bot = Bot(token=token) if _AIOGRAM_AVAILABLE else None
+        self.dp = Dispatcher() if _AIOGRAM_AVAILABLE else _NoopDispatcher()
         self.webhook_url = webhook_url
         self._handler: Callable[[IncomingMessage], Awaitable[None]] | None = None
 
@@ -50,6 +86,9 @@ class TelegramGateway:
             await callback.answer()
 
     async def send(self, message: OutgoingMessage) -> None:
+        if self.bot is None:
+            _require_aiogram("send")
+
         reply_markup = None
         if message.reply_keyboard:
             from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
@@ -113,10 +152,14 @@ class TelegramGateway:
                 )
 
     async def send_typing(self, chat_id: str) -> None:
+        if self.bot is None:
+            _require_aiogram("send_typing")
         await self.bot.send_chat_action(chat_id=int(chat_id), action="typing")
 
     async def delete_message(self, chat_id: str, message_id: str) -> None:
         """Delete a message from chat (used for password security)."""
+        if self.bot is None:
+            _require_aiogram("delete_message")
         try:
             await self.bot.delete_message(
                 chat_id=int(chat_id), message_id=int(message_id)
@@ -125,6 +168,8 @@ class TelegramGateway:
             logger.warning("Failed to delete message %s: %s", message_id, e)
 
     async def start(self) -> None:
+        if self.bot is None:
+            _require_aiogram("start")
         if self.webhook_url:
             # Delete+set to force Telegram to re-resolve DNS/IP after deploy
             await self.bot.delete_webhook()
@@ -134,16 +179,22 @@ class TelegramGateway:
             logger.info("No webhook URL, use feed_update() for webhook mode")
 
     async def stop(self) -> None:
+        if self.bot is None:
+            _require_aiogram("stop")
         await self.bot.delete_webhook()
         await self.bot.session.close()
 
     async def feed_update(self, data: dict) -> None:
         """Feed a raw webhook update to aiogram dispatcher."""
+        if self.bot is None:
+            _require_aiogram("feed_update")
         update = types.Update(**data)
         await self.dp.feed_update(self.bot, update)
 
     async def _convert_message(self, msg: types.Message) -> IncomingMessage:
         """Convert aiogram Message to IncomingMessage."""
+        if self.bot is None:
+            _require_aiogram("convert_message")
         msg_type = MessageType.text
         photo_bytes: bytes | None = None
         voice_bytes: bytes | None = None

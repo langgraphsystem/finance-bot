@@ -64,7 +64,12 @@ def _convert_html_lists(text: str) -> str:
     <ul>, </ul>, <ol>, </ol>  → stripped
     """
     # <li>...</li> → • ...
-    text = re.sub(r"<li[^>]*>(.*?)</li>", lambda m: f"• {m.group(1).strip()}", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(
+        r"<li[^>]*>(.*?)</li>",
+        lambda m: f"• {m.group(1).strip()}",
+        text,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
     # Bare <li> without closing tag
     text = re.sub(r"<li[^>]*>", "• ", text, flags=re.IGNORECASE)
     # Strip container tags

@@ -99,3 +99,20 @@ async def test_list_scheduled_actions_disabled():
     with patch("src.skills.list_scheduled_actions.handler.settings.ff_scheduled_actions", False):
         result = await skill.execute(_msg(), _ctx(), {})
     assert "not enabled" in result.response_text.lower()
+
+
+async def test_list_scheduled_actions_shows_completed_icon():
+    skill = ListScheduledActionsSkill()
+    actions = [_action("Completed brief", ActionStatus.completed)]
+
+    with (
+        patch("src.skills.list_scheduled_actions.handler.settings.ff_scheduled_actions", True),
+        patch(
+            "src.skills.list_scheduled_actions.handler.get_scheduled_actions",
+            new_callable=AsyncMock,
+            return_value=actions,
+        ),
+    ):
+        result = await skill.execute(_msg(), _ctx(), {})
+
+    assert "✅ <b>Completed brief</b>" in result.response_text

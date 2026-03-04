@@ -238,18 +238,30 @@ def upgrade() -> None:
     indexes = [
         "CREATE INDEX IF NOT EXISTS ix_contacts_family ON contacts (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_contacts_name ON contacts (family_id, name)",
-        "CREATE INDEX IF NOT EXISTS ix_contacts_followup ON contacts (next_followup_at) WHERE next_followup_at IS NOT NULL",
+        (
+            "CREATE INDEX IF NOT EXISTS ix_contacts_followup ON contacts (next_followup_at) "
+            "WHERE next_followup_at IS NOT NULL"
+        ),
         "CREATE INDEX IF NOT EXISTS ix_tasks_family ON tasks (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_tasks_status ON tasks (family_id, status)",
         "CREATE INDEX IF NOT EXISTS ix_tasks_due ON tasks (due_at) WHERE due_at IS NOT NULL",
-        "CREATE INDEX IF NOT EXISTS ix_tasks_reminder ON tasks (reminder_at) WHERE reminder_at IS NOT NULL",
+        (
+            "CREATE INDEX IF NOT EXISTS ix_tasks_reminder ON tasks (reminder_at) "
+            "WHERE reminder_at IS NOT NULL"
+        ),
         "CREATE INDEX IF NOT EXISTS ix_email_cache_family ON email_cache (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_email_cache_thread ON email_cache (thread_id)",
-        "CREATE INDEX IF NOT EXISTS ix_email_cache_received ON email_cache (family_id, received_at)",
+        (
+            "CREATE INDEX IF NOT EXISTS ix_email_cache_received ON email_cache "
+            "(family_id, received_at)"
+        ),
         "CREATE INDEX IF NOT EXISTS ix_calendar_cache_family ON calendar_cache (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_calendar_cache_time ON calendar_cache (family_id, start_at)",
         "CREATE INDEX IF NOT EXISTS ix_monitors_family ON monitors (family_id)",
-        "CREATE INDEX IF NOT EXISTS ix_monitors_active ON monitors (is_active) WHERE is_active = true",
+        (
+            "CREATE INDEX IF NOT EXISTS ix_monitors_active ON monitors (is_active) "
+            "WHERE is_active = true"
+        ),
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_family ON usage_logs (family_id)",
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_created ON usage_logs (created_at)",
         "CREATE INDEX IF NOT EXISTS ix_usage_logs_domain ON usage_logs (family_id, domain)",

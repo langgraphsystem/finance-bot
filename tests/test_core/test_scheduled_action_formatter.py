@@ -143,3 +143,14 @@ def test_finance_overlay_adds_budget_bar_risk_and_trend():
     assert "<code>██████████</code> 120%" in text
     assert "Spending trend" in text
     assert "📈" in text or "📉" in text
+
+
+def test_empty_payload_uses_non_stub_fallback_text():
+    action = _action(OutputMode.compact, sources=["tasks"])
+    action.instruction = ""
+    payload = {"tasks": ""}
+
+    text = format_compact_message(action, payload)
+
+    assert "No new source updates right now." in text
+    assert "..." not in text

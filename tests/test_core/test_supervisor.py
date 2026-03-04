@@ -35,7 +35,7 @@ def test_resolve_domain_and_skills():
     domain, skills = resolve_domain_and_skills("create a task", catalog)
     assert domain == "tasks"
     assert "create_task" in skills
-    assert len(skills) == 8  # tasks domain has 8 skills
+    assert len(skills) == len(catalog.domains["tasks"].skills)
 
 
 def test_resolve_domain_and_skills_no_match():

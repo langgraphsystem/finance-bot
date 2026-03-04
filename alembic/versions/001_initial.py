@@ -4,9 +4,10 @@ Revision ID: 001
 Revises:
 Create Date: 2026-02-12
 """
-from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ENUM, UUID, JSONB
+from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
+
+from alembic import op
 
 revision = "001"
 down_revision = None
@@ -41,13 +42,27 @@ def upgrade() -> None:
         "receipt", "invoice", "rate_confirmation", "fuel_receipt", "other",
         name="document_type", create_type=False,
     )
-    load_status = ENUM("pending", "delivered", "paid", "overdue", name="load_status", create_type=False)
+    load_status = ENUM(
+        "pending",
+        "delivered",
+        "paid",
+        "overdue",
+        name="load_status",
+        create_type=False,
+    )
     message_role = ENUM("user", "assistant", name="message_role", create_type=False)
     conversation_state = ENUM(
         "onboarding", "normal", "correcting", "awaiting_confirm",
         name="conversation_state", create_type=False,
     )
-    payment_frequency = ENUM("weekly", "monthly", "quarterly", "yearly", name="payment_frequency", create_type=False)
+    payment_frequency = ENUM(
+        "weekly",
+        "monthly",
+        "quarterly",
+        "yearly",
+        name="payment_frequency",
+        create_type=False,
+    )
     budget_period = ENUM("weekly", "monthly", name="budget_period", create_type=False)
 
     # 1. families
@@ -92,7 +107,12 @@ def upgrade() -> None:
         sa.Column("family_id", UUID(as_uuid=True), sa.ForeignKey("families.id"), nullable=False),
         sa.Column("name", sa.String(100), nullable=False),
         sa.Column("scope", scope, nullable=False),
-        sa.Column("icon", sa.String(10), nullable=False, server_default=sa.text("'\\xF0\\x9F\\x93\\xA6'")),
+        sa.Column(
+            "icon",
+            sa.String(10),
+            nullable=False,
+            server_default=sa.text("'\\xF0\\x9F\\x93\\xA6'"),
+        ),
         sa.Column("is_default", sa.Boolean, nullable=False, server_default=sa.text("true")),
         sa.Column("business_type", sa.String(100), nullable=True),
     )
@@ -125,7 +145,12 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("family_id", UUID(as_uuid=True), sa.ForeignKey("families.id"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("category_id", UUID(as_uuid=True), sa.ForeignKey("categories.id"), nullable=False),
+        sa.Column(
+            "category_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("categories.id"),
+            nullable=False,
+        ),
         sa.Column("type", transaction_type, nullable=False),
         sa.Column("amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("original_amount", sa.Numeric(12, 2), nullable=True),
@@ -154,7 +179,12 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("family_id", UUID(as_uuid=True), sa.ForeignKey("families.id"), nullable=False),
         sa.Column("merchant_pattern", sa.String(255), nullable=False),
-        sa.Column("category_id", UUID(as_uuid=True), sa.ForeignKey("categories.id"), nullable=False),
+        sa.Column(
+            "category_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("categories.id"),
+            nullable=False,
+        ),
         sa.Column("scope", scope, nullable=False),
         sa.Column("confidence", sa.Numeric(3, 2), nullable=False, server_default=sa.text("0.5")),
         sa.Column("usage_count", sa.Integer, nullable=False, server_default=sa.text("0")),
@@ -276,7 +306,12 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("family_id", UUID(as_uuid=True), sa.ForeignKey("families.id"), nullable=False),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("category_id", UUID(as_uuid=True), sa.ForeignKey("categories.id"), nullable=False),
+        sa.Column(
+            "category_id",
+            UUID(as_uuid=True),
+            sa.ForeignKey("categories.id"),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("amount", sa.Numeric(12, 2), nullable=False),
         sa.Column("frequency", payment_frequency, nullable=False),
@@ -316,10 +351,18 @@ def upgrade() -> None:
     op.create_index("ix_transactions_user", "transactions", ["user_id"])
     op.create_index("ix_transactions_family_type", "transactions", ["family_id", "type"])
 
-    op.create_index("ix_conversation_messages_user_created", "conversation_messages", ["user_id", "created_at"])
+    op.create_index(
+        "ix_conversation_messages_user_created",
+        "conversation_messages",
+        ["user_id", "created_at"],
+    )
     op.create_index("ix_conversation_messages_family", "conversation_messages", ["family_id"])
 
-    op.create_index("ix_merchant_mappings_family_pattern", "merchant_mappings", ["family_id", "merchant_pattern"])
+    op.create_index(
+        "ix_merchant_mappings_family_pattern",
+        "merchant_mappings",
+        ["family_id", "merchant_pattern"],
+    )
 
     op.create_index("ix_audit_log_family_created", "audit_log", ["family_id", "created_at"])
 

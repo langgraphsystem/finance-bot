@@ -70,6 +70,8 @@ async def call_model(
     reasoning_effort: str | None = None,
 ) -> dict:
     """Call model with tools, return tool call info + timing."""
+    from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
+
     start = time.time()
     try:
         kwargs: dict = {
@@ -150,7 +152,6 @@ def check_result(result: dict, expected_tool: str, expected_args: dict) -> tuple
 
 async def run_comparison():
     from src.core.llm.clients import openai_client
-    from src.tools.data_tool_schemas import DATA_TOOL_SCHEMAS
 
     clients = {
         "openai": openai_client(),

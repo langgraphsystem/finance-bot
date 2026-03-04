@@ -148,9 +148,9 @@ def _sanitize_state(state: dict[str, Any] | None) -> dict[str, Any] | None:
     for key, value in state.items():
         if key.startswith("__"):
             continue
-        if isinstance(value, (str, int, float, bool, type(None))):
+        if isinstance(value, str | int | float | bool | None):
             sanitized[key] = value
-        elif isinstance(value, (list, dict)):
+        elif isinstance(value, list | dict):
             try:
                 import json
 

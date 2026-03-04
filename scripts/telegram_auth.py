@@ -48,8 +48,8 @@ async def request_code(phone: str):
     )
 
     print(f"Code sent to {phone}")
-    print(f"Check Telegram for the verification code.")
-    print(f"Then run: python scripts/telegram_auth.py --code XXXXX")
+    print("Check Telegram for the verification code.")
+    print("Then run: python scripts/telegram_auth.py --code XXXXX")
 
     await client.disconnect()
 
@@ -79,7 +79,10 @@ async def sign_in_with_code(code: str):
         await client.disconnect()
         return True
     except SessionPasswordNeededError:
-        print("2FA password required. Run: python scripts/telegram_auth.py --password YOUR_PASSWORD")
+        print(
+            "2FA password required. "
+            "Run: python scripts/telegram_auth.py --password YOUR_PASSWORD"
+        )
         await client.disconnect()
         return False
 
