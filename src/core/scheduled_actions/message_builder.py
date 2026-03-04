@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from aiogram import Bot
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-
 from src.core.config import settings
-from src.core.formatting import md_to_telegram_html
 from src.core.models.enums import ActionStatus
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.scheduled_actions.i18n import t
-from src.gateway.telegram import _split_message
+from src.gateway.factory import get_gateway
+from src.gateway.types import OutgoingMessage
 
 
 def _snooze_minutes(action: ScheduledAction) -> int:
@@ -52,30 +49,20 @@ async def send_action_message(
     *,
     buttons: list[dict] | None = None,
 ) -> None:
-    """Send an HTML message with optional inline buttons."""
-    builder = InlineKeyboardBuilder()
-    for btn in buttons or []:
-        callback = btn.get("callback")
-        if callback:
-            builder.button(text=btn.get("text", "Button"), callback_data=callback)
-    reply_markup = None
-    if buttons:
-        builder.adjust(2)
-        reply_markup = builder.as_markup()
-
-    final_text = md_to_telegram_html(text)
-    chunks = _split_message(final_text, max_len=4000)
-
-    bot = Bot(token=settings.telegram_bot_token)
+    """Send scheduled action message via TelegramGateway transport."""
+    _ = settings.telegram_bot_token  # Ensures token is configured for telegram gateway.
+    gateway = get_gateway("telegram")
+    message = OutgoingMessage(
+        text=text,
+        chat_id=str(telegram_id),
+        buttons=buttons,
+        parse_mode="HTML",
+        channel="telegram",
+    )
     try:
-        for idx, chunk in enumerate(chunks):
-            chunk_markup = reply_markup if idx == len(chunks) - 1 else None
-            await bot.send_message(
-                chat_id=telegram_id,
-                text=chunk,
-                parse_mode="HTML",
-                reply_markup=chunk_markup,
-            )
+        await gateway.send(message)
     finally:
-        await bot.session.close()
-
+        bot = getattr(gateway, "bot", None)
+        session = getattr(bot, "session", None)
+        if session is not None and hasattr(session, "close"):
+            await session.close()
