@@ -142,7 +142,7 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         return
 
     payload, sources_status = await collect_sources(action)
-    message_text, model_used = format_action_message(
+    message_text, model_used, tokens_used = await format_action_message(
         action,
         payload,
         sources_status=sources_status,
@@ -168,6 +168,7 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
     run.payload_snapshot = payload
     run.message_preview = message_text[:500]
     run.model_used = model_used
+    run.tokens_used = tokens_used
     run.finished_at = now_utc()
     run.duration_ms = _run_duration_ms(run)
     apply_success(action, now)

@@ -6,6 +6,7 @@ import html
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from src.core.llm.clients import generate_text, get_last_usage
 from src.core.models.enums import OutputMode
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.scheduled_actions.i18n import greeting_key_for_hour, t
@@ -19,6 +20,11 @@ _SECTION_ICONS = {
 }
 
 _DEFAULT_GREETING_ICON = "☀️"
+_DECISION_READY_MODELS = [
+    "claude-sonnet-4-6",
+    "gpt-5.2",
+    "gemini-3-flash-preview",
+]
 
 
 def _extract_items(section_text: str, max_items: int = 5) -> list[str]:
@@ -107,18 +113,67 @@ def format_compact_message(
     return "\n".join(lines).strip()
 
 
-def format_action_message(
+def _build_synthesis_input(payload: dict[str, str], ordered_sources: list[str]) -> str:
+    blocks: list[str] = []
+    for source in ordered_sources:
+        text = (payload.get(source) or "").strip()
+        if not text:
+            continue
+        blocks.append(f"[{source}]\n{text}")
+    return "\n\n".join(blocks).strip()
+
+
+def _decision_ready_system(language: str) -> str:
+    return (
+        "You generate a scheduled intelligence summary for the user.\n"
+        "You receive real data from multiple sources.\n"
+        "Synthesize into one scannable message.\n\n"
+        "Rules:\n"
+        "- Start with a short greeting.\n"
+        "- Use section headers with emoji for each source that has data.\n"
+        "- Bullet points, short lines, no dense paragraphs.\n"
+        "- Skip sections with no data.\n"
+        "- End with one actionable question.\n"
+        "- Max 12 bullet points total.\n"
+        "- Use Telegram HTML tags: <b>, <i>, <code> only.\n"
+        "- No Markdown.\n"
+        f"- Respond in language: {language}."
+    )
+
+
+async def format_action_message(
     action: ScheduledAction,
     payload: dict[str, str],
     sources_status: dict[str, dict[str, Any]] | None = None,
     *,
     allow_synthesis: bool = False,
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, int | None]:
     """Return formatted message text and model marker."""
     text = format_compact_message(action, payload, sources_status=sources_status)
+    language = action.language or "en"
 
     if action.output_mode == OutputMode.decision_ready and allow_synthesis:
-        # Phase 1 fallback: keep deterministic compact formatter to avoid
-        # synthesis failures during rollout.
-        return text, "template_fallback"
-    return text, None
+        input_text = _build_synthesis_input(payload, action.sources or [])
+        if input_text:
+            system = _decision_ready_system(language)
+            for model in _DECISION_READY_MODELS:
+                try:
+                    generated = await generate_text(
+                        model=model,
+                        system=system,
+                        prompt=input_text,
+                        max_tokens=900,
+                        trace_name="scheduled_action_synthesis",
+                        trace_user_id=str(action.user_id),
+                        trace_intent="scheduled_action",
+                    )
+                    if generated and generated.strip():
+                        usage = get_last_usage()
+                        tokens_used = usage.tokens_input + usage.tokens_output
+                        return generated.strip(), model, tokens_used
+                except Exception:
+                    continue
+
+        # Fallback to deterministic output if all synthesis models fail.
+        return text, "template_fallback", None
+    return text, None, None
