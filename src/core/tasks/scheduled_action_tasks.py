@@ -23,7 +23,6 @@ from src.core.scheduled_actions.engine import (
     now_utc,
 )
 from src.core.scheduled_actions.formatter import format_action_message
-from src.core.scheduled_actions.message_builder import build_action_buttons, send_action_message
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -115,9 +114,12 @@ async def dispatch_scheduled_actions() -> None:
     async with async_session() as session:
         result = await session.execute(
             select(ScheduledAction)
+            .join(User, User.id == ScheduledAction.user_id)
             .where(
                 ScheduledAction.status == ActionStatus.active,
                 ScheduledAction.next_run_at <= now,
+                User.telegram_id.is_not(None),
+                User.onboarded.is_(True),
             )
             .with_for_update(skip_locked=True)
             .limit(DISPATCH_BATCH_LIMIT)
@@ -200,6 +202,11 @@ async def _execute_action(session, action: ScheduledAction, now: datetime) -> No
         sources_status=sources_status,
         allow_synthesis=settings.ff_sia_synthesis,
     )
+    from src.core.scheduled_actions.message_builder import (
+        build_action_buttons,
+        send_action_message,
+    )
+
     buttons = build_action_buttons(action)
 
     try:
