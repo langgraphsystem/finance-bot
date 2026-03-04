@@ -20,7 +20,9 @@ from src.skills._i18n import fmt_date, register_strings
 from src.skills.base import SkillResult
 from src.skills.schedule_action.handler import (
     _compute_recurring_next_run,
+    _normalize_sources,
     _parse_once_run_at,
+    _parse_schedule_kind,
     _parse_time_parts,
     _parse_weekday,
 )
@@ -29,14 +31,14 @@ logger = logging.getLogger(__name__)
 
 MANAGE_SCHEDULED_ACTION_PROMPT = """\
 You help users manage scheduled actions.
-Supported operations: pause, resume, delete, reschedule.
+Supported operations: pause, resume, delete, reschedule, edit.
 ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
 
 _STRINGS = {
     "en": {
         "disabled": "Scheduled actions are not enabled yet.",
-        "ask_operation": "What should I do: pause, resume, delete, or reschedule?",
+        "ask_operation": "What should I do: pause, resume, delete, reschedule, or edit?",
         "ask_target": "Which scheduled action should I manage?",
         "not_found": 'No scheduled action matching "{query}".',
         "already_paused": 'Already paused: <b>{title}</b>.',
@@ -46,11 +48,12 @@ _STRINGS = {
         "deleted": '🗑 Deleted: <b>{title}</b>.',
         "need_time": "What new time should I use?",
         "cannot_resume_once": "This one-time action is in the past. Please reschedule it.",
-        "rescheduled": "🕒 Rescheduled: <b>{title}</b>. Next run: {next_run}.",
+        "rescheduled": "🕒 Rescheduled: <b>{title}</b>.\n{old_time} → {new_time}",
+        "edited": "✏️ Updated: <b>{title}</b>.\nBefore: {before}\nAfter: {after}",
     },
     "ru": {
         "disabled": "Запланированные действия пока не включены.",
-        "ask_operation": "Что сделать: пауза, возобновить, удалить или перенести?",
+        "ask_operation": "Что сделать: пауза, возобновить, удалить, перенести или изменить?",
         "ask_target": "Какое запланированное действие изменить?",
         "not_found": 'Не нашёл запланированное действие «{query}».',
         "already_paused": 'Уже на паузе: <b>{title}</b>.',
@@ -60,11 +63,12 @@ _STRINGS = {
         "deleted": '🗑 Удалено: <b>{title}</b>.',
         "need_time": "На какое новое время перенести?",
         "cannot_resume_once": "Разовый запуск уже в прошлом. Перенесите его на новое время.",
-        "rescheduled": "🕒 Перенесено: <b>{title}</b>. Следующий запуск: {next_run}.",
+        "rescheduled": "🕒 Перенесено: <b>{title}</b>.\n{old_time} → {new_time}",
+        "edited": "✏️ Обновлено: <b>{title}</b>.\nБыло: {before}\nСтало: {after}",
     },
     "es": {
         "disabled": "Las acciones programadas aun no estan habilitadas.",
-        "ask_operation": "Que debo hacer: pausar, reanudar, eliminar o reprogramar?",
+        "ask_operation": "Que debo hacer: pausar, reanudar, eliminar, reprogramar o editar?",
         "ask_target": "Que accion programada debo gestionar?",
         "not_found": 'No encontre una accion programada con "{query}".',
         "already_paused": 'Ya esta en pausa: <b>{title}</b>.',
@@ -74,10 +78,65 @@ _STRINGS = {
         "deleted": '🗑 Eliminado: <b>{title}</b>.',
         "need_time": "Que nueva hora debo usar?",
         "cannot_resume_once": "Esta accion unica ya paso. Reprogramala con nueva hora.",
-        "rescheduled": "🕒 Reprogramado: <b>{title}</b>. Proxima ejecucion: {next_run}.",
+        "rescheduled": "🕒 Reprogramado: <b>{title}</b>.\n{old_time} → {new_time}",
+        "edited": "✏️ Actualizado: <b>{title}</b>.\nAntes: {before}\nDespues: {after}",
     },
 }
 register_strings("manage_scheduled_action", _STRINGS)
+
+_KIND_LABELS = {
+    "en": {
+        "once": "one-time",
+        "daily": "daily",
+        "weekly": "weekly",
+        "monthly": "monthly",
+        "weekdays": "weekdays",
+        "cron": "cron",
+        "sources": "sources",
+    },
+    "ru": {
+        "once": "разово",
+        "daily": "ежедневно",
+        "weekly": "еженедельно",
+        "monthly": "ежемесячно",
+        "weekdays": "по будням",
+        "cron": "cron",
+        "sources": "источники",
+    },
+    "es": {
+        "once": "una vez",
+        "daily": "diario",
+        "weekly": "semanal",
+        "monthly": "mensual",
+        "weekdays": "dias laborables",
+        "cron": "cron",
+        "sources": "fuentes",
+    },
+}
+
+_SOURCE_LABELS = {
+    "en": {
+        "calendar": "calendar",
+        "tasks": "tasks",
+        "money_summary": "money",
+        "email_highlights": "email",
+        "outstanding": "outstanding",
+    },
+    "ru": {
+        "calendar": "календарь",
+        "tasks": "задачи",
+        "money_summary": "финансы",
+        "email_highlights": "почта",
+        "outstanding": "неоплаченные",
+    },
+    "es": {
+        "calendar": "calendario",
+        "tasks": "tareas",
+        "money_summary": "finanzas",
+        "email_highlights": "correo",
+        "outstanding": "pendientes",
+    },
+}
 
 
 def _t(key: str, language: str, **kwargs: str) -> str:
@@ -87,10 +146,16 @@ def _t(key: str, language: str, **kwargs: str) -> str:
 
 def _detect_operation(intent_data: dict[str, Any], text: str) -> str | None:
     raw = (intent_data.get("manage_operation") or "").strip().lower()
-    if raw in {"pause", "resume", "delete", "reschedule"}:
-        return raw
+    if raw in {"pause", "resume", "delete", "reschedule", "edit"}:
+        # Keep backward compatibility with existing "reschedule" operation while
+        # allowing a dedicated edit flow for delta updates.
+        return "edit" if raw == "edit" else raw
 
     text_lower = text.lower()
+    if any(word in text_lower for word in ("edit", "измени", "обнов", "actualiza", "editar")):
+        return "edit"
+    if any(word in text_lower for word in ("add", "добав", "agrega", "añade")):
+        return "edit"
     if any(word in text_lower for word in ("pause", "пауза", "поставь на паузу", "pausa")):
         return "pause"
     if any(word in text_lower for word in ("resume", "возобнов", "reanudar")):
@@ -99,7 +164,75 @@ def _detect_operation(intent_data: dict[str, Any], text: str) -> str | None:
         return "delete"
     if any(word in text_lower for word in ("reschedule", "перенес", "move to", "reprogram")):
         return "reschedule"
+    if any(intent_data.get(key) for key in ("schedule_frequency", "schedule_sources")):
+        return "edit"
     return None
+
+
+def _is_add_sources_request(text: str) -> bool:
+    text_lower = text.lower()
+    return any(word in text_lower for word in ("add", "добав", "agrega", "añade", "include"))
+
+
+def _is_remove_sources_request(text: str) -> bool:
+    text_lower = text.lower()
+    return any(word in text_lower for word in ("remove", "убери", "удали", "quita", "exclude"))
+
+
+def _extract_sources_for_edit(intent_data: dict[str, Any], text: str) -> list[str]:
+    raw_sources = intent_data.get("schedule_sources")
+    source_hint = any(
+        word in text.lower()
+        for word in (
+            "calendar", "task", "money", "finance", "email", "mail", "outstanding",
+            "календар", "задач", "финанс", "почт", "неопла",
+            "calendario", "tarea", "finanz", "correo", "pendiente",
+        )
+    )
+    if raw_sources is None and not source_hint:
+        return []
+    normalized = _normalize_sources(raw_sources, text)
+    return normalized
+
+
+def _apply_sources_delta(action: ScheduledAction, intent_data: dict[str, Any], text: str) -> bool:
+    new_sources = _extract_sources_for_edit(intent_data, text)
+    if not new_sources:
+        return False
+
+    existing = list(action.sources or [])
+    if _is_remove_sources_request(text):
+        merged = [item for item in existing if item not in new_sources]
+    elif _is_add_sources_request(text):
+        merged = existing[:]
+        for item in new_sources:
+            if item not in merged:
+                merged.append(item)
+    else:
+        merged = new_sources
+
+    if merged == existing:
+        return False
+    action.sources = merged
+    return True
+
+
+def _format_action_snapshot(action: ScheduledAction, language: str) -> str:
+    labels = _KIND_LABELS.get(language, _KIND_LABELS["en"])
+    source_labels = _SOURCE_LABELS.get(language, _SOURCE_LABELS["en"])
+    cfg = action.schedule_config or {}
+    kind_key = action.schedule_kind.value
+    kind_text = labels.get(kind_key, kind_key)
+
+    if action.schedule_kind == ScheduleKind.cron:
+        time_part = str(cfg.get("cron_expr", "cron"))
+    elif action.schedule_kind == ScheduleKind.once:
+        time_part = str(cfg.get("run_at") or cfg.get("time") or "—")
+    else:
+        time_part = str(cfg.get("time") or "—")
+
+    localized_sources = ", ".join(source_labels.get(item, item) for item in (action.sources or []))
+    return f"{kind_text} {time_part}; {labels['sources']}: {localized_sources or '—'}"
 
 
 def _extract_target_query(intent_data: dict[str, Any], text: str) -> str:
@@ -187,6 +320,8 @@ def _reschedule_action(
     action: ScheduledAction,
     intent_data: dict[str, Any],
     message_text: str,
+    *,
+    allow_existing_time: bool = False,
 ) -> datetime | None:
     tz = ZoneInfo(action.timezone)
     now = datetime.now(tz)
@@ -209,6 +344,8 @@ def _reschedule_action(
         if fallback:
             local = fallback.astimezone(tz)
             time_parts = (local.hour, local.minute)
+    if allow_existing_time and not time_parts and cfg.get("time"):
+        time_parts = _parse_time_parts(str(cfg.get("time")))
     if not time_parts:
         return None
 
@@ -298,13 +435,66 @@ class ManageScheduledActionSkill:
             await save_scheduled_action(target)
             return SkillResult(response_text=_t("deleted", lang, title=target.title))
 
+        if operation == "edit":
+            before = _format_action_snapshot(target, lang)
+            updated = False
+
+            parsed_kind = _parse_schedule_kind(intent_data, message.text or "")
+            if parsed_kind and parsed_kind != target.schedule_kind:
+                target.schedule_kind = parsed_kind
+                updated = True
+
+            if _apply_sources_delta(target, intent_data, message.text or ""):
+                updated = True
+
+            next_run = _reschedule_action(
+                target,
+                intent_data,
+                message.text or "",
+                allow_existing_time=True,
+            )
+            if next_run is not None:
+                updated = True
+            elif intent_data.get("schedule_time"):
+                return SkillResult(response_text=_t("need_time", lang))
+
+            if target.schedule_kind == ScheduleKind.once and target.next_run_at is None:
+                target.next_run_at = _compute_next_run_from_action(target)
+
+            if not updated:
+                return SkillResult(response_text=_t("ask_operation", lang))
+
+            await save_scheduled_action(target)
+            after = _format_action_snapshot(target, lang)
+            return SkillResult(
+                response_text=_t(
+                    "edited",
+                    lang,
+                    title=target.title,
+                    before=before,
+                    after=after,
+                )
+            )
+
+        old_next_run = target.next_run_at
+        old_time_cfg = (target.schedule_config or {}).get("time", "")
         next_run = _reschedule_action(target, intent_data, message.text or "")
         if next_run is None:
             return SkillResult(response_text=_t("need_time", lang))
         await save_scheduled_action(target)
-        next_run_txt = fmt_date(next_run, lang, timezone=target.timezone)
+        old_time_txt = (
+            fmt_date(old_next_run, lang, timezone=target.timezone)
+            if old_next_run
+            else old_time_cfg or "—"
+        )
+        new_time_txt = fmt_date(next_run, lang, timezone=target.timezone)
         return SkillResult(
-            response_text=_t("rescheduled", lang, title=target.title, next_run=next_run_txt)
+            response_text=_t(
+                "rescheduled", lang,
+                title=target.title,
+                old_time=old_time_txt,
+                new_time=new_time_txt,
+            )
         )
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -340,7 +530,9 @@ async def save_scheduled_action(action: ScheduledAction) -> None:
         if not db_action:
             return
         db_action.status = action.status
+        db_action.schedule_kind = action.schedule_kind
         db_action.schedule_config = action.schedule_config
+        db_action.sources = action.sources
         db_action.next_run_at = action.next_run_at
         await session.commit()
 
