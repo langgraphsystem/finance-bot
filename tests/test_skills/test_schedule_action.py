@@ -169,3 +169,58 @@ async def test_schedule_action_cron_invalid_asks_for_clarification():
         )
 
     assert "cron expression" in result.response_text.lower()
+
+
+async def test_schedule_action_validates_schedule_config():
+    skill = ScheduleActionSkill()
+    message = _message("Every day at 8 send me summary.")
+
+    with (
+        patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True),
+        patch(
+            "src.skills.schedule_action.handler.ScheduleConfig",
+        ) as mock_schedule_config,
+        patch(
+            "src.skills.schedule_action.handler.save_scheduled_action",
+            new_callable=AsyncMock,
+        ),
+    ):
+        result = await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "daily",
+                "schedule_time": "08:00",
+                "schedule_instruction": "Daily summary",
+                "schedule_sources": ["calendar"],
+                "schedule_end_date": "2026-12-31",
+                "schedule_max_runs": 10,
+            },
+        )
+
+    assert "Scheduled" in result.response_text
+    assert mock_schedule_config.called
+    kwargs = mock_schedule_config.call_args.kwargs
+    assert kwargs["time"] == "08:00"
+    assert kwargs["max_runs"] == 10
+    assert kwargs["end_at"] is not None
+
+
+async def test_schedule_action_invalid_schedule_config_returns_schedule_prompt():
+    skill = ScheduleActionSkill()
+    message = _message("Every day at 8 send me summary.")
+
+    with patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True):
+        result = await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "daily",
+                "schedule_time": "08:00",
+                "schedule_instruction": "Daily summary",
+                "schedule_sources": ["calendar"],
+                "schedule_max_runs": 0,
+            },
+        )
+
+    assert "When should I run it?" in result.response_text

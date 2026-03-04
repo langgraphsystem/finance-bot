@@ -9,12 +9,15 @@ from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from pydantic import ValidationError
+
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.models.enums import ActionStatus, OutputMode, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
+from src.core.scheduled_actions.config import ScheduleConfig
 from src.core.scheduled_actions.engine import compute_next_run, is_valid_cron_expression
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import fmt_date, fmt_time, register_strings
@@ -407,6 +410,16 @@ def _parse_end_at(raw: str | None) -> datetime | None:
             return None
 
 
+def _parse_max_runs(raw: Any) -> int | None:
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return value
+
+
 def _extract_cron_expr(intent_data: dict[str, Any], message_text: str) -> str | None:
     candidates = [
         intent_data.get("cron_expr"),
@@ -546,6 +559,28 @@ class ScheduleActionSkill:
         if next_run_at <= now:
             return SkillResult(response_text=_t("time_in_past", language))
 
+        end_at = _parse_end_at(intent_data.get("schedule_end_date"))
+        max_runs = _parse_max_runs(intent_data.get("schedule_max_runs"))
+        validation_payload = {
+            **schedule_config,
+            "end_at": end_at,
+            "max_runs": max_runs,
+        }
+        validation_payload.pop("run_at", None)
+        try:
+            ScheduleConfig(**validation_payload)
+        except ValidationError as exc:
+            fields = {
+                str(item["loc"][0])
+                for item in exc.errors()
+                if item.get("loc")
+            }
+            if schedule_kind == ScheduleKind.cron or "cron_expr" in fields:
+                return SkillResult(response_text=_t("ask_cron", language))
+            if "time" in fields:
+                return SkillResult(response_text=_t("ask_time", language))
+            return SkillResult(response_text=_t("ask_schedule", language))
+
         output_mode = _parse_output_mode(intent_data.get("schedule_output_mode"))
         sources = _normalize_sources(intent_data.get("schedule_sources"), message.text or "")
         title = (
@@ -569,8 +604,8 @@ class ScheduleActionSkill:
             language=language,
             status=ActionStatus.active,
             next_run_at=next_run_at,
-            end_at=_parse_end_at(intent_data.get("schedule_end_date")),
-            max_runs=intent_data.get("schedule_max_runs"),
+            end_at=end_at,
+            max_runs=max_runs,
         )
 
         await save_scheduled_action(action)
