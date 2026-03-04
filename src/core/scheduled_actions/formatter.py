@@ -25,6 +25,21 @@ _DECISION_READY_MODELS = [
     "gpt-5.2",
     "gemini-3.1-flash-lite-preview",
 ]
+_TOP_PRIORITY_HEADERS = {
+    "en": "🎯 <b>Top priorities</b>",
+    "ru": "🎯 <b>Топ-приоритеты</b>",
+    "es": "🎯 <b>Prioridades top</b>",
+}
+_RECOMMENDED_HEADERS = {
+    "en": "➡️ <b>Recommended next action</b>",
+    "ru": "➡️ <b>Рекомендуемое следующее действие</b>",
+    "es": "➡️ <b>Siguiente accion recomendada</b>",
+}
+_RECOMMENDED_DEFAULT = {
+    "en": "• Start with the highest-urgency item now.",
+    "ru": "• Начните с самого срочного пункта прямо сейчас.",
+    "es": "• Empieza ahora con la tarea de mayor urgencia.",
+}
 
 
 def _extract_items(section_text: str, max_items: int = 5) -> list[str]:
@@ -47,6 +62,45 @@ def _extract_items(section_text: str, max_items: int = 5) -> list[str]:
 
 def _source_label(source: str, language: str) -> str:
     return t(f"source_{source}", language)
+
+
+def _render_budget_bar(ratio: float) -> str:
+    """Render a progress bar: █████░░░░░ 52%."""
+    width = 10
+    filled = max(0, min(width, int(ratio * width)))
+    empty = width - filled
+    bar = "█" * filled + "░" * empty
+    return f"<code>{bar}</code> {ratio:.0%}"
+
+
+def _format_finance_section(items: list[str], language: str) -> list[str]:
+    """Epic G2: Format finance section with budget progress bar and risk icons."""
+    lines = []
+    usage_ratio = 0.0
+    has_budget = False
+
+    for item in items:
+        if "Budget usage:" in item:
+            try:
+                usage_str = item.split(":")[1].strip().replace("%", "")
+                usage_ratio = float(usage_str) / 100.0
+                has_budget = True
+                continue
+            except (ValueError, IndexError):
+                pass
+        lines.append(f"• {html.escape(item)}")
+
+    if has_budget:
+        icon = "🟢"
+        if usage_ratio >= 1.0:
+            icon = "🔴"
+        elif usage_ratio >= 0.8:
+            icon = "🟡"
+
+        lines.append(f"• {icon} {t('budget_usage', language)}")
+        lines.append(f"  {_render_budget_bar(usage_ratio)}")
+
+    return lines
 
 
 def format_compact_message(
@@ -73,7 +127,10 @@ def format_compact_message(
     lines = [f"{_DEFAULT_GREETING_ICON} <b>{greeting}!</b>", ""]
 
     if action.title:
-        lines.append(f"📌 <b>{html.escape(action.title)}</b>")
+        badge = ""
+        if getattr(action, "action_kind", "digest") == "outcome":
+            badge = f" [ 🔄 {t('outcome_badge', language)} ]"
+        lines.append(f"📌 <b>{html.escape(action.title)}</b>{badge}")
         lines.append("")
 
     rendered_any = False
@@ -88,8 +145,12 @@ def format_compact_message(
         icon = _SECTION_ICONS.get(source, "📋")
         title = t(f"section_{source}", language)
         lines.append(f"{icon} <b>{title}</b>")
-        for item in items:
-            lines.append(f"• {html.escape(item)}")
+
+        if source == "money_summary":
+            lines.extend(_format_finance_section(items, language))
+        else:
+            for item in items:
+                lines.append(f"• {html.escape(item)}")
         lines.append("")
 
     if not rendered_any:
@@ -99,14 +160,29 @@ def format_compact_message(
             lines.append("• ...")
         lines.append("")
 
+    status_map = sources_status or {}
+    total_sources = len(action.sources or [])
     failed_sources = [
         source
-        for source, meta in (sources_status or {}).items()
+        for source, meta in status_map.items()
         if meta.get("status") == "failed"
     ]
     if failed_sources:
         labels = ", ".join(_source_label(source, language) for source in failed_sources)
         lines.append(f"<i>{t('degraded_footer', language, sources=labels)}</i>")
+        lines.append("")
+
+    if total_sources > 0:
+        ok_count = total_sources - len(failed_sources)
+        try:
+            freshness_time = local_now.strftime("%H:%M")
+        except Exception:
+            freshness_time = "—"
+        footer = t(
+            "trust_footer", language,
+            ok=ok_count, total=total_sources, time=freshness_time,
+        )
+        lines.append(f"<i>{footer}</i>")
         lines.append("")
 
     lines.append(t("closing_question", language))
@@ -127,18 +203,39 @@ def _decision_ready_system(language: str) -> str:
     return (
         "You generate a scheduled intelligence summary for the user.\n"
         "You receive real data from multiple sources.\n"
-        "Synthesize into one scannable message.\n\n"
+        "Synthesize into one scannable, decision-ready message.\n\n"
         "Rules:\n"
         "- Start with a short greeting.\n"
+        "- First section MUST be top priorities, ranked by urgency.\n"
+        "- Rank priorities using deadlines, money impact, and risk signals.\n"
         "- Use section headers with emoji for each source that has data.\n"
         "- Bullet points, short lines, no dense paragraphs.\n"
         "- Skip sections with no data.\n"
-        "- End with one actionable question.\n"
+        "- End with exactly one recommended next action.\n"
         "- Max 12 bullet points total.\n"
         "- Use Telegram HTML tags: <b>, <i>, <code> only.\n"
         "- No Markdown.\n"
         f"- Respond in language: {language}."
     )
+
+
+def _ensure_decision_ready_structure(text: str, language: str) -> str:
+    lang = language if language in _TOP_PRIORITY_HEADERS else "en"
+    normalized = text.strip()
+
+    top_header = _TOP_PRIORITY_HEADERS[lang]
+    rec_header = _RECOMMENDED_HEADERS[lang]
+    rec_default = _RECOMMENDED_DEFAULT[lang]
+    lower = normalized.lower()
+
+    if "top priorit" not in lower and "топ-приоритет" not in lower and "prioridades" not in lower:
+        normalized = f"{top_header}\n{normalized}".strip()
+        lower = normalized.lower()
+
+    if "recommended next action" not in lower and "следующее действие" not in lower:
+        normalized = f"{normalized}\n\n{rec_header}\n{rec_default}".strip()
+
+    return normalized
 
 
 async def format_action_message(
@@ -168,9 +265,13 @@ async def format_action_message(
                         trace_intent="scheduled_action",
                     )
                     if generated and generated.strip():
+                        normalized = _ensure_decision_ready_structure(
+                            generated.strip(),
+                            language,
+                        )
                         usage = get_last_usage()
                         tokens_used = usage.tokens_input + usage.tokens_output
-                        return generated.strip(), model, tokens_used, idx > 0
+                        return normalized, model, tokens_used, idx > 0
                 except Exception:
                     continue
 
