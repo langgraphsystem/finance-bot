@@ -158,16 +158,21 @@ invoice_due_days: число дней (net 15 → 15)
 - schedule_action: запланировать AI-сводку/автодействие \
 ("every day at 8 send me calendar and tasks", \
 "каждое утро в 8 отправляй сводку по задачам и календарю", \
-"programa un resumen semanal con tareas y finanzas"). \
+"programa un resumen semanal con tareas y finanzas", \
+"remind me every day until done", "каждый день до выполнения"). \
 Извлеки schedule_frequency, schedule_time, schedule_day_of_week, \
-schedule_sources, schedule_instruction, schedule_output_mode.
+schedule_sources, schedule_instruction, schedule_output_mode, \
+schedule_action_kind, schedule_completion_condition.
 - list_scheduled_actions: показать запланированные действия \
 ("my scheduled actions", "мои запланированные", "show automations", \
 "что запланировано", "mis acciones programadas", "what's scheduled")
 - manage_scheduled_action: управление запланированным действием — пауза/возобновление/удаление \
-("pause my morning brief", "приостанови утреннюю сводку", "delete scheduled report", \
-"удали ежедневный отчёт", "resume daily summary", "возобнови расписание"). \
-Извлеки managed_action_title, manage_operation (pause/resume/delete/reschedule).
+или ИЗМЕНЕНИЕ параметров (время, источники, текст) \
+("pause my morning brief", "resume daily summary", "удали расписание", \
+"добавь почту в утренний отчет", "убери финансы из сводки", \
+"измени текст напоминания на 'проверь баланс'"). \
+Извлеки managed_action_title, manage_operation (pause/resume/delete/reschedule/modify), \
+added_sources, removed_sources, new_instruction.
 - complete_task: отметить задачу выполненной ("done with ...", "готово: ...", \
 "выполнил ...", "задача выполнена", "mark done: ...")
 - quick_answer: фактический вопрос, ответ из знаний ("сколько чашек в галлоне?", \
@@ -631,6 +636,8 @@ intent_type: "action", confidence: 0.92
 "email_highlights", "outstanding"] или null,
     "schedule_instruction": "что включать в сводку" или null,
     "schedule_output_mode": "compact" или "decision_ready" или null,
+    "schedule_action_kind": "digest" или "outcome" или null,
+    "schedule_completion_condition": "empty"/"task_completed"/"invoice_paid" или null,
     "schedule_end_date": "YYYY-MM-DD" или null,
     "schedule_max_runs": число или null,
     "managed_action_title": "название запланированного действия" или null,
@@ -1195,7 +1202,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "set_reminder": 'напоминание ("напомни ...", "remind me ...")',
         "schedule_action": 'запланировать AI-сводку ("every day at 8 send summary")',
         "list_scheduled_actions": 'показать запланированные действия ("my scheduled actions")',
-        "manage_scheduled_action": 'пауза/возобновление/удаление/перенос расписания',
+        "manage_scheduled_action": 'пауза/возобновление/удаление/изменение источников или текста',
         "complete_task": 'отметить выполненной ("готово", "done with ...")',
         "shopping_list_add": 'добавить товары в список ("добавь молоко")',
         "shopping_list_view": 'показать список покупок ("мой список")',
@@ -1318,6 +1325,8 @@ _SCOPED_DATA_RULES = """\
 - schedule_day_of_week: "monday"/"понедельник"/"lunes" или null
 - schedule_sources: список источников или null
 - schedule_instruction: текст инструкции для сводки или null
+- schedule_action_kind: "digest"/"outcome" или null
+- schedule_completion_condition: "empty"/"task_completed"/"invoice_paid" или null
 - managed_action_title: название запланированного действия или null
 - manage_operation: "pause"/"resume"/"delete"/"reschedule" или null
 - search_query/search_topic: текст поиска или null

@@ -73,10 +73,15 @@ class IntentData(BaseModel):
     schedule_sources: list[str] | None = None  # ["calendar", "tasks", "money_summary"]
     schedule_instruction: str | None = None  # what to include in summary
     schedule_output_mode: str | None = None  # compact, decision_ready
+    schedule_action_kind: str | None = None  # digest, outcome
+    schedule_completion_condition: str | None = None  # empty, task_completed, invoice_paid
     schedule_end_date: str | None = None  # YYYY-MM-DD
     schedule_max_runs: int | None = None  # stop after N runs
     managed_action_title: str | None = None  # target action title for management ops
-    manage_operation: str | None = None  # pause, resume, delete, reschedule
+    manage_operation: str | None = None  # pause, resume, delete, reschedule, modify
+    added_sources: list[str] | None = None  # ["email_highlights", "money_summary"]
+    removed_sources: list[str] | None = None  # ["calendar"]
+    new_instruction: str | None = None  # updated instruction text
 
     # Research fields (Phase 3)
     search_topic: str | None = None

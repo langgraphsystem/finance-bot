@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, patch
 
 from src.core.models.enums import OutputMode
 from src.core.observability import LLMUsage
-from src.core.scheduled_actions.formatter import format_action_message
+from src.core.scheduled_actions.formatter import format_action_message, format_compact_message
 
 
-def _action(output_mode: OutputMode = OutputMode.compact):
+def _action(output_mode: OutputMode = OutputMode.compact, sources: list[str] | None = None):
     return SimpleNamespace(
         id=uuid.uuid4(),
         user_id=uuid.uuid4(),
         title="Morning brief",
         instruction="Send me summary",
-        sources=["tasks", "calendar"],
+        sources=sources or ["tasks", "calendar"],
         timezone="UTC",
         next_run_at=datetime(2026, 3, 4, 8, 0, tzinfo=UTC),
         language="en",
@@ -93,3 +93,53 @@ async def test_format_action_message_decision_ready_full_fallback_to_template():
     assert model_used == "template_fallback"
     assert tokens_used is None
     assert fallback_used is True
+
+
+def test_trust_footer_shows_source_count_and_time():
+    """G4: compact message includes trust footer with source count and freshness."""
+    action = _action(OutputMode.compact)
+    payload = {"tasks": "Open tasks:\n- Pay bill", "calendar": "Today:\n- 10:00 Call"}
+    sources_status = {
+        "tasks": {"status": "ok"},
+        "calendar": {"status": "ok"},
+    }
+
+    text = format_compact_message(action, payload, sources_status=sources_status)
+
+    assert "📡 2/2" in text
+    assert "08:00" in text
+
+
+def test_trust_footer_with_failed_sources():
+    """G4: trust footer reflects failed source count correctly."""
+    action = _action(OutputMode.compact)
+    payload = {"tasks": "Open tasks:\n- Pay bill", "calendar": ""}
+    sources_status = {
+        "tasks": {"status": "ok"},
+        "calendar": {"status": "failed", "error": "timeout"},
+    }
+
+    text = format_compact_message(action, payload, sources_status=sources_status)
+
+    assert "📡 1/2" in text
+    assert "⚠️" in text
+
+
+def test_finance_overlay_adds_budget_bar_risk_and_trend():
+    action = _action(OutputMode.compact, sources=["money_summary"])
+    payload = {
+        "money_summary": (
+            "Money:\n"
+            "- Yesterday: $120.00 spent\n"
+            "- This month: $1200.00 total\n"
+            "- Monthly budget: $1000.00\n"
+            "- Budget usage: 120.00%"
+        ),
+    }
+
+    text = format_compact_message(action, payload)
+
+    assert "🔴 Budget usage" in text
+    assert "<code>██████████</code> 120%" in text
+    assert "Spending trend" in text
+    assert "📈" in text or "📉" in text

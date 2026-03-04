@@ -35,6 +35,15 @@ def test_build_action_buttons_paused_status():
     assert [btn["callback"].split(":")[1] for btn in buttons] == ["resume", "run"]
 
 
+def test_build_action_buttons_outcome_has_done_button_first():
+    action = _action(ActionStatus.active)
+    action.action_kind = "outcome"
+
+    buttons = build_action_buttons(action)
+
+    assert [btn["callback"].split(":")[1] for btn in buttons] == ["done", "snooze", "run", "pause"]
+
+
 async def test_send_action_message_uses_telegram_gateway():
     mock_gateway = MagicMock()
     mock_gateway.send = AsyncMock()

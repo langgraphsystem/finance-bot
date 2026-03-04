@@ -18,6 +18,7 @@ class ScheduleConfig(BaseModel):
     end_at: datetime | None = None  # P1: stop after this date
     max_runs: int | None = None  # P1: stop after N runs
     snooze_minutes: int = 10  # default snooze duration
+    completion_condition: str | None = None  # G3 outcome completion signal
 
     @field_validator("time")
     @classmethod
@@ -81,6 +82,19 @@ class ScheduleConfig(BaseModel):
         if not (1 <= v <= 1440):
             raise ValueError(f"snooze_minutes must be 1..1440, got {v}")
         return v
+
+    @field_validator("completion_condition")
+    @classmethod
+    def validate_completion_condition(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        normalized = v.strip().lower()
+        allowed = {"empty", "task_completed", "invoice_paid"}
+        if normalized not in allowed:
+            raise ValueError(
+                "completion_condition must be one of: empty, task_completed, invoice_paid",
+            )
+        return normalized
 
     @model_validator(mode="after")
     def validate_schedule_shape(self) -> "ScheduleConfig":

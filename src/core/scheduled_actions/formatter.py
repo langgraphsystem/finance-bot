@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html
+import re
+from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -23,7 +25,7 @@ _DEFAULT_GREETING_ICON = "☀️"
 _DECISION_READY_MODELS = [
     "claude-sonnet-4-6",
     "gpt-5.2",
-    "gemini-3.1-flash-lite-preview",
+    "gemini-3-flash-preview",
 ]
 _TOP_PRIORITY_HEADERS = {
     "en": "🎯 <b>Top priorities</b>",
@@ -40,6 +42,18 @@ _RECOMMENDED_DEFAULT = {
     "ru": "• Начните с самого срочного пункта прямо сейчас.",
     "es": "• Empieza ahora con la tarea de mayor urgencia.",
 }
+_BUDGET_USAGE_RE = re.compile(
+    r"budget usage\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*%",
+    flags=re.IGNORECASE,
+)
+_YESTERDAY_SPENT_RE = re.compile(
+    r"yesterday\s*:\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)",
+    flags=re.IGNORECASE,
+)
+_MONTH_SPENT_RE = re.compile(
+    r"this month\s*:\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)",
+    flags=re.IGNORECASE,
+)
 
 
 def _extract_items(section_text: str, max_items: int = 5) -> list[str]:
@@ -67,27 +81,46 @@ def _source_label(source: str, language: str) -> str:
 def _render_budget_bar(ratio: float) -> str:
     """Render a progress bar: █████░░░░░ 52%."""
     width = 10
-    filled = max(0, min(width, int(ratio * width)))
+    filled = max(0, min(width, int(round(ratio * width))))
     empty = width - filled
     bar = "█" * filled + "░" * empty
     return f"<code>{bar}</code> {ratio:.0%}"
 
 
+def _parse_money_number(raw: str) -> float | None:
+    normalized = raw.strip().replace(",", "")
+    try:
+        return float(normalized)
+    except ValueError:
+        return None
+
+
 def _format_finance_section(items: list[str], language: str) -> list[str]:
     """Epic G2: Format finance section with budget progress bar and risk icons."""
-    lines = []
+    lines: list[str] = []
     usage_ratio = 0.0
     has_budget = False
+    yesterday_spent: float | None = None
+    month_spent: float | None = None
 
     for item in items:
-        if "Budget usage:" in item:
-            try:
-                usage_str = item.split(":")[1].strip().replace("%", "")
-                usage_ratio = float(usage_str) / 100.0
+        budget_match = _BUDGET_USAGE_RE.search(item)
+        if budget_match:
+            ratio_raw = budget_match.group(1).replace(",", ".")
+            parsed_ratio = _parse_money_number(ratio_raw)
+            if parsed_ratio is not None:
+                usage_ratio = parsed_ratio / 100.0
                 has_budget = True
                 continue
-            except (ValueError, IndexError):
-                pass
+
+        yesterday_match = _YESTERDAY_SPENT_RE.search(item)
+        if yesterday_match:
+            yesterday_spent = _parse_money_number(yesterday_match.group(1))
+
+        month_match = _MONTH_SPENT_RE.search(item)
+        if month_match:
+            month_spent = _parse_money_number(month_match.group(1))
+
         lines.append(f"• {html.escape(item)}")
 
     if has_budget:
@@ -99,6 +132,12 @@ def _format_finance_section(items: list[str], language: str) -> list[str]:
 
         lines.append(f"• {icon} {t('budget_usage', language)}")
         lines.append(f"  {_render_budget_bar(usage_ratio)}")
+        if yesterday_spent is not None and month_spent is not None:
+            avg_daily = month_spent / max(datetime.now().day, 1)
+            trend_up = yesterday_spent >= avg_daily
+            trend_icon = "📈" if trend_up else "📉"
+            trend_key = "budget_trend_up" if trend_up else "budget_trend_down"
+            lines.append(f"• {trend_icon} {t(trend_key, language)}")
 
     return lines
 
@@ -118,8 +157,6 @@ def format_compact_message(
     except Exception:
         local_now = None
     if local_now is None:
-        from datetime import datetime
-
         local_now = datetime.now(ZoneInfo("UTC"))
 
     greeting_key = greeting_key_for_hour(local_now.hour)

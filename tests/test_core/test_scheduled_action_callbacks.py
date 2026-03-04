@@ -131,3 +131,23 @@ async def test_sched_callback_delete_marks_deleted():
     assert action.status == ActionStatus.deleted
     assert action.next_run_at is None
     assert "Deleted" in result
+
+
+async def test_sched_callback_done_marks_completed():
+    ctx = _context()
+    action = _action(ctx, status=ActionStatus.active)
+    session = _Session(action)
+
+    with patch(
+        "src.core.scheduled_actions.callbacks.async_session",
+        new=lambda: _SessionCM(session),
+    ):
+        result = await handle_sched_callback(
+            sub_action="done",
+            action_id=str(action.id),
+            context=ctx,
+        )
+
+    assert action.status == ActionStatus.completed
+    assert action.next_run_at is None
+    assert "Completed" in result

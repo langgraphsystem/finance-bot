@@ -30,17 +30,19 @@ def build_action_buttons(action: ScheduledAction) -> list[dict]:
             {"text": t("btn_run_now", language), "callback": f"sched:run:{action_id}"},
         ]
 
+    buttons = []
     if action.status == ActionStatus.active:
-        return [
-            {
-                "text": t("btn_snooze", language, minutes=snooze),
-                "callback": f"sched:snooze:{action_id}",
-            },
-            {"text": t("btn_run_now", language), "callback": f"sched:run:{action_id}"},
-            {"text": t("btn_pause", language), "callback": f"sched:pause:{action_id}"},
-        ]
+        if getattr(action, "action_kind", "digest") == "outcome":
+            buttons.append({"text": t("btn_done", language), "callback": f"sched:done:{action_id}"})
 
-    return []
+        buttons.append({
+            "text": t("btn_snooze", language, minutes=snooze),
+            "callback": f"sched:snooze:{action_id}",
+        })
+        buttons.append({"text": t("btn_run_now", language), "callback": f"sched:run:{action_id}"})
+        buttons.append({"text": t("btn_pause", language), "callback": f"sched:pause:{action_id}"})
+
+    return buttons
 
 
 async def send_action_message(
@@ -48,6 +50,7 @@ async def send_action_message(
     text: str,
     *,
     buttons: list[dict] | None = None,
+    photo: bytes | None = None,
 ) -> None:
     """Send scheduled action message via TelegramGateway transport."""
     _ = settings.telegram_bot_token  # Ensures token is configured for telegram gateway.
@@ -56,6 +59,7 @@ async def send_action_message(
         text=text,
         chat_id=str(telegram_id),
         buttons=buttons,
+        photo_bytes=photo,
         parse_mode="HTML",
         channel="telegram",
     )

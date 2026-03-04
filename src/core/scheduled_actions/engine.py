@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from calendar import monthrange
 from datetime import UTC, date, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from croniter import CroniterBadCronError, CroniterBadDateError, croniter
 
 from src.core.models.enums import ActionStatus, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
+
+_EMPTY_CONDITIONS = {"empty", "until_empty", "all_clear"}
+_TASK_CONDITIONS = {"task_completed", "tasks_completed", "tasks_empty"}
+_INVOICE_CONDITIONS = {"invoice_paid", "outstanding_cleared", "outstanding_empty"}
 
 
 def now_utc() -> datetime:
@@ -208,12 +213,54 @@ def compute_next_run(action: ScheduledAction, after: datetime | None = None) -> 
     return candidate.astimezone(UTC)
 
 
-def is_action_completed(action: ScheduledAction, now: datetime | None = None) -> bool:
+def _payload_value_to_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        return " ".join(_payload_value_to_text(v) for v in value.values())
+    if isinstance(value, list | tuple | set):
+        return " ".join(_payload_value_to_text(item) for item in value)
+    return str(value)
+
+
+def _is_empty_payload_value(value: Any) -> bool:
+    return not _payload_value_to_text(value).strip()
+
+
+def _normalized_completion_condition(raw: Any) -> str:
+    condition = str(raw or "empty").strip().lower()
+    if condition in _TASK_CONDITIONS:
+        return "task_completed"
+    if condition in _INVOICE_CONDITIONS:
+        return "invoice_paid"
+    return "empty"
+
+
+def is_action_completed(
+    action: ScheduledAction,
+    now: datetime | None = None,
+    payload: dict[str, Any] | None = None,
+) -> bool:
+    """Check if action should be marked as completed."""
     current = now or now_utc()
     if action.max_runs is not None and action.run_count >= action.max_runs:
         return True
     if action.end_at is not None and current >= action.end_at:
         return True
+
+    if getattr(action, "action_kind", "digest") == "outcome" and payload is not None:
+        cfg = action.schedule_config or {}
+        condition = _normalized_completion_condition(cfg.get("completion_condition", "empty"))
+        if condition == "task_completed":
+            return "tasks" in payload and _is_empty_payload_value(payload.get("tasks"))
+        if condition == "invoice_paid":
+            return "outstanding" in payload and _is_empty_payload_value(payload.get("outstanding"))
+        if condition == "empty":
+            # Completed if all collected sources are empty
+            return all(_is_empty_payload_value(text) for text in payload.values())
+
     return False
 
 
@@ -222,13 +269,17 @@ def complete_action(action: ScheduledAction) -> None:
     action.next_run_at = None
 
 
-def apply_success(action: ScheduledAction, run_started_at: datetime) -> None:
+def apply_success(
+    action: ScheduledAction,
+    run_started_at: datetime,
+    payload: dict[str, Any] | None = None,
+) -> None:
     action.failure_count = 0
     action.run_count += 1
     action.last_run_at = run_started_at
     action.last_success_at = now_utc()
 
-    if is_action_completed(action, now_utc()):
+    if is_action_completed(action, now_utc(), payload=payload):
         complete_action(action)
         return
 

@@ -8,6 +8,7 @@ import pytest
 from src.core.models.enums import ActionStatus, ScheduleKind
 from src.core.scheduled_actions.engine import (
     apply_failure,
+    apply_success,
     backoff_minutes,
     compute_next_run,
 )
@@ -15,6 +16,7 @@ from src.core.scheduled_actions.engine import (
 
 def _action(**kwargs):
     base = {
+        "action_kind": "digest",
         "schedule_kind": ScheduleKind.daily,
         "schedule_config": {"time": "08:00"},
         "timezone": "UTC",
@@ -158,3 +160,74 @@ def test_apply_failure_pauses_after_max_failures():
 
     assert action.failure_count == 3
     assert action.status == ActionStatus.paused
+
+
+def test_apply_success_completes_when_max_runs_reached():
+    action = _action(run_count=0, max_runs=1, schedule_kind=ScheduleKind.daily)
+    run_started_at = datetime(2026, 3, 4, 10, 0, tzinfo=UTC)
+
+    apply_success(action, run_started_at)
+
+    assert action.run_count == 1
+    assert action.status == ActionStatus.completed
+    assert action.next_run_at is None
+
+
+def test_apply_success_completes_when_end_at_passed():
+    action = _action(
+        run_count=0,
+        max_runs=None,
+        end_at=datetime(2020, 1, 1, 0, 0, tzinfo=UTC),
+        schedule_kind=ScheduleKind.daily,
+    )
+    run_started_at = datetime(2026, 3, 4, 10, 0, tzinfo=UTC)
+
+    apply_success(action, run_started_at)
+
+    assert action.status == ActionStatus.completed
+    assert action.next_run_at is None
+
+
+def test_apply_success_outcome_task_completed_when_tasks_empty():
+    action = _action(
+        action_kind="outcome",
+        schedule_kind=ScheduleKind.daily,
+        schedule_config={"time": "08:00", "completion_condition": "task_completed"},
+        sources=["tasks"],
+    )
+    run_started_at = datetime(2026, 3, 4, 10, 0, tzinfo=UTC)
+
+    apply_success(action, run_started_at, payload={"tasks": ""})
+
+    assert action.status == ActionStatus.completed
+    assert action.next_run_at is None
+
+
+def test_apply_success_outcome_invoice_paid_when_outstanding_empty():
+    action = _action(
+        action_kind="outcome",
+        schedule_kind=ScheduleKind.daily,
+        schedule_config={"time": "08:00", "completion_condition": "invoice_paid"},
+        sources=["outstanding"],
+    )
+    run_started_at = datetime(2026, 3, 4, 10, 0, tzinfo=UTC)
+
+    apply_success(action, run_started_at, payload={"outstanding": ""})
+
+    assert action.status == ActionStatus.completed
+    assert action.next_run_at is None
+
+
+def test_apply_success_outcome_does_not_complete_when_open_items_present():
+    action = _action(
+        action_kind="outcome",
+        schedule_kind=ScheduleKind.daily,
+        schedule_config={"time": "08:00", "completion_condition": "task_completed"},
+        sources=["tasks"],
+    )
+    run_started_at = datetime(2026, 3, 4, 10, 0, tzinfo=UTC)
+
+    apply_success(action, run_started_at, payload={"tasks": "Open tasks (1):\n- Pay bill"})
+
+    assert action.status == ActionStatus.active
+    assert action.next_run_at == datetime(2026, 3, 5, 8, 0, tzinfo=UTC)

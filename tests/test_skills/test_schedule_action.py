@@ -224,3 +224,59 @@ async def test_schedule_action_invalid_schedule_config_returns_schedule_prompt()
         )
 
     assert "When should I run it?" in result.response_text
+
+
+async def test_schedule_action_outcome_mode_from_explicit_intent_fields():
+    skill = ScheduleActionSkill()
+    message = _message("Remind me every day until done.")
+
+    with (
+        patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True),
+        patch(
+            "src.skills.schedule_action.handler.save_scheduled_action",
+            new_callable=AsyncMock,
+        ) as mock_save,
+    ):
+        await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "daily",
+                "schedule_time": "08:00",
+                "schedule_sources": ["tasks"],
+                "schedule_instruction": "Check open tasks until completed",
+                "schedule_action_kind": "outcome",
+                "schedule_completion_condition": "task_completed",
+            },
+        )
+
+    action = mock_save.call_args.args[0]
+    assert action.action_kind == "outcome"
+    assert action.schedule_config["completion_condition"] == "task_completed"
+
+
+async def test_schedule_action_outcome_mode_inferred_from_until_paid_phrase():
+    skill = ScheduleActionSkill()
+    message = _message("Every day at 9 remind me until invoice is paid.")
+
+    with (
+        patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True),
+        patch(
+            "src.skills.schedule_action.handler.save_scheduled_action",
+            new_callable=AsyncMock,
+        ) as mock_save,
+    ):
+        await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "daily",
+                "schedule_time": "09:00",
+                "schedule_sources": ["outstanding"],
+                "schedule_instruction": "Track unpaid invoices",
+            },
+        )
+
+    action = mock_save.call_args.args[0]
+    assert action.action_kind == "outcome"
+    assert action.schedule_config["completion_condition"] == "invoice_paid"

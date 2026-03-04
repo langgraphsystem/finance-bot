@@ -104,4 +104,11 @@ async def handle_sched_callback(
             _log_callback_used(action, context, sub_action)
             return t("sched_deleted", language, title=action.title)
 
+        if sub_action == "done":
+            action.status = ActionStatus.completed
+            action.next_run_at = None
+            await session.commit()
+            _log_callback_used(action, context, sub_action)
+            return t("sched_done", language, title=action.title)
+
     return t("sched_invalid", language)

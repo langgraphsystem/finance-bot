@@ -21,7 +21,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_pause": "⏸ Pause",
         "btn_resume": "▶️ Resume",
         "btn_delete": "🗑 Delete",
+        "btn_done": "✅ Done",
         "degraded_footer": "⚠️ {sources} temporarily unavailable",
+        "trust_footer": "📡 {ok}/{total} sources • {time}",
         "sched_not_found": "Scheduled action not found.",
         "sched_forbidden": "You cannot manage this scheduled action.",
         "sched_snoozed": "Snoozed — will run in {minutes} min.",
@@ -29,12 +31,22 @@ _STRINGS: dict[str, dict[str, str]] = {
         "sched_resumed": "Resumed — <b>{title}</b>.",
         "sched_run_now": "Queued — <b>{title}</b> will run now.",
         "sched_deleted": "Deleted — <b>{title}</b>.",
+        "sched_done": "✅ Completed — <b>{title}</b>.",
+        "sched_auto_completed": "✅ Auto-completed — <b>{title}</b>.",
+        "sched_auto_paused": (
+            "⚠️ <b>{title}</b> paused after {failures} failures."
+            " Use /manage to resume."
+        ),
         "sched_invalid": "Invalid scheduled action ID.",
         "source_calendar": "calendar",
         "source_tasks": "tasks",
         "source_money_summary": "money",
         "source_email_highlights": "email",
         "source_outstanding": "outstanding",
+        "budget_usage": "Budget usage",
+        "budget_trend_up": "Spending trend is up vs monthly average",
+        "budget_trend_down": "Spending trend is down vs monthly average",
+        "outcome_badge": "Persistent",
     },
     "ru": {
         "greeting_morning": "Доброе утро",
@@ -51,7 +63,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_pause": "⏸ Пауза",
         "btn_resume": "▶️ Возобновить",
         "btn_delete": "🗑 Удалить",
+        "btn_done": "✅ Готово",
         "degraded_footer": "⚠️ Источники временно недоступны: {sources}",
+        "trust_footer": "📡 {ok}/{total} источников • {time}",
         "sched_not_found": "Запланированное действие не найдено.",
         "sched_forbidden": "Нельзя управлять этим действием.",
         "sched_snoozed": "Отложено — запущу через {minutes} мин.",
@@ -59,12 +73,22 @@ _STRINGS: dict[str, dict[str, str]] = {
         "sched_resumed": "Возобновлено — <b>{title}</b>.",
         "sched_run_now": "Поставил в очередь — <b>{title}</b> запущу сейчас.",
         "sched_deleted": "Удалено — <b>{title}</b>.",
+        "sched_done": "✅ Завершено — <b>{title}</b>.",
+        "sched_auto_completed": "✅ Автозавершено — <b>{title}</b>.",
+        "sched_auto_paused": (
+            "⚠️ <b>{title}</b> на паузе после {failures} сбоев."
+            " Используйте /manage чтобы возобновить."
+        ),
         "sched_invalid": "Неверный ID запланированного действия.",
         "source_calendar": "календарь",
         "source_tasks": "задачи",
         "source_money_summary": "финансы",
         "source_email_highlights": "почта",
         "source_outstanding": "неоплаченные",
+        "budget_usage": "Использование бюджета",
+        "budget_trend_up": "Траты выше среднего за месяц",
+        "budget_trend_down": "Траты ниже среднего за месяц",
+        "outcome_badge": "До результата",
     },
     "es": {
         "greeting_morning": "Buenos dias",
@@ -81,7 +105,9 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_pause": "⏸ Pausar",
         "btn_resume": "▶️ Reanudar",
         "btn_delete": "🗑 Eliminar",
+        "btn_done": "✅ Hecho",
         "degraded_footer": "⚠️ Fuentes no disponibles temporalmente: {sources}",
+        "trust_footer": "📡 {ok}/{total} fuentes • {time}",
         "sched_not_found": "No se encontro la accion programada.",
         "sched_forbidden": "No puedes gestionar esta accion programada.",
         "sched_snoozed": "Pospuesto — se ejecutara en {minutes} min.",
@@ -89,12 +115,22 @@ _STRINGS: dict[str, dict[str, str]] = {
         "sched_resumed": "Reanudado — <b>{title}</b>.",
         "sched_run_now": "En cola — <b>{title}</b> se ejecutara ahora.",
         "sched_deleted": "Eliminado — <b>{title}</b>.",
+        "sched_done": "✅ Completado — <b>{title}</b>.",
+        "sched_auto_completed": "✅ Completado automaticamente — <b>{title}</b>.",
+        "sched_auto_paused": (
+            "⚠️ <b>{title}</b> pausado tras {failures} fallos."
+            " Usa /manage para reanudar."
+        ),
         "sched_invalid": "ID de accion programada invalido.",
         "source_calendar": "calendario",
         "source_tasks": "tareas",
         "source_money_summary": "finanzas",
         "source_email_highlights": "correo",
         "source_outstanding": "pendientes",
+        "budget_usage": "Uso de presupuesto",
+        "budget_trend_up": "El gasto sube frente al promedio mensual",
+        "budget_trend_down": "El gasto baja frente al promedio mensual",
+        "outcome_badge": "Persistente",
     },
 }
 
@@ -144,4 +180,3 @@ def greeting_key_for_hour(hour: int) -> str:
     if hour < 18:
         return "greeting_afternoon"
     return "greeting_evening"
-

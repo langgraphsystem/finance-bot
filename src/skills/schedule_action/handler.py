@@ -194,6 +194,51 @@ _WEEKDAY_MAP = {
     "domingo": 6,
 }
 
+_OUTCOME_HINTS = (
+    "until done",
+    "till done",
+    "until completed",
+    "until complete",
+    "until paid",
+    "до выполнения",
+    "до завершения",
+    "пока не выполн",
+    "пока не оплачен",
+    "hasta completar",
+    "hasta que se complete",
+    "hasta que se pague",
+)
+_TASK_HINTS = (
+    "task",
+    "tasks",
+    "todo",
+    "задач",
+    "дел",
+    "tarea",
+    "tareas",
+)
+_INVOICE_HINTS = (
+    "invoice",
+    "invoices",
+    "paid",
+    "payment",
+    "bill",
+    "оплат",
+    "счет",
+    "инвойс",
+    "factura",
+    "pago",
+)
+_OUTCOME_CONDITIONS = {
+    "empty": "empty",
+    "task_completed": "task_completed",
+    "tasks_completed": "task_completed",
+    "tasks_empty": "task_completed",
+    "invoice_paid": "invoice_paid",
+    "outstanding_empty": "invoice_paid",
+    "outstanding_cleared": "invoice_paid",
+}
+
 
 def _t(key: str, language: str, **kwargs: str) -> str:
     strings = _STRINGS.get(language, _STRINGS["en"])
@@ -356,7 +401,7 @@ def _compute_recurring_next_run(
     return candidate
 
 
-def _normalize_sources(raw_sources: Any, text: str) -> list[str]:
+def _normalize_sources(raw_sources: Any, text: str, use_defaults: bool = True) -> list[str]:
     sources: list[str] = []
     candidates: list[str] = []
 
@@ -382,7 +427,9 @@ def _normalize_sources(raw_sources: Any, text: str) -> list[str]:
         if mapped and mapped not in sources:
             sources.append(mapped)
 
-    return sources or ["calendar", "tasks"]
+    if not sources and use_defaults:
+        return ["calendar", "tasks"]
+    return sources
 
 
 def _parse_output_mode(raw: str | None) -> OutputMode:
@@ -392,6 +439,45 @@ def _parse_output_mode(raw: str | None) -> OutputMode:
     if value == "decision_ready":
         return OutputMode.decision_ready
     return OutputMode.compact
+
+
+def _normalize_outcome_condition(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    key = str(raw).strip().lower()
+    return _OUTCOME_CONDITIONS.get(key)
+
+
+def _derive_action_kind_and_completion(
+    intent_data: dict[str, Any],
+    text: str,
+    sources: list[str],
+) -> tuple[str, str | None]:
+    kind_raw = str(intent_data.get("schedule_action_kind") or "").strip().lower()
+    condition = _normalize_outcome_condition(intent_data.get("schedule_completion_condition"))
+    text_lower = text.lower()
+
+    explicit_outcome = kind_raw in {"outcome", "until_done", "persistent"}
+    has_until_phrase = any(
+        token in text_lower
+        for token in ("until", "до ", "hasta ")
+    )
+    has_goal_signal = any(hint in text_lower for hint in _TASK_HINTS + _INVOICE_HINTS)
+    hinted_outcome = any(hint in text_lower for hint in _OUTCOME_HINTS) or (
+        has_until_phrase and has_goal_signal
+    )
+    is_outcome = explicit_outcome or hinted_outcome
+    if not is_outcome:
+        return "digest", None
+
+    if condition:
+        return "outcome", condition
+
+    if "outstanding" in sources or any(hint in text_lower for hint in _INVOICE_HINTS):
+        return "outcome", "invoice_paid"
+    if "tasks" in sources or any(hint in text_lower for hint in _TASK_HINTS):
+        return "outcome", "task_completed"
+    return "outcome", "empty"
 
 
 def _parse_end_at(raw: str | None) -> datetime | None:
@@ -583,6 +669,13 @@ class ScheduleActionSkill:
 
         output_mode = _parse_output_mode(intent_data.get("schedule_output_mode"))
         sources = _normalize_sources(intent_data.get("schedule_sources"), message.text or "")
+        action_kind, completion_condition = _derive_action_kind_and_completion(
+            intent_data,
+            message.text or "",
+            sources,
+        )
+        if action_kind == "outcome" and completion_condition:
+            schedule_config["completion_condition"] = completion_condition
         title = (
             intent_data.get("task_title") or intent_data.get("managed_action_title") or ""
         ).strip()
@@ -595,7 +688,7 @@ class ScheduleActionSkill:
             user_id=uuid.UUID(context.user_id),
             title=title,
             instruction=instruction,
-            action_kind="digest",
+            action_kind=action_kind,
             schedule_kind=schedule_kind,
             schedule_config=schedule_config,
             sources=sources,
