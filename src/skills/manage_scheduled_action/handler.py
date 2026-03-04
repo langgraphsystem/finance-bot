@@ -49,7 +49,8 @@ _STRINGS = {
         "need_time": "What new time should I use?",
         "cannot_resume_once": "This one-time action is in the past. Please reschedule it.",
         "rescheduled": "🕒 Rescheduled: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ Updated: <b>{title}</b>.\nBefore: {before}\nAfter: {after}",
+        "edited": "✏️ <b>Action evolved!</b>\n📌 {title}\n\n{changes}\n\nNext run: {next_run}",
+        "change_item": "• {label}: {old} → <b>{new}</b>",
     },
     "ru": {
         "disabled": "Запланированные действия пока не включены.",
@@ -64,7 +65,8 @@ _STRINGS = {
         "need_time": "На какое новое время перенести?",
         "cannot_resume_once": "Разовый запуск уже в прошлом. Перенесите его на новое время.",
         "rescheduled": "🕒 Перенесено: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ Обновлено: <b>{title}</b>.\nБыло: {before}\nСтало: {after}",
+        "edited": "✏️ <b>Настройка обновлена!</b>\n📌 {title}\n\n{changes}\n\nЗапуск: {next_run}",
+        "change_item": "• {label}: {old} → <b>{new}</b>",
     },
     "es": {
         "disabled": "Las acciones programadas aun no estan habilitadas.",
@@ -79,10 +81,32 @@ _STRINGS = {
         "need_time": "Que nueva hora debo usar?",
         "cannot_resume_once": "Esta accion unica ya paso. Reprogramala con nueva hora.",
         "rescheduled": "🕒 Reprogramado: <b>{title}</b>.\n{old_time} → {new_time}",
-        "edited": "✏️ Actualizado: <b>{title}</b>.\nAntes: {before}\nDespues: {after}",
+        "edited": "✏️ <b>¡Acción actualizada!</b>\n📌 {title}\n\n{changes}\n\nPróximo: {next_run}",
+        "change_item": "• {label}: {old} → <b>{new}</b>",
     },
 }
 register_strings("manage_scheduled_action", _STRINGS)
+
+_LABELS = {
+    "en": {
+        "kind": "Frequency",
+        "time": "Time",
+        "sources": "Sources",
+        "instruction": "Instructions",
+    },
+    "ru": {
+        "kind": "Частота",
+        "time": "Время",
+        "sources": "Источники",
+        "instruction": "Инструкции",
+    },
+    "es": {
+        "kind": "Frecuencia",
+        "time": "Hora",
+        "sources": "Fuentes",
+        "instruction": "Instrucciones",
+    },
+}
 
 _KIND_LABELS = {
     "en": {
@@ -146,10 +170,10 @@ def _t(key: str, language: str, **kwargs: str) -> str:
 
 def _detect_operation(intent_data: dict[str, Any], text: str) -> str | None:
     raw = (intent_data.get("manage_operation") or "").strip().lower()
-    if raw in {"pause", "resume", "delete", "reschedule", "edit"}:
+    if raw in {"pause", "resume", "delete", "reschedule", "edit", "modify"}:
         # Keep backward compatibility with existing "reschedule" operation while
         # allowing a dedicated edit flow for delta updates.
-        return "edit" if raw == "edit" else raw
+        return "edit" if raw in {"edit", "modify"} else raw
 
     text_lower = text.lower()
     if any(word in text_lower for word in ("edit", "измени", "обнов", "actualiza", "editar")):
@@ -180,7 +204,11 @@ def _is_remove_sources_request(text: str) -> bool:
 
 
 def _extract_sources_for_edit(intent_data: dict[str, Any], text: str) -> list[str]:
-    raw_sources = intent_data.get("schedule_sources")
+    raw_sources = (
+        intent_data.get("schedule_sources")
+        or intent_data.get("added_sources")
+        or intent_data.get("removed_sources")
+    )
     source_hint = any(
         word in text.lower()
         for word in (
@@ -196,24 +224,51 @@ def _extract_sources_for_edit(intent_data: dict[str, Any], text: str) -> list[st
 
 
 def _apply_sources_delta(action: ScheduledAction, intent_data: dict[str, Any], text: str) -> bool:
-    new_sources = _extract_sources_for_edit(intent_data, text)
-    if not new_sources:
-        return False
+    added = _normalize_sources(intent_data.get("added_sources"), text, use_defaults=False)
+    removed = _normalize_sources(intent_data.get("removed_sources"), text, use_defaults=False)
+    explicit = _normalize_sources(intent_data.get("schedule_sources"), text, use_defaults=False)
 
     existing = list(action.sources or [])
-    if _is_remove_sources_request(text):
-        merged = [item for item in existing if item not in new_sources]
-    elif _is_add_sources_request(text):
-        merged = existing[:]
-        for item in new_sources:
-            if item not in merged:
-                merged.append(item)
-    else:
-        merged = new_sources
+    merged = existing[:]
 
-    if merged == existing:
+    # 1. If explicit list is provided, it's an overwrite
+    if explicit:
+        merged = explicit
+    # 2. If added/removed are provided via Pydantic/IntentData, apply them to existing
+    elif added or removed:
+        if added:
+            for s in added:
+                if s not in merged:
+                    merged.append(s)
+        if removed:
+            merged = [s for s in merged if s not in removed]
+    # 3. Fallback to NL extraction from text only if no structured fields were found
+    else:
+        extracted = _extract_sources_for_edit(intent_data, text)
+        if extracted:
+            if _is_remove_sources_request(text):
+                merged = [s for s in merged if s not in extracted]
+            elif _is_add_sources_request(text):
+                for s in extracted:
+                    if s not in merged:
+                        merged.append(s)
+            else:
+                # Direct instruction like "use calendar" -> overwrite
+                merged = extracted
+
+    if set(merged) == set(existing):
         return False
     action.sources = merged
+    return True
+
+
+def _apply_instruction_delta(action: ScheduledAction, intent_data: dict[str, Any]) -> bool:
+    new_inst = intent_data.get("new_instruction") or intent_data.get("schedule_instruction")
+    if not new_inst:
+        return False
+    if action.instruction == new_inst:
+        return False
+    action.instruction = new_inst
     return True
 
 
@@ -436,43 +491,108 @@ class ManageScheduledActionSkill:
             return SkillResult(response_text=_t("deleted", lang, title=target.title))
 
         if operation == "edit":
-            before = _format_action_snapshot(target, lang)
-            updated = False
+            lang_labels = _LABELS.get(lang, _LABELS["en"])
+            kind_labels = _KIND_LABELS.get(lang, _KIND_LABELS["en"])
+            source_labels = _SOURCE_LABELS.get(lang, _SOURCE_LABELS["en"])
 
+            changes = []
+
+            # 1. Frequency
+            old_kind = target.schedule_kind
             parsed_kind = _parse_schedule_kind(intent_data, message.text or "")
             if parsed_kind and parsed_kind != target.schedule_kind:
                 target.schedule_kind = parsed_kind
-                updated = True
+                old_k_txt = kind_labels.get(old_kind.value, old_kind.value)
+                new_k_txt = kind_labels.get(parsed_kind.value, parsed_kind.value)
+                changes.append(
+                    _t(
+                        "change_item",
+                        lang,
+                        label=lang_labels["kind"],
+                        old=old_k_txt,
+                        new=new_k_txt,
+                    ),
+                )
 
+            # 2. Sources
+            old_sources = list(target.sources or [])
             if _apply_sources_delta(target, intent_data, message.text or ""):
-                updated = True
+                old_s_txt = ", ".join(source_labels.get(s, s) for s in old_sources) or "—"
+                new_s_txt = ", ".join(source_labels.get(s, s) for s in target.sources) or "—"
+                changes.append(
+                    _t(
+                        "change_item",
+                        lang,
+                        label=lang_labels["sources"],
+                        old=old_s_txt,
+                        new=new_s_txt,
+                    ),
+                )
 
+            # 3. Instruction
+            old_inst = target.instruction or "—"
+            if _apply_instruction_delta(target, intent_data):
+                new_inst = target.instruction or "—"
+                changes.append(
+                    _t(
+                        "change_item",
+                        lang,
+                        label=lang_labels["instruction"],
+                        old=old_inst,
+                        new=new_inst,
+                    ),
+                )
+
+            # 4. Time/Next Run
+            old_cfg = dict(target.schedule_config or {})
+            old_time_value = str(
+                old_cfg.get("time") or old_cfg.get("cron_expr") or old_cfg.get("run_at") or "—",
+            )
             next_run = _reschedule_action(
                 target,
                 intent_data,
                 message.text or "",
                 allow_existing_time=True,
             )
+
             if next_run is not None:
-                updated = True
+                new_cfg = target.schedule_config or {}
+                new_time_value = str(
+                    new_cfg.get("time") or new_cfg.get("cron_expr") or new_cfg.get("run_at") or "—",
+                )
+                if new_time_value != old_time_value:
+                    changes.append(
+                        _t(
+                            "change_item",
+                            lang,
+                            label=lang_labels["time"],
+                            old=old_time_value,
+                            new=new_time_value,
+                        ),
+                    )
             elif intent_data.get("schedule_time"):
                 return SkillResult(response_text=_t("need_time", lang))
+
+            if not changes:
+                return SkillResult(response_text=_t("ask_operation", lang))
 
             if target.schedule_kind == ScheduleKind.once and target.next_run_at is None:
                 target.next_run_at = _compute_next_run_from_action(target)
 
-            if not updated:
-                return SkillResult(response_text=_t("ask_operation", lang))
-
             await save_scheduled_action(target)
-            after = _format_action_snapshot(target, lang)
+
+            next_run_at = target.next_run_at or _compute_next_run_from_action(target)
+            next_run_txt = (
+                fmt_date(next_run_at, lang, timezone=target.timezone) if next_run_at else "—"
+            )
+
             return SkillResult(
                 response_text=_t(
                     "edited",
                     lang,
                     title=target.title,
-                    before=before,
-                    after=after,
+                    changes="\n".join(changes),
+                    next_run=next_run_txt,
                 )
             )
 
@@ -530,6 +650,8 @@ async def save_scheduled_action(action: ScheduledAction) -> None:
         if not db_action:
             return
         db_action.status = action.status
+        db_action.title = action.title
+        db_action.instruction = action.instruction
         db_action.schedule_kind = action.schedule_kind
         db_action.schedule_config = action.schedule_config
         db_action.sources = action.sources
