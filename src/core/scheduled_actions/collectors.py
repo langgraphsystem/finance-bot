@@ -20,6 +20,7 @@ from src.orchestrators.brief.nodes import (
 from src.orchestrators.brief.state import BriefState
 
 SourceStatus = dict[str, dict[str, Any]]
+SOURCE_TIMEOUT_SECONDS = 15.0
 
 _SOURCE_COLLECTOR_MAP = {
     "calendar": (collect_calendar, "calendar_data"),
@@ -47,19 +48,19 @@ async def _run_source(
     state: BriefState,
 ) -> tuple[str, str, dict[str, Any]]:
     collector, response_key = _SOURCE_COLLECTOR_MAP[source]
-    started = time.perf_counter()
     try:
-        result = await collector(state)
+        result = await asyncio.wait_for(
+            collector(state),
+            timeout=SOURCE_TIMEOUT_SECONDS,
+        )
         text = str(result.get(response_key, "") or "")
         status = "success" if text else "empty"
         meta: dict[str, Any] = {"status": status}
         return source, text, meta
+    except TimeoutError:
+        return source, "", {"status": "failed", "error": "timeout"}
     except Exception as exc:  # pragma: no cover - defensive wrapper
         return source, "", {"status": "failed", "error": str(exc)[:300]}
-    finally:
-        duration_ms = int((time.perf_counter() - started) * 1000)
-        # We cannot mutate returned meta here reliably, so duration is set by caller.
-        _ = duration_ms
 
 
 async def collect_sources(action: ScheduledAction) -> tuple[dict[str, str], SourceStatus]:
@@ -87,4 +88,3 @@ async def collect_sources(action: ScheduledAction) -> tuple[dict[str, str], Sour
         status[source] = meta
 
     return payload, status
-
