@@ -13,6 +13,7 @@ def _action(status: ActionStatus = ActionStatus.active):
     return SimpleNamespace(
         id=uuid.uuid4(),
         status=status,
+        action_kind="digest",
         language="en",
         schedule_config={"snooze_minutes": 15},
     )

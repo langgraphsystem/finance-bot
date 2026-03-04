@@ -78,6 +78,7 @@ def _action(**kwargs):
         "last_run_at": None,
         "last_success_at": None,
         "output_mode": OutputMode.compact,
+        "action_kind": "digest",
         "language": "en",
         "sources": ["calendar", "tasks"],
     }
