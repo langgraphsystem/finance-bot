@@ -10,6 +10,7 @@ from src.core.db import async_session
 from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
+from src.core.text_utils import fuzzy_find
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -69,6 +70,11 @@ class FindContactSkill:
 
         if not contacts:
             return SkillResult(response_text=f"No contacts found matching '{query}'.")
+
+        # Rank by fuzzy similarity to query
+        best_name = fuzzy_find(query, [c.name for c in contacts])
+        if best_name:
+            contacts = sorted(contacts, key=lambda c: c.name != best_name)
 
         lines = [f"<b>Found {len(contacts)} contact(s):</b>\n"]
         for c in contacts:

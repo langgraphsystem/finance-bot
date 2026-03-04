@@ -1,4 +1,4 @@
-"""Life search skill — semantic + SQL search across life events and memories."""
+"""Life search skill — hybrid semantic + SQL search across life events and memories."""
 
 import logging
 from typing import Any
@@ -13,6 +13,7 @@ from src.core.life_helpers import (
 from src.core.memory.mem0_client import search_memories
 from src.core.models.enums import LifeEventType
 from src.core.observability import observe
+from src.core.text_utils import is_similar
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -76,9 +77,10 @@ class LifeSearchSkill:
             limit=30,
         )
 
-        # 2. Mem0 semantic search (only for broad text queries, not filtered)
+        # 2. Mem0 semantic search — always run when we have a query
+        # Finds semantically related memories even when SQL uses date/type filters
         mem0_results: list[dict] = []
-        if use_text_search:
+        if query.strip():
             try:
                 mem0_results = await search_memories(
                     query=query.strip(),
@@ -89,13 +91,14 @@ class LifeSearchSkill:
                 logger.warning("Mem0 search failed: %s", e)
 
         # Merge results: SQL events as primary, Mem0 as supplementary
-        timeline_events = sql_events
-
-        # Append Mem0 results that aren't already in SQL results
-        sql_texts = {ev.text for ev in sql_events if ev.text}
+        # Use similarity-based dedup to avoid near-duplicate entries
+        timeline_events = list(sql_events)
+        sql_texts = [ev.text for ev in sql_events if ev.text]
         for mem in mem0_results:
             mem_text = mem.get("memory") or mem.get("text") or ""
-            if mem_text and mem_text not in sql_texts:
+            if not mem_text:
+                continue
+            if not any(is_similar(mem_text, st) for st in sql_texts):
                 timeline_events.append(_mem0_to_pseudo_event(mem))
 
         if not timeline_events:

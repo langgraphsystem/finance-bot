@@ -370,10 +370,10 @@ async def test_search_header_shows_period(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_search_no_mem0_when_filtered(skill, ctx):
-    """When period is set, Mem0 semantic search is skipped."""
-    msg = _msg("за неделю")
-    intent_data = {"search_query": "за неделю", "period": "week"}
+async def test_mem0_always_runs_when_query_exists(skill, ctx):
+    """With hybrid search, Mem0 runs even when period/type filters are set."""
+    msg = _msg("кофе за неделю")
+    intent_data = {"search_query": "кофе за неделю", "period": "week"}
 
     with (
         patch(
@@ -389,5 +389,47 @@ async def test_search_no_mem0_when_filtered(skill, ctx):
     ):
         await skill.execute(msg, ctx, intent_data)
 
-    # Mem0 should not be called when period filter is active
-    mock_mem0.assert_not_called()
+    # Mem0 should be called because query text exists (hybrid search)
+    mock_mem0.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fuzzy_dedup_removes_near_duplicates(skill, ctx):
+    """Fuzzy dedup catches near-duplicate Mem0 results."""
+    msg = _msg("кофе")
+    intent_data = {"search_query": "кофе"}
+
+    sql_events = [_make_life_event("Кофе утром в кафе", LifeEventType.drink)]
+    mem0_results = [
+        {
+            "memory": "кофе утром в кафе",  # near-duplicate (case diff)
+            "metadata": {"type": "drink"},
+            "created_at": datetime.now().isoformat(),
+        },
+        {
+            "memory": "вечерний чай с мятой",  # unique
+            "metadata": {"type": "drink"},
+            "created_at": datetime.now().isoformat(),
+        },
+    ]
+
+    with (
+        patch(
+            "src.skills.life_search.handler.query_life_events",
+            new_callable=AsyncMock,
+            return_value=sql_events,
+        ),
+        patch(
+            "src.skills.life_search.handler.search_memories",
+            new_callable=AsyncMock,
+            return_value=mem0_results,
+        ),
+        patch(
+            "src.skills.life_search.handler.format_timeline",
+            return_value="timeline",
+        ),
+    ):
+        result = await skill.execute(msg, ctx, intent_data)
+
+    # 1 SQL + 1 unique Mem0 (near-duplicate filtered out)
+    assert "(2)" in result.response_text

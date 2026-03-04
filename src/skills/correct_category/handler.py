@@ -12,6 +12,7 @@ from src.core.db import async_session
 from src.core.models.category import Category
 from src.core.models.transaction import Transaction
 from src.core.tasks.memory_tasks import async_update_merchant_mapping
+from src.core.text_utils import fuzzy_find
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -43,12 +44,16 @@ class CorrectCategorySkill:
                 ],
             )
 
-        # Find matching category
+        # Find matching category (fuzzy)
+        cat_names = [c["name"] for c in context.categories]
+        matched_name = fuzzy_find(new_category_name, cat_names, threshold=0.6)
         new_cat_id = None
-        for cat in context.categories:
-            if cat["name"].lower() == new_category_name.lower():
-                new_cat_id = cat["id"]
-                break
+        if matched_name:
+            for cat in context.categories:
+                if cat["name"] == matched_name:
+                    new_cat_id = cat["id"]
+                    new_category_name = matched_name
+                    break
 
         if not new_cat_id:
             return SkillResult(

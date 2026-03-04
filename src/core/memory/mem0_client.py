@@ -161,8 +161,10 @@ async def search_memories_multi_domain(
     domains: list[MemoryDomain],
     limit_per_domain: int = 5,
 ) -> list[dict]:
-    """Search across multiple domains and merge results."""
+    """Search across multiple domains and merge results with fuzzy dedup."""
     import asyncio
+
+    from src.core.text_utils import is_similar
 
     tasks = [
         search_memories(query, user_id, limit=limit_per_domain, domain=d)
@@ -170,9 +172,17 @@ async def search_memories_multi_domain(
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     merged: list[dict] = []
+    seen_texts: list[str] = []
     for r in results:
         if isinstance(r, list):
-            merged.extend(r)
+            for mem in r:
+                text = mem.get("memory") or mem.get("text") or ""
+                if not text:
+                    merged.append(mem)
+                    continue
+                if not any(is_similar(text, s) for s in seen_texts):
+                    seen_texts.append(text)
+                    merged.append(mem)
     return merged
 
 

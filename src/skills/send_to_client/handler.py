@@ -10,6 +10,7 @@ from src.core.db import async_session
 from src.core.models.contact import Contact
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
+from src.core.text_utils import fuzzy_find
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -49,7 +50,7 @@ class SendToClientSkill:
             or ""
         ).strip()
 
-        # Find the contact
+        # Find the contact (fuzzy ranked)
         async with async_session() as session:
             words = split_search_words(contact_name)
             name_filter = (
@@ -60,9 +61,17 @@ class SendToClientSkill:
             result = await session.execute(
                 select(Contact)
                 .where(Contact.family_id == context.family_id, name_filter)
-                .limit(1)
+                .limit(5)
             )
-            contact = result.scalar_one_or_none()
+            candidates = result.scalars().all()
+            contact = None
+            if candidates:
+                best = fuzzy_find(contact_name, [c.name for c in candidates])
+                contact = (
+                    next((c for c in candidates if c.name == best), candidates[0])
+                    if best
+                    else candidates[0]
+                )
 
         if not contact:
             return SkillResult(

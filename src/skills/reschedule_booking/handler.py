@@ -13,6 +13,7 @@ from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.observability import observe
 from src.core.search_utils import ilike_all_words, split_search_words
+from src.core.text_utils import fuzzy_find
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -94,8 +95,18 @@ class RescheduleBookingSkill:
                 else:
                     query = query.where(Booking.title.ilike(f"%{search}%"))
 
-            result = await session.execute(query.limit(1))
-            booking = result.scalar_one_or_none()
+            result = await session.execute(query.limit(5))
+            candidates = result.scalars().all()
+            booking = None
+            if candidates and search:
+                best = fuzzy_find(search, [b.title for b in candidates if b.title])
+                booking = (
+                    next((b for b in candidates if b.title == best), candidates[0])
+                    if best
+                    else candidates[0]
+                )
+            elif candidates:
+                booking = candidates[0]
 
         if not booking:
             return SkillResult(response_text="No matching upcoming booking found to reschedule.")
