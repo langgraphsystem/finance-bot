@@ -1581,6 +1581,18 @@ async def _handle_callback(
         sub_action = parts[1] if len(parts) > 1 else ""
         return await _handle_plan_callback(sub_action, message, context)
 
+    elif action == "sched":
+        sub_action = parts[1] if len(parts) > 1 else ""
+        action_id = parts[2] if len(parts) > 2 else ""
+        from src.core.scheduled_actions.callbacks import handle_sched_callback
+
+        result_text = await handle_sched_callback(
+            sub_action=sub_action,
+            action_id=action_id,
+            context=context,
+        )
+        return OutgoingMessage(text=result_text, chat_id=message.chat_id)
+
     elif action == "tz_skip":
         from src.skills.onboarding.handler import get_onboarding_texts
 
