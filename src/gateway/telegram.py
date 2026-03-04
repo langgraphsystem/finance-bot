@@ -42,6 +42,11 @@ class TelegramGateway:
                 raw=callback,
             )
             await self._handler(incoming)
+            if callback.data and callback.data.startswith("sched:") and callback.message:
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except Exception as e:
+                    logger.debug("Failed to clear sched callback buttons: %s", e)
             await callback.answer()
 
     async def send(self, message: OutgoingMessage) -> None:
