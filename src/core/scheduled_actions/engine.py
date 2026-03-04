@@ -6,6 +6,8 @@ from calendar import monthrange
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from croniter import CroniterBadCronError, CroniterBadDateError, croniter
+
 from src.core.models.enums import ActionStatus, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 
@@ -96,6 +98,27 @@ def _is_not_future(candidate: datetime, local_after: datetime) -> bool:
     return candidate.astimezone(UTC) <= local_after.astimezone(UTC)
 
 
+def _cron_next(expr: str, base_local: datetime, tz: ZoneInfo) -> datetime:
+    itr = croniter(expr, base_local)
+    next_dt = itr.get_next(datetime)
+    if next_dt.tzinfo is None:
+        next_dt = next_dt.replace(tzinfo=tz)
+    return next_dt.astimezone(tz)
+
+
+def is_valid_cron_expression(expr: str, *, min_interval_minutes: int = 5) -> bool:
+    """Validate cron expression and enforce minimum interval."""
+    if not expr or not isinstance(expr, str):
+        return False
+    try:
+        base = datetime(2026, 1, 1, 0, 0, tzinfo=ZoneInfo("UTC"))
+        first = _cron_next(expr, base, ZoneInfo("UTC"))
+        second = _cron_next(expr, first, ZoneInfo("UTC"))
+    except (CroniterBadCronError, CroniterBadDateError, ValueError):
+        return False
+    return (second - first) >= timedelta(minutes=min_interval_minutes)
+
+
 def compute_next_run(action: ScheduledAction, after: datetime | None = None) -> datetime | None:
     """Compute next run in UTC according to action schedule."""
     after_utc = after or now_utc()
@@ -164,6 +187,18 @@ def compute_next_run(action: ScheduledAction, after: datetime | None = None) -> 
         if _is_not_future(candidate, local_after):
             next_month_date = _monthly_next(target_date, day_of_month)
             candidate = _resolve_local_dt(tz, next_month_date, hour, minute)
+        return candidate.astimezone(UTC)
+
+    if action.schedule_kind == ScheduleKind.cron:
+        cron_expr = cfg.get("cron_expr")
+        if not isinstance(cron_expr, str) or not is_valid_cron_expression(cron_expr):
+            return None
+        try:
+            candidate = _cron_next(cron_expr, local_after, tz)
+            while (candidate.astimezone(UTC) - local_after.astimezone(UTC)) < timedelta(minutes=5):
+                candidate = _cron_next(cron_expr, candidate, tz)
+        except (CroniterBadCronError, CroniterBadDateError, ValueError):
+            return None
         return candidate.astimezone(UTC)
 
     # Fallback for unsupported schedule kinds (e.g. cron in P1+): daily.

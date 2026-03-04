@@ -50,4 +50,4 @@ def test_tasks_fallback_to_gemini():
     fallback = router.get_fallback("tasks")
     assert fallback is not None
     assert fallback.provider == "google"
-    assert fallback.model_id == "gemini-3-flash-preview"
+    assert fallback.model_id == "gemini-3.1-flash-lite-preview"

@@ -5,6 +5,7 @@ import re
 import uuid
 from calendar import monthrange
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,6 +15,7 @@ from src.core.db import async_session
 from src.core.models.enums import ActionStatus, OutputMode, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
+from src.core.scheduled_actions.engine import compute_next_run, is_valid_cron_expression
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import fmt_date, fmt_time, register_strings
 from src.skills.base import SkillResult
@@ -32,6 +34,7 @@ _STRINGS = {
         "ask_instruction": "What should I include in this scheduled action?",
         "ask_schedule": "When should I run it? Please share frequency and time.",
         "ask_time": "What time should I use?",
+        "ask_cron": "Please share a valid cron expression (minimum interval is 5 minutes).",
         "time_in_past": "This time is already in the past. Please share a future time.",
         "confirm": (
             "✅ <b>Scheduled</b>\n"
@@ -46,6 +49,7 @@ _STRINGS = {
         "ask_instruction": "Что включить в это запланированное действие?",
         "ask_schedule": "Когда запускать? Уточните частоту и время.",
         "ask_time": "На какое время поставить запуск?",
+        "ask_cron": "Укажите корректный cron (минимальный интервал — 5 минут).",
         "time_in_past": "Это время уже прошло. Укажите время в будущем.",
         "confirm": (
             "✅ <b>Запланировано</b>\n"
@@ -60,6 +64,7 @@ _STRINGS = {
         "ask_instruction": "Que debo incluir en esta accion programada?",
         "ask_schedule": "Cuando debo ejecutarla? Indica frecuencia y hora.",
         "ask_time": "Que hora debo usar?",
+        "ask_cron": "Indica una expresion cron valida (intervalo minimo: 5 minutos).",
         "time_in_past": "Esa hora ya paso. Indica una hora futura.",
         "confirm": (
             "✅ <b>Programado</b>\n"
@@ -79,6 +84,7 @@ _SCHEDULE_LABELS = {
         "weekly": "every {day} at {time}",
         "monthly": "monthly on day {day} at {time}",
         "weekdays": "weekdays at {time}",
+        "cron": "cron schedule: <code>{expr}</code>",
     },
     "ru": {
         "once": "однократно {dt}",
@@ -86,6 +92,7 @@ _SCHEDULE_LABELS = {
         "weekly": "каждый {day} в {time}",
         "monthly": "ежемесячно {day}-го в {time}",
         "weekdays": "по будням в {time}",
+        "cron": "cron-расписание: <code>{expr}</code>",
     },
     "es": {
         "once": "una vez el {dt}",
@@ -93,6 +100,7 @@ _SCHEDULE_LABELS = {
         "weekly": "cada {day} a las {time}",
         "monthly": "mensualmente el dia {day} a las {time}",
         "weekdays": "dias laborables a las {time}",
+        "cron": "horario cron: <code>{expr}</code>",
     },
 }
 
@@ -211,6 +219,8 @@ def _parse_schedule_kind(intent_data: dict[str, Any], text: str) -> ScheduleKind
         return ScheduleKind.weekly
     if any(word in text_lower for word in ("monthly", "каждый месяц", "ежемесячно", "mensual")):
         return ScheduleKind.monthly
+    if "cron" in text_lower:
+        return ScheduleKind.cron
     if any(word in text_lower for word in ("once", "one time", "разово", "один раз")):
         return ScheduleKind.once
     return None
@@ -397,6 +407,24 @@ def _parse_end_at(raw: str | None) -> datetime | None:
             return None
 
 
+def _extract_cron_expr(intent_data: dict[str, Any], message_text: str) -> str | None:
+    candidates = [
+        intent_data.get("cron_expr"),
+        intent_data.get("schedule_time"),
+        intent_data.get("schedule_instruction"),
+    ]
+    candidates.extend(re.findall(r"[\w*/,\-?#LW]+\s+[\w*/,\-?#LW]+\s+[\w*/,\-?#LW]+\s+"
+                                 r"[\w*/,\-?#LW]+\s+[\w*/,\-?#LW]+", message_text))
+    for raw in candidates:
+        if not raw:
+            continue
+        value = str(raw).strip()
+        if len(value.split()) not in {5, 6}:
+            continue
+        return value
+    return None
+
+
 def _schedule_description(
     schedule_kind: ScheduleKind,
     next_run_at: datetime,
@@ -420,6 +448,8 @@ def _schedule_description(
             day=day,
             time=fmt_time(local_next, language, timezone=timezone),
         )
+    if schedule_kind == ScheduleKind.cron:
+        return labels["cron"].format(expr="cron")
     return labels["monthly"].format(
         day=day_of_month,
         time=fmt_time(local_next, language, timezone=timezone),
@@ -468,6 +498,20 @@ class ScheduleActionSkill:
             next_run_at = next_run_at.astimezone(ZoneInfo(timezone))
             schedule_config["run_at"] = next_run_at.isoformat()
             schedule_config["time"] = next_run_at.strftime("%H:%M")
+        elif schedule_kind == ScheduleKind.cron:
+            cron_expr = _extract_cron_expr(intent_data, message.text or "")
+            if not cron_expr or not is_valid_cron_expression(cron_expr):
+                return SkillResult(response_text=_t("ask_cron", language))
+            schedule_config["cron_expr"] = cron_expr
+            probe = SimpleNamespace(
+                schedule_kind=ScheduleKind.cron,
+                schedule_config=schedule_config,
+                timezone=timezone,
+                next_run_at=None,
+            )
+            next_run_at = compute_next_run(probe, after=now.astimezone(UTC))
+            if next_run_at is None:
+                return SkillResult(response_text=_t("ask_cron", language))
         else:
             time_parts = _parse_time_parts(intent_data.get("schedule_time"))
             if not time_parts:
@@ -486,11 +530,6 @@ class ScheduleActionSkill:
                 day_of_month = now.day
 
             schedule_config["time"] = f"{hour:02d}:{minute:02d}"
-            if schedule_kind == ScheduleKind.weekly:
-                schedule_config["days"] = [weekday]
-            if schedule_kind == ScheduleKind.monthly:
-                schedule_config["day_of_month"] = day_of_month
-
             next_run_at = _compute_recurring_next_run(
                 schedule_kind=schedule_kind,
                 now=now,
@@ -499,6 +538,10 @@ class ScheduleActionSkill:
                 weekday=weekday,
                 day_of_month=day_of_month,
             )
+            if schedule_kind == ScheduleKind.weekly:
+                schedule_config["days"] = [weekday]
+            if schedule_kind == ScheduleKind.monthly:
+                schedule_config["day_of_month"] = day_of_month
 
         if next_run_at <= now:
             return SkillResult(response_text=_t("time_in_past", language))
@@ -544,6 +587,10 @@ class ScheduleActionSkill:
             weekday=weekday,
             day_of_month=day_of_month,
         )
+        if schedule_kind == ScheduleKind.cron:
+            schedule_desc = _SCHEDULE_LABELS.get(language, _SCHEDULE_LABELS["en"])["cron"].format(
+                expr=schedule_config.get("cron_expr", "cron")
+            )
         next_run = fmt_date(next_run_at, language, timezone=timezone)
         return SkillResult(
             response_text=_t(

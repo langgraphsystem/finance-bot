@@ -39,7 +39,7 @@ register_strings("web_search", {"en": {}, "ru": {}, "es": {}})
 class WebSearchSkill:
     name = "web_search"
     intents = ["web_search"]
-    model = "gemini-3-flash-preview"
+    model = "gemini-3.1-flash-lite-preview"
 
     @observe(name="web_search")
     async def execute(
@@ -76,7 +76,7 @@ async def search_and_answer(
     # Try with Google Search grounding first
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -91,7 +91,7 @@ async def search_and_answer(
     # Fallback: Gemini without grounding
     try:
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         text = response.text or ""

@@ -117,6 +117,32 @@ def test_compute_next_run_daily_fall_back_keeps_first_occurrence_only():
     assert next_run == datetime(2026, 11, 2, 6, 30, tzinfo=UTC)
 
 
+def test_compute_next_run_cron_valid_expression():
+    action = _action(
+        schedule_kind=ScheduleKind.cron,
+        schedule_config={"cron_expr": "*/10 * * * *"},
+        timezone="UTC",
+    )
+    after = datetime(2026, 3, 4, 8, 3, tzinfo=UTC)
+
+    next_run = compute_next_run(action, after=after)
+
+    assert next_run == datetime(2026, 3, 4, 8, 10, tzinfo=UTC)
+
+
+def test_compute_next_run_cron_too_frequent_returns_none():
+    action = _action(
+        schedule_kind=ScheduleKind.cron,
+        schedule_config={"cron_expr": "* * * * *"},
+        timezone="UTC",
+    )
+    after = datetime(2026, 3, 4, 8, 3, tzinfo=UTC)
+
+    next_run = compute_next_run(action, after=after)
+
+    assert next_run is None
+
+
 def test_backoff_policy():
     assert backoff_minutes(1) == 1
     assert backoff_minutes(2) == 5

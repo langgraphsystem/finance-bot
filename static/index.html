@@ -1,113 +1,82 @@
 <!DOCTYPE html>
-<html lang="en" class="lenis">
-
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | AI Agent Ecosystem</title>
+    <title>Finance Bot | AI Agent OS</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-
 <body>
-    <div class="grid-bg"></div>
-    <div class="aurora aurora-1"></div>
-    <div class="aurora aurora-2"></div>
+    <div class="grid-overlay"></div>
+    <div class="glow-mesh"></div>
 
     <nav class="navbar">
-        <div class="logo">
-            <i class="fa-solid fa-cube clr-indigo"></i>
-            <span>Finance AI</span>
-        </div>
-        <div class="nav-links">
-            <a href="#features" class="nav-link">Features</a>
+        <div class="logo"><i class="fa-solid fa-brain"></i> Finance AI</div>
+        <div class="nav-menu">
+            <a href="#features" class="nav-link">Capabilities</a>
             <a href="#agents" class="nav-link">Agents</a>
-            <a href="#pricing" class="nav-link">Pricing</a>
-            <a href="https://t.me/YourBotName" class="btn btn-primary">Sign In</a>
+            <a href="https://t.me/YourBotName" class="btn btn-primary" style="padding: 10px 24px;">Launch App</a>
         </div>
     </nav>
 
     <main>
         <section class="hero">
-            <div class="hero-badge reveal">V5.0 ARCHITECTURE IS LIVE</div>
-            <h1 class="hero-title reveal">
-                Connect your Life to <br>
-                <span class="gradient-text">AI Agent Ecosystem</span>
-            </h1>
+            <div class="hero-badge reveal">Next-Gen Agentic Workflow</div>
+            <h1 class="hero-title reveal">The Operating System <br>for your Life.</h1>
             <p class="hero-subtitle reveal">
-                12 specialized agents, 74+ skills. Orchestrated by LangGraph. 
-                From financial automation to document intelligence, unified in one chat.
+                Connect your financial tools, documents, and calendar to a unified ecosystem of 12 autonomous agents. 
+                Built on LangGraph. Orchestrated by you.
             </p>
             <div class="hero-cta reveal">
-                <a href="https://t.me/YourBotName" class="btn btn-primary">Start Building Free</a>
-                <a href="#features" class="btn btn-outline">Explore Capabilities</a>
+                <a href="https://t.me/YourBotName" class="btn btn-primary">Get Started — It's Free</a>
+                <a href="#docs" class="btn btn-secondary">Read Documentation</a>
             </div>
-        </section>
 
-        <section class="marquee-wrapper reveal">
-            <div class="marquee-content">
-                <div class="integration-logo"><i class="fab fa-telegram"></i> Telegram</div>
-                <div class="integration-logo"><i class="fab fa-whatsapp"></i> WhatsApp</div>
-                <div class="integration-logo"><i class="fab fa-slack"></i> Slack</div>
-                <div class="integration-logo"><i class="fab fa-google"></i> Gmail</div>
-                <div class="integration-logo"><i class="fa-solid fa-calendar"></i> Calendar</div>
-                <div class="integration-logo"><i class="fab fa-stripe"></i> Stripe</div>
-                <!-- Clones for infinite scroll -->
+            <!-- Composio-like Visualization -->
+            <div class="visual-container reveal">
+                <div class="node node-center"><i class="fa-solid fa-hubspot"></i></div>
+                <div class="connector-line" style="transform: rotate(45deg) translateX(100px);"></div>
+                <div class="connector-line" style="transform: rotate(135deg) translateX(100px);"></div>
+                <div class="connector-line" style="transform: rotate(-45deg) translateX(100px);"></div>
+                <div class="connector-line" style="transform: rotate(-135deg) translateX(100px);"></div>
+                
+                <div class="node" style="position: absolute; transform: translate(140px, 140px);"><i class="fab fa-telegram"></i></div>
+                <div class="node" style="position: absolute; transform: translate(-140px, 140px);"><i class="fab fa-google"></i></div>
+                <div class="node" style="position: absolute; transform: translate(140px, -140px);"><i class="fa-solid fa-file-pdf"></i></div>
+                <div class="node" style="position: absolute; transform: translate(-140px, -140px);"><i class="fab fa-stripe"></i></div>
             </div>
         </section>
 
         <section id="features" class="section-padding">
             <div class="bento-grid">
-                <div class="bento-card f-ocr reveal">
-                    <div class="icon-box"><i class="fa-solid fa-receipt"></i></div>
-                    <h3>Intelligent OCR</h3>
-                    <p>Powered by Gemini 3 Flash. Instant data extraction from receipts, invoices, and hand-written notes with 98% accuracy.</p>
-                    <!-- Small code snippet visualization could go here -->
+                <div class="bento-card f-main reveal">
+                    <div class="card-title">Multi-Agent Orchestration</div>
+                    <p class="card-desc">12 specialized agents working in sync. From analyzing complex financial spreadsheets to drafting legal emails, LangGraph ensures seamless transitions between domains.</p>
                 </div>
-                
-                <div class="bento-card f-email reveal">
-                    <div class="icon-box"><i class="fa-solid fa-envelope"></i></div>
-                    <h3>Email Orchestrator</h3>
-                    <p>Autonomous inbox management via Claude Sonnet 4.6.</p>
+                <div class="bento-card f-side reveal">
+                    <div class="card-title">Gemini 3 OCR</div>
+                    <p class="card-desc">Vision-first processing for receipts and documents.</p>
                 </div>
-
-                <div class="bento-card f-cal reveal">
-                    <div class="icon-box"><i class="fa-solid fa-calendar"></i></div>
-                    <h3>Smart Calendar</h3>
-                    <p>Proactive scheduling and morning briefings.</p>
+                <div class="bento-card f-side reveal">
+                    <div class="card-title">E2B Sandbox</div>
+                    <p class="card-desc">Secure code execution for report generation.</p>
                 </div>
-
-                <div class="bento-card f-doc reveal">
-                    <div class="icon-box"><i class="fa-solid fa-file-pdf"></i></div>
-                    <h3>Document Agent</h3>
-                    <p>Generate Excel reports, PPTX presentations, and fill PDF templates using E2B Code Execution sandbox.</p>
+                <div class="bento-card f-wide reveal">
+                    <div class="card-title">Document Intelligence</div>
+                    <p class="card-desc">Autonomous handling of PDF, Excel, and Word templates. Extract data or generate professional reports in seconds.</p>
                 </div>
-
-                <div class="bento-card f-analyze reveal">
-                    <div class="icon-box"><i class="fa-solid fa-chart-line"></i></div>
-                    <h3>Financial Analysis</h3>
-                    <p>Deep reasoning across transactions. Forecast cash flow and detect anomalies automatically.</p>
+                <div class="bento-card f-wide reveal">
+                    <div class="card-title">Real-time Memory</div>
+                    <p class="card-desc">Multi-layer memory system that learns your preferences, business context, and recurring life patterns.</p>
                 </div>
             </div>
         </section>
     </main>
-
-    <footer>
-        <div class="footer-links">
-            <a href="#" class="nav-link">Documentation</a>
-            <a href="#" class="nav-link">Security</a>
-            <a href="#" class="nav-link">Privacy</a>
-        </div>
-        <p class="footer-bottom">© 2026 Finance Bot. All rights reserved.</p>
-    </footer>
 
     <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
     <script src="script.js"></script>
 </body>
-
 </html>

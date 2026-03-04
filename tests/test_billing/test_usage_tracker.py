@@ -31,5 +31,5 @@ def test_estimate_cost_gemini_pro():
     cost = _estimate_cost("gemini-3.1-pro-preview", tokens_in=1000, tokens_out=500)
     assert isinstance(cost, Decimal)
     assert cost > 0
-    flash_cost = _estimate_cost("gemini-3-flash-preview", tokens_in=1000, tokens_out=500)
+    flash_cost = _estimate_cost("gemini-3.1-flash-lite-preview", tokens_in=1000, tokens_out=500)
     assert cost > flash_cost

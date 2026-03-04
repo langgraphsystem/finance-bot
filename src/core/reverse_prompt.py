@@ -119,7 +119,7 @@ async def generate_plan_proposal(
     )
 
     plan_text = await generate_text(
-        model="gemini-3-flash-preview",
+        model="gemini-3.1-flash-lite-preview",
         system=system,
         prompt=f"User request: {text}\nDetected intent: {intent}",
         max_tokens=512,

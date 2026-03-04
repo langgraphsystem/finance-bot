@@ -1,6 +1,6 @@
 name: quick_answer
 description: Factual Q&A using Gemini Flash with current date/time awareness
-model: gemini-3-flash-preview
+model: gemini-3.1-flash-lite-preview
 intents:
   - quick_answer
 

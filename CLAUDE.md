@@ -85,7 +85,7 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 | Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email, onboarding |
 | Claude Haiku 4.5 | `claude-haiku-4-5` | Guardrails, intent fallback |
 | GPT-5.2 | `gpt-5.2` | Chat, tasks, calendar, life, booking agents |
-| Gemini 3 Flash | `gemini-3-flash-preview` | Intent detection (primary), OCR, research, summarization |
+| Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite-preview` | Intent detection (primary), OCR, research, summarization |
 | Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
@@ -94,12 +94,12 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 
 | Agent | Model | Skills |
 |-------|-------|--------|
-| receipt | gemini-3-flash-preview | scan_receipt, scan_document |
+| receipt | gemini-3.1-flash-lite-preview | scan_receipt, scan_document |
 | analytics | claude-sonnet-4-6 | query_stats, complex_query, query_report |
 | chat | gpt-5.2 | add_expense, add_income, correct_category, undo_last, set_budget, mark_paid, add_recurring, delete_data |
 | onboarding | claude-sonnet-4-6 | onboarding, general_chat |
 | tasks | gpt-5.2 | create_task, list_tasks, set_reminder, complete_task, shopping_list_add, shopping_list_view, shopping_list_remove, shopping_list_clear |
-| research | gemini-3-flash-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action, browser_action |
+| research | gemini-3.1-flash-lite-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action, browser_action |
 | writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread, generate_image, generate_card, generate_program, modify_program |
 | email | claude-sonnet-4-6 | read_inbox, send_email, draft_reply, follow_up_email, summarize_thread |
 | calendar | gpt-5.2 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
@@ -230,7 +230,7 @@ from src.core.llm.clients import google_client
 
 client = google_client()
 response = await client.aio.models.generate_content(
-    model="gemini-3-flash-preview",
+    model="gemini-3.1-flash-lite-preview",
     contents=prompt,
     config=types.GenerateContentConfig(
         tools=[types.Tool(google_search=types.GoogleSearch())],

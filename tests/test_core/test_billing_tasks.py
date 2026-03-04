@@ -44,7 +44,7 @@ class TestAggregateTokenStats:
                 total_cost_usd=Decimal("1.500000"),
             ),
             _FakeRow(
-                model="gemini-3-flash-preview",
+                model="gemini-3.1-flash-lite-preview",
                 total_requests=200,
                 success_count=198,
                 total_tokens_input=300_000,
@@ -110,7 +110,7 @@ class TestAggregateTokenStats:
         assert claude["total_tokens_input"] == 500_000
         assert claude["total_cost_usd"] == 1.5
 
-        gemini = stats["models"]["gemini-3-flash-preview"]
+        gemini = stats["models"]["gemini-3.1-flash-lite-preview"]
         assert gemini["cache_hit_ratio"] == 0.0
         assert gemini["total_requests"] == 200
 

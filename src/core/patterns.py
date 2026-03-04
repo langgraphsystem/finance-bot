@@ -96,7 +96,7 @@ async def detect_patterns(family_id: str) -> dict | None:
     try:
         client = google_client()
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         text = response.text

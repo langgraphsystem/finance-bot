@@ -207,7 +207,7 @@ async def extract_episode_metadata(summary_text: str) -> dict[str, Any]:
         client = google_client()
         prompt = EPISODE_EXTRACTION_PROMPT.format(summary=summary_text)
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         text = (response.text or "").strip()

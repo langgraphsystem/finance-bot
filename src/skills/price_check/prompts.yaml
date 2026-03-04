@@ -1,6 +1,6 @@
 name: price_check
 description: Check current product prices via Google Search with browser fallback
-model: gemini-3-flash-preview
+model: gemini-3.1-flash-lite-preview
 intents:
   - price_check
 

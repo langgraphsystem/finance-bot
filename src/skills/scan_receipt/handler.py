@@ -157,7 +157,7 @@ OCR_PROMPT = _DEFAULT_SYSTEM_PROMPT
 class ScanReceiptSkill:
     name = "scan_receipt"
     intents = ["scan_receipt"]
-    model = "gemini-3-flash-preview"
+    model = "gemini-3.1-flash-lite-preview"
 
     async def execute(
         self,
@@ -365,7 +365,7 @@ class ScanReceiptSkill:
                 user_id=uuid.UUID(context.user_id),
                 type=DocumentType.receipt,
                 storage_path=storage_path,
-                ocr_model="gemini-3-flash-preview",
+                ocr_model="gemini-3.1-flash-lite-preview",
                 ocr_parsed=receipt.model_dump(mode="json"),
                 ocr_confidence=confidence,
             )
@@ -436,7 +436,7 @@ class ScanReceiptSkill:
         from src.core.llm.clients import gemini_generate_content
 
         response = await gemini_generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=parts,
             config={"response_mime_type": "application/json"},
         )

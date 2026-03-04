@@ -1,6 +1,6 @@
 name: scan_document
 description: Universal document scanner — classifies and extracts data from any photo/document
-model: gemini-3-flash-preview
+model: gemini-3.1-flash-lite-preview
 intents:
   - scan_document
 

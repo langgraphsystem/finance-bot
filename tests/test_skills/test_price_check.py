@@ -10,7 +10,7 @@ def test_price_check_skill_attributes():
     skill = PriceCheckSkill()
     assert skill.name == "price_check"
     assert "price_check" in skill.intents
-    assert skill.model == "gemini-3-flash-preview"
+    assert skill.model == "gemini-3.1-flash-lite-preview"
 
 
 def test_price_check_system_prompt(sample_context):

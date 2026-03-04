@@ -123,3 +123,49 @@ async def test_schedule_action_disabled_feature_flag():
         result = await skill.execute(message, _ctx(), {"schedule_frequency": "daily"})
 
     assert "not enabled" in result.response_text.lower()
+
+
+async def test_schedule_action_cron_creates_action():
+    skill = ScheduleActionSkill()
+    message = _message("Use cron */10 * * * * for summary.")
+
+    with (
+        patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True),
+        patch(
+            "src.skills.schedule_action.handler.save_scheduled_action",
+            new_callable=AsyncMock,
+        ) as mock_save,
+    ):
+        result = await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "cron",
+                "schedule_time": "*/10 * * * *",
+                "schedule_instruction": "Cron summary.",
+            },
+        )
+
+    action = mock_save.call_args.args[0]
+    assert action.schedule_kind == ScheduleKind.cron
+    assert action.schedule_config["cron_expr"] == "*/10 * * * *"
+    assert action.next_run_at is not None
+    assert "cron schedule" in result.response_text.lower()
+
+
+async def test_schedule_action_cron_invalid_asks_for_clarification():
+    skill = ScheduleActionSkill()
+    message = _message("Use cron every minute.")
+
+    with patch("src.skills.schedule_action.handler.settings.ff_scheduled_actions", True):
+        result = await skill.execute(
+            message,
+            _ctx(),
+            {
+                "schedule_frequency": "cron",
+                "schedule_time": "* * * * *",
+                "schedule_instruction": "Too frequent cron.",
+            },
+        )
+
+    assert "cron expression" in result.response_text.lower()

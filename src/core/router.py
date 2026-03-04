@@ -2272,7 +2272,7 @@ async def _save_scanned_document(
     mime_type = pending["mime_type"]
     fallback_used = pending["fallback_used"]
 
-    ocr_model = "claude-haiku-4-5" if fallback_used else "gemini-3-flash-preview"
+    ocr_model = "claude-haiku-4-5" if fallback_used else "gemini-3.1-flash-lite-preview"
 
     doc_type_enum_map = {
         "receipt": DocumentType.receipt,

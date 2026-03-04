@@ -1,6 +1,6 @@
 name: maps_search
 description: Find places, directions, and location info via Gemini Search Grounding
-model: gemini-3-flash-preview
+model: gemini-3.1-flash-lite-preview
 intents:
   - maps_search
 

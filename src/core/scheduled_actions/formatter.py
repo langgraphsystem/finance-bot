@@ -23,7 +23,7 @@ _DEFAULT_GREETING_ICON = "☀️"
 _DECISION_READY_MODELS = [
     "claude-sonnet-4-6",
     "gpt-5.2",
-    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
 ]
 
 

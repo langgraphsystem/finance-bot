@@ -225,7 +225,7 @@ async def extract_procedures(
             patterns=patterns_text,
         )
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         return _parse_procedures(response.text or "")

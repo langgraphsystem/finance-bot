@@ -113,7 +113,7 @@ async def extract_observations(
         client = google_client()
         prompt = OBSERVER_PROMPT.format(messages=messages_text)
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         new_obs = _parse_observations(response.text or "")
@@ -144,7 +144,7 @@ async def restructure_observations(observations: list[str]) -> list[str]:
         obs_text = "\n".join(observations)
         prompt = REFLECTOR_PROMPT.format(observations=obs_text)
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=prompt,
         )
         result = _parse_observations(response.text or "")

@@ -100,7 +100,7 @@ class WebActionSkill:
         try:
             prompt = _FORMAT_PROMPT.format(task=task, raw=raw[:2000])
             answer = await generate_text(
-                "gemini-3-flash-preview",
+                "gemini-3.1-flash-lite-preview",
                 "You format browser data into concise answers.",
                 [{"role": "user", "content": prompt}],
                 max_tokens=512,

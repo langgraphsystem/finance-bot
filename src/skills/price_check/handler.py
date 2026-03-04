@@ -48,7 +48,7 @@ register_strings("price_check", {"en": {}, "ru": {}, "es": {}})
 class PriceCheckSkill:
     name = "price_check"
     intents = ["price_check"]
-    model = "gemini-3-flash-preview"
+    model = "gemini-3.1-flash-lite-preview"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)
@@ -104,7 +104,7 @@ class PriceCheckSkill:
 
         try:
             response = await client.aio.models.generate_content(
-                model="gemini-3-flash-preview",
+                model="gemini-3.1-flash-lite-preview",
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     tools=[types.Tool(google_search=types.GoogleSearch())],
@@ -123,7 +123,7 @@ class PriceCheckSkill:
         try:
             prompt = _FORMAT_PROMPT.format(query=query, raw=raw[:2000])
             answer = await generate_text(
-                "gemini-3-flash-preview",
+                "gemini-3.1-flash-lite-preview",
                 "You format browser data into concise answers.",
                 [{"role": "user", "content": prompt}],
                 max_tokens=512,

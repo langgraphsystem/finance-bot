@@ -176,7 +176,7 @@ async def _analyze_via_vision(
             )
 
     response = await client.aio.models.generate_content(
-        model="gemini-3-flash-preview",
+        model="gemini-3.1-flash-lite-preview",
         contents=parts,
     )
     return response.text or "Analysis produced no output."

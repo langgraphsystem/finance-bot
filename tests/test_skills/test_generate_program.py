@@ -222,7 +222,7 @@ async def test_routes_html_to_gemini(skill, ctx):
         )
 
     mock_gen.assert_called_once()
-    assert mock_gen.call_args.kwargs["model"] == "gemini-3-flash-preview"
+    assert mock_gen.call_args.kwargs["model"] == "gemini-3.1-flash-lite-preview"
 
 
 async def test_routes_docker_description_to_gpt(skill, ctx):
@@ -250,7 +250,7 @@ async def test_routes_react_description_to_gemini(skill, ctx):
         )
 
     mock_gen.assert_called_once()
-    assert mock_gen.call_args.kwargs["model"] == "gemini-3-flash-preview"
+    assert mock_gen.call_args.kwargs["model"] == "gemini-3.1-flash-lite-preview"
 
 
 # --- E2B execution tests (v3 — web-first) ---
@@ -509,7 +509,7 @@ def test_select_model_bash():
 
 
 def test_select_model_javascript():
-    assert _select_model("javascript", "anything") == "gemini-3-flash-preview"
+    assert _select_model("javascript", "anything") == "gemini-3.1-flash-lite-preview"
 
 
 def test_select_model_docker_from_description():
@@ -517,7 +517,7 @@ def test_select_model_docker_from_description():
 
 
 def test_select_model_react_from_description():
-    assert _select_model("", "build a react component") == "gemini-3-flash-preview"
+    assert _select_model("", "build a react component") == "gemini-3.1-flash-lite-preview"
 
 
 def test_select_model_default():

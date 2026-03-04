@@ -144,7 +144,7 @@ class ExtractTableSkill:
             },
         ]
         response = await client.aio.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite-preview",
             contents=parts,
             config={"response_mime_type": "application/json"},
         )
