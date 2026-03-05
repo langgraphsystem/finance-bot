@@ -57,6 +57,28 @@ def md_to_telegram_html(text: str) -> str:
     return text.strip()
 
 
+def fix_unclosed_tags(text: str) -> str:
+    """Fix unclosed/unmatched Telegram HTML tags to prevent parse errors.
+
+    Closes unclosed <b>, <i>, <u>, <s>, <code>, <pre> tags
+    and removes orphan closing tags.
+    """
+    if not text:
+        return text
+
+    tags = ("b", "i", "u", "s", "code", "pre")
+    for tag in tags:
+        open_count = len(re.findall(rf"<{tag}(?:\s[^>]*)?>", text, re.IGNORECASE))
+        close_count = len(re.findall(rf"</{tag}>", text, re.IGNORECASE))
+        if open_count > close_count:
+            text += f"</{tag}>" * (open_count - close_count)
+        elif close_count > open_count:
+            # Remove excess closing tags from the start
+            for _ in range(close_count - open_count):
+                text = re.sub(rf"</{tag}>", "", text, count=1, flags=re.IGNORECASE)
+    return text
+
+
 def _convert_html_lists(text: str) -> str:
     """Convert HTML list tags to Telegram-safe bullet points.
 
