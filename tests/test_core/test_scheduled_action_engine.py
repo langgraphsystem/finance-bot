@@ -71,6 +71,7 @@ def test_compute_next_run_weekdays_skips_weekend():
     [
         ("America/New_York", datetime(2026, 3, 9, 12, 0, tzinfo=UTC)),
         ("Europe/Moscow", datetime(2026, 3, 9, 5, 0, tzinfo=UTC)),
+        ("America/Santiago", datetime(2026, 3, 9, 11, 0, tzinfo=UTC)),
     ],
 )
 def test_compute_next_run_weekdays_preserves_wall_clock_by_timezone(

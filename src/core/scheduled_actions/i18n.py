@@ -93,7 +93,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "outcome_badge": "До результата",
     },
     "es": {
-        "greeting_morning": "Buenos dias",
+        "greeting_morning": "Buenos días",
         "greeting_afternoon": "Buenas tardes",
         "greeting_evening": "Buenas noches",
         "section_calendar": "Hoy",
@@ -102,7 +102,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "section_email_highlights": "Correo",
         "section_outstanding": "Pendientes",
         "empty_payload_fallback": "Ahora no hay actualizaciones nuevas de fuentes.",
-        "closing_question": "Que deberia atender primero?",
+        "closing_question": "¿Qué debería atender primero?",
         "btn_snooze": "⏰ +{minutes} min",
         "btn_run_now": "▶️ Ejecutar",
         "btn_pause": "⏸ Pausar",
@@ -111,20 +111,20 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_done": "✅ Hecho",
         "degraded_footer": "⚠️ Fuentes no disponibles temporalmente: {sources}",
         "trust_footer": "📡 {ok}/{total} fuentes • {time}",
-        "sched_not_found": "No se encontro la accion programada.",
-        "sched_forbidden": "No puedes gestionar esta accion programada.",
-        "sched_snoozed": "Pospuesto — se ejecutara en {minutes} min.",
+        "sched_not_found": "No se encontró la acción programada.",
+        "sched_forbidden": "No puedes gestionar esta acción programada.",
+        "sched_snoozed": "Pospuesto — se ejecutará en {minutes} min.",
         "sched_paused": "Pausado — <b>{title}</b>.",
         "sched_resumed": "Reanudado — <b>{title}</b>.",
-        "sched_run_now": "En cola — <b>{title}</b> se ejecutara ahora.",
+        "sched_run_now": "En cola — <b>{title}</b> se ejecutará ahora.",
         "sched_deleted": "Eliminado — <b>{title}</b>.",
         "sched_done": "✅ Completado — <b>{title}</b>.",
-        "sched_auto_completed": "✅ Completado automaticamente — <b>{title}</b>.",
+        "sched_auto_completed": "✅ Completado automáticamente — <b>{title}</b>.",
         "sched_auto_paused": (
             "⚠️ <b>{title}</b> pausado tras {failures} fallos."
             " Usa /manage para reanudar."
         ),
-        "sched_invalid": "ID de accion programada invalido.",
+        "sched_invalid": "ID de acción programada inválido.",
         "source_calendar": "calendario",
         "source_tasks": "tareas",
         "source_money_summary": "finanzas",
@@ -134,6 +134,63 @@ _STRINGS: dict[str, dict[str, str]] = {
         "budget_trend_up": "El gasto sube frente al promedio mensual",
         "budget_trend_down": "El gasto baja frente al promedio mensual",
         "outcome_badge": "Persistente",
+    },
+}
+
+WEEKDAY_NAMES: dict[str, list[str]] = {
+    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
+    "es": ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"],
+}
+
+SCHEDULE_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "once": "once on {dt}",
+        "daily": "daily at {time}",
+        "weekly": "every {day} at {time}",
+        "monthly": "monthly on day {day} at {time}",
+        "weekdays": "weekdays at {time}",
+        "cron": "cron schedule: <code>{expr}</code>",
+    },
+    "ru": {
+        "once": "однократно {dt}",
+        "daily": "ежедневно в {time}",
+        "weekly": "каждый {day} в {time}",
+        "monthly": "ежемесячно {day}-го в {time}",
+        "weekdays": "по будням в {time}",
+        "cron": "cron-расписание: <code>{expr}</code>",
+    },
+    "es": {
+        "once": "una vez el {dt}",
+        "daily": "diariamente a las {time}",
+        "weekly": "cada {day} a las {time}",
+        "monthly": "mensualmente el día {day} a las {time}",
+        "weekdays": "días laborables a las {time}",
+        "cron": "horario cron: <code>{expr}</code>",
+    },
+}
+
+SOURCE_LABELS: dict[str, dict[str, str]] = {
+    "en": {
+        "calendar": "calendar",
+        "tasks": "tasks",
+        "money_summary": "money",
+        "email_highlights": "email",
+        "outstanding": "outstanding",
+    },
+    "ru": {
+        "calendar": "календарь",
+        "tasks": "задачи",
+        "money_summary": "финансы",
+        "email_highlights": "почта",
+        "outstanding": "неоплаченные",
+    },
+    "es": {
+        "calendar": "calendario",
+        "tasks": "tareas",
+        "money_summary": "finanzas",
+        "email_highlights": "correo",
+        "outstanding": "pendientes",
     },
 }
 

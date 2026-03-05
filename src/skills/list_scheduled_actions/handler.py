@@ -14,6 +14,10 @@ from src.core.db import async_session
 from src.core.models.enums import ActionStatus, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
+from src.core.scheduled_actions.i18n import (
+    SCHEDULE_LABELS,
+    WEEKDAY_NAMES,
+)
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import fmt_date, fmt_time, register_strings
 from src.skills.base import SkillResult
@@ -46,13 +50,13 @@ _STRINGS = {
         "next": "Следующий запуск",
     },
     "es": {
-        "disabled": "Las acciones programadas aun no estan habilitadas.",
+        "disabled": "Las acciones programadas aún no están habilitadas.",
         "header": "📋 <b>Tus acciones programadas</b>",
         "empty": (
-            "Aun no tienes acciones programadas.\n"
-            '<i>Prueba: "Cada dia a las 8 enviame calendario y tareas"</i>'
+            "Aún no tienes acciones programadas.\n"
+            '<i>Prueba: "Cada día a las 8 envíame calendario y tareas"</i>'
         ),
-        "next": "Proxima ejecucion",
+        "next": "Próxima ejecución",
     },
 }
 register_strings("list_scheduled_actions", _STRINGS)
@@ -64,38 +68,8 @@ _STATUS_ICON = {
     ActionStatus.deleted: "🗑",
 }
 
-_SCHEDULE_LABELS = {
-    "en": {
-        "once": "once on {dt}",
-        "daily": "daily at {time}",
-        "weekly": "every {day} at {time}",
-        "monthly": "monthly on day {day} at {time}",
-        "weekdays": "weekdays at {time}",
-        "cron": "cron schedule",
-    },
-    "ru": {
-        "once": "однократно {dt}",
-        "daily": "ежедневно в {time}",
-        "weekly": "каждый {day} в {time}",
-        "monthly": "ежемесячно {day}-го в {time}",
-        "weekdays": "по будням в {time}",
-        "cron": "cron-расписание",
-    },
-    "es": {
-        "once": "una vez el {dt}",
-        "daily": "diariamente a las {time}",
-        "weekly": "cada {day} a las {time}",
-        "monthly": "mensualmente el dia {day} a las {time}",
-        "weekdays": "dias laborables a las {time}",
-        "cron": "horario cron",
-    },
-}
-
-_WEEKDAYS = {
-    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    "ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
-    "es": ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
-}
+_SCHEDULE_LABELS = SCHEDULE_LABELS
+_WEEKDAYS = WEEKDAY_NAMES
 
 
 def _t(key: str, language: str) -> str:

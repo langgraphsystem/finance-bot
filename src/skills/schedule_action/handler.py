@@ -19,6 +19,11 @@ from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
 from src.core.scheduled_actions.config import ScheduleConfig
 from src.core.scheduled_actions.engine import compute_next_run, is_valid_cron_expression
+from src.core.scheduled_actions.i18n import (
+    SCHEDULE_LABELS,
+    SOURCE_LABELS,
+    WEEKDAY_NAMES,
+)
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import fmt_date, fmt_time, register_strings
 from src.skills.base import SkillResult
@@ -63,79 +68,26 @@ _STRINGS = {
         ),
     },
     "es": {
-        "disabled": "Las acciones programadas aun no estan habilitadas.",
-        "ask_instruction": "Que debo incluir en esta accion programada?",
-        "ask_schedule": "Cuando debo ejecutarla? Indica frecuencia y hora.",
-        "ask_time": "Que hora debo usar?",
-        "ask_cron": "Indica una expresion cron valida (intervalo minimo: 5 minutos).",
-        "time_in_past": "Esa hora ya paso. Indica una hora futura.",
+        "disabled": "Las acciones programadas aún no están habilitadas.",
+        "ask_instruction": "¿Qué debo incluir en esta acción programada?",
+        "ask_schedule": "¿Cuándo debo ejecutarla? Indica frecuencia y hora.",
+        "ask_time": "¿Qué hora debo usar?",
+        "ask_cron": "Indica una expresión cron válida (intervalo mínimo: 5 minutos).",
+        "time_in_past": "Esa hora ya pasó. Indica una hora futura.",
         "confirm": (
             "✅ <b>Programado</b>\n"
             "• <b>{title}</b>\n"
             "• {schedule_desc}\n"
             "• Fuentes: {sources}\n"
-            "• Proxima ejecucion: {next_run}"
+            "• Próxima ejecución: {next_run}"
         ),
     },
 }
 register_strings("schedule_action", _STRINGS)
 
-_SCHEDULE_LABELS = {
-    "en": {
-        "once": "once on {dt}",
-        "daily": "daily at {time}",
-        "weekly": "every {day} at {time}",
-        "monthly": "monthly on day {day} at {time}",
-        "weekdays": "weekdays at {time}",
-        "cron": "cron schedule: <code>{expr}</code>",
-    },
-    "ru": {
-        "once": "однократно {dt}",
-        "daily": "ежедневно в {time}",
-        "weekly": "каждый {day} в {time}",
-        "monthly": "ежемесячно {day}-го в {time}",
-        "weekdays": "по будням в {time}",
-        "cron": "cron-расписание: <code>{expr}</code>",
-    },
-    "es": {
-        "once": "una vez el {dt}",
-        "daily": "diariamente a las {time}",
-        "weekly": "cada {day} a las {time}",
-        "monthly": "mensualmente el dia {day} a las {time}",
-        "weekdays": "dias laborables a las {time}",
-        "cron": "horario cron: <code>{expr}</code>",
-    },
-}
-
-_WEEKDAYS = {
-    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    "ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
-    "es": ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"],
-}
-
-_SOURCE_LABELS = {
-    "en": {
-        "calendar": "calendar",
-        "tasks": "tasks",
-        "money_summary": "money",
-        "email_highlights": "email",
-        "outstanding": "outstanding",
-    },
-    "ru": {
-        "calendar": "календарь",
-        "tasks": "задачи",
-        "money_summary": "финансы",
-        "email_highlights": "почта",
-        "outstanding": "неоплаченные",
-    },
-    "es": {
-        "calendar": "calendario",
-        "tasks": "tareas",
-        "money_summary": "finanzas",
-        "email_highlights": "correo",
-        "outstanding": "pendientes",
-    },
-}
+_SCHEDULE_LABELS = SCHEDULE_LABELS
+_WEEKDAYS = WEEKDAY_NAMES
+_SOURCE_LABELS = SOURCE_LABELS
 
 _SOURCE_MAP = {
     "calendar": "calendar",
@@ -172,6 +124,7 @@ _WEEKDAY_MAP = {
     "среда": 2,
     "ср": 2,
     "miercoles": 2,
+    "miércoles": 2,
     "thursday": 3,
     "thu": 3,
     "четверг": 3,
@@ -187,6 +140,7 @@ _WEEKDAY_MAP = {
     "суббота": 5,
     "сб": 5,
     "sabado": 5,
+    "sábado": 5,
     "sunday": 6,
     "sun": 6,
     "воскресенье": 6,

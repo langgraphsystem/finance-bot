@@ -25,17 +25,17 @@ _DEFAULT_GREETING_ICON = "☀️"
 _DECISION_READY_MODELS = [
     "claude-sonnet-4-6",
     "gpt-5.2",
-    "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite-preview",
 ]
 _TOP_PRIORITY_HEADERS = {
     "en": "🎯 <b>Top priorities</b>",
     "ru": "🎯 <b>Топ-приоритеты</b>",
-    "es": "🎯 <b>Prioridades top</b>",
+    "es": "🎯 <b>Prioridades principales</b>",
 }
 _RECOMMENDED_HEADERS = {
     "en": "➡️ <b>Recommended next action</b>",
     "ru": "➡️ <b>Рекомендуемое следующее действие</b>",
-    "es": "➡️ <b>Siguiente accion recomendada</b>",
+    "es": "➡️ <b>Siguiente acción recomendada</b>",
 }
 _RECOMMENDED_DEFAULT = {
     "en": "• Start with the highest-urgency item now.",

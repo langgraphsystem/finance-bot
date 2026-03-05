@@ -15,6 +15,7 @@ from src.core.db import async_session
 from src.core.models.enums import ActionStatus, ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
+from src.core.scheduled_actions.i18n import SOURCE_LABELS
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import fmt_date, register_strings
 from src.skills.base import SkillResult
@@ -83,17 +84,17 @@ _STRINGS = {
         "change_item": "• {label}: {old} → <b>{new}</b>",
     },
     "es": {
-        "disabled": "Las acciones programadas aun no estan habilitadas.",
-        "ask_operation": "Que debo hacer: pausar, reanudar, eliminar, reprogramar o editar?",
-        "ask_target": "Que accion programada debo gestionar?",
-        "not_found": 'No encontre una accion programada con "{query}".',
-        "already_paused": 'Ya esta en pausa: <b>{title}</b>.',
-        "already_active": 'Ya esta activa: <b>{title}</b>.',
+        "disabled": "Las acciones programadas aún no están habilitadas.",
+        "ask_operation": "¿Qué debo hacer: pausar, reanudar, eliminar, reprogramar o editar?",
+        "ask_target": "¿Qué acción programada debo gestionar?",
+        "not_found": 'No encontré una acción programada con "{query}".',
+        "already_paused": 'Ya está en pausa: <b>{title}</b>.',
+        "already_active": 'Ya está activa: <b>{title}</b>.',
         "paused": '⏸ Pausado: <b>{title}</b>.',
-        "resumed": '▶️ Reanudado: <b>{title}</b>. Proxima ejecucion: {next_run}.',
+        "resumed": '▶️ Reanudado: <b>{title}</b>. Próxima ejecución: {next_run}.',
         "deleted": '🗑 Eliminado: <b>{title}</b>.',
-        "need_time": "Que nueva hora debo usar?",
-        "cannot_resume_once": "Esta accion unica ya paso. Reprogramala con nueva hora.",
+        "need_time": "¿Qué nueva hora debo usar?",
+        "cannot_resume_once": "Esta acción única ya pasó. Reprográmala con nueva hora.",
         "rescheduled": "🕒 Reprogramado: <b>{title}</b>.\n{old_time} → {new_time}",
         "edited": (
             "✏️ <b>¡Acción actualizada!</b>\n"
@@ -153,35 +154,13 @@ _KIND_LABELS = {
         "daily": "diario",
         "weekly": "semanal",
         "monthly": "mensual",
-        "weekdays": "dias laborables",
+        "weekdays": "días laborables",
         "cron": "cron",
         "sources": "fuentes",
     },
 }
 
-_SOURCE_LABELS = {
-    "en": {
-        "calendar": "calendar",
-        "tasks": "tasks",
-        "money_summary": "money",
-        "email_highlights": "email",
-        "outstanding": "outstanding",
-    },
-    "ru": {
-        "calendar": "календарь",
-        "tasks": "задачи",
-        "money_summary": "финансы",
-        "email_highlights": "почта",
-        "outstanding": "неоплаченные",
-    },
-    "es": {
-        "calendar": "calendario",
-        "tasks": "tareas",
-        "money_summary": "finanzas",
-        "email_highlights": "correo",
-        "outstanding": "pendientes",
-    },
-}
+_SOURCE_LABELS = SOURCE_LABELS
 
 
 def _t(key: str, language: str, **kwargs: str) -> str:

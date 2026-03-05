@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
@@ -45,7 +45,7 @@ class ScheduledAction(Base, TimestampMixin):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default="now()",
-        onupdate=datetime.utcnow,
+        onupdate=lambda: datetime.now(UTC),
     )
 
     user = relationship("User")
