@@ -123,6 +123,7 @@ class Settings(BaseSettings):
     ff_langgraph_document: bool = False
     ff_scheduled_actions: bool = False
     ff_sia_synthesis: bool = False
+    ff_dual_search: bool = False
 
     @property
     def is_production(self) -> bool:

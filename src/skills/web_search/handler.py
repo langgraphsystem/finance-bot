@@ -5,9 +5,12 @@ from typing import Any
 
 from google.genai import types
 
+from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
+from src.core.research.dual_search import dual_search
+from src.core.research.signal_detector import detect_signals
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -57,7 +60,16 @@ class WebSearchSkill:
             return SkillResult(response_text="What would you like me to search for?")
 
         original_text = message.text or query
-        answer = await search_and_answer(query, context.language or "en", original_text)
+        language = context.language or "en"
+        signals = detect_signals(original_text)
+        if signals.should_dual_search and settings.ff_dual_search and settings.xai_api_key:
+            answer = await dual_search(
+                query, language, original_text,
+                gemini_searcher=search_and_answer,
+                trace_user_id=str(context.user_id),
+            )
+        else:
+            answer = await search_and_answer(query, language, original_text)
         return SkillResult(response_text=answer)
 
     def get_system_prompt(self, context: SessionContext) -> str:

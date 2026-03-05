@@ -6,9 +6,12 @@ from typing import Any
 
 from google.genai import types
 
+from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.llm.clients import generate_text, google_client
 from src.core.observability import observe
+from src.core.research.dual_search import dual_search
+from src.core.research.signal_detector import detect_signals
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -71,7 +74,16 @@ class PriceCheckSkill:
         language = context.language or "en"
 
         # 1. Fast path: Gemini Google Search Grounding (~2-3s)
-        grounding_result = await self._search_price_grounding(query, language)
+        #    If dual-search signals detected → parallel Gemini + Grok
+        signals = detect_signals(query)
+        if signals.should_dual_search and settings.ff_dual_search and settings.xai_api_key:
+            grounding_result = await dual_search(
+                query, language, query,
+                gemini_searcher=self._price_grounding_adapter,
+                trace_user_id="",
+            )
+        else:
+            grounding_result = await self._search_price_grounding(query, language)
         if grounding_result:
             return SkillResult(response_text=grounding_result)
 
@@ -96,6 +108,12 @@ class PriceCheckSkill:
                 f'Want me to search the web for "{query}" pricing instead?'
             )
         )
+
+    async def _price_grounding_adapter(
+        self, query: str, language: str, _original_message: str = "",
+    ) -> str:
+        """Adapter matching dual_search gemini_searcher signature."""
+        return await self._search_price_grounding(query, language) or ""
 
     async def _search_price_grounding(self, query: str, language: str) -> str | None:
         """Search for price via Gemini Google Search Grounding."""
