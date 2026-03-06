@@ -552,6 +552,119 @@ class TestPrivateMiniappFilters:
         query = mock_session.scalar.call_args.args[0]
         assert "tasks.user_id" in str(query)
 
+
+class TestMiniappScopeFilters:
+    """Regression tests for scope-based access in miniapp finance endpoints."""
+
+    def test_member_categories_hide_non_family_scopes(self):
+        mock_user = _make_mock_user()
+        mock_user.role.value = "member"
+
+        family_cat = MagicMock()
+        family_cat.id = uuid.uuid4()
+        family_cat.name = "Food"
+        family_cat.icon = "🛒"
+        family_cat.scope = MagicMock()
+        family_cat.scope.value = "family"
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = MagicMock()
+            scalars = MagicMock()
+            scalars.all.return_value = [family_cat]
+            result.scalars.return_value = scalars
+            mock_session.execute = AsyncMock(return_value=result)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/categories")
+
+        assert response.status_code == 200
+        assert response.json() == [
+            {"id": str(family_cat.id), "name": "Food", "icon": "🛒", "scope": "family"}
+        ]
+        query = mock_session.execute.call_args.args[0]
+        assert "categories.scope" in str(query)
+
+    def test_member_stats_queries_are_scope_filtered(self):
+        mock_user = _make_mock_user()
+        mock_user.role.value = "member"
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            mock_fam = MagicMock()
+            mock_fam.currency = "USD"
+            mock_session.scalar = AsyncMock(return_value=mock_fam)
+
+            exp_result = MagicMock()
+            exp_result.all.return_value = []
+            inc_result = MagicMock()
+            inc_result.all.return_value = []
+            mock_session.execute = AsyncMock(side_effect=[exp_result, inc_result])
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/stats/month")
+
+        assert response.status_code == 200
+        first_query = mock_session.execute.call_args_list[0].args[0]
+        assert "transactions.scope" in str(first_query)
+
+    def test_member_transactions_queries_are_scope_filtered(self):
+        mock_user = _make_mock_user()
+        mock_user.role.value = "member"
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=0)
+
+            result = MagicMock()
+            result.all.return_value = []
+            mock_session.execute = AsyncMock(return_value=result)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/transactions")
+
+        assert response.status_code == 200
+        total_query = mock_session.scalar.call_args.args[0]
+        list_query = mock_session.execute.call_args.args[0]
+        assert "transactions.scope" in str(total_query)
+        assert "transactions.scope" in str(list_query)
+
+    def test_member_cannot_create_transaction_with_hidden_category(self):
+        mock_user = _make_mock_user()
+        mock_user.role.value = "member"
+        hidden_cat_id = uuid.uuid4()
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=None)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.post(
+                "/api/transactions",
+                json={
+                    "amount": 50.0,
+                    "category_id": str(hidden_cat_id),
+                    "type": "expense",
+                },
+            )
+
+        assert response.status_code == 404
+        query = mock_session.scalar.call_args.args[0]
+        assert "categories.scope" in str(query)
+
     def test_delete_task_checks_owner_user_id(self):
         mock_user = _make_mock_user()
         task_id = uuid.uuid4()

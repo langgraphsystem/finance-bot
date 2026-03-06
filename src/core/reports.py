@@ -9,6 +9,7 @@ from datetime import date
 from jinja2 import BaseLoader, Environment
 from sqlalchemy import func, select
 
+from src.core.access import apply_scope_filter
 from src.core.db import async_session
 from src.core.models.category import Category
 from src.core.models.enums import LifeEventType, TransactionType
@@ -780,18 +781,19 @@ def render_report_html(
 
 
 async def has_transactions_for_period(
-    family_id: str, year: int, month: int,
+    family_id: str, year: int, month: int, role: str = "owner",
 ) -> bool:
     """Check if any transactions exist for the given year/month."""
     start_date = date(year, month, 1)
     end_date = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
     async with async_session() as session:
+        stmt = select(func.count()).select_from(Transaction).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+        )
         result = await session.execute(
-            select(func.count()).select_from(Transaction).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= start_date,
-                Transaction.date < end_date,
-            )
+            apply_scope_filter(stmt, Transaction, role)
         )
         return (result.scalar() or 0) > 0
 
@@ -802,6 +804,8 @@ async def generate_monthly_report(
     year: int | None = None,
     month: int | None = None,
     language: str = "ru",
+    role: str = "owner",
+    user_id: str | None = None,
 ) -> tuple[bytes, str]:
     """Generate a monthly PDF report.
 
@@ -822,7 +826,7 @@ async def generate_monthly_report(
 
     async with async_session() as session:
         # Get expenses by category
-        expense_result = await session.execute(
+        expense_stmt = (
             select(
                 Category.name,
                 Category.icon,
@@ -838,21 +842,23 @@ async def generate_monthly_report(
             .group_by(Category.name, Category.icon)
             .order_by(func.sum(Transaction.amount).desc())
         )
+        expense_result = await session.execute(apply_scope_filter(expense_stmt, Transaction, role))
         expense_rows = expense_result.all()
 
         # Get total expense
+        total_exp_stmt = select(func.sum(Transaction.amount)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+            Transaction.type == TransactionType.expense,
+        )
         total_exp_result = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= start_date,
-                Transaction.date < end_date,
-                Transaction.type == TransactionType.expense,
-            )
+            apply_scope_filter(total_exp_stmt, Transaction, role)
         )
         total_expense = float(total_exp_result.scalar() or 0)
 
         # Get income by category
-        income_result = await session.execute(
+        income_stmt = (
             select(
                 Category.name,
                 Category.icon,
@@ -868,30 +874,46 @@ async def generate_monthly_report(
             .group_by(Category.name, Category.icon)
             .order_by(func.sum(Transaction.amount).desc())
         )
+        income_result = await session.execute(apply_scope_filter(income_stmt, Transaction, role))
         income_rows = income_result.all()
 
         # Get total income
+        total_inc_stmt = select(func.sum(Transaction.amount)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= start_date,
+            Transaction.date < end_date,
+            Transaction.type == TransactionType.income,
+        )
         total_inc_result = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= start_date,
-                Transaction.date < end_date,
-                Transaction.type == TransactionType.income,
-            )
+            apply_scope_filter(total_inc_stmt, Transaction, role)
         )
         total_income = float(total_inc_result.scalar() or 0)
 
         # Get life events for the period
-        life_result = await session.execute(
-            select(LifeEvent)
-            .where(
-                LifeEvent.family_id == uuid.UUID(family_id),
-                LifeEvent.date >= start_date,
-                LifeEvent.date < end_date,
+        life_events: list[LifeEvent] = []
+        if user_id:
+            life_result = await session.execute(
+                select(LifeEvent)
+                .where(
+                    LifeEvent.family_id == uuid.UUID(family_id),
+                    LifeEvent.user_id == uuid.UUID(user_id),
+                    LifeEvent.date >= start_date,
+                    LifeEvent.date < end_date,
+                )
+                .order_by(LifeEvent.date.desc())
             )
-            .order_by(LifeEvent.date.desc())
-        )
-        life_events = list(life_result.scalars().all())
+            life_events = list(life_result.scalars().all())
+        else:
+            life_result = await session.execute(
+                select(LifeEvent)
+                .where(
+                    LifeEvent.family_id == uuid.UUID(family_id),
+                    LifeEvent.date >= start_date,
+                    LifeEvent.date < end_date,
+                )
+                .order_by(LifeEvent.date.desc())
+            )
+            life_events = list(life_result.scalars().all())
 
     # Build life events summary
     life_summary = _build_life_summary(life_events, language) if life_events else None

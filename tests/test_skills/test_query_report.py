@@ -128,6 +128,8 @@ async def test_passes_family_and_period():
         year=today.year,
         month=today.month,
         language="ru",
+        role="owner",
+        user_id=ctx.user_id,
     )
 
 
@@ -144,7 +146,12 @@ async def test_passes_prev_month_period():
     ):
         await _skill().execute(_msg(), ctx, {"period": "prev_month"})
     mock_gen.assert_awaited_once_with(
-        family_id=ctx.family_id, year=ey, month=em, language="ru",
+        family_id=ctx.family_id,
+        year=ey,
+        month=em,
+        language="ru",
+        role="owner",
+        user_id=ctx.user_id,
     )
 
 
@@ -157,7 +164,7 @@ async def test_no_data_current_month_falls_back_to_prev():
     today = date.today()
     py, pm = _prev_month(today.year, today.month)
 
-    async def _has_txn(fid, y, m):
+    async def _has_txn(fid, y, m, role="owner"):
         return (y, m) == (py, pm)
 
     with (
@@ -175,6 +182,8 @@ async def test_no_data_current_month_falls_back_to_prev():
     call_kwargs = mock_gen.call_args.kwargs
     assert call_kwargs["year"] == py
     assert call_kwargs["month"] == pm
+    assert call_kwargs["role"] == "owner"
+    assert call_kwargs["user_id"] is not None
 
 
 async def test_no_data_anywhere_returns_text_only():
@@ -243,3 +252,18 @@ async def test_spanish_report_ready():
     ):
         result = await _skill().execute(_msg(), ctx, {})
     assert "informe" in result.response_text.lower()
+
+
+async def test_member_passes_scope_limited_report_args():
+    ctx = _ctx(role="member")
+    with (
+        patch(_CLARIFY, new_callable=AsyncMock, return_value=None),
+        patch(_HAS_TXN, new_callable=AsyncMock, return_value=True),
+        patch(_GEN_REPORT, new_callable=AsyncMock, return_value=(b"p", "r.pdf")) as mock_gen,
+    ):
+        await _skill().execute(_msg(), ctx, {})
+
+    mock_gen.assert_awaited_once()
+    kwargs = mock_gen.call_args.kwargs
+    assert kwargs["role"] == "member"
+    assert kwargs["user_id"] == ctx.user_id

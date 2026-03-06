@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc, func, select
 
 from api.webapp_auth import validate_webapp_data
+from src.core.access import apply_scope_filter, can_access_scope
 from src.core.config import settings
 from src.core.db import async_session
 from src.core.models.budget import Budget
@@ -60,6 +61,11 @@ def _parse_enum(enum_cls, value: str, field_name: str):
 def _require_owner(user: User):
     if user.role.value != "owner":
         raise HTTPException(status_code=403, detail="Owner access required")
+
+
+def _ensure_scope_allowed(user: User, scope: Scope) -> None:
+    if not can_access_scope(user.role.value, scope):
+        raise HTTPException(status_code=403, detail="Scope access denied")
 
 
 def _is_public_ip(ip_str: str) -> bool:
@@ -327,13 +333,14 @@ async def get_invite_code(user: User = Depends(get_current_user)):
 
 @router.get("/categories", response_model=list[CategoryItem])
 async def list_categories(user: User = Depends(get_current_user)):
-    """List all categories for the user's family."""
+    """List all categories visible to the user."""
     async with async_session() as session:
-        result = await session.execute(
+        stmt = (
             select(Category)
             .where(Category.family_id == user.family_id)
             .order_by(Category.scope, Category.name)
         )
+        result = await session.execute(apply_scope_filter(stmt, Category, user.role.value))
         cats = result.scalars().all()
         return [
             CategoryItem(
@@ -369,7 +376,7 @@ async def get_stats(
         currency = fam.currency if fam else "USD"
 
         # Expenses by category
-        exp_result = await session.execute(
+        exp_stmt = (
             select(
                 Category.id,
                 Category.name,
@@ -385,11 +392,14 @@ async def get_stats(
             .group_by(Category.id, Category.name, Category.icon)
             .order_by(desc("total"))
         )
+        exp_result = await session.execute(
+            apply_scope_filter(exp_stmt, Transaction, user.role.value)
+        )
         expense_rows = exp_result.all()
         total_expense = sum(float(r[3]) for r in expense_rows)
 
         # Income by category
-        inc_result = await session.execute(
+        inc_stmt = (
             select(
                 Category.id,
                 Category.name,
@@ -404,6 +414,9 @@ async def get_stats(
             )
             .group_by(Category.id, Category.name, Category.icon)
             .order_by(desc("total"))
+        )
+        inc_result = await session.execute(
+            apply_scope_filter(inc_stmt, Transaction, user.role.value)
         )
         income_rows = inc_result.all()
         total_income = sum(float(r[3]) for r in income_rows)
@@ -451,22 +464,20 @@ async def get_monthly_trend(
             else:
                 end = month_date.replace(month=month_date.month + 1, day=1)
 
-            exp = await session.scalar(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == user.family_id,
-                    Transaction.date >= month_date,
-                    Transaction.date < end,
-                    Transaction.type == TransactionType.expense,
-                )
+            exp_stmt = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == user.family_id,
+                Transaction.date >= month_date,
+                Transaction.date < end,
+                Transaction.type == TransactionType.expense,
             )
-            inc = await session.scalar(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == user.family_id,
-                    Transaction.date >= month_date,
-                    Transaction.date < end,
-                    Transaction.type == TransactionType.income,
-                )
+            exp = await session.scalar(apply_scope_filter(exp_stmt, Transaction, user.role.value))
+            inc_stmt = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == user.family_id,
+                Transaction.date >= month_date,
+                Transaction.date < end,
+                Transaction.type == TransactionType.income,
             )
+            inc = await session.scalar(apply_scope_filter(inc_stmt, Transaction, user.role.value))
             result.append(
                 {
                     "month": month_date.strftime("%b %Y"),
@@ -541,15 +552,22 @@ async def list_transactions(
                 )
             )
 
-        total = (await session.scalar(select(func.count(Transaction.id)).where(*base_filter))) or 0
+        total_stmt = select(func.count(Transaction.id)).where(*base_filter)
+        total = (
+            await session.scalar(apply_scope_filter(total_stmt, Transaction, user.role.value))
+        ) or 0
 
-        query = (
+        query = apply_scope_filter(
+            (
             select(Transaction, Category.name.label("cat_name"), Category.id.label("cat_id"))
             .join(Category, Transaction.category_id == Category.id)
             .where(*base_filter)
             .order_by(desc(Transaction.date), desc(Transaction.created_at))
             .offset((page - 1) * per_page)
             .limit(per_page)
+            ),
+            Transaction,
+            user.role.value,
         )
         rows = (await session.execute(query)).all()
 
@@ -567,15 +585,16 @@ async def get_transaction(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
-        row = (
-            await session.execute(
-                select(Transaction, Category.name, Category.id)
-                .join(Category, Transaction.category_id == Category.id)
-                .where(
-                    Transaction.id == tx_id,
-                    Transaction.family_id == user.family_id,
-                )
+        stmt = (
+            select(Transaction, Category.name, Category.id)
+            .join(Category, Transaction.category_id == Category.id)
+            .where(
+                Transaction.id == tx_id,
+                Transaction.family_id == user.family_id,
             )
+        )
+        row = (
+            await session.execute(apply_scope_filter(stmt, Transaction, user.role.value))
         ).first()
         if not row:
             raise HTTPException(
@@ -595,12 +614,11 @@ async def create_transaction(
     cat_id = _parse_uuid(data.category_id, "category_id")
 
     async with async_session() as session:
-        cat = await session.scalar(
-            select(Category).where(
+        cat_stmt = select(Category).where(
                 Category.id == cat_id,
                 Category.family_id == user.family_id,
             )
-        )
+        cat = await session.scalar(apply_scope_filter(cat_stmt, Category, user.role.value))
         if not cat:
             raise HTTPException(
                 status_code=404, detail="Category not found"
@@ -632,12 +650,11 @@ async def update_transaction(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
-        tx = await session.scalar(
-            select(Transaction).where(
+        tx_stmt = select(Transaction).where(
                 Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
-        )
+        tx = await session.scalar(apply_scope_filter(tx_stmt, Transaction, user.role.value))
         if not tx:
             raise HTTPException(
                 status_code=404, detail="Transaction not found"
@@ -649,17 +666,19 @@ async def update_transaction(
             new_cat_id = _parse_uuid(
                 data.category_id, "category_id"
             )
-            cat_check = await session.scalar(
-                select(Category).where(
+            cat_stmt = select(Category).where(
                     Category.id == new_cat_id,
                     Category.family_id == user.family_id,
                 )
+            cat_check = await session.scalar(
+                apply_scope_filter(cat_stmt, Category, user.role.value)
             )
             if not cat_check:
                 raise HTTPException(
                     status_code=404, detail="Category not found"
                 )
             tx.category_id = new_cat_id
+            tx.scope = cat_check.scope
         if data.merchant is not None:
             tx.merchant = data.merchant
         if data.description is not None:
@@ -687,12 +706,11 @@ async def delete_transaction(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
-        tx = await session.scalar(
-            select(Transaction).where(
+        stmt = select(Transaction).where(
                 Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
-        )
+        tx = await session.scalar(apply_scope_filter(stmt, Transaction, user.role.value))
         if not tx:
             raise HTTPException(
                 status_code=404, detail="Transaction not found"
@@ -724,7 +742,7 @@ async def list_budgets(user: User = Depends(get_current_user)):
             )
             .order_by(Budget.period, Budget.created_at)
         )
-        rows = (await session.execute(query)).all()
+        rows = (await session.execute(apply_scope_filter(query, Budget, user.role.value))).all()
 
         result = []
         for b, cat_name, cat_icon in rows:
@@ -744,11 +762,10 @@ async def list_budgets(user: User = Depends(get_current_user)):
                     Transaction.category_id == b.category_id
                 )
 
+            spent_stmt = select(func.sum(Transaction.amount)).where(*spent_filter)
             spent = float(
                 await session.scalar(
-                    select(func.sum(Transaction.amount)).where(
-                        *spent_filter
-                    )
+                    apply_scope_filter(spent_stmt, Transaction, user.role.value)
                 )
                 or 0
             )
@@ -784,6 +801,7 @@ async def create_budget(
     user: User = Depends(get_current_user),
 ):
     scope = _parse_enum(Scope, data.scope, "scope")
+    _ensure_scope_allowed(user, scope)
     period = _parse_enum(BudgetPeriod, data.period, "period")
     cat_id = (
         _parse_uuid(data.category_id, "category_id")
@@ -792,6 +810,19 @@ async def create_budget(
     )
 
     async with async_session() as session:
+        if cat_id:
+            cat_stmt = select(Category).where(
+                Category.id == cat_id,
+                Category.family_id == user.family_id,
+            )
+            cat = await session.scalar(apply_scope_filter(cat_stmt, Category, user.role.value))
+            if not cat:
+                raise HTTPException(status_code=404, detail="Category not found")
+            if cat.scope != scope:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Budget scope must match category scope",
+                )
         b = Budget(
             family_id=user.family_id,
             category_id=cat_id,
@@ -851,7 +882,8 @@ async def list_recurring(user: User = Depends(get_current_user)):
     async with async_session() as session:
         rows = (
             await session.execute(
-                select(
+                apply_scope_filter(
+                    select(
                     RecurringPayment, Category.name, Category.icon
                 )
                 .join(
@@ -862,7 +894,10 @@ async def list_recurring(user: User = Depends(get_current_user)):
                     RecurringPayment.family_id == user.family_id,
                     RecurringPayment.is_active == True,  # noqa: E712
                 )
-                .order_by(asc(RecurringPayment.next_date))
+                .order_by(asc(RecurringPayment.next_date)),
+                    Category,
+                    user.role.value,
+                )
             )
         ).all()
 
@@ -891,12 +926,11 @@ async def create_recurring(
     freq = _parse_enum(PaymentFrequency, data.frequency, "frequency")
 
     async with async_session() as session:
-        cat = await session.scalar(
-            select(Category).where(
+        cat_stmt = select(Category).where(
                 Category.id == cat_id,
                 Category.family_id == user.family_id,
             )
-        )
+        cat = await session.scalar(apply_scope_filter(cat_stmt, Category, user.role.value))
         if not cat:
             raise HTTPException(
                 status_code=404, detail="Category not found"
@@ -936,14 +970,24 @@ async def mark_recurring_paid(
 ):
     """Record payment for this cycle and advance next_date."""
     async with async_session() as session:
-        r = await session.scalar(
-            select(RecurringPayment).where(
+        row = (
+            await session.execute(
+                apply_scope_filter(
+                    select(RecurringPayment, Category.scope)
+                    .join(Category, RecurringPayment.category_id == Category.id)
+                    .where(
                 RecurringPayment.id == rec_id,
                 RecurringPayment.family_id == user.family_id,
+                    ),
+                    Category,
+                    user.role.value,
+                )
             )
         )
-        if not r:
+        row = row.first()
+        if not row:
             raise HTTPException(status_code=404, detail="Recurring payment not found")
+        r, recurring_scope = row
 
         # Create transaction
         tx = Transaction(
@@ -955,7 +999,7 @@ async def mark_recurring_paid(
             merchant=r.name,
             description=f"Recurring: {r.name}",
             date=date.today(),
-            scope=Scope.family,
+            scope=recurring_scope,
             ai_confidence=Decimal("1.0"),
             meta={"source": "recurring", "recurring_id": str(r.id)},
         )
@@ -1271,8 +1315,7 @@ async def export_csv(
         if date_to:
             filters.append(Transaction.date <= date.fromisoformat(date_to))
 
-        rows = (
-            await session.execute(
+        stmt = (
                 select(
                     Transaction, Category.name.label("cat_name")
                 )
@@ -1284,6 +1327,8 @@ async def export_csv(
                 .order_by(desc(Transaction.date))
                 .limit(10000)
             )
+        rows = (
+            await session.execute(apply_scope_filter(stmt, Transaction, user.role.value))
         ).all()
 
         output = io.StringIO()
@@ -1325,8 +1370,12 @@ async def get_settings(user: User = Depends(get_current_user)):
         cats = (
             (
                 await session.execute(
-                    select(Category).where(
-                        Category.family_id == user.family_id
+                    apply_scope_filter(
+                        select(Category).where(
+                            Category.family_id == user.family_id
+                        ),
+                        Category,
+                        user.role.value,
                     )
                 )
             )
@@ -1387,8 +1436,12 @@ async def update_settings(
         cats = (
             (
                 await session.execute(
-                    select(Category).where(
-                        Category.family_id == db_user.family_id
+                    apply_scope_filter(
+                        select(Category).where(
+                            Category.family_id == db_user.family_id
+                        ),
+                        Category,
+                        user.role.value,
                     )
                 )
             )

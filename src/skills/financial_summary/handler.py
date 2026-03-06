@@ -11,6 +11,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from src.core.access import apply_scope_filter
 from src.core.charts import create_pie_chart
 from src.core.context import SessionContext
 from src.core.db import async_session
@@ -148,21 +149,21 @@ class FinancialSummarySkill:
 
         # Fetch category breakdown
         categories = await self._get_category_breakdown(
-            family_id, start_date, end_date
+            family_id, start_date, end_date, role=context.role
         )
         # Fetch top merchants
         merchants = await self._get_top_merchants(
-            family_id, start_date, end_date, limit=5
+            family_id, start_date, end_date, role=context.role, limit=5
         )
         # Fetch income total
         income_total = await self._get_income_total(
-            family_id, start_date, end_date
+            family_id, start_date, end_date, role=context.role
         )
         # Fetch previous period for comparison
         period_days = (end_date - start_date).days
         prev_start = start_date - timedelta(days=period_days)
         prev_categories = await self._get_category_breakdown(
-            family_id, prev_start, start_date
+            family_id, prev_start, start_date, role=context.role
         )
 
         if not categories and not income_total:
@@ -215,7 +216,7 @@ class FinancialSummarySkill:
 
     @staticmethod
     async def _get_category_breakdown(
-        family_id: str, start: date, end: date,
+        family_id: str, start: date, end: date, role: str = "owner",
     ) -> list[dict[str, Any]]:
         """Get expense totals grouped by category."""
         async with async_session() as session:
@@ -235,7 +236,7 @@ class FinancialSummarySkill:
                 .group_by(Category.name)
                 .order_by(func.sum(Transaction.amount).desc())
             )
-            rows = (await session.execute(stmt)).all()
+            rows = (await session.execute(apply_scope_filter(stmt, Transaction, role))).all()
             return [
                 {
                     "category": r.category,
@@ -247,7 +248,7 @@ class FinancialSummarySkill:
 
     @staticmethod
     async def _get_top_merchants(
-        family_id: str, start: date, end: date, limit: int = 5,
+        family_id: str, start: date, end: date, role: str = "owner", limit: int = 5,
     ) -> list[dict[str, Any]]:
         """Get top merchants by spend."""
         async with async_session() as session:
@@ -268,14 +269,16 @@ class FinancialSummarySkill:
                 .order_by(func.sum(Transaction.amount).desc())
                 .limit(limit)
             )
-            rows = (await session.execute(stmt)).all()
+            rows = (await session.execute(apply_scope_filter(stmt, Transaction, role))).all()
             return [
                 {"merchant": r.merchant, "amount": float(r.total or 0), "count": r.count}
                 for r in rows
             ]
 
     @staticmethod
-    async def _get_income_total(family_id: str, start: date, end: date) -> float:
+    async def _get_income_total(
+        family_id: str, start: date, end: date, role: str = "owner"
+    ) -> float:
         """Get total income for the period."""
         async with async_session() as session:
             stmt = select(func.sum(Transaction.amount)).where(
@@ -284,7 +287,7 @@ class FinancialSummarySkill:
                 Transaction.date >= start,
                 Transaction.date < end,
             )
-            result = await session.scalar(stmt)
+            result = await session.scalar(apply_scope_filter(stmt, Transaction, role))
             return float(result or 0)
 
     @staticmethod

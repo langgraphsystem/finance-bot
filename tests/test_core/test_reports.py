@@ -298,3 +298,37 @@ async def test_generate_monthly_report_includes_life_events():
     assert "Записи и заметки" in rendered_html
     assert "Важная заметка для отчёта" in rendered_html
     assert "#work" in rendered_html
+
+
+async def test_generate_monthly_report_filters_scope_and_private_life_events_for_member():
+    """Member reports should be scope-filtered and only include the caller's life events."""
+    family_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+    mock_session_ctx = _mock_db_results(
+        expense_rows=[("Продукты", "🛒", Decimal("500.00"))],
+        total_expense=Decimal("500.00"),
+        income_rows=[],
+        total_income=None,
+        life_events=[],
+    )
+
+    fake_pdf = b"%PDF-scope"
+
+    with (
+        patch("src.core.reports.async_session", return_value=mock_session_ctx),
+        patch("src.core.reports.html_to_pdf", return_value=fake_pdf),
+    ):
+        pdf_bytes, _ = await generate_monthly_report(
+            family_id=family_id,
+            year=2026,
+            month=1,
+            role="member",
+            user_id=user_id,
+        )
+
+    assert pdf_bytes == fake_pdf
+    mock_session = mock_session_ctx.__aenter__.return_value
+    expense_query = mock_session.execute.call_args_list[0].args[0]
+    life_query = mock_session.execute.call_args_list[4].args[0]
+    assert "transactions.scope" in str(expense_query)
+    assert "life_events.user_id" in str(life_query)

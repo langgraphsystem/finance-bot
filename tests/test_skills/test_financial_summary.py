@@ -217,6 +217,44 @@ async def test_chart_generated_with_categories(sample_context):
     assert result.chart_url == "https://chart.url/pie.png"
 
 
+async def test_member_summary_queries_are_scope_filtered(member_context):
+    """Member financial summary queries must stay within visible scopes."""
+    message = _make_message("financial summary")
+    intent_data = {"period": "month"}
+    session_calls = []
+
+    def factory():
+        index = len(session_calls)
+        mock_sess = AsyncMock()
+        if index in (0, 3):
+            result = MagicMock()
+            result.all.return_value = [_make_cat_row("Food", 300.0, 5)] if index == 0 else []
+            mock_sess.execute = AsyncMock(return_value=result)
+        elif index == 1:
+            result = MagicMock()
+            result.all.return_value = []
+            mock_sess.execute = AsyncMock(return_value=result)
+        else:
+            mock_sess.scalar = AsyncMock(return_value=0)
+
+        session_calls.append(mock_sess)
+        return _make_ctx(mock_sess)
+
+    with (
+        patch("src.skills.financial_summary.handler.async_session", side_effect=factory),
+        patch(
+            "src.skills.financial_summary.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="Summary text",
+        ),
+        patch("src.skills.financial_summary.handler.create_pie_chart", return_value=None),
+    ):
+        await skill.execute(message, member_context, intent_data)
+
+    first_query = session_calls[0].execute.call_args_list[0].args[0]
+    assert "transactions.scope" in str(first_query)
+
+
 async def test_format_data_includes_comparison():
     """_format_data includes comparison when previous period has data."""
     data_text = FinancialSummarySkill._format_data(

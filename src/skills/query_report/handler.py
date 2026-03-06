@@ -142,7 +142,7 @@ class QueryReportSkill:
 
             # Check if there's any data for the requested period
             has_data = await has_transactions_for_period(
-                context.family_id, year, month
+                context.family_id, year, month, role=context.role
             )
 
             if not has_data:
@@ -150,7 +150,7 @@ class QueryReportSkill:
                 if not explicit:
                     py, pm = _prev_month(year, month)
                     has_prev = await has_transactions_for_period(
-                        context.family_id, py, pm
+                        context.family_id, py, pm, role=context.role
                     )
                     if has_prev:
                         # Generate report for previous month instead
@@ -159,6 +159,8 @@ class QueryReportSkill:
                             year=py,
                             month=pm,
                             language=lang,
+                            role=context.role,
+                            user_id=context.user_id,
                         )
                         msg = t_cached(
                             _STRINGS, "no_data_fallback", lang,
@@ -185,6 +187,8 @@ class QueryReportSkill:
                 year=year,
                 month=month,
                 language=lang,
+                role=context.role,
+                user_id=context.user_id,
             )
             return SkillResult(
                 response_text=t_cached(
