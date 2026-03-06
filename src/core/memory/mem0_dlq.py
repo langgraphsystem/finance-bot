@@ -21,8 +21,8 @@ DLQ_ITEM_TTL = 86400  # 24h max retention
 
 
 def _get_redis():
-    from src.core.redis_client import get_redis
-    return get_redis()
+    from src.core.db import redis
+    return redis
 
 
 def _idempotency_key(user_id: str, content: str, category: str) -> str:

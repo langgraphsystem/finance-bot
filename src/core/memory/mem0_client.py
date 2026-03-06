@@ -95,14 +95,32 @@ def _build_pgvector_url(db_url: str) -> str:
     if "sslmode" not in params and parsed.hostname not in ("localhost", "127.0.0.1"):
         params["sslmode"] = ["require"]
 
-    # Disable prepared statements for PgBouncer transaction-mode compatibility.
-    # Without this, psycopg3 auto-prepares after ~5 executions, causing
-    # "DuplicatePreparedStatement" errors when PgBouncer reassigns connections.
-    if "prepare_threshold" not in params:
-        params["prepare_threshold"] = ["0"]
+    # NOTE: prepare_threshold is NOT a valid URI parameter for psycopg3.
+    # It must be passed via connection kwargs, not the connection string.
+    # Remove it if present in the URL to avoid "invalid URI query parameter" errors.
+    params.pop("prepare_threshold", None)
 
     new_query = urlencode({k: v[0] for k, v in params.items()})
     return urlunparse(parsed._replace(query=new_query))
+
+
+def _create_connection_pool(connection_string: str):
+    """Create a psycopg3 ConnectionPool with prepare_threshold=0.
+
+    psycopg3 does NOT accept ``prepare_threshold`` as a URI query parameter.
+    It must be passed via the ``kwargs`` dict so every connection in the pool
+    disables automatic prepared statements — required for PgBouncer
+    transaction-mode compatibility (Supavisor).
+    """
+    from psycopg_pool import ConnectionPool
+
+    return ConnectionPool(
+        conninfo=connection_string,
+        min_size=1,
+        max_size=5,
+        open=True,
+        kwargs={"prepare_threshold": 0},
+    )
 
 
 def get_memory() -> Memory:
@@ -110,6 +128,7 @@ def get_memory() -> Memory:
     global _memory
     if _memory is None:
         connection_string = _build_pgvector_url(settings.database_url)
+        pool = _create_connection_pool(connection_string)
         config = {
             "llm": {
                 "provider": "anthropic",
@@ -130,6 +149,7 @@ def get_memory() -> Memory:
                 "config": {
                     "dbname": "postgres",
                     "connection_string": connection_string,
+                    "connection_pool": pool,
                     "collection_name": "mem0_memories",
                 },
             },
