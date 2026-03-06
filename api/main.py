@@ -17,6 +17,7 @@ from sqlalchemy import select, text
 from api.browser_extension import router as extension_router
 from api.miniapp import router as miniapp_router
 from api.oauth import router as oauth_router
+from src.core.access import filter_scope_items
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session, redis
@@ -172,6 +173,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             {"id": str(c.id), "name": c.name, "scope": c.scope.value, "icon": c.icon}
             for c in cat_result.scalars()
         ]
+        categories = filter_scope_items(categories, user.role.value)
 
         # Load merchant mappings
         map_result = await session.execute(
@@ -185,6 +187,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             }
             for m in map_result.scalars()
         ]
+        mappings = filter_scope_items(mappings, user.role.value)
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
@@ -243,6 +246,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             {"id": str(c.id), "name": c.name, "scope": c.scope.value, "icon": c.icon}
             for c in cat_result.scalars()
         ]
+        categories = filter_scope_items(categories, user.role.value)
 
         map_result = await session.execute(
             select(MerchantMapping).where(MerchantMapping.family_id == user.family_id)
@@ -255,6 +259,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             }
             for m in map_result.scalars()
         ]
+        mappings = filter_scope_items(mappings, user.role.value)
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 

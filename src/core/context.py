@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from src.core.access import apply_scope_filter, can_access_scope, get_visible_scopes
+
 if TYPE_CHECKING:
     from src.core.profiles import ProfileConfig
 
@@ -40,21 +42,15 @@ class SessionContext:
 
     def can_access_scope(self, scope: str) -> bool:
         """Check if user can see data of this scope."""
-        if self.role == "owner":
-            return True
-        return scope == "family"
+        return can_access_scope(self.role, scope)
 
     def get_visible_scopes(self) -> list[str]:
         """Return list of scopes visible to this user."""
-        if self.role == "owner":
-            return ["business", "family", "personal"]
-        return ["family"]
+        return [scope.value for scope in get_visible_scopes(self.role)]
 
     def filter_query(self, stmt, model):
         """Add family_id and scope filters to a SQLAlchemy select."""
         import uuid
 
         stmt = stmt.where(model.family_id == uuid.UUID(self.family_id))
-        if self.role != "owner":
-            stmt = stmt.where(model.scope.in_(self.get_visible_scopes()))
-        return stmt
+        return apply_scope_filter(stmt, model, self.role)

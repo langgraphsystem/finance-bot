@@ -166,3 +166,29 @@ async def test_chart_generated_with_categories(sample_context):
 
     mock_chart.assert_called_once()
     assert result.chart_url == "https://chart.url/pie.png"
+
+
+async def test_member_stats_queries_are_scope_filtered(member_context):
+    """Member analytics SQL must stay within visible scopes."""
+    message = _make_message("статистика за месяц")
+    intent_data = {"period": "month"}
+    session_factory = _mock_session(
+        stats_rows=[_make_row("Продукты", 100.0)],
+        total_val=Decimal("100"),
+        income_val=Decimal("0"),
+    )
+
+    with (
+        patch("src.skills.query_stats.handler.async_session", return_value=session_factory()),
+        patch(
+            "src.skills.query_stats.handler.generate_text",
+            new_callable=AsyncMock,
+            return_value="Статистика: ...",
+        ),
+        patch("src.skills.query_stats.handler.create_pie_chart", return_value=None),
+    ):
+        await skill.execute(message, member_context, intent_data)
+
+    mock_session = session_factory.return_value.__aenter__.return_value
+    first_query = mock_session.execute.call_args_list[0].args[0]
+    assert "transactions.scope" in str(first_query)

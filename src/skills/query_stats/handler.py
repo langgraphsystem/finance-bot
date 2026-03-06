@@ -8,6 +8,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from src.core.access import apply_scope_filter
 from src.core.charts import create_pie_chart
 from src.core.config import settings
 from src.core.context import SessionContext
@@ -140,6 +141,7 @@ class QueryStatsSkill:
     async def _get_comparison_data(
         self,
         family_id: str,
+        role: str,
         current_start: date,
         current_end: date,
         prev_start: date,
@@ -148,7 +150,7 @@ class QueryStatsSkill:
         """Get spending comparison between two periods."""
         async with async_session() as session:
             # Current period totals by category
-            current_result = await session.execute(
+            current_stmt = (
                 select(
                     Category.name,
                     func.sum(Transaction.amount).label("total"),
@@ -162,10 +164,13 @@ class QueryStatsSkill:
                 )
                 .group_by(Category.name)
             )
+            current_result = await session.execute(
+                apply_scope_filter(current_stmt, Transaction, role)
+            )
             current_data = {r[0]: float(r[1]) for r in current_result.all()}
 
             # Previous period totals by category
-            prev_result = await session.execute(
+            prev_stmt = (
                 select(
                     Category.name,
                     func.sum(Transaction.amount).label("total"),
@@ -179,6 +184,7 @@ class QueryStatsSkill:
                 )
                 .group_by(Category.name)
             )
+            prev_result = await session.execute(apply_scope_filter(prev_stmt, Transaction, role))
             prev_data = {r[0]: float(r[1]) for r in prev_result.all()}
 
         # Calculate changes
@@ -235,7 +241,7 @@ class QueryStatsSkill:
         # Use assembled SQL stats for current month, own query for other periods
         total_income = Decimal("0")
         try:
-            if period == "month" and assembled and assembled.sql_stats:
+            if period == "month" and assembled and assembled.sql_stats and context.role == "owner":
                 sql_stats = assembled.sql_stats
                 total = Decimal(str(sql_stats["total_expense"]))
                 total_income = Decimal(str(sql_stats.get("total_income", 0)))
@@ -246,7 +252,7 @@ class QueryStatsSkill:
             else:
                 # SQL query — LLM NEVER calculates
                 async with async_session() as session:
-                    result = await session.execute(
+                    stats_stmt = (
                         select(
                             Category.name,
                             func.sum(Transaction.amount).label("total"),
@@ -261,26 +267,31 @@ class QueryStatsSkill:
                         .group_by(Category.name)
                         .order_by(func.sum(Transaction.amount).desc())
                     )
+                    result = await session.execute(
+                        apply_scope_filter(stats_stmt, Transaction, context.role)
+                    )
                     stats = result.all()
 
+                    total_stmt = select(func.sum(Transaction.amount)).where(
+                        Transaction.family_id == uuid.UUID(context.family_id),
+                        Transaction.date >= start_date,
+                        Transaction.date < end_date,
+                        Transaction.type == TransactionType.expense,
+                    )
                     total_result = await session.execute(
-                        select(func.sum(Transaction.amount)).where(
-                            Transaction.family_id == uuid.UUID(context.family_id),
-                            Transaction.date >= start_date,
-                            Transaction.date < end_date,
-                            Transaction.type == TransactionType.expense,
-                        )
+                        apply_scope_filter(total_stmt, Transaction, context.role)
                     )
                     total = total_result.scalar() or Decimal("0")
 
                     # Income query
+                    income_stmt = select(func.sum(Transaction.amount)).where(
+                        Transaction.family_id == uuid.UUID(context.family_id),
+                        Transaction.date >= start_date,
+                        Transaction.date < end_date,
+                        Transaction.type == TransactionType.income,
+                    )
                     income_result = await session.execute(
-                        select(func.sum(Transaction.amount)).where(
-                            Transaction.family_id == uuid.UUID(context.family_id),
-                            Transaction.date >= start_date,
-                            Transaction.date < end_date,
-                            Transaction.type == TransactionType.income,
-                        )
+                        apply_scope_filter(income_stmt, Transaction, context.role)
                     )
                     total_income = income_result.scalar() or Decimal("0")
         except Exception as e:
@@ -311,6 +322,7 @@ class QueryStatsSkill:
         try:
             comparison = await self._get_comparison_data(
                 family_id=context.family_id,
+                role=context.role,
                 current_start=start_date,
                 current_end=end_date,
                 prev_start=prev_start,
