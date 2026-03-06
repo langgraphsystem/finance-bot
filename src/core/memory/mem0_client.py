@@ -10,10 +10,34 @@ import logging
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-from mem0 import Memory
+# ------------------------------------------------------------------
+# MUST run before importing mem0: patch psycopg_pool.ConnectionPool
+# so every pool created by Mem0 uses prepare_threshold=0.
+# This is required for PgBouncer/Supavisor transaction-mode compat.
+# ------------------------------------------------------------------
+import psycopg_pool as _psycopg_pool
 
-from src.core.circuit_breaker import get_circuit
-from src.core.config import settings
+_OrigConnectionPool = _psycopg_pool.ConnectionPool
+
+
+class _PatchedConnectionPool(_OrigConnectionPool):
+    """ConnectionPool that injects prepare_threshold=0 into every connection."""
+
+    def __init__(self, *args, **kw):
+        conn_kwargs = kw.get("kwargs") or {}
+        if "prepare_threshold" not in conn_kwargs:
+            conn_kwargs["prepare_threshold"] = 0
+        kw["kwargs"] = conn_kwargs
+        super().__init__(*args, **kw)
+
+
+_psycopg_pool.ConnectionPool = _PatchedConnectionPool  # type: ignore[misc]
+# ------------------------------------------------------------------
+
+from mem0 import Memory  # noqa: E402
+
+from src.core.circuit_breaker import get_circuit  # noqa: E402
+from src.core.config import settings  # noqa: E402
 
 if TYPE_CHECKING:
     from src.core.memory.mem0_domains import MemoryDomain
@@ -104,39 +128,12 @@ def _build_pgvector_url(db_url: str) -> str:
     return urlunparse(parsed._replace(query=new_query))
 
 
-def _create_connection_pool(connection_string: str):
-    """Create a psycopg3 ConnectionPool with prepare_threshold=0.
-
-    psycopg3 does NOT accept ``prepare_threshold`` as a URI query parameter.
-    It must be passed via the ``kwargs`` dict so every connection in the pool
-    disables automatic prepared statements — required for PgBouncer
-    transaction-mode compatibility (Supavisor).
-
-    Pool uses open=False + explicit open() to avoid blocking app startup
-    and competing with asyncpg for Supabase connection slots.
-    """
-    from psycopg_pool import ConnectionPool
-
-    pool = ConnectionPool(
-        conninfo=connection_string,
-        min_size=1,
-        max_size=2,
-        open=False,
-        kwargs={"prepare_threshold": 0},
-    )
-    pool.open()
-    return pool
-
-
 def get_memory() -> Memory:
     """Get or initialize Mem0 client.
 
-    After Mem0 creates its own psycopg3 ConnectionPool, we replace it with
-    ours that has ``prepare_threshold=0`` — required for PgBouncer/Supavisor.
-
-    Mem0's ``VectorStoreFactory.create()`` calls ``config.model_dump()`` which
-    drops the Python ConnectionPool object, so passing it via config doesn't
-    work. Monkey-patching after init is the only reliable approach.
+    The psycopg_pool.ConnectionPool class is patched at module level (above)
+    to inject ``prepare_threshold=0`` into every connection, so Mem0's
+    internally-created pool already has the fix applied.
     """
     global _memory
     if _memory is None:
@@ -147,6 +144,7 @@ def get_memory() -> Memory:
                 "config": {
                     "model": "claude-haiku-4-5",
                     "api_key": settings.anthropic_api_key,
+                    "temperature": 0,
                 },
             },
             "embedder": {
@@ -171,22 +169,19 @@ def get_memory() -> Memory:
         }
         _memory = Memory.from_config(config)
 
-        # Replace Mem0's pool with ours that disables prepared statements.
-        # Mem0's VectorStoreFactory.create() uses model_dump() which drops
-        # the connection_pool object, so we must patch after initialization.
-        try:
-            old_pool = _memory.vector_store.connection_pool
-            new_pool = _create_connection_pool(connection_string)
-            _memory.vector_store.connection_pool = new_pool
-            # Close the old pool to free connections
-            try:
-                old_pool.close()
-            except Exception:
-                pass
-            logger.info("Mem0 connection pool replaced with prepare_threshold=0")
-        except Exception as e:
-            logger.warning("Failed to replace Mem0 connection pool: %s", e)
+        # Patch: Anthropic API rejects temperature + top_p together.
+        # Mem0's _get_common_params() always includes both from config.
+        # Monkey-patch _get_common_params to exclude top_p.
+        if hasattr(_memory, "llm"):
+            llm = _memory.llm
+            _orig_common = llm._get_common_params
 
+            def _patched_common(**kwargs):
+                params = _orig_common(**kwargs)
+                params.pop("top_p", None)
+                return params
+
+            llm._get_common_params = _patched_common
     return _memory
 
 
