@@ -220,8 +220,13 @@ def _parse_preference_fact(content: str) -> dict:
     updates: dict = {}
 
     for lang_marker, lang in [
-        ("на русском", "ru"), ("in english", "en"), ("en español", "es"),
-        ("auf deutsch", "de"), ("en français", "fr"),
+        ("на русском", "ru"), ("на английском", "en"), ("in english", "en"),
+        ("in russian", "ru"), ("по-русски", "ru"), ("по-английски", "en"),
+        ("en español", "es"), ("на испанском", "es"),
+        ("auf deutsch", "de"), ("на немецком", "de"),
+        ("en français", "fr"), ("на французском", "fr"),
+        ("на казахском", "kk"), ("на кыргызском", "ky"),
+        ("на турецком", "tr"), ("на китайском", "zh"),
     ]:
         if lang_marker in lower:
             updates["response_language"] = lang
