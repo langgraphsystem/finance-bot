@@ -11,9 +11,13 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # ------------------------------------------------------------------
-# MUST run before importing mem0: patch psycopg_pool.ConnectionPool
-# so every pool created by Mem0 uses prepare_threshold=0.
-# This is required for PgBouncer/Supavisor transaction-mode compat.
+# Patch psycopg_pool.ConnectionPool to inject prepare_threshold=0.
+# Required for PgBouncer/Supavisor transaction-mode compatibility.
+#
+# Mem0's pgvector module does `from psycopg_pool import ConnectionPool`
+# at module level, creating a LOCAL reference. Patching the psycopg_pool
+# module attribute alone does NOT affect mem0's already-imported reference.
+# We must ALSO patch mem0.vector_stores.pgvector.ConnectionPool directly.
 # ------------------------------------------------------------------
 import psycopg_pool as _psycopg_pool
 
@@ -35,7 +39,15 @@ class _PatchedConnectionPool(_OrigConnectionPool):
         return cls
 
 
+# Patch the module-level attribute (for any NEW imports)
 _psycopg_pool.ConnectionPool = _PatchedConnectionPool  # type: ignore[misc]
+
+# Patch mem0's LOCAL reference (the one it actually uses)
+try:
+    import mem0.vector_stores.pgvector as _pgvector_mod
+    _pgvector_mod.ConnectionPool = _PatchedConnectionPool
+except ImportError:
+    pass
 # ------------------------------------------------------------------
 
 from mem0 import Memory  # noqa: E402
