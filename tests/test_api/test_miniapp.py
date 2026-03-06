@@ -161,6 +161,7 @@ def _make_mock_user():
     user.id = uuid.uuid4()
     user.family_id = uuid.uuid4()
     user.telegram_id = 123456
+    user.name = "Test User"
     user.language = "ru"
     user.business_type = "trucker"
     user.role = MagicMock()
@@ -438,3 +439,133 @@ class TestUpdateSettingsEndpoint:
         assert len(data["categories"]) == 1
         assert data["categories"][0]["name"] == "Fuel"
         assert mock_profile.preferred_language == "en"
+
+class TestGetMeEndpoint:
+    """Tests for GET /api/me access-sensitive fields."""
+
+    def test_owner_sees_invite_code(self):
+        mock_user = _make_mock_user()
+
+        mock_fam = MagicMock()
+        mock_fam.name = "Test Family"
+        mock_fam.currency = "USD"
+        mock_fam.invite_code = "INV12345"
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=mock_fam)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/me")
+
+        assert response.status_code == 200
+        assert response.json()["invite_code"] == "INV12345"
+
+    def test_member_invite_code_hidden(self):
+        mock_user = _make_mock_user()
+        mock_user.role.value = "member"
+
+        mock_fam = MagicMock()
+        mock_fam.name = "Test Family"
+        mock_fam.currency = "USD"
+        mock_fam.invite_code = "INV12345"
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=mock_fam)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/me")
+
+        assert response.status_code == 200
+        assert response.json()["invite_code"] is None
+
+
+class TestPrivateMiniappFilters:
+    """Regression tests for user-private miniapp resources."""
+
+    def test_life_events_are_filtered_by_user_id(self):
+        mock_user = _make_mock_user()
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = MagicMock()
+            scalars = MagicMock()
+            scalars.all.return_value = []
+            result.scalars.return_value = scalars
+            mock_session.execute = AsyncMock(return_value=result)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/life-events")
+
+        assert response.status_code == 200
+        query = mock_session.execute.call_args.args[0]
+        assert "life_events.user_id" in str(query)
+
+    def test_tasks_are_filtered_by_user_id(self):
+        mock_user = _make_mock_user()
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+
+            result = MagicMock()
+            scalars = MagicMock()
+            scalars.all.return_value = []
+            result.scalars.return_value = scalars
+            mock_session.execute = AsyncMock(return_value=result)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.get("/api/tasks")
+
+        assert response.status_code == 200
+        query = mock_session.execute.call_args.args[0]
+        assert "tasks.user_id" in str(query)
+
+    def test_update_task_checks_owner_user_id(self):
+        mock_user = _make_mock_user()
+        task_id = uuid.uuid4()
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=None)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.put(f"/api/tasks/{task_id}", json={"title": "New title"})
+
+        assert response.status_code == 404
+        query = mock_session.scalar.call_args.args[0]
+        assert "tasks.user_id" in str(query)
+
+    def test_delete_task_checks_owner_user_id(self):
+        mock_user = _make_mock_user()
+        task_id = uuid.uuid4()
+
+        with patch("api.miniapp.async_session") as mock_session_maker:
+            mock_session = AsyncMock()
+            mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+            mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+            mock_session.scalar = AsyncMock(return_value=None)
+
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.delete(f"/api/tasks/{task_id}")
+
+        assert response.status_code == 404
+        query = mock_session.scalar.call_args.args[0]
+        assert "tasks.user_id" in str(query)

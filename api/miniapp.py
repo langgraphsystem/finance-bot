@@ -172,7 +172,7 @@ class UserProfile(BaseModel):
     business_type: str | None
     family_id: str
     family_name: str
-    invite_code: str
+    invite_code: str | None
 
 
 class BudgetItem(BaseModel):
@@ -303,7 +303,7 @@ async def get_me(user: User = Depends(get_current_user)):
             business_type=user.business_type,
             family_id=str(user.family_id),
             family_name=fam.name,
-            invite_code=fam.invite_code,
+            invite_code=fam.invite_code if user.role.value == "owner" else None,
         )
 
 
@@ -989,7 +989,10 @@ async def list_life_events(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
-        filters = [LifeEvent.family_id == user.family_id]
+        filters = [
+            LifeEvent.family_id == user.family_id,
+            LifeEvent.user_id == user.id,
+        ]
         if type:
             filters.append(
                 LifeEvent.type == _parse_enum(
@@ -1076,7 +1079,10 @@ async def list_tasks(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
-        filters = [Task.family_id == user.family_id]
+        filters = [
+            Task.family_id == user.family_id,
+            Task.user_id == user.id,
+        ]
         if status:
             filters.append(
                 Task.status == _parse_enum(
@@ -1178,6 +1184,7 @@ async def update_task(
             select(Task).where(
                 Task.id == task_id,
                 Task.family_id == user.family_id,
+                Task.user_id == user.id,
             )
         )
         if not t:
@@ -1233,6 +1240,7 @@ async def delete_task(
             select(Task).where(
                 Task.id == task_id,
                 Task.family_id == user.family_id,
+                Task.user_id == user.id,
             )
         )
         if not t:
