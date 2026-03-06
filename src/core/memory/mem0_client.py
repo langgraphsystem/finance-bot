@@ -111,16 +111,21 @@ def _create_connection_pool(connection_string: str):
     It must be passed via the ``kwargs`` dict so every connection in the pool
     disables automatic prepared statements — required for PgBouncer
     transaction-mode compatibility (Supavisor).
+
+    Pool uses open=False + explicit open() to avoid blocking app startup
+    and competing with asyncpg for Supabase connection slots.
     """
     from psycopg_pool import ConnectionPool
 
-    return ConnectionPool(
+    pool = ConnectionPool(
         conninfo=connection_string,
         min_size=1,
-        max_size=5,
-        open=True,
+        max_size=2,
+        open=False,
         kwargs={"prepare_threshold": 0},
     )
+    pool.open()
+    return pool
 
 
 def get_memory() -> Memory:
