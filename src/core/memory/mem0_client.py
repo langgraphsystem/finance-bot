@@ -129,11 +129,18 @@ def _create_connection_pool(connection_string: str):
 
 
 def get_memory() -> Memory:
-    """Get or initialize Mem0 client."""
+    """Get or initialize Mem0 client.
+
+    After Mem0 creates its own psycopg3 ConnectionPool, we replace it with
+    ours that has ``prepare_threshold=0`` — required for PgBouncer/Supavisor.
+
+    Mem0's ``VectorStoreFactory.create()`` calls ``config.model_dump()`` which
+    drops the Python ConnectionPool object, so passing it via config doesn't
+    work. Monkey-patching after init is the only reliable approach.
+    """
     global _memory
     if _memory is None:
         connection_string = _build_pgvector_url(settings.database_url)
-        pool = _create_connection_pool(connection_string)
         config = {
             "llm": {
                 "provider": "anthropic",
@@ -154,7 +161,6 @@ def get_memory() -> Memory:
                 "config": {
                     "dbname": "postgres",
                     "connection_string": connection_string,
-                    "connection_pool": pool,
                     "collection_name": "mem0_memories",
                 },
             },
@@ -164,6 +170,23 @@ def get_memory() -> Memory:
             },
         }
         _memory = Memory.from_config(config)
+
+        # Replace Mem0's pool with ours that disables prepared statements.
+        # Mem0's VectorStoreFactory.create() uses model_dump() which drops
+        # the connection_pool object, so we must patch after initialization.
+        try:
+            old_pool = _memory.vector_store.connection_pool
+            new_pool = _create_connection_pool(connection_string)
+            _memory.vector_store.connection_pool = new_pool
+            # Close the old pool to free connections
+            try:
+                old_pool.close()
+            except Exception:
+                pass
+            logger.info("Mem0 connection pool replaced with prepare_threshold=0")
+        except Exception as e:
+            logger.warning("Failed to replace Mem0 connection pool: %s", e)
+
     return _memory
 
 
