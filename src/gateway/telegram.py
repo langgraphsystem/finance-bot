@@ -142,6 +142,9 @@ class TelegramGateway:
             )
         else:
             text = message.text or ""
+            if not text:
+                # Silent mode — skill returned empty text, nothing to send
+                return
             if len(text) > 4000:
                 chunks = _split_message(text, max_len=4000)
                 for i, chunk in enumerate(chunks):

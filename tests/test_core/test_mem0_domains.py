@@ -15,8 +15,8 @@ from src.core.memory.mem0_domains import (
 
 
 class TestMemoryDomain:
-    def test_has_11_domains(self):
-        assert len(MemoryDomain) == 11
+    def test_has_12_domains(self):
+        assert len(MemoryDomain) == 12
 
     def test_domain_values(self):
         assert MemoryDomain.core.value == "core"
@@ -72,7 +72,7 @@ class TestGetDomainsForIntent:
 
     def test_morning_brief_returns_all(self):
         domains = get_domains_for_intent("morning_brief", "life")
-        assert len(domains) == 11
+        assert len(domains) == 12
 
     def test_unmapped_intent_uses_mem_type(self):
         # shopping_list_add not in INTENT_DOMAIN_MEM_MAP

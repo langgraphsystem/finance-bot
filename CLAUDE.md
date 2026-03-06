@@ -1,5 +1,16 @@
 # CLAUDE.md
 
+## Связанные проекты
+
+| Проект | Путь | Роль |
+|--------|------|------|
+| **MegaAgent** | `D:/Программы/mega_agent_pro_codex_handoff` | EB-1A иммиграционный ассистент. Схожая архитектура (Telegram + FastAPI + LangGraph). |
+| **CEO Hub** | `D:/Программы/GeneralProject` | Центральный реестр всех проектов. |
+
+> Независимый проект. Общих зависимостей с другими проектами нет.
+
+---
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands

@@ -121,21 +121,32 @@ async def _persist_message(
     content: str,
     intent: str | None = None,
 ) -> None:
-    """Persist a conversation message to PostgreSQL."""
-    try:
-        async with async_session() as session:
-            msg = ConversationMessage(
-                user_id=uuid.UUID(user_id),
-                family_id=uuid.UUID(family_id),
-                session_id=uuid.uuid4(),
-                role=role,
-                content=content,
-                intent=intent,
+    """Persist a conversation message to PostgreSQL with retry."""
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            async with async_session() as session:
+                msg = ConversationMessage(
+                    user_id=uuid.UUID(user_id),
+                    family_id=uuid.UUID(family_id),
+                    session_id=uuid.uuid4(),
+                    role=role,
+                    content=content,
+                    intent=intent,
+                )
+                session.add(msg)
+                await session.commit()
+            return
+        except Exception as e:
+            if attempt < max_retries:
+                import asyncio as _aio
+
+                await _aio.sleep(0.5 * (attempt + 1))
+                continue
+            logger.error(
+                "Failed to persist conversation message after %d attempts: %s",
+                max_retries + 1, e,
             )
-            session.add(msg)
-            await session.commit()
-    except Exception as e:
-        logger.warning("Failed to persist conversation message: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +574,15 @@ async def _dispatch_message(
             )
         )
 
+    # Incremental personality tracking (lightweight Redis EMA, no DB/LLM)
+    if message.text:
+        try:
+            from src.core.tasks.profile_tasks import incremental_personality_update
+
+            asyncio.create_task(incremental_personality_update(context.user_id, message.text))
+        except Exception:
+            pass
+
     # Pre-warm translations for non-static languages (en/ru/es are instant)
     if context.language and context.language not in ("en", "ru", "es"):
         try:
@@ -690,14 +710,22 @@ async def _dispatch_message(
     except Exception as e:
         logger.debug("Session buffer write failed: %s", e)
 
-    # Execute background tasks (properly handle coroutines)
-    for task_fn in skill_result.background_tasks:
+    # Execute background tasks with error logging
+    async def _safe_background(coro, task_name: str) -> None:
+        try:
+            await coro
+        except Exception as exc:
+            logger.error("Background task %s failed: %s", task_name, exc)
+
+    for idx, task_fn in enumerate(skill_result.background_tasks):
         try:
             result = task_fn()
             if asyncio.iscoroutine(result):
-                asyncio.create_task(result)
+                asyncio.create_task(
+                    _safe_background(result, f"{intent_name}#{idx}")
+                )
         except Exception as e:
-            logger.warning("Background task failed: %s", e)
+            logger.error("Background task %s#%d dispatch failed: %s", intent_name, idx, e)
 
     # Undo window: store undo payload and append button for quick-action skills
     try:
@@ -1003,6 +1031,166 @@ async def _handle_clarify(
     )
 
 
+async def _run_post_skill_side_effects(
+    intent_name: str,
+    original_text: str,
+    skill_result: "SkillResult",
+    context: "SessionContext",
+    intent_data: dict,
+) -> "SkillResult":
+    """Run the same side effects as the normal pipeline after skill execution.
+
+    Called from callback handlers (clarify, plan:execute) that bypass the main
+    message flow. Mirrors the post-skill section of ``handle_message()``:
+    post-gen check, persist, usage logging, summarize, session buffer,
+    background tasks, undo injection, and smart suggestions.
+
+    Returns the (possibly mutated) SkillResult with undo/suggestion buttons.
+    """
+    from src.core.memory import sliding_window
+
+    # Post-gen rule check (Phase 13)
+    if skill_result.response_text and settings.ff_post_gen_check:
+        try:
+            from src.core.identity import get_user_rules
+            from src.core.post_gen_check import (
+                check_response_rules,
+                regenerate_with_rule_reminder,
+            )
+
+            user_rules = await get_user_rules(str(context.user_id))
+            if user_rules:
+                ok, violation = await check_response_rules(
+                    skill_result.response_text, user_rules
+                )
+                if not ok:
+                    skill_result.response_text = await regenerate_with_rule_reminder(
+                        skill_result.response_text, violation, user_rules,
+                        "", original_text,
+                    )
+        except Exception:
+            pass
+
+    # Persist messages (Redis + PostgreSQL)
+    if original_text:
+        await sliding_window.add_message(context.user_id, "user", original_text, intent_name)
+        asyncio.create_task(
+            _persist_message(
+                context.user_id, context.family_id,
+                MessageRole.user, original_text, intent_name,
+            )
+        )
+    if skill_result.response_text:
+        await sliding_window.add_message(
+            context.user_id, "assistant", skill_result.response_text
+        )
+        asyncio.create_task(
+            _persist_message(
+                context.user_id, context.family_id,
+                MessageRole.assistant, skill_result.response_text,
+            )
+        )
+
+    # Usage logging
+    try:
+        assembled = intent_data.get("_assembled")
+        if assembled and hasattr(assembled, "token_usage"):
+            from src.billing.usage_tracker import log_usage
+
+            tu = assembled.token_usage
+            asyncio.create_task(
+                log_usage(
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    domain=intent_data.get("_agent", ""),
+                    skill=intent_name,
+                    model=intent_data.get("_model", ""),
+                    tokens_input=tu.get("total", 0),
+                    tokens_output=0,
+                    cache_read_tokens=tu.get("identity", 0),
+                )
+            )
+    except Exception:
+        pass
+
+    # Dialog summarization
+    asyncio.create_task(summarize_dialog(context.user_id, context.family_id))
+
+    # Session buffer facts
+    try:
+        from src.core.memory.session_buffer import update_session_buffer
+
+        facts = _extract_session_facts(intent_name, intent_data)
+        for fact, category in facts:
+            asyncio.create_task(update_session_buffer(context.user_id, fact, category))
+    except Exception:
+        pass
+
+    # Background tasks from skill
+    async def _safe_bg(coro, name: str) -> None:
+        try:
+            await coro
+        except Exception as exc:
+            logger.error("Background task %s failed: %s", name, exc)
+
+    for idx, task_fn in enumerate(skill_result.background_tasks):
+        try:
+            result = task_fn()
+            if asyncio.iscoroutine(result):
+                asyncio.create_task(_safe_bg(result, f"{intent_name}#{idx}"))
+        except Exception:
+            pass
+
+    # Undo injection
+    try:
+        from src.core.undo import UNDO_INTENTS, store_undo
+
+        record_id = intent_data.get("_record_id")
+        record_table = intent_data.get("_record_table")
+        if intent_name in UNDO_INTENTS and record_id and record_table:
+            asyncio.create_task(
+                store_undo(context.user_id, intent_name, record_id, record_table)
+            )
+            undo_btn = {"text": "\u21a9 Undo", "callback": "undo:last"}
+            existing_buttons = skill_result.buttons or []
+            skill_result = SkillResult(
+                response_text=skill_result.response_text,
+                buttons=existing_buttons + [undo_btn],
+                document=skill_result.document,
+                document_name=skill_result.document_name,
+                photo_url=skill_result.photo_url,
+                photo_bytes=skill_result.photo_bytes,
+                chart_url=skill_result.chart_url,
+                background_tasks=[],
+                reply_keyboard=skill_result.reply_keyboard,
+            )
+    except Exception:
+        pass
+
+    # Smart suggestions
+    if not skill_result.reply_keyboard:
+        try:
+            from src.core.suggestions import get_suggestions
+
+            suggestions = await get_suggestions(intent_name, context.user_id)
+            if suggestions:
+                skill_result = SkillResult(
+                    response_text=skill_result.response_text,
+                    buttons=skill_result.buttons,
+                    document=skill_result.document,
+                    document_name=skill_result.document_name,
+                    photo_url=skill_result.photo_url,
+                    photo_bytes=skill_result.photo_bytes,
+                    chart_url=skill_result.chart_url,
+                    background_tasks=[],
+                    reply_keyboard=[{"text": s["text"]} for s in suggestions],
+                )
+        except Exception:
+            pass
+
+    return skill_result
+
+
 async def _resolve_clarify(
     chosen_intent: str,
     message: IncomingMessage,
@@ -1012,7 +1200,6 @@ async def _resolve_clarify(
     import json as _json
 
     from src.core.db import redis
-    from src.core.memory import sliding_window
 
     key = f"clarify_pending:{context.user_id}"
     raw = await redis.get(key)
@@ -1050,11 +1237,10 @@ async def _resolve_clarify(
             chat_id=message.chat_id,
         )
 
-    # Save to sliding window
-    if original_text:
-        await sliding_window.add_message(context.user_id, "user", original_text, chosen_intent)
-    if skill_result.response_text:
-        await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
+    # Run full side effects (post-gen, persist, summarize, undo, suggestions, etc.)
+    skill_result = await _run_post_skill_side_effects(
+        chosen_intent, original_text, skill_result, context, intent_data,
+    )
 
     return OutgoingMessage(
         text=skill_result.response_text,
@@ -1062,8 +1248,10 @@ async def _resolve_clarify(
         buttons=skill_result.buttons,
         document=skill_result.document,
         document_name=skill_result.document_name,
+        photo_url=skill_result.photo_url,
         photo_bytes=skill_result.photo_bytes,
         chart_url=skill_result.chart_url,
+        reply_keyboard=skill_result.reply_keyboard,
     )
 
 
@@ -1123,19 +1311,10 @@ async def _handle_plan_callback(
                 chat_id=message.chat_id,
             )
 
-        if original_text:
-            await sliding_window.add_message(
-                context.user_id,
-                "user",
-                original_text,
-                intent,
-            )
-        if skill_result.response_text:
-            await sliding_window.add_message(
-                context.user_id,
-                "assistant",
-                skill_result.response_text,
-            )
+        # Run full side effects (post-gen, persist, summarize, undo, suggestions, etc.)
+        skill_result = await _run_post_skill_side_effects(
+            intent, original_text, skill_result, context, plan_intent_data,
+        )
 
         return OutgoingMessage(
             text=skill_result.response_text,
@@ -1143,8 +1322,10 @@ async def _handle_plan_callback(
             buttons=skill_result.buttons,
             document=skill_result.document,
             document_name=skill_result.document_name,
+            photo_url=skill_result.photo_url,
             photo_bytes=skill_result.photo_bytes,
             chart_url=skill_result.chart_url,
+            reply_keyboard=skill_result.reply_keyboard,
         )
 
     return OutgoingMessage(text="Unknown action.", chat_id=message.chat_id)
@@ -1201,6 +1382,17 @@ async def _execute_pending_action(
     if not pending:
         return OutgoingMessage(
             text="Время подтверждения истекло. Повторите запрос.",
+            chat_id=message.chat_id,
+        )
+
+    # Verify ownership: only the user who created the action can execute it
+    if pending.get("user_id") != context.user_id:
+        logger.warning(
+            "Pending action ownership mismatch: action user %s != caller %s",
+            pending.get("user_id"), context.user_id,
+        )
+        return OutgoingMessage(
+            text="Это действие вам не принадлежит.",
             chat_id=message.chat_id,
         )
 
@@ -1656,6 +1848,7 @@ async def _handle_callback(
                 suggest_msg = IncomingMessage(
                     id=message.id,
                     chat_id=message.chat_id,
+                    type=MessageType.text,
                     text=extra or "",
                     user_id=message.user_id,
                 )
@@ -1679,8 +1872,14 @@ async def _handle_callback(
 
     elif action == "cancel_action":
         pending_id = parts[1] if len(parts) > 1 else ""
-        from src.core.pending_actions import delete_pending_action
+        from src.core.pending_actions import delete_pending_action, get_pending_action
 
+        pending = await get_pending_action(pending_id)
+        if pending and pending.get("user_id") != context.user_id:
+            return OutgoingMessage(
+                text="Это действие вам не принадлежит.",
+                chat_id=message.chat_id,
+            )
         await delete_pending_action(pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 

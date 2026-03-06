@@ -460,6 +460,12 @@ async def on_message(incoming):
     typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
     try:
         response = await handle_message(incoming, context)
+    except Exception:
+        logger.exception("Unhandled error in handle_message for user %s", incoming.user_id)
+        response = OutgoingMessage(
+            text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
+            chat_id=incoming.chat_id,
+        )
     finally:
         typing_task.cancel()
     await gateway.send(response)
@@ -479,21 +485,41 @@ async def _process_channel_message(incoming, gw) -> None:
 
 async def _handle_channel_message(incoming, gw):
     """Handle a message from a non-Telegram channel (Slack, WhatsApp, SMS)."""
-    context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
-
-    if not context:
-        # Unregistered channel user — run onboarding (same as Telegram)
-        await _handle_channel_onboarding(incoming, gw)
-        return
-
-    typing_task = asyncio.create_task(_typing_loop(gw, incoming.chat_id))
+    typing_task = None
     try:
+        context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
+
+        if not context:
+            # Unregistered channel user — run onboarding (same as Telegram)
+            await _handle_channel_onboarding(incoming, gw)
+            return
+
+        typing_task = asyncio.create_task(_typing_loop(gw, incoming.chat_id))
         response = await handle_message(incoming, context)
+        response.chat_id = incoming.chat_id
+        response.channel = incoming.channel
+        await gw.send(response)
+    except Exception:
+        logger.exception(
+            "Unhandled error while processing %s message for %s",
+            incoming.channel, incoming.channel_user_id,
+        )
+        fallback = OutgoingMessage(
+            text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
+            chat_id=incoming.chat_id,
+            channel=incoming.channel,
+        )
+        try:
+            await gw.send(fallback)
+        except Exception:
+            logger.exception(
+                "Failed to send fallback for %s user %s",
+                incoming.channel,
+                incoming.channel_user_id,
+            )
     finally:
-        typing_task.cancel()
-    response.chat_id = incoming.chat_id
-    response.channel = incoming.channel
-    await gw.send(response)
+        if typing_task is not None:
+            typing_task.cancel()
 
 
 async def _handle_channel_onboarding(incoming, gw):

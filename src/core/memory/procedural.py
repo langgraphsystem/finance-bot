@@ -171,6 +171,10 @@ async def learn_from_correction(
             except Exception as e:
                 logger.debug("Rule extraction from correction failed: %s", e)
 
+        # Realtime procedural rule: cache correction as immediate rule in Redis
+        # so the bot applies it on the very next request (not waiting for weekly cron)
+        await _cache_realtime_procedure(user_id, domain, correction)
+
     except Exception as e:
         logger.debug("Correction recording failed: %s", e)
 
@@ -380,6 +384,69 @@ def format_procedures_block(procedures: list[str]) -> str:
         return ""
     lines = "\n".join(f"- {rule}" for rule in procedures[:MAX_PROCEDURES_PER_DOMAIN])
     return f"\n\n<learned_procedures>\n{lines}\n</learned_procedures>"
+
+
+_REALTIME_PROCEDURE_TTL = 604800  # 7 days — until next weekly cron run
+_REALTIME_PROCEDURE_KEY = "proc_rt"
+_MAX_REALTIME_RULES = 20
+
+
+async def _cache_realtime_procedure(
+    user_id: str,
+    domain: str,
+    correction: dict[str, Any],
+) -> None:
+    """Cache a correction as an immediate procedural rule in Redis.
+
+    Generates a simple WHEN/THEN rule from the correction and stores it
+    so ``get_procedures()`` can include it alongside weekly-generated rules.
+    """
+    try:
+        import json
+
+        from src.core.db import redis
+
+        rule = (
+            f"КОГДА {correction['intent']}: \"{correction['original']}\" "
+            f"→ ТОГДА: \"{correction['corrected']}\""
+        )
+        key = f"{_REALTIME_PROCEDURE_KEY}:{user_id}:{domain}"
+        await redis.rpush(key, json.dumps(rule, ensure_ascii=False))
+        await redis.ltrim(key, -_MAX_REALTIME_RULES, -1)
+        await redis.expire(key, _REALTIME_PROCEDURE_TTL)
+        logger.debug("Cached realtime procedure for %s/%s: %s", user_id, domain, rule)
+    except Exception as e:
+        logger.debug("Realtime procedure cache failed: %s", e)
+
+
+async def get_realtime_procedures(
+    user_id: str,
+    domain: str | None = None,
+) -> list[str]:
+    """Get realtime procedural rules cached in Redis (corrections applied immediately).
+
+    These supplement the weekly-generated rules from ``get_procedures()``.
+    """
+    try:
+        import json
+
+        from src.core.db import redis
+
+        if domain:
+            key = f"{_REALTIME_PROCEDURE_KEY}:{user_id}:{domain}"
+            raw = await redis.lrange(key, 0, -1)
+            return [json.loads(r) for r in raw]
+
+        # All domains
+        all_rules: list[str] = []
+        for d in PROCEDURAL_DOMAINS:
+            key = f"{_REALTIME_PROCEDURE_KEY}:{user_id}:{d}"
+            raw = await redis.lrange(key, 0, -1)
+            all_rules.extend(json.loads(r) for r in raw)
+        return all_rules[:MAX_TOTAL_PROCEDURES]
+    except Exception as e:
+        logger.debug("Realtime procedures load failed: %s", e)
+        return []
 
 
 def get_domain_for_intent(intent: str) -> str | None:

@@ -111,6 +111,8 @@ async def update_core_identity(user_id: str, updates: dict) -> dict:
         return merged
     except Exception as e:
         logger.warning("Failed to update core identity for %s: %s", user_id, e)
+        # Invalidate cache even on failure so stale data doesn't persist
+        await invalidate_identity_cache(user_id)
         return await get_core_identity(user_id)
 
 

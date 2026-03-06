@@ -11,6 +11,7 @@ from src.core.schemas.intent import (
     IntentDetectionResult,
 )
 from src.gateway.types import IncomingMessage, MessageType
+from src.skills.base import SkillResult
 
 MODULE = "src.core.router"
 
@@ -296,3 +297,103 @@ async def test_clarify_expired_returns_message(sample_ctx):
         result = await handle_message(msg, sample_ctx)
 
     assert "истекло" in result.text.lower()
+
+
+@pytest.mark.asyncio
+async def test_resolve_clarify_preserves_mutated_skill_result_fields(sample_ctx):
+    """Clarify callback should forward photo_url and reply keyboard from side effects."""
+    from src.core.router import _resolve_clarify
+
+    msg = IncomingMessage(
+        id="5",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.callback,
+        callback_data="clarify:send_email",
+    )
+
+    pending_data = json.dumps(
+        {
+            "original_text": "отправь письмо",
+            "candidates": [
+                {
+                    "intent": "send_email",
+                    "label": "Email",
+                    "confidence": 0.4,
+                }
+            ],
+            "intent_data": {},
+            "created_at": "2026-02-18T12:00:00",
+        }
+    )
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=pending_data)
+    mock_redis.delete = AsyncMock()
+
+    routed_result = SkillResult(response_text="Черновик email...")
+    final_result = SkillResult(
+        response_text="Черновик email...",
+        photo_url="https://example.com/result.png",
+        reply_keyboard=[{"text": "Send now"}],
+    )
+    mock_dr = MagicMock()
+    mock_dr.route = AsyncMock(return_value=routed_result)
+
+    with (
+        patch("src.core.db.redis", mock_redis),
+        patch(f"{MODULE}.get_domain_router", return_value=mock_dr),
+        patch(f"{MODULE}._run_post_skill_side_effects", new_callable=AsyncMock) as mock_side_fx,
+    ):
+        mock_side_fx.return_value = final_result
+        result = await _resolve_clarify("send_email", msg, sample_ctx)
+
+    assert result.text == "Черновик email..."
+    assert result.photo_url == "https://example.com/result.png"
+    assert result.reply_keyboard == [{"text": "Send now"}]
+
+
+@pytest.mark.asyncio
+async def test_plan_execute_preserves_mutated_skill_result_fields(sample_ctx):
+    """Plan execution callback should forward photo_url and reply keyboard from side effects."""
+    from src.core.router import _handle_plan_callback
+
+    msg = IncomingMessage(
+        id="6",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.callback,
+        callback_data="plan:execute",
+    )
+
+    routed_result = SkillResult(response_text="Готово")
+    final_result = SkillResult(
+        response_text="Готово",
+        photo_url="https://example.com/plan.png",
+        reply_keyboard=[{"text": "Continue"}],
+    )
+    mock_dr = MagicMock()
+    mock_dr.route = AsyncMock(return_value=routed_result)
+
+    with (
+        patch(
+            "src.core.reverse_prompt.get_pending_plan",
+            new_callable=AsyncMock,
+            return_value={
+                "intent": "send_email",
+                "original_text": "отправь письмо",
+                "intent_data": {},
+            },
+        ),
+        patch(
+            "src.core.reverse_prompt.delete_pending_plan",
+            new_callable=AsyncMock,
+        ),
+        patch(f"{MODULE}.get_domain_router", return_value=mock_dr),
+        patch(f"{MODULE}._run_post_skill_side_effects", new_callable=AsyncMock) as mock_side_fx,
+    ):
+        mock_side_fx.return_value = final_result
+        result = await _handle_plan_callback("execute", msg, sample_ctx)
+
+    assert result.text == "Готово"
+    assert result.photo_url == "https://example.com/plan.png"
+    assert result.reply_keyboard == [{"text": "Continue"}]

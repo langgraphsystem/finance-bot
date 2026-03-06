@@ -13,8 +13,6 @@ from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
 from src.skills.convert_document.handler import skill as convert_document_skill
-from src.skills.dialog_history.handler import skill as dialog_history_skill
-from src.skills.project_manager.handler import skill as project_manager_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
 from src.skills.create_booking.handler import skill as create_booking_skill
 from src.skills.create_event.handler import skill as create_event_skill
@@ -23,6 +21,7 @@ from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
 from src.skills.delete_data.handler import skill as delete_data_skill
+from src.skills.dialog_history.handler import skill as dialog_history_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
 from src.skills.evening_recap.handler import skill as evening_recap_skill
@@ -62,6 +61,7 @@ from src.skills.onboarding.handler import skill as onboarding_skill
 from src.skills.pdf_operations.handler import skill as pdf_operations_skill
 from src.skills.price_alert.handler import skill as price_alert_skill
 from src.skills.price_check.handler import skill as price_check_skill
+from src.skills.project_manager.handler import skill as project_manager_skill
 from src.skills.proofread.handler import skill as proofread_skill
 from src.skills.query_report.handler import skill as query_report_skill
 from src.skills.query_stats.handler import skill as query_stats_skill

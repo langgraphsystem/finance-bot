@@ -238,3 +238,38 @@ def _analyze_personality(messages: list) -> dict:
         "avg_message_length": round(avg_words, 1),
         "analyzed_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def incremental_personality_update(user_id: str, message_text: str) -> None:
+    """Lightweight per-message personality signal update via Redis.
+
+    Instead of waiting for the nightly cron, tracks a running EMA (exponential
+    moving average) of key personality signals in Redis. The nightly cron still
+    does the full analysis — this just keeps the signals fresh between runs.
+
+    Cost: 1 Redis GET + 1 Redis SET (no DB, no LLM).
+    """
+    import json
+
+    from src.core.db import redis as _redis
+
+    cache_key = f"personality_ema:{user_id}"
+    try:
+        raw = await _redis.get(cache_key)
+        ema = json.loads(raw) if raw else {"word_avg": 10.0, "emoji_count": 0, "n": 0}
+
+        alpha = 0.2  # EMA smoothing factor — recent messages weigh more
+        word_count = len(message_text.split())
+        has_emoji = bool(re.search(
+            r"[\U0001f600-\U0001f64f\U0001f300-\U0001f5ff"
+            r"\U0001f680-\U0001f6ff\U0001f900-\U0001f9ff]",
+            message_text,
+        ))
+
+        ema["word_avg"] = alpha * word_count + (1 - alpha) * ema.get("word_avg", 10.0)
+        ema["emoji_count"] = ema.get("emoji_count", 0) + (1 if has_emoji else 0)
+        ema["n"] = ema.get("n", 0) + 1
+
+        await _redis.set(cache_key, json.dumps(ema), ex=604800)  # 7 day TTL
+    except Exception:
+        pass  # Best-effort, never block the request

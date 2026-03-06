@@ -95,6 +95,12 @@ def _build_pgvector_url(db_url: str) -> str:
     if "sslmode" not in params and parsed.hostname not in ("localhost", "127.0.0.1"):
         params["sslmode"] = ["require"]
 
+    # Disable prepared statements for PgBouncer transaction-mode compatibility.
+    # Without this, psycopg3 auto-prepares after ~5 executions, causing
+    # "DuplicatePreparedStatement" errors when PgBouncer reassigns connections.
+    if "prepare_threshold" not in params:
+        params["prepare_threshold"] = ["0"]
+
     new_query = urlencode({k: v[0] for k, v in params.items()})
     return urlunparse(parsed._replace(query=new_query))
 
@@ -176,7 +182,7 @@ async def search_memories(
         cb.record_success()
         return results.get("results", []) if isinstance(results, dict) else results
     except Exception as e:
-        logger.warning("Mem0 search failed: %s", e)
+        logger.error("Mem0 search failed: %s", e)
         cb.record_failure()
         _reset_memory()
         return []
@@ -314,7 +320,13 @@ async def add_memory(
     metadata = _enrich_metadata(metadata)
     cb = get_circuit("mem0")
     if not cb.can_execute():
-        logger.warning("Mem0 circuit OPEN, skipping add")
+        logger.warning("Mem0 circuit OPEN, skipping add — enqueueing to DLQ")
+        try:
+            from src.core.memory.mem0_dlq import enqueue_failed_memory
+
+            await enqueue_failed_memory(user_id, content, metadata)
+        except Exception as dlq_err:
+            logger.error("Mem0 DLQ enqueue failed (circuit open path): %s", dlq_err)
         return {}
     try:
         # Auto-derive domain from metadata category if not explicitly set
@@ -334,9 +346,16 @@ async def add_memory(
         cb.record_success()
         return result
     except Exception as e:
-        logger.warning("Mem0 add failed: %s", e)
+        logger.error("Mem0 add failed for user %s: %s", user_id, e)
         cb.record_failure()
         _reset_memory()
+        # Enqueue to DLQ so the write is retried later
+        try:
+            from src.core.memory.mem0_dlq import enqueue_failed_memory
+
+            await enqueue_failed_memory(user_id, content, metadata)
+        except Exception as dlq_err:
+            logger.error("Mem0 DLQ enqueue also failed: %s", dlq_err)
         return {}
 
 
@@ -356,7 +375,7 @@ async def get_all_memories(
         cb.record_success()
         return results.get("results", []) if isinstance(results, dict) else results
     except Exception as e:
-        logger.warning("Mem0 get_all failed: %s", e)
+        logger.error("Mem0 get_all failed: %s", e)
         cb.record_failure()
         _reset_memory()
         return []

@@ -56,15 +56,58 @@ def _is_refusal(response_text: str) -> bool:
     return any(marker.lower() in lower for marker in _REFUSAL_MARKERS)
 
 
+_PERSONALIZATION_PATTERNS: list[str] = [
+    "тебя зовут",
+    "зови себя",
+    "называй себя",
+    "call yourself",
+    "your name is",
+    "ты теперь",
+    "запомни что ты",
+    "remember you are",
+    "отвечай",
+    "respond",
+    "без эмодзи",
+    "no emoji",
+    "коротко",
+    "briefly",
+    "на русском",
+    "in english",
+    "по-русски",
+    "пиши на",
+    "speak in",
+    "запомни",
+    "remember that",
+    "забудь",
+    "forget",
+    "меня зовут",
+    "my name is",
+    "я живу",
+    "i live in",
+]
+
+
+def _is_personalization(text: str) -> bool:
+    """Fast client-side check: skip LLM guardrails for personalization messages."""
+    lower = text.lower()
+    return any(p in lower for p in _PERSONALIZATION_PATTERNS)
+
+
 async def check_input(text: str) -> tuple[bool, str | None]:
     """Check if input passes safety guardrails.
 
     Uses a single direct Anthropic Haiku call instead of NeMo's full pipeline.
+    Personalization messages are fast-tracked (never sent to LLM) to avoid
+    false positives like "тебя зовут Хюррем" being blocked as impersonation.
 
     Returns:
         (True, None) if the input is safe.
         (False, refusal_text) if the input was blocked.
     """
+    # Fast-path: personalization/memory messages never need safety check
+    if _is_personalization(text):
+        return True, None
+
     try:
         from src.core.llm.clients import anthropic_client
 

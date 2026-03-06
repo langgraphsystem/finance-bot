@@ -36,11 +36,12 @@ BUDGET_HISTORY = 0.20  # 15-20%
 BUDGET_USER_MSG = 0.05  # 5%
 
 # Overflow priority — revised (lower number = drop FIRST)
-# Drop 1: Old history messages         — first to drop
-# Drop 2: Mem0 non-core namespaces     — life, tasks, research, etc.
-# Drop 3: Session summary              — compress/shorten
-# Drop 4: SQL analytics                — compress before drop (~2K summary)
+# Drop 1: Mem0 non-core namespaces     — life, tasks, research, etc.
+# Drop 2: Session summary              — compress/shorten
+# Drop 3: SQL analytics                — compress before drop (~2K summary)
+# Drop 4: Old history messages          — keep MIN_SLIDING_WINDOW
 # Drop 5: Mem0 core + finance          — last among Mem0 to drop
+# Drop 6: Remaining history            — absolute last resort
 # NEVER:  System prompt + core_identity + user_rules + session buffer + user message
 
 # Minimum sliding window messages to keep during trimming
@@ -55,9 +56,9 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "add_income": {"mem": "mappings", "hist": 3, "sql": False, "sum": False},
     "scan_receipt": {"mem": "mappings", "hist": 1, "sql": False, "sum": False},
     "scan_document": {"mem": "mappings", "hist": 1, "sql": False, "sum": False},
-    "query_stats": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
-    "query_report": {"mem": "profile", "hist": 0, "sql": True, "sum": False},
-    "export_excel": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "query_stats": {"mem": "budgets", "hist": 3, "sql": True, "sum": False},
+    "query_report": {"mem": "profile", "hist": 3, "sql": True, "sum": False},
+    "export_excel": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "correct_category": {"mem": "mappings", "hist": 5, "sql": False, "sum": False},
     "complex_query": {"mem": "all", "hist": 5, "sql": True, "sum": True},
     "general_chat": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
@@ -73,25 +74,25 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "mood_checkin": {"mem": "life", "hist": 2, "sql": False, "sum": False},
     "day_plan": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "day_reflection": {"mem": "life", "hist": 3, "sql": False, "sum": False},
-    "life_search": {"mem": "life", "hist": 0, "sql": False, "sum": False},
-    "set_comm_mode": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "life_search": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "set_comm_mode": {"mem": False, "hist": 2, "sql": False, "sum": False},
     # Memory Vault
-    "memory_show": {"mem": "life", "hist": 0, "sql": False, "sum": False},
-    "memory_forget": {"mem": "life", "hist": 0, "sql": False, "sum": False},
+    "memory_show": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "memory_forget": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "memory_save": {"mem": "life", "hist": 3, "sql": False, "sum": False},
-    "set_user_rule": {"mem": False, "hist": 0, "sql": False, "sum": False},
-    "dialog_history": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "set_user_rule": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "dialog_history": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "memory_update": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     # Project intents (Phase 12)
-    "set_project": {"mem": False, "hist": 0, "sql": False, "sum": False},
-    "create_project": {"mem": False, "hist": 0, "sql": False, "sum": False},
-    "list_projects": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "set_project": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "create_project": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "list_projects": {"mem": False, "hist": 2, "sql": False, "sum": False},
     # Task intents
     "create_task": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
-    "list_tasks": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "list_tasks": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "set_reminder": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "schedule_action": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
-    "list_scheduled_actions": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "list_scheduled_actions": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "manage_scheduled_action": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "complete_task": {"mem": False, "hist": 3, "sql": False, "sum": False},
     # Research intents
@@ -109,20 +110,20 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "read_inbox": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "send_email": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
     "draft_reply": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
-    "follow_up_email": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
-    "summarize_thread": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "follow_up_email": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "summarize_thread": {"mem": False, "hist": 3, "sql": False, "sum": False},
     # Calendar intents
-    "list_events": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    "list_events": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "create_event": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
-    "find_free_slots": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "find_free_slots": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
-    "morning_brief": {"mem": "life", "hist": 0, "sql": False, "sum": False},
-    "evening_recap": {"mem": "profile", "hist": 0, "sql": False, "sum": False},
+    "morning_brief": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "evening_recap": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     # Shopping list intents
     "shopping_list_add": {"mem": False, "hist": 2, "sql": False, "sum": False},
-    "shopping_list_view": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "shopping_list_view": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "shopping_list_remove": {"mem": False, "hist": 2, "sql": False, "sum": False},
-    "shopping_list_clear": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "shopping_list_clear": {"mem": False, "hist": 2, "sql": False, "sum": False},
     # Browser + monitor intents (Phase 5)
     "browser_action": {"mem": False, "hist": 5, "sql": False, "sum": False},
     "web_action": {"mem": False, "hist": 3, "sql": False, "sum": False},
@@ -131,11 +132,11 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "news_monitor": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     # Booking + CRM intents (Phase 6)
     "create_booking": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
-    "list_bookings": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "list_bookings": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "cancel_booking": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "reschedule_booking": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "add_contact": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
-    "list_contacts": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "list_contacts": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "find_contact": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "send_to_client": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "receptionist": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
@@ -144,7 +145,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "generate_card": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "generate_program": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "modify_program": {"mem": "profile", "hist": 5, "sql": False, "sum": False},
-    "convert_document": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "convert_document": {"mem": False, "hist": 2, "sql": False, "sum": False},
     # Document agent
     "list_documents": {"mem": False, "hist": 2, "sql": False, "sum": False},
     "search_documents": {"mem": False, "hist": 2, "sql": False, "sum": False},
@@ -167,8 +168,8 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     # Wave 1 Financial Specialists
     "financial_summary": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
     "generate_invoice": {"mem": "profile", "hist": 3, "sql": True, "sum": False},
-    "tax_estimate": {"mem": "budgets", "hist": 0, "sql": True, "sum": False},
-    "cash_flow_forecast": {"mem": "budgets", "hist": 0, "sql": True, "sum": True},
+    "tax_estimate": {"mem": "budgets", "hist": 3, "sql": True, "sum": False},
+    "cash_flow_forecast": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
 }
 
 
@@ -561,11 +562,12 @@ def _apply_overflow_trimming(
     Returns (mem_block, sql_block, summary_block, history_messages, memories).
 
     Drop order (first to drop → last to drop):
-      1. Old history messages from sliding window
-      2. Mem0 non-core namespaces (life, tasks, research, etc.)
-      3. Session summary (compress/shorten)
-      4. SQL analytics (compress before full drop)
+      1. Mem0 non-core namespaces (life, tasks, research, etc.)
+      2. Session summary (compress/shorten)
+      3. SQL analytics (compress before full drop)
+      4. Old history messages (keep MIN_SLIDING_WINDOW)
       5. Mem0 core + finance + contacts (last Mem0 to drop)
+      6. Remaining history (absolute last resort)
       NEVER: System prompt + core_identity + session buffer + user message
     """
     # Tokens from layers that are never trimmed — must be counted in every check.
@@ -584,23 +586,17 @@ def _apply_overflow_trimming(
         total += sum(count_tokens(m["content"]) for m in history_messages)
         return total
 
-    # Step 1: Drop oldest history messages first
-    while _current_total() > total_budget and len(history_messages) > MIN_SLIDING_WINDOW:
-        history_messages = history_messages[1:]
+    # Overflow priority — conversation history is the most important short-term
+    # context. Drop background data first, then history as last resort.
 
-    # Drop remaining history if still over budget
-    while _current_total() > total_budget and len(history_messages) > 0:
-        history_messages = history_messages[1:]
-
-    # Step 2: Drop non-core Mem0 memories (keep core/finance/contacts)
+    # Step 1: Drop non-core Mem0 memories (life, tasks, research, etc.)
     if _current_total() > total_budget and mem_block and memories:
         core_mems, noncore_mems = _split_memories_by_priority(memories)
         if noncore_mems:
-            # Remove non-core memories first
             memories = core_mems
             mem_block = _format_memories_block(memories)
 
-    # Step 3: Compress/drop summary
+    # Step 2: Compress/drop summary
     if _current_total() > total_budget and summary_block:
         over = _current_total() - total_budget
         allowed = max(0, count_tokens(summary_block) - over)
@@ -609,15 +605,17 @@ def _apply_overflow_trimming(
         else:
             summary_block = _truncate_to_budget(summary_block, allowed)
 
-    # Step 4: Compress SQL before dropping entirely
+    # Step 3: Compress SQL before dropping entirely
     if _current_total() > total_budget and sql_block:
-        # First try truncating to ~2K tokens
         sql_tokens = count_tokens(sql_block)
         if sql_tokens > 2000:
             sql_block = _truncate_to_budget(sql_block, 2000)
-        # If still over, drop SQL entirely
         if _current_total() > total_budget:
             sql_block = ""
+
+    # Step 4: Trim oldest history messages (keep MIN_SLIDING_WINDOW)
+    while _current_total() > total_budget and len(history_messages) > MIN_SLIDING_WINDOW:
+        history_messages = history_messages[1:]
 
     # Step 5: Trim core Mem0 memories (last resort)
     if _current_total() > total_budget and mem_block:
@@ -637,6 +635,10 @@ def _apply_overflow_trimming(
                     break
                 kept += 1
             memories = memories[:kept]
+
+    # Step 6: Drop remaining history below MIN_SLIDING_WINDOW (absolute last resort)
+    while _current_total() > total_budget and len(history_messages) > 0:
+        history_messages = history_messages[1:]
 
     return mem_block, sql_block, summary_block, history_messages, memories
 
@@ -661,13 +663,15 @@ async def assemble_context(
     ctx_config = QUERY_CONTEXT_MAP.get(intent, QUERY_CONTEXT_MAP["general_chat"])
 
     # Phase 3.5 — Progressive Context Disclosure
+    # Only skip heavy layers (Mem0/SQL/summary). NEVER reduce history —
+    # even simple messages like "100 кофе" or "да" need conversation context
+    # for merchant mappings, category corrections, and confirmation flow.
     if not needs_heavy_context(current_message, intent):
         ctx_config = {
             **ctx_config,
             "mem": False,
             "sql": False,
             "sum": False,
-            "hist": min(ctx_config.get("hist", 0), 1),
         }
 
     # 1. Calculate available budget
@@ -787,11 +791,15 @@ async def assemble_context(
             format_procedures_block,
             get_domain_for_intent,
             get_procedures,
+            get_realtime_procedures,
         )
 
         if intent in PROCEDURAL_INTENTS:
             proc_domain = get_domain_for_intent(intent)
             procedures = await get_procedures(user_id, domain=proc_domain)
+            # Merge realtime corrections (applied immediately, not waiting weekly cron)
+            rt_procedures = await get_realtime_procedures(user_id, domain=proc_domain)
+            procedures = rt_procedures + procedures
             procedures_block = format_procedures_block(procedures)
     except Exception as e:
         logger.debug("Procedures load failed: %s", e)

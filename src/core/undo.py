@@ -99,22 +99,44 @@ async def execute_undo(user_id: str, family_id: str) -> str:
 async def _cleanup_mem0_facts(user_id: str, transaction_id: str) -> None:
     """Remove Mem0 facts linked to a transaction_id (Phase 9).
 
-    Searches recent memories for matching transaction_id in metadata
-    and deletes them to keep Mem0 in sync with the database.
+    Searches recent memories by both metadata filter and content similarity,
+    then deletes matches to keep Mem0 in sync with the database after undo.
     """
     try:
         from src.core.memory.mem0_client import delete_memory, search_memories
 
-        # Search for facts that mention this transaction
-        results = await search_memories(
-            transaction_id, user_id, limit=5,
-            filters={"transaction_id": transaction_id},
-        )
+        deleted_ids: set[str] = set()
+
+        # Strategy 1: Search by metadata filter
+        try:
+            results = await search_memories(
+                transaction_id, user_id, limit=5,
+                filters={"transaction_id": transaction_id},
+            )
+            for mem in results:
+                mem_id = mem.get("id")
+                if mem_id and mem_id not in deleted_ids:
+                    await delete_memory(mem_id, user_id)
+                    deleted_ids.add(mem_id)
+        except Exception:
+            pass  # Filter may not be supported, fall through to strategy 2
+
+        # Strategy 2: Search by content similarity (catches facts without metadata)
+        results = await search_memories(transaction_id, user_id, limit=5)
         for mem in results:
             mem_id = mem.get("id")
-            if mem_id:
+            meta = mem.get("metadata", {}) or {}
+            # Only delete if transaction_id matches in metadata
+            if mem_id and mem_id not in deleted_ids and meta.get(
+                "transaction_id"
+            ) == transaction_id:
                 await delete_memory(mem_id, user_id)
-                logger.debug("Undo: removed Mem0 fact %s for transaction %s",
-                             mem_id, transaction_id)
+                deleted_ids.add(mem_id)
+
+        if deleted_ids:
+            logger.info(
+                "Undo: removed %d Mem0 facts for transaction %s",
+                len(deleted_ids), transaction_id,
+            )
     except Exception as e:
-        logger.debug("Mem0 cleanup on undo failed (non-critical): %s", e)
+        logger.warning("Mem0 cleanup on undo failed: %s", e)

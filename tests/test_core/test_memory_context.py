@@ -470,8 +470,12 @@ class TestAssembleContext:
         assert len(result.messages) == 5
 
     @pytest.mark.asyncio
-    async def test_no_history_for_query_stats(self, mock_deps):
-        """query_stats has hist=0."""
+    async def test_query_stats_includes_history(self, mock_deps):
+        """query_stats has hist=3 for follow-up context."""
+        mock_deps["sliding_window"].get_recent_messages.return_value = [
+            {"role": "user", "content": "show budget"},
+            {"role": "assistant", "content": "Your budget is 1000"},
+        ]
         result = await assemble_context(
             user_id="user-1",
             family_id="family-1",
@@ -479,9 +483,9 @@ class TestAssembleContext:
             intent="query_stats",
             system_prompt="prompt",
         )
-        mock_deps["sliding_window"].get_recent_messages.assert_not_called()
-        # Only system + user
-        assert len(result.messages) == 2
+        mock_deps["sliding_window"].get_recent_messages.assert_called_once()
+        # system + 2 history + user
+        assert len(result.messages) == 4
 
     @pytest.mark.asyncio
     async def test_lost_in_middle_system_first_user_last(self, mock_deps):
