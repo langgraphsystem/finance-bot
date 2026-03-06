@@ -11,6 +11,7 @@ from typing import Any
 from sqlalchemy import delete, select
 
 from src.agents import AGENTS, AgentRouter
+from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.domain_router import DomainRouter
