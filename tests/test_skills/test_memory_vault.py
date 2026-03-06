@@ -84,7 +84,7 @@ async def test_memory_save():
             ctx,
             {"_intent": "memory_save", "memory_query": "I love sushi"},
         )
-    assert "remembered" in result.response_text.lower()
+    assert "saved" in result.response_text.lower() or "remembered" in result.response_text.lower()
     mock_add.assert_called_once()
     call_kwargs = mock_add.call_args.kwargs
     assert call_kwargs["content"] == "I love sushi"

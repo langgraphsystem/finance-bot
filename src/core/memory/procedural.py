@@ -116,6 +116,9 @@ async def learn_from_correction(
 
     Corrections are stored in UserProfile.learned_patterns["corrections"]
     for weekly batch analysis.
+
+    Phase 6: If the correction looks like a user rule ("я же сказал без эмодзи",
+    "я просил коротко"), it's also saved as an immediate user rule.
     """
     domain = INTENT_PROCEDURE_DOMAIN.get(intent, "general")
     correction = {
@@ -156,8 +159,43 @@ async def learn_from_correction(
                 "Recorded correction for user %s: %s → %s",
                 user_id, original_value, corrected_value,
             )
+
+        # Phase 6: Detect if correction implies a user rule
+        rule = _extract_rule_from_correction(corrected_value)
+        if rule:
+            try:
+                from src.core.identity import _add_user_rule
+
+                await _add_user_rule(user_id, rule)
+                logger.info("Realtime rule from correction: %s → %s", user_id, rule)
+            except Exception as e:
+                logger.debug("Rule extraction from correction failed: %s", e)
+
     except Exception as e:
         logger.debug("Correction recording failed: %s", e)
+
+
+# Correction phrases that imply a user rule
+_CORRECTION_MARKERS = [
+    "я же сказал", "я просил", "я говорил", "опять", "снова",
+    "i said", "i asked", "again", "i told you",
+    "без эмодзи", "no emoji", "коротко", "кратко", "briefly",
+    "на русском", "in english", "по-русски",
+]
+
+
+def _extract_rule_from_correction(text: str) -> str | None:
+    """Try to extract a user rule from a correction message."""
+    lower = text.lower()
+    for marker in _CORRECTION_MARKERS:
+        if marker in lower:
+            # The correction text IS the rule
+            # Clean up: remove "я же сказал" prefix
+            for prefix in ["я же сказал ", "я просил ", "я говорил ", "i said ", "i asked "]:
+                if lower.startswith(prefix):
+                    return text[len(prefix):].strip()
+            return text.strip()
+    return None
 
 
 @observe(name="detect_workflow")

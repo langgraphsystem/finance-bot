@@ -605,6 +605,31 @@ async def _dispatch_message(
         except Exception as inner_e:
             logger.error("Fallback skill %s also failed: %s", intent_name, inner_e, exc_info=True)
             skill_result = SkillResult(response_text="Произошла ошибка. Попробуйте ещё раз.")
+    # Phase 13: Post-generation rule check
+    if skill_result.response_text and settings.ff_post_gen_check:
+        try:
+            from src.core.identity import get_user_rules
+            from src.core.post_gen_check import (
+                check_response_rules,
+                regenerate_with_rule_reminder,
+            )
+
+            user_rules = await get_user_rules(str(context.user_id))
+            if user_rules:
+                ok, violation = await check_response_rules(
+                    skill_result.response_text, user_rules
+                )
+                if not ok:
+                    skill_result.response_text = await regenerate_with_rule_reminder(
+                        skill_result.response_text,
+                        violation,
+                        user_rules,
+                        "",
+                        message.text or "",
+                    )
+        except Exception as pgc_err:
+            logger.debug("Post-gen check failed (non-critical): %s", pgc_err)
+
     if skill_result.response_text:
         await sliding_window.add_message(context.user_id, "assistant", skill_result.response_text)
         asyncio.create_task(
@@ -2045,6 +2070,13 @@ async def _handle_callback(
         pending_id = parts[1] if len(parts) > 1 else ""
         chosen_type = parts[2] if len(parts) > 2 else "expenses"
         return await _handle_export_select(pending_id, chosen_type, message, context)
+
+    elif action == "project":
+        from src.skills.project_manager.handler import handle_project_callback
+
+        language = context.language or "en"
+        text = await handle_project_callback(data, uuid.UUID(context.user_id), language)
+        return OutgoingMessage(text=text, chat_id=message.chat_id)
 
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
 

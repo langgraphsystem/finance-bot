@@ -33,6 +33,7 @@ class UserProfile(Base, TimestampMixin):
     active_hours_end: Mapped[int] = mapped_column(Integer, default=22)
     learned_patterns: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     core_identity: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    active_rules: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user = relationship("User")

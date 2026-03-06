@@ -9,7 +9,7 @@ from enum import StrEnum
 
 
 class MemoryDomain(StrEnum):
-    """11 memory domains for namespace isolation."""
+    """12 memory domains for namespace isolation."""
 
     core = "core"  # name, language, timezone, comm preferences
     finance = "finance"  # expenses, income, budgets, merchant mappings
@@ -22,6 +22,7 @@ class MemoryDomain(StrEnum):
     research = "research"  # interests, topics, saved searches
     episodes = "episodes"  # past interactions, outcomes
     procedures = "procedures"  # learned rules, corrections, workflows
+    projects = "projects"  # user projects, goals, status
 
 
 # Map metadata category (from FINANCIAL_FACT_EXTRACTION_PROMPT) to domain
@@ -48,6 +49,11 @@ CATEGORY_DOMAIN_MAP: dict[str, MemoryDomain] = {
     "fact_history": MemoryDomain.finance,
     # Observational memory — behavioral patterns extracted by Observer
     "observation": MemoryDomain.episodes,
+    # Project context (Phase 12)
+    "user_project": MemoryDomain.projects,
+    "project_goal": MemoryDomain.projects,
+    "project_status": MemoryDomain.projects,
+    "project_fact": MemoryDomain.projects,
 }
 
 # Map QUERY_CONTEXT_MAP "mem" values to which domains to search
@@ -96,6 +102,10 @@ INTENT_DOMAIN_MEM_MAP: dict[str, list[MemoryDomain]] = {
     "memory_show": [MemoryDomain.life, MemoryDomain.core, MemoryDomain.finance],
     "memory_forget": [MemoryDomain.life, MemoryDomain.core, MemoryDomain.finance],
     "memory_save": [MemoryDomain.life],
+    # Projects (Phase 12)
+    "set_project": [MemoryDomain.projects, MemoryDomain.core],
+    "create_project": [MemoryDomain.projects],
+    "list_projects": [MemoryDomain.projects],
 }
 
 

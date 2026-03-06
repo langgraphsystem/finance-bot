@@ -147,6 +147,19 @@ invoice_due_days: число дней (net 15 → 15)
 "forget that...", "delete memory about...", "удали воспоминание")
 - memory_save: запомнить явно ("запомни что...", "remember that...", \
 "помни что я...", "save to memory", "сохрани в память")
+- set_user_rule: установить правило/предпочтение для бота ("отвечай коротко", "без эмодзи", \
+"пиши на русском", "зови себя Хюррем", "тебя зовут X", "запомни что ты Y", "твоё имя Z", \
+"always respond in English", "no emoji", "keep it brief", "your name is X", "call yourself Y")
+- dialog_history: вспомнить прошлые разговоры ("о чём мы говорили вчера?", \
+"what did we discuss last week?", "какие идеи были?", "наша история разговоров")
+- memory_update: обновить факт в памяти ("обнови мою зарплату", "change my city to X", \
+"теперь мой город — Y", "update my occupation")
+- set_project: переключить контекст на проект ("это про Титан", "переключись на проект X", \
+"work on project Y", "switch to project Z", "про проект Stridos")
+- create_project: создать новый проект ("создай проект X", "новый проект для Y", \
+"start project called Z", "заведи проект")
+- list_projects: список проектов пользователя ("мои проекты", "список проектов", \
+"what projects do I have", "покажи проекты")
 - create_task: создать задачу/дело ("add task: ...", "задача: ...", \
 "to-do: ...", "добавь в список: ...", "нужно сделать: ...")
 - list_tasks: показать список задач ("мои задачи", "что мне нужно сделать", \
@@ -1221,6 +1234,12 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "memory_show": 'показать воспоминания ("мои воспоминания", "what do you know")',
         "memory_forget": 'забыть из памяти ("забудь что...", "forget that...")',
         "memory_save": 'запомнить явно ("запомни что...", "remember that...")',
+        "set_user_rule": 'правило/предпочтение для бота ("отвечай коротко", "зови себя X", "без эмодзи")',
+        "dialog_history": 'вспомнить прошлые разговоры ("о чём мы говорили?", "what did we discuss?")',
+        "memory_update": 'обновить факт в памяти ("обнови зарплату", "change my city")',
+        "set_project": 'переключить на проект ("это про Титан", "work on project X")',
+        "create_project": 'создать проект ("создай проект X", "start project called Y")',
+        "list_projects": 'список проектов ("мои проекты", "what projects do I have")',
         "evening_recap": 'вечерний обзор ("evening recap", "итоги дня")',
         "price_alert": 'мониторинг цены ("мониторь цену", "alert when price")',
         "news_monitor": 'мониторинг новостей ("следи за новостями")',

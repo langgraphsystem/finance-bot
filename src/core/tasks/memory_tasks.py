@@ -9,17 +9,31 @@ logger = logging.getLogger(__name__)
 
 @broker.task
 async def async_mem0_update(user_id: str, message: str, metadata: dict | None = None) -> None:
-    """Background: extract and store financial facts in Mem0.
+    """Background: extract and store facts in Mem0.
 
     Domain is auto-derived from metadata["category"] inside add_memory().
     After successful persistence, clears the session buffer so stale
     facts don't shadow the now-persisted Mem0 data.
+
+    Phase 3: For identity/rule categories, also triggers immediate
+    core_identity update (no waiting for nightly cron).
     """
+    from src.core.identity import IDENTITY_CATEGORIES, immediate_identity_update
     from src.core.memory.mem0_client import add_memory
+    from src.core.memory.mem0_dlq import enqueue_failed_memory
+
+    category = (metadata or {}).get("category", "")
 
     try:
+        # Phase 3: Immediate identity update for critical categories
+        if category in IDENTITY_CATEGORIES:
+            try:
+                await immediate_identity_update(user_id, category, message)
+            except Exception as e:
+                logger.warning("Immediate identity update failed: %s", e)
+
         await add_memory(message, user_id=user_id, metadata=metadata)
-        logger.info("Mem0 updated for user %s", user_id)
+        logger.info("Mem0 updated for user %s (category=%s)", user_id, category)
 
         # C3: Clear session buffer after successful Mem0 persistence
         try:
@@ -30,6 +44,11 @@ async def async_mem0_update(user_id: str, message: str, metadata: dict | None = 
             logger.debug("Session buffer clear failed (non-critical): %s", e)
     except Exception as e:
         logger.error("Mem0 update failed for user %s: %s", user_id, e)
+        # Phase 8: DLQ — enqueue failed memory for retry
+        try:
+            await enqueue_failed_memory(user_id, message, metadata)
+        except Exception as dlq_err:
+            logger.error("DLQ enqueue also failed: %s", dlq_err)
 
 
 @broker.task
@@ -213,3 +232,25 @@ async def async_check_budget(family_id: str, category_id: str) -> None:
                 )
     except Exception as e:
         logger.error("Budget check failed: %s", e)
+
+
+@broker.task(schedule=[{"cron": "*/5 * * * *"}])
+async def async_mem0_dlq_retry() -> None:
+    """Every 5 minutes: retry failed Mem0 writes from the DLQ."""
+    from src.core.memory.mem0_dlq import get_all_dlq_user_ids, retry_failed_memories
+
+    try:
+        user_ids = await get_all_dlq_user_ids()
+        if not user_ids:
+            return
+
+        total_retried = 0
+        for uid in user_ids[:20]:  # Process max 20 users per run
+            retried = await retry_failed_memories(uid)
+            total_retried += retried
+
+        if total_retried:
+            logger.info("DLQ retry: processed %d memories across %d users",
+                         total_retried, len(user_ids))
+    except Exception as e:
+        logger.error("DLQ retry cron failed: %s", e)

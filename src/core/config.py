@@ -124,6 +124,7 @@ class Settings(BaseSettings):
     ff_scheduled_actions: bool = False
     ff_sia_synthesis: bool = False
     ff_dual_search: bool = False
+    ff_post_gen_check: bool = False
 
     @property
     def is_production(self) -> bool:

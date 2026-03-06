@@ -1,4 +1,7 @@
-"""Undo window — time-limited undo after quick actions."""
+"""Undo window — time-limited undo after quick actions.
+
+Phase 9: Undo also removes associated Mem0 facts via transaction_id.
+"""
 
 import json
 import logging
@@ -36,8 +39,16 @@ async def store_undo(
     record_id: str,
     table: str,
 ) -> None:
-    """Store undo payload in Redis. Key: undo:{user_id}, TTL 120s."""
-    payload = {"intent": intent, "record_id": record_id, "table": table}
+    """Store undo payload in Redis. Key: undo:{user_id}, TTL 120s.
+
+    Phase 9: record_id is also used as transaction_id for Mem0 sync.
+    """
+    payload = {
+        "intent": intent,
+        "record_id": record_id,
+        "table": table,
+        "transaction_id": record_id,  # Phase 9: link to Mem0 facts
+    }
     await redis.set(f"undo:{user_id}", json.dumps(payload), ex=UNDO_TTL)
 
 
@@ -52,13 +63,14 @@ async def pop_undo(user_id: str) -> dict | None:
 
 
 async def execute_undo(user_id: str, family_id: str) -> str:
-    """Execute undo: delete the record. Returns confirmation text."""
+    """Execute undo: delete the record + clean up Mem0 facts."""
     data = await pop_undo(user_id)
     if not data:
         return "Nothing to undo (window expired)."
 
     table = data["table"]
     record_id = data["record_id"]
+    transaction_id = data.get("transaction_id", record_id)
     model = TABLE_MODEL_MAP.get(table)
     if not model:
         logger.error("Unknown table for undo: %s", table)
@@ -73,8 +85,36 @@ async def execute_undo(user_id: str, family_id: str) -> str:
                 )
             )
             await session.commit()
+
+        # Phase 9: Remove associated Mem0 facts
+        await _cleanup_mem0_facts(user_id, transaction_id)
+
         logger.info("Undo: deleted %s/%s for user %s", table, record_id, user_id)
         return "Undone."
     except Exception as e:
         logger.error("Undo failed for %s/%s: %s", table, record_id, e, exc_info=True)
         return "Undo failed. Please try again."
+
+
+async def _cleanup_mem0_facts(user_id: str, transaction_id: str) -> None:
+    """Remove Mem0 facts linked to a transaction_id (Phase 9).
+
+    Searches recent memories for matching transaction_id in metadata
+    and deletes them to keep Mem0 in sync with the database.
+    """
+    try:
+        from src.core.memory.mem0_client import delete_memory, search_memories
+
+        # Search for facts that mention this transaction
+        results = await search_memories(
+            transaction_id, user_id, limit=5,
+            filters={"transaction_id": transaction_id},
+        )
+        for mem in results:
+            mem_id = mem.get("id")
+            if mem_id:
+                await delete_memory(mem_id, user_id)
+                logger.debug("Undo: removed Mem0 fact %s for transaction %s",
+                             mem_id, transaction_id)
+    except Exception as e:
+        logger.debug("Mem0 cleanup on undo failed (non-critical): %s", e)

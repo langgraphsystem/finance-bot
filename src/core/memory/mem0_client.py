@@ -22,11 +22,22 @@ logger = logging.getLogger(__name__)
 
 _memory: Memory | None = None
 
-# Custom prompts for financial fact extraction
-FINANCIAL_FACT_EXTRACTION_PROMPT = """Извлеки ТОЛЬКО финансовые факты из сообщения пользователя.
-Игнорируй приветствия, вопросы, и нефинансовую информацию.
+# Custom prompts for fact extraction (expanded beyond financial-only)
+FACT_EXTRACTION_PROMPT = """Извлеки ВСЕ значимые факты из сообщения пользователя.
+Игнорируй приветствия, вопросы без фактов, и шум.
 
 Типы фактов:
+
+ЛИЧНОСТЬ И ИДЕНТИЧНОСТЬ:
+- user_identity: имя, возраст, профессия, город, страна, семья
+- bot_identity: имя бота назначенное пользователем, роль, стиль обращения
+- user_rule: явные правила ("без эмодзи", "коротко", "на русском", "зови себя X")
+- user_preference: формат ответов, детальность, язык общения, тон
+
+ПРОЕКТЫ И ЦЕЛИ:
+- user_project: названия проектов, цели, статус, дедлайны
+
+ФИНАНСЫ:
 - profile: язык, валюта, бизнес-тип
 - income: источники дохода, суммы, частота
 - recurring_expense: регулярные платежи (аренда, страховка)
@@ -34,20 +45,36 @@ FINANCIAL_FACT_EXTRACTION_PROMPT = """Извлеки ТОЛЬКО финансо
 - merchant_mapping: какой мерчант → какая категория
 - correction_rule: правила поправок пользователя
 - spending_pattern: паттерны трат
+
+ЖИЗНЬ:
 - life_note: идеи, заметки, мысли пользователя (ключевые слова/теги)
 - life_pattern: паттерны питания, настроения, энергии, сна
-- life_preference: режим общения, предпочтения трекинга, проекты
+- life_preference: режим общения, предпочтения трекинга
 
-Ответь списком фактов или пустым списком если нет финансовых фактов."""
+ПРИОРИТЕТ извлечения (от высшего к низшему):
+1. user_identity, bot_identity, user_rule — ВСЕГДА извлекай
+2. user_project, user_preference — извлекай если явно указаны
+3. Финансовые факты — извлекай при наличии сумм/категорий
+4. Жизненные факты — извлекай при наличии трекинга
 
-FINANCIAL_MEMORY_UPDATE_PROMPT = """Ты управляешь финансовой памятью пользователя.
+Ответь списком фактов или пустым списком если нет значимых фактов."""
+
+# Backward-compatible alias
+FINANCIAL_FACT_EXTRACTION_PROMPT = FACT_EXTRACTION_PROMPT
+
+MEMORY_UPDATE_PROMPT = """Ты управляешь памятью пользователя.
 
 Правила:
-1. Добавляй (ADD) новые финансовые факты
-2. Обновляй (UPDATE) устаревшие факты (новая сумма, новый мерчант)
+1. Добавляй (ADD) новые факты любого типа
+2. Обновляй (UPDATE) устаревшие факты (новое имя, город, сумма, правило)
 3. Удаляй (DELETE) явно опровергнутые факты
 4. НИКОГДА не добавляй приветствия, вопросы, или общие фразы
-5. Коррекции пользователя имеют приоритет — если юзер исправляет категорию, обнови маппинг"""
+5. Коррекции пользователя имеют ВЫСШИЙ приоритет
+6. Правила пользователя (user_rule) и идентичность (user_identity, bot_identity) — критически важны
+7. При противоречии — новый факт заменяет старый (temporal priority)"""
+
+# Backward-compatible alias
+FINANCIAL_MEMORY_UPDATE_PROMPT = MEMORY_UPDATE_PROMPT
 
 
 def _build_pgvector_url(db_url: str) -> str:
@@ -101,8 +128,8 @@ def get_memory() -> Memory:
                 },
             },
             "custom_prompts": {
-                "fact_extraction_prompt": FINANCIAL_FACT_EXTRACTION_PROMPT,
-                "update_memory_prompt": FINANCIAL_MEMORY_UPDATE_PROMPT,
+                "fact_extraction_prompt": FACT_EXTRACTION_PROMPT,
+                "update_memory_prompt": MEMORY_UPDATE_PROMPT,
             },
         }
         _memory = Memory.from_config(config)
@@ -232,6 +259,45 @@ async def _archive_superseded_fact(
         logger.debug("Temporal archive failed (non-critical): %s", e)
 
 
+
+# Phase 7: Priority mapping for fact categories
+_CATEGORY_PRIORITY: dict[str, str] = {
+    "user_identity": "critical",
+    "bot_identity": "critical",
+    "user_rule": "critical",
+    "user_preference": "critical",
+    "profile": "critical",
+    "user_project": "important",
+    "income": "important",
+    "recurring_expense": "important",
+    "budget_limit": "important",
+    "merchant_mapping": "normal",
+    "correction_rule": "normal",
+    "spending_pattern": "normal",
+    "life_note": "normal",
+    "life_pattern": "normal",
+    "life_preference": "normal",
+}
+
+
+def _enrich_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
+    """Add priority and updated_at to metadata (Phase 7)."""
+    from datetime import date
+
+    meta = dict(metadata) if metadata else {}
+    category = meta.get("category", "")
+
+    # Add priority based on category
+    if "priority" not in meta:
+        meta["priority"] = _CATEGORY_PRIORITY.get(category, "normal")
+
+    # Add temporal updated_at
+    if "updated_at" not in meta:
+        meta["updated_at"] = date.today().isoformat()
+
+    return meta
+
+
 async def add_memory(
     content: str,
     user_id: str,
@@ -243,7 +309,9 @@ async def add_memory(
     When *domain* is set, stores in that domain's namespace.
     If not set, auto-derives domain from metadata category.
     Temporal tracking: archives superseded facts for updatable categories.
+    Phase 7: Enriches metadata with priority and updated_at.
     """
+    metadata = _enrich_metadata(metadata)
     cb = get_circuit("mem0")
     if not cb.can_execute():
         logger.warning("Mem0 circuit OPEN, skipping add")

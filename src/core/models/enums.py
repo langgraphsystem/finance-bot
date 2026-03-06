@@ -136,6 +136,13 @@ class ContactRole(enum.StrEnum):
     other = "other"
 
 
+class ProjectStatus(enum.StrEnum):
+    active = "active"
+    paused = "paused"
+    completed = "completed"
+    archived = "archived"
+
+
 class MonitorType(enum.StrEnum):
     price = "price"
     news = "news"

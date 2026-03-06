@@ -27,6 +27,16 @@ _SKILL_ONLY_INTENTS = {
     "query_stats",
     # query_report generates PDF reports with dedicated period parsing.
     "query_report",
+    # set_user_rule uses dedicated handler for identity/rules DB writes.
+    "set_user_rule",
+    # dialog_history searches session_summaries directly.
+    "dialog_history",
+    # memory_update uses dedicated Mem0 search+delete+add flow.
+    "memory_update",
+    # Project management uses dedicated DB handlers.
+    "set_project",
+    "create_project",
+    "list_projects",
 }
 _TOOL_ROUND_EXHAUSTED_RESPONSE = "I needed more steps to complete this request."
 

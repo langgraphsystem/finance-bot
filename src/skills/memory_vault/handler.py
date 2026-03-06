@@ -1,4 +1,4 @@
-"""Memory Vault — user-controlled memory management (show / forget / save)."""
+"""Memory Vault — user-controlled memory management (show / forget / save / update)."""
 
 import logging
 from typing import Any
@@ -22,7 +22,7 @@ register_strings("memory_vault", {"en": {}, "ru": {}, "es": {}})
 
 class MemoryVaultSkill:
     name = "memory_vault"
-    intents = ["memory_show", "memory_forget", "memory_save"]
+    intents = ["memory_show", "memory_forget", "memory_save", "memory_update"]
     model = "gpt-5.2"
 
     @observe(name="memory_vault")
@@ -54,6 +54,12 @@ class MemoryVaultSkill:
         if intent == "memory_save":
             content = intent_data.get("memory_query") or message.text or ""
             return await self._handle_save(context, content, add_memory)
+
+        if intent == "memory_update":
+            content = intent_data.get("memory_query") or message.text or ""
+            return await self._handle_update(
+                context, content, search_memories, delete_memory, add_memory
+            )
 
         return SkillResult(response_text="Unknown memory action.")
 
@@ -128,7 +134,50 @@ class MemoryVaultSkill:
             user_id=context.user_id,
             metadata={"type": "explicit", "source": "memory_vault"},
         )
-        return SkillResult(response_text="Remembered.")
+        # Phase 11: Confirmation with saved content
+        return SkillResult(
+            response_text=f"Saved: <b>{content[:100]}</b>"
+        )
+
+    async def _handle_update(
+        self, context, content, search_memories, delete_memory, add_memory
+    ) -> SkillResult:
+        """Phase 11: Update an existing memory fact."""
+        content = content.strip()
+        if not content:
+            return SkillResult(response_text="What should I update?")
+
+        # Search for existing fact
+        matches = await search_memories(content, context.user_id, limit=3)
+        if matches:
+            # Delete the closest match, then add the new version
+            top = matches[0]
+            mem_id = top.get("id")
+            old_text = top.get("memory", top.get("text", ""))
+            if mem_id:
+                try:
+                    await delete_memory(mem_id, context.user_id)
+                except Exception:
+                    logger.warning("Failed to delete old memory for update: %s", mem_id)
+
+            await add_memory(
+                content=content,
+                user_id=context.user_id,
+                metadata={"type": "explicit", "source": "memory_update"},
+            )
+            return SkillResult(
+                response_text=f"Updated: <b>{old_text[:80]}</b> → <b>{content[:80]}</b>"
+            )
+
+        # No match found — just save as new
+        await add_memory(
+            content=content,
+            user_id=context.user_id,
+            metadata={"type": "explicit", "source": "memory_update"},
+        )
+        return SkillResult(
+            response_text=f"No existing fact found. Saved as new: <b>{content[:100]}</b>"
+        )
 
     def get_system_prompt(self, context) -> str:
         return MEMORY_VAULT_SYSTEM_PROMPT

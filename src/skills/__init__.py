@@ -13,6 +13,8 @@ from src.skills.compare_options.handler import skill as compare_options_skill
 from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
 from src.skills.convert_document.handler import skill as convert_document_skill
+from src.skills.dialog_history.handler import skill as dialog_history_skill
+from src.skills.project_manager.handler import skill as project_manager_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
 from src.skills.create_booking.handler import skill as create_booking_skill
 from src.skills.create_event.handler import skill as create_event_skill
@@ -92,6 +94,7 @@ from src.skills.track_drink.handler import skill as track_drink_skill
 from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.translate_text.handler import skill as translate_text_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
+from src.skills.user_rules.handler import skill as user_rules_skill
 from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
@@ -201,6 +204,9 @@ def create_registry() -> SkillRegistry:
     registry.register(create_sheets_skill)
     # Memory Vault
     registry.register(memory_vault_skill)
+    registry.register(user_rules_skill)
+    registry.register(dialog_history_skill)
+    registry.register(project_manager_skill)
     # Export
     registry.register(export_excel_skill)
     # Wave 1 Financial Specialists

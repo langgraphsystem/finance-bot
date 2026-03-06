@@ -118,6 +118,12 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "memory_show": Domain.general,
     "memory_forget": Domain.general,
     "memory_save": Domain.general,
+    "set_user_rule": Domain.general,
+    "dialog_history": Domain.general,
+    "memory_update": Domain.general,
+    "set_project": Domain.general,
+    "create_project": Domain.general,
+    "list_projects": Domain.general,
     # Google Sheets
     "read_sheets": Domain.sheets,
     "write_sheets": Domain.sheets,

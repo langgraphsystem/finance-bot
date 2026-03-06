@@ -246,6 +246,30 @@ domains:
       - забыть
       - запомни
       - воспоминан
+      - правило
+      - rule
+      - зови себя
+      - тебя зовут
+      - отвечай
+      - без эмодзи
+      - no emoji
+      - your name
+      - call yourself
+      - обсуждали
+      - говорили
+      - discussed
+      - conversation
+      - history
+      - обнови
+      - update my
+      - проект
+      - project
+      - переключись на
+      - switch to project
+      - мои проекты
+      - my projects
+      - создай проект
+      - start project
     agent: life
     skills:
       - quick_capture
@@ -262,6 +286,12 @@ domains:
       - memory_show
       - memory_forget
       - memory_save
+      - set_user_rule
+      - dialog_history
+      - memory_update
+      - set_project
+      - create_project
+      - list_projects
 
   email:
     description: "Read inbox, send email, draft reply, follow up, summarize threads"

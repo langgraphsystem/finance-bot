@@ -184,6 +184,12 @@ class IntentData(BaseModel):
     # Memory Vault fields
     memory_query: str | None = None  # search/delete/save content for memory_vault
 
+    # User Rules / Personalization fields
+    rule_text: str | None = None  # user rule content for set_user_rule
+
+    # Project Context fields (Phase 12)
+    project_name: str | None = None  # for set_project, create_project
+
 
 class IntentDetectionResult(BaseModel):
     intent: str

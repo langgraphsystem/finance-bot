@@ -41,7 +41,7 @@ BUDGET_USER_MSG = 0.05  # 5%
 # Drop 3: Session summary              — compress/shorten
 # Drop 4: SQL analytics                — compress before drop (~2K summary)
 # Drop 5: Mem0 core + finance          — last among Mem0 to drop
-# NEVER:  System prompt + core_identity + session buffer + user message
+# NEVER:  System prompt + core_identity + user_rules + session buffer + user message
 
 # Minimum sliding window messages to keep during trimming
 MIN_SLIDING_WINDOW = 5
@@ -79,6 +79,13 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "memory_show": {"mem": "life", "hist": 0, "sql": False, "sum": False},
     "memory_forget": {"mem": "life", "hist": 0, "sql": False, "sum": False},
     "memory_save": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    "set_user_rule": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "dialog_history": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "memory_update": {"mem": "life", "hist": 3, "sql": False, "sum": False},
+    # Project intents (Phase 12)
+    "set_project": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "create_project": {"mem": False, "hist": 0, "sql": False, "sum": False},
+    "list_projects": {"mem": False, "hist": 0, "sql": False, "sum": False},
     # Task intents
     "create_task": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "list_tasks": {"mem": False, "hist": 0, "sql": False, "sum": False},
@@ -691,6 +698,36 @@ async def assemble_context(
         # Prepend identity to system prompt (inside cache prefix)
         system_prompt = identity_block + "\n" + system_prompt
     token_usage["identity"] = count_tokens(identity_block) if identity_block else 0
+
+    # ------------------------------------------------------------------
+    # 2a. User Rules (Priority 0.5 — NEVER drop, loaded after identity)
+    # ------------------------------------------------------------------
+    rules_block = ""
+    try:
+        from src.core.identity import format_rules_block, get_user_rules
+
+        user_rules = await get_user_rules(user_id)
+        rules_block = format_rules_block(user_rules)
+    except Exception as e:
+        logger.debug("User rules load failed: %s", e)
+    if rules_block:
+        # Append rules right after identity block (inside cache prefix)
+        system_prompt = system_prompt + "\n" + rules_block
+    token_usage["user_rules"] = count_tokens(rules_block) if rules_block else 0
+
+    # ------------------------------------------------------------------
+    # 2a½. Active Project Context (Priority 0.75 — loaded after rules)
+    # ------------------------------------------------------------------
+    project_block = ""
+    try:
+        from src.core.memory.project_context import get_active_project_block
+
+        project_block = await get_active_project_block(user_id)
+    except Exception as e:
+        logger.debug("Project context load failed: %s", e)
+    if project_block:
+        system_prompt = system_prompt + "\n" + project_block
+    token_usage["project_context"] = count_tokens(project_block) if project_block else 0
 
     # ------------------------------------------------------------------
     # 2b. System prompt (Priority 2 — NEVER drop, but cap)
