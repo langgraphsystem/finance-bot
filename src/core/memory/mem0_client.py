@@ -30,6 +30,10 @@ class _PatchedConnectionPool(_OrigConnectionPool):
         kw["kwargs"] = conn_kwargs
         super().__init__(*args, **kw)
 
+    def __class_getitem__(cls, item):
+        """Support generic type hints (e.g. ConnectionPool[Connection[DictRow]])."""
+        return cls
+
 
 _psycopg_pool.ConnectionPool = _PatchedConnectionPool  # type: ignore[misc]
 # ------------------------------------------------------------------
