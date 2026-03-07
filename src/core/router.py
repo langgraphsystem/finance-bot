@@ -451,6 +451,7 @@ async def _dispatch_message(
                 ("script", ["сценарий", "напиши сценарий", "write a script"]),
                 ("summary", ["резюме видео", "сделай резюме", "вкратце перескажи", "summarize video"]),
                 ("save", ["сохрани видео", "save video", "запомни видео"]),
+                ("save_content", ["сохрани это", "сохрани текст", "запомни это", "save this", "save the text", "сохрани контент", "сохрани план"]),
                 ("remind", ["напомни посмотреть", "remind me to watch"]),
                 ("translate", ["переведи видео", "translate video"]),
                 ("similar", ["найди похожие", "похожие видео", "ещё видео", "find similar"]),
@@ -1926,20 +1927,26 @@ async def _handle_callback(
         skill_result = await handle_video_callback(
             video_action, context.user_id, context.language or "en"
         )
-        # Special case: save action needs actual Mem0 write
-        if video_action == "save":
+        # save / save_content: perform actual Mem0 write here (we have user_id)
+        if video_action in ("save", "save_content"):
             from src.core.memory.mem0_client import add_memory
             from src.core.video_session import get_video_session
 
             session = await get_video_session(context.user_id)
             if session:
-                content = f"Saved video: {session.url}"
-                if session.analysis:
-                    content += f"\n\nSummary: {session.analysis[:500]}"
+                if video_action == "save_content":
+                    last_text = session.extra.get("last_text", "")
+                    content = last_text or f"Saved video: {session.url}"
+                    mem_type = "saved_content"
+                else:
+                    content = f"Saved video: {session.url}"
+                    if session.analysis:
+                        content += f"\n\nSummary: {session.analysis[:500]}"
+                    mem_type = "saved_video"
                 await add_memory(
                     content,
                     user_id=context.user_id,
-                    metadata={"category": "content", "type": "saved_video"},
+                    metadata={"category": "content", "type": mem_type},
                 )
         return OutgoingMessage(
             text=skill_result.response_text,

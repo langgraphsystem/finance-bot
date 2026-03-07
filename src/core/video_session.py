@@ -42,3 +42,11 @@ async def get_video_session(user_id: str) -> VideoSession | None:
 
 async def clear_video_session(user_id: str) -> None:
     await redis.delete(f"video_session:{user_id}")
+
+
+async def update_video_session_last_text(user_id: str, text: str) -> None:
+    """Persist the last generated text so user can save it later."""
+    session = await get_video_session(user_id)
+    if session:
+        session.extra["last_text"] = text[:4000]
+        await save_video_session(user_id, session)
