@@ -59,17 +59,35 @@ def extract_usage_anthropic(response: Any) -> LLMUsage:
 
 
 def extract_usage_openai(response: Any) -> LLMUsage:
-    """Extract token usage from OpenAI response."""
+    """Extract token usage from OpenAI response.
+
+    Handles both Chat Completions API (prompt_tokens / completion_tokens)
+    and Responses API (input_tokens / output_tokens).
+    """
     usage = getattr(response, "usage", None)
     if not usage:
         return LLMUsage()
+
+    # Responses API uses input_tokens/output_tokens;
+    # Chat Completions uses prompt_tokens/completion_tokens.
+    tokens_input = getattr(usage, "input_tokens", None)
+    if tokens_input is None:
+        tokens_input = getattr(usage, "prompt_tokens", 0)
+    tokens_output = getattr(usage, "output_tokens", None)
+    if tokens_output is None:
+        tokens_output = getattr(usage, "completion_tokens", 0)
+
     cached = 0
-    details = getattr(usage, "prompt_tokens_details", None)
+    # Responses API: input_tokens_details.cached_tokens
+    details = getattr(usage, "input_tokens_details", None) or getattr(
+        usage, "prompt_tokens_details", None
+    )
     if details:
         cached = getattr(details, "cached_tokens", 0)
+
     return LLMUsage(
-        tokens_input=getattr(usage, "prompt_tokens", 0),
-        tokens_output=getattr(usage, "completion_tokens", 0),
+        tokens_input=tokens_input,
+        tokens_output=tokens_output,
         cache_read_tokens=cached,
         model=getattr(response, "model", ""),
     )

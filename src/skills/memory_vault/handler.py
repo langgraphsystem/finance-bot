@@ -23,7 +23,7 @@ register_strings("memory_vault", {"en": {}, "ru": {}, "es": {}})
 class MemoryVaultSkill:
     name = "memory_vault"
     intents = ["memory_show", "memory_forget", "memory_save", "memory_update"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="memory_vault")
     async def execute(

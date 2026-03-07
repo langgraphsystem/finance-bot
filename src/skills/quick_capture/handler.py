@@ -29,7 +29,7 @@ register_strings("quick_capture", {"en": {}, "ru": {}, "es": {}})
 class QuickCaptureSkill:
     name = "quick_capture"
     intents = ["quick_capture"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="quick_capture")
     async def execute(

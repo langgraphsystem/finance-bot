@@ -46,7 +46,7 @@ If no preference is set, detect and match the language of their message."""
 class CompleteTaskSkill:
     name = "complete_task"
     intents = ["complete_task"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="complete_task")
     async def execute(

@@ -50,7 +50,7 @@ def _strip_markdown_fences(text: str) -> str:
     return text
 
 
-FALLBACK_MODELS = ["claude-sonnet-4-6", "gpt-5.2"]
+FALLBACK_MODELS = ["claude-sonnet-4-6", "gpt-5.4-2026-03-05"]
 
 
 @observe(name="generate_card_html")

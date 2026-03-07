@@ -1163,7 +1163,39 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
                 return {
                     "action": "results", "text": text, "buttons": buttons
                 }
-            logger.info("Playwright returned no results, falling back to "
+            logger.info("Playwright returned no results, trying GPT-5.4 "
+                        "Computer Use")
+
+            # ── GPT-5.4 Computer Use (visual browser control) ──
+            try:
+                from src.tools.computer_use_booking import (
+                    execute_computer_use_search,
+                )
+
+                cu_results = await asyncio.wait_for(
+                    execute_computer_use_search(
+                        storage_state, parsed, site,
+                    ),
+                    timeout=SEARCH_TIMEOUT,
+                )
+            except Exception as _cu_err:
+                logger.warning("Computer use search failed: %s", _cu_err)
+                cu_results = []
+
+            if cu_results:
+                state["step"] = "awaiting_selection"
+                state["results"] = cu_results[:MAX_RESULTS]
+                await _set_state(user_id, state)
+                text = _format_results_telegram(
+                    cu_results[:MAX_RESULTS], site, parsed
+                )
+                buttons = _build_result_buttons(
+                    cu_results[:MAX_RESULTS], flow_id
+                )
+                return {
+                    "action": "results", "text": text, "buttons": buttons
+                }
+            logger.info("Computer Use returned no results, falling back to "
                         "browser-use")
 
     # ── Fallback: browser-use ──
@@ -1565,6 +1597,26 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
             logger.warning("Playwright booking timed out for %s", user_id)
         except Exception as e:
             logger.error("Playwright booking error: %s", e, exc_info=True)
+
+        # ── GPT-5.4 Computer Use fallback for booking ──
+        if not booking_result or booking_result.get("status") == "ERROR":
+            logger.info("Playwright booking failed, trying GPT-5.4 Computer Use")
+            try:
+                from src.tools.computer_use_booking import (
+                    execute_computer_use_booking,
+                )
+
+                cu_booking = await asyncio.wait_for(
+                    execute_computer_use_booking(
+                        storage_state, hotel, parsed
+                    ),
+                    timeout=BOOKING_TIMEOUT * 2,
+                )
+                if cu_booking.get("status") not in ("ERROR", None):
+                    booking_result = cu_booking
+                    booking_result["_source"] = "computer_use"
+            except Exception as _cu_err:
+                logger.warning("Computer use booking failed: %s", _cu_err)
 
     if booking_result:
         pw_status = booking_result.get("status", "")

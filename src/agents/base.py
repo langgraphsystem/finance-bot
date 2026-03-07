@@ -236,7 +236,7 @@ class AgentRouter:
         async def _tool_executor(name: str, args: dict) -> dict:
             return await execute_tool_call(name, args, context)
 
-        model = agent.default_model if agent else "gpt-5.2"
+        model = agent.default_model if agent else "gpt-5.4-2026-03-05"
         agent_name = agent.name if agent else None
         tool_schemas = get_schemas_for_domain(agent_name)
 

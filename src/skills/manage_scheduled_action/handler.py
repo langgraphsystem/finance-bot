@@ -434,7 +434,7 @@ def _reschedule_action(
 class ManageScheduledActionSkill:
     name = "manage_scheduled_action"
     intents = ["manage_scheduled_action"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="manage_scheduled_action")
     async def execute(

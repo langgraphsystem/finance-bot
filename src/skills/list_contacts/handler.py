@@ -27,7 +27,7 @@ register_strings("list_contacts", {"en": {}, "ru": {}, "es": {}})
 class ListContactsSkill:
     name = "list_contacts"
     intents = ["list_contacts"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="list_contacts")
     async def execute(

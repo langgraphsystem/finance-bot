@@ -42,7 +42,7 @@ register_strings("price_alert", {"en": {}, "ru": {}, "es": {}})
 class PriceAlertSkill:
     name = "price_alert"
     intents = ["price_alert"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)

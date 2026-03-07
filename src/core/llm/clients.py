@@ -109,6 +109,8 @@ async def generate_text(
     trace_user_id: str = "",
     trace_intent: str = "",
     prompt_version: str = "",
+    reasoning_effort: str | None = None,
+    verbosity: str | None = None,
 ) -> str:
     """Unified LLM call — routes to the correct SDK based on model ID.
 
@@ -116,6 +118,11 @@ async def generate_text(
     Returns the generated text content.
 
     Pass either ``messages`` (list of dicts) or ``prompt`` (single string).
+
+    For gpt-5.x models the OpenAI Responses API is used automatically.
+    ``reasoning_effort`` ("none"|"low"|"medium"|"high"|"xhigh") and
+    ``verbosity`` ("low"|"medium"|"high") are Responses API parameters
+    and are ignored for other providers.
     """
     if prompt is not None and messages is None:
         messages = [{"role": "user", "content": prompt}]
@@ -140,15 +147,37 @@ async def generate_text(
                 intent=trace_intent,
                 prompt_version=prompt_version,
             ) as _span:
-                resp = await client.chat.completions.create(
-                    model=model,
-                    max_completion_tokens=max_tokens,
-                    **PromptAdapter.for_openai(system, messages),
-                )
-                _u = extract_usage_openai(resp)
-                _span.tokens_input = _u.tokens_input
-                _span.tokens_output = _u.tokens_output
-                _span.cache_read_tokens = _u.cache_read_tokens
+                # gpt-5.x → Responses API; older gpt-4.x / grok → Chat Completions
+                if model.startswith("gpt-5."):
+                    extra: dict = {}
+                    if reasoning_effort is not None:
+                        extra["reasoning"] = {"effort": reasoning_effort}
+                    if verbosity is not None:
+                        extra["text"] = {"verbosity": verbosity}
+                    resp = await client.responses.create(
+                        model=model,
+                        max_output_tokens=max_tokens,
+                        **PromptAdapter.for_openai_responses(system, messages),
+                        **extra,
+                    )
+                    _u = extract_usage_openai(resp)
+                    _span.tokens_input = _u.tokens_input
+                    _span.tokens_output = _u.tokens_output
+                    _span.cache_read_tokens = _u.cache_read_tokens
+                    if cb:
+                        cb.record_success()
+                    _last_usage.set(_u)
+                    return resp.output_text or ""
+                else:
+                    resp = await client.chat.completions.create(
+                        model=model,
+                        max_completion_tokens=max_tokens,
+                        **PromptAdapter.for_openai(system, messages),
+                    )
+                    _u = extract_usage_openai(resp)
+                    _span.tokens_input = _u.tokens_input
+                    _span.tokens_output = _u.tokens_output
+                    _span.cache_read_tokens = _u.cache_read_tokens
             if cb:
                 cb.record_success()
             _last_usage.set(_u)
@@ -290,6 +319,7 @@ async def generate_text_with_tools(
     max_tokens: int = 2048,
     max_tool_rounds: int = 3,
     prompt_version: str = "",
+    reasoning_effort: str | None = None,
 ) -> tuple[str, list[dict]]:
     """LLM call with function calling / tool_use support.
 
@@ -305,12 +335,16 @@ async def generate_text_with_tools(
     for round_num in range(max_tool_rounds + 1):
         if model.startswith(("gpt-", "grok-")):
             client = xai_client() if model.startswith("grok-") else openai_client()
+            extra_tool_kwargs: dict = {}
+            if reasoning_effort is not None and model.startswith("gpt-5."):
+                extra_tool_kwargs["reasoning"] = {"effort": reasoning_effort}
             resp = await client.chat.completions.create(
                 model=model,
                 max_completion_tokens=max_tokens,
                 tools=tools,
                 tool_choice="auto",
                 **PromptAdapter.for_openai(system, messages),
+                **extra_tool_kwargs,
             )
             msg = resp.choices[0].message
 

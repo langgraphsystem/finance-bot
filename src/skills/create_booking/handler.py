@@ -69,7 +69,7 @@ register_strings("create_booking", _STRINGS)
 class CreateBookingSkill:
     name = "create_booking"
     intents = ["create_booking"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="create_booking")
     async def execute(

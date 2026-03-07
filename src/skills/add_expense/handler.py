@@ -40,7 +40,7 @@ register_strings("add_expense", {"en": {}, "ru": {}, "es": {}})
 class AddExpenseSkill:
     name = "add_expense"
     intents = ["add_expense"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     async def execute(
         self,

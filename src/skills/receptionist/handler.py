@@ -45,7 +45,7 @@ register_strings("receptionist", {"en": {}, "ru": {}, "es": {}})
 class ReceptionistSkill:
     name = "receptionist"
     intents = ["receptionist"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return RECEPTIONIST_SYSTEM_PROMPT.format(language=context.language or "en")

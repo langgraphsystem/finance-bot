@@ -45,7 +45,7 @@ register_strings("reschedule_booking", {"en": {}, "ru": {}, "es": {}})
 class RescheduleBookingSkill:
     name = "reschedule_booking"
     intents = ["reschedule_booking"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="reschedule_booking")
     async def execute(

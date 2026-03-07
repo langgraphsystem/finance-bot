@@ -31,7 +31,7 @@ register_strings("mark_paid", {"en": {}, "ru": {}, "es": {}})
 class MarkPaidSkill:
     name = "mark_paid"
     intents = ["mark_paid"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="mark_paid")
     async def execute(

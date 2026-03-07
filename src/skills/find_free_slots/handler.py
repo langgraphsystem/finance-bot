@@ -21,7 +21,7 @@ register_strings("find_free_slots", {"en": {}, "ru": {}, "es": {}})
 class FindFreeSlotsSkill:
     name = "find_free_slots"
     intents = ["find_free_slots"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="find_free_slots")
     async def execute(

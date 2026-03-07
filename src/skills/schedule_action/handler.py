@@ -512,7 +512,7 @@ def _schedule_description(
 class ScheduleActionSkill:
     name = "schedule_action"
     intents = ["schedule_action"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="schedule_action")
     async def execute(

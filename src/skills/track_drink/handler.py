@@ -55,7 +55,7 @@ register_strings("track_drink", {"en": {}, "ru": {}, "es": {}})
 class TrackDrinkSkill:
     name = "track_drink"
     intents = ["track_drink"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="track_drink")
     async def execute(

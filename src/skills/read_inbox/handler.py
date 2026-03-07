@@ -94,7 +94,7 @@ register_strings("read_inbox", {"en": {}, "ru": {}, "es": {}})
 class ReadInboxSkill:
     name = "read_inbox"
     intents = ["read_inbox"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="read_inbox")
     async def execute(
@@ -205,7 +205,7 @@ async def _summarize_with_llm(email_data: str, language: str) -> str:
     prompt = f"Here are the emails:\n\n{email_data}\n\nSummarize them."
     try:
         return await generate_text(
-            "gpt-5.2", system, [{"role": "user", "content": prompt}], max_tokens=1024
+            "gpt-5.4-2026-03-05", system, [{"role": "user", "content": prompt}], max_tokens=1024
         )
     except Exception as e:
         logger.warning("Read inbox LLM failed: %s", e)
@@ -217,7 +217,7 @@ async def _detail_with_llm(email_data: str, language: str) -> str:
     system = DETAIL_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.2", system,
+            "gpt-5.4-2026-03-05", system,
             [{"role": "user", "content": f"Email details:\n{email_data}"}],
             max_tokens=1024,
         )

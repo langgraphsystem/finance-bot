@@ -378,7 +378,7 @@ async def _extract_from_context(
     )
 
     response = await client.chat.completions.create(
-        model="gpt-5.2",
+        model="gpt-5.4-2026-03-05",
         max_completion_tokens=512,
         response_format={"type": "json_object"},
         **PromptAdapter.for_openai(system, [{"role": "user", "content": user_prompt}]),
@@ -390,7 +390,7 @@ async def _extract_from_context(
 class SetReminderSkill:
     name = "set_reminder"
     intents = ["set_reminder"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="set_reminder")
     async def execute(

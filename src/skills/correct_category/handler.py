@@ -26,7 +26,7 @@ register_strings("correct_category", {"en": {}, "ru": {}, "es": {}})
 class CorrectCategorySkill:
     name = "correct_category"
     intents = ["correct_category"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     async def execute(
         self,

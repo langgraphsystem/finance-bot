@@ -34,7 +34,7 @@ register_strings("follow_up_email", {"en": {}, "ru": {}, "es": {}})
 class FollowUpEmailSkill:
     name = "follow_up_email"
     intents = ["follow_up_email"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="follow_up_email")
     async def execute(
@@ -78,7 +78,7 @@ async def _analyze_follow_ups(email_data: str, language: str) -> str:
     system = FOLLOW_UP_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.2", system,
+            "gpt-5.4-2026-03-05", system,
             [{"role": "user", "content": f"My unread emails:\n{email_data}"}],
             max_tokens=1024,
         )

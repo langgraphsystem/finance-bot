@@ -215,7 +215,7 @@ register_strings("shopping_list", _STRINGS)
 class ShoppingListAddSkill:
     name = "shopping_list_add"
     intents = ["shopping_list_add"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="shopping_list_add")
     async def execute(
@@ -289,7 +289,7 @@ class ShoppingListAddSkill:
 class ShoppingListViewSkill:
     name = "shopping_list_view"
     intents = ["shopping_list_view"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="shopping_list_view")
     async def execute(
@@ -349,7 +349,7 @@ class ShoppingListViewSkill:
 class ShoppingListRemoveSkill:
     name = "shopping_list_remove"
     intents = ["shopping_list_remove"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="shopping_list_remove")
     async def execute(
@@ -489,7 +489,7 @@ class ShoppingListRemoveSkill:
 class ShoppingListClearSkill:
     name = "shopping_list_clear"
     intents = ["shopping_list_clear"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="shopping_list_clear")
     async def execute(

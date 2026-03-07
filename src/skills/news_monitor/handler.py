@@ -33,7 +33,7 @@ register_strings("news_monitor", {"en": {}, "ru": {}, "es": {}})
 class NewsMonitorSkill:
     name = "news_monitor"
     intents = ["news_monitor"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)

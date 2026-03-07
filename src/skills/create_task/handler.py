@@ -75,7 +75,7 @@ register_strings("create_task", {"en": {}, "ru": {}, "es": {}})
 class CreateTaskSkill:
     name = "create_task"
     intents = ["create_task"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="create_task")
     async def execute(

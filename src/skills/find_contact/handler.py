@@ -29,7 +29,7 @@ register_strings("find_contact", {"en": {}, "ru": {}, "es": {}})
 class FindContactSkill:
     name = "find_contact"
     intents = ["find_contact"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="find_contact")
     async def execute(

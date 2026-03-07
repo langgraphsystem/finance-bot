@@ -130,7 +130,7 @@ def _schedule_description(action: ScheduledAction, language: str) -> str:
 class ListScheduledActionsSkill:
     name = "list_scheduled_actions"
     intents = ["list_scheduled_actions"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="list_scheduled_actions")
     async def execute(

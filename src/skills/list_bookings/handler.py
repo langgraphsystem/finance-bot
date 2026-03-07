@@ -52,7 +52,7 @@ ALWAYS respond in the same language as the user's message/query."""
 class ListBookingsSkill:
     name = "list_bookings"
     intents = ["list_bookings"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="list_bookings")
     async def execute(

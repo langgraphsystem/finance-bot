@@ -52,7 +52,7 @@ register_strings("set_comm_mode", {"en": {}, "ru": {}, "es": {}})
 class SetCommModeSkill:
     name = "set_comm_mode"
     intents = ["set_comm_mode"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="set_comm_mode")
     async def execute(

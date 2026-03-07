@@ -7,6 +7,11 @@ class ModelConfig:
     model_id: str
     fallback_provider: str | None = None
     fallback_model_id: str | None = None
+    # OpenAI Responses API: "none" | "low" | "medium" | "high" | "xhigh"
+    # Only applies to gpt-5.x models; ignored for Anthropic/Google
+    reasoning_effort: str | None = None
+    # OpenAI Responses API: "low" | "medium" | "high"
+    verbosity: str | None = None
 
 
 # Task → model mapping (from architecture doc section 2.2)
@@ -21,25 +26,27 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="google",
         model_id="gemini-3.1-flash-lite-preview",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.2",
+        fallback_model_id="gpt-5.4-2026-03-05",
     ),
     "chat": ModelConfig(
         provider="openai",
-        model_id="gpt-5.2",
+        model_id="gpt-5.4-2026-03-05",
         fallback_provider="google",
         fallback_model_id="gemini-3.1-flash-lite-preview",
+        reasoning_effort="low",   # fast, conversational
+        verbosity="medium",
     ),
     "analytics": ModelConfig(
         provider="anthropic",
         model_id="claude-sonnet-4-6",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.2",
+        fallback_model_id="gpt-5.4-2026-03-05",
     ),
     "complex": ModelConfig(
         provider="anthropic",
         model_id="claude-opus-4-6",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.2",
+        fallback_model_id="gpt-5.4-2026-03-05",
     ),
     "summarization": ModelConfig(
         provider="google",
@@ -53,9 +60,11 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "tasks": ModelConfig(
         provider="openai",
-        model_id="gpt-5.2",
+        model_id="gpt-5.4-2026-03-05",
         fallback_provider="google",
         fallback_model_id="gemini-3.1-flash-lite-preview",
+        reasoning_effort="low",   # task parsing needs to be fast
+        verbosity="low",
     ),
 }
 

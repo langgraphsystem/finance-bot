@@ -112,11 +112,11 @@ CODE_MODEL_MAP: dict[str, str] = {
     "c++": "claude-sonnet-4-6",
     "csharp": "claude-sonnet-4-6",
     "c#": "claude-sonnet-4-6",
-    "bash": "gpt-5.2",
-    "shell": "gpt-5.2",
-    "sh": "gpt-5.2",
-    "docker": "gpt-5.2",
-    "yaml": "gpt-5.2",
+    "bash": "gpt-5.4-2026-03-05",
+    "shell": "gpt-5.4-2026-03-05",
+    "sh": "gpt-5.4-2026-03-05",
+    "docker": "gpt-5.4-2026-03-05",
+    "yaml": "gpt-5.4-2026-03-05",
     "javascript": "gemini-3.1-flash-lite-preview",
     "js": "gemini-3.1-flash-lite-preview",
     "typescript": "gemini-3.1-flash-lite-preview",
@@ -147,7 +147,7 @@ def _select_model(language: str, description: str) -> str:
 
     for kw in _INFRA_KEYWORDS:
         if kw in desc_lower:
-            return "gpt-5.2"
+            return "gpt-5.4-2026-03-05"
 
     for kw in _FRONTEND_KEYWORDS:
         if kw in desc_lower:

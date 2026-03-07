@@ -29,7 +29,7 @@ register_strings("send_to_client", {"en": {}, "ru": {}, "es": {}})
 class SendToClientSkill:
     name = "send_to_client"
     intents = ["send_to_client"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="send_to_client")
     async def execute(

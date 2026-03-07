@@ -41,7 +41,7 @@ register_strings("create_event", {"en": {}, "ru": {}, "es": {}})
 class CreateEventSkill:
     name = "create_event"
     intents = ["create_event"]
-    model = "gpt-5.2"
+    model = "gpt-5.4-2026-03-05"
 
     @observe(name="create_event")
     async def execute(
@@ -154,7 +154,7 @@ async def _extract_event_details(
     prompt = f"Title hint: {title}\nDatetime hint: {dt}\nUser said: {user_text}"
     try:
         return await generate_text(
-            "gpt-5.2", system, [{"role": "user", "content": prompt}], max_tokens=256
+            "gpt-5.4-2026-03-05", system, [{"role": "user", "content": prompt}], max_tokens=256
         )
     except Exception as e:
         logger.warning("Create event LLM failed: %s", e)

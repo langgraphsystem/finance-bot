@@ -77,10 +77,27 @@ class PromptAdapter:
         system: str,
         messages: list[dict[str, str]],
     ) -> dict[str, Any]:
-        """Format for OpenAI API (auto-caching)."""
+        """Format for OpenAI Chat Completions API (auto-caching)."""
         return {
             "messages": [
                 {"role": "system", "content": system},
+                *messages,
+            ],
+        }
+
+    @staticmethod
+    def for_openai_responses(
+        system: str,
+        messages: list[dict[str, str]],
+    ) -> dict[str, Any]:
+        """Format for OpenAI Responses API (gpt-5.x).
+
+        Uses 'developer' role for the system prompt and 'input' instead of
+        'messages'. The Responses API caches prompt prefixes automatically.
+        """
+        return {
+            "input": [
+                {"role": "developer", "content": system},
                 *messages,
             ],
         }
