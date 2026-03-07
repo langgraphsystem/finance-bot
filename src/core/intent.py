@@ -199,11 +199,12 @@ added_sources, removed_sources, new_instruction.
 "ближайшая заправка", "маршрут до Walmart", "как доехать до аэропорта", \
 "coffee near me", "directions to Home Depot", "рестораны в Бруклине", \
 "расстояние от X до Y")
-- youtube_search: поиск видео на YouTube, инструкции, обзоры товаров ("найди видео", \
+- youtube_search: поиск видео на YouTube или TikTok, инструкции, обзоры товаров ("найди видео", \
 "инструкция по замене масла Toyota", "обзор iPhone на youtube", \
-"tutorial for X", "how to fix X video", "youtube video about"). \
+"tutorial for X", "how to fix X video", "youtube video about", "tiktok видео"). \
 ТАКЖЕ: если пользователь отправил ссылку YouTube (youtube.com/watch, youtu.be/, \
-youtube.com/shorts/) — это ВСЕГДА youtube_search, даже без слова "youtube"
+youtube.com/shorts/) или TikTok (tiktok.com/, vm.tiktok.com/, vt.tiktok.com/) \
+— это ВСЕГДА youtube_search, даже без слова "youtube" или "tiktok"
 - draft_message: написать сообщение, письмо, email ("write an email to school", \
 "напиши письмо", "draft a text to Mike", "compose a message")
 - translate_text: перевести текст ("translate to Spanish", "переведи на английский", \
@@ -455,6 +456,7 @@ task_deadline: текущее время + 10 минут. \
 
 Правила приоритета (research vs general_chat):
 - Ссылка youtube.com/watch, youtu.be/, youtube.com/shorts/ → youtube_search (ВСЕГДА, приоритет!)
+- Ссылка tiktok.com/, vm.tiktok.com/, vt.tiktok.com/ → youtube_search (ВСЕГДА, приоритет!)
 - Вопрос с "?" или "what/how/why/when/сколько/как/почему/где" → quick_answer
 - "search ...", "найди ...", "загугли ...", текущие данные → web_search
 - "compare", "vs", "или ... или", "что лучше" → compare_options
@@ -994,7 +996,9 @@ _USER_NAME_MARKERS = (
 
 _RULE_MARKERS = (
     "отвечай",
-    "пиши",
+    "говори",
+    "пиши на",
+    "пиши без",
     "без эмодзи",
     "без emoji",
     "на русском",
@@ -1009,6 +1013,61 @@ _RULE_MARKERS = (
     "no emoji",
     "in english",
     "in russian",
+)
+
+_TRACK_DRINK_MARKERS = (
+    "кофе",
+    "coffee",
+    "чай",
+    "tea",
+    "вода",
+    "water",
+    "сок",
+    "juice",
+    "смузи",
+    "smoothie",
+    "выпил",
+    "пью",
+    "drink",
+)
+
+_READ_INBOX_MARKERS = (
+    "прочитай почту",
+    "проверь почту",
+    "моя почта",
+    "мои письма",
+    "входящие",
+    "inbox",
+    "check my email",
+    "read my email",
+    "read inbox",
+)
+
+_LIST_EVENTS_MARKERS = (
+    "мои события",
+    "что в календаре",
+    "календар",
+    "what's on my calendar",
+    "what is on my calendar",
+    "my calendar",
+    "my schedule",
+)
+
+_LIST_BOOKINGS_MARKERS = (
+    "покажи записи",
+    "мои записи",
+    "my bookings",
+    "appointments today",
+    "booking list",
+)
+
+_WRITE_POST_MARKERS = (
+    "напиши пост",
+    "write a post",
+    "instagram caption",
+    "caption for instagram",
+    "ответ на отзыв",
+    "review response",
 )
 
 
@@ -1045,6 +1104,14 @@ def _rule_based_memory_forget(text: str) -> IntentDetectionResult | None:
         intent_type="action",
         data=IntentData(memory_query=stripped),
         response=None,
+    )
+
+
+def _looks_like_money_message(text: str) -> bool:
+    """Detect explicit money amounts so drink/food logs don't steal expense intents."""
+    return bool(
+        re.search(r"[$€£¥₽₸₹]\s*\d", text)
+        or re.search(r"\b\d+(?:[.,]\d+)?\s*(?:usd|eur|rub|kzt|сом|руб|р\.?)\b", text)
     )
 
 
@@ -1129,6 +1196,113 @@ def _is_name_question(text: str) -> bool:
     )
 
 
+def _looks_like_personalization_rule(text: str) -> bool:
+    """Only allow messages that explicitly look like persistent bot preferences."""
+    from src.core.identity import is_valid_user_rule
+
+    lower = text.lower().strip()
+    if not lower:
+        return False
+    if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS):
+        return True
+    if any(marker in lower for marker in _RULE_MARKERS):
+        return is_valid_user_rule(text)
+    return False
+
+
+def _rule_based_track_drink(text: str) -> IntentDetectionResult | None:
+    """Fast-path common drink logs so they skip the generic chat/tool path."""
+    lower = text.lower().strip()
+    if not lower or _looks_like_money_message(lower):
+        return None
+    if any(lower.startswith(prefix) for prefix in _PERSONALIZATION_PREFIXES):
+        return None
+    if not any(marker in lower for marker in _TRACK_DRINK_MARKERS):
+        return None
+    return IntentDetectionResult(
+        intent="track_drink",
+        confidence=0.96,
+        intent_type="action",
+        data=IntentData(),
+        response=None,
+    )
+
+
+def _rule_based_read_inbox(text: str) -> IntentDetectionResult | None:
+    """Fast-path direct inbox checks."""
+    lower = text.lower().strip()
+    if not lower or any(verb in lower for verb in ("отправь", "send ", "reply", "ответь")):
+        return None
+    has_inbox_marker = any(marker in lower for marker in _READ_INBOX_MARKERS)
+    if "почт" in lower or "email" in lower or has_inbox_marker:
+        return IntentDetectionResult(
+            intent="read_inbox",
+            confidence=0.96,
+            intent_type="action",
+            data=IntentData(),
+            response=None,
+        )
+    return None
+
+
+def _rule_based_list_events(text: str) -> IntentDetectionResult | None:
+    """Fast-path direct calendar listing requests."""
+    lower = text.lower().strip()
+    if not lower:
+        return None
+    if any(marker in lower for marker in _LIST_BOOKINGS_MARKERS):
+        return None
+    if "расписан" in lower and any(word in lower for word in ("клиент", "запис", "booking")):
+        return None
+    if any(marker in lower for marker in _LIST_EVENTS_MARKERS) or (
+        "расписан" in lower and not any(word in lower for word in ("клиент", "запис", "booking"))
+    ):
+        period = "week" if any(word in lower for word in ("недел", "week")) else "today"
+        return IntentDetectionResult(
+            intent="list_events",
+            confidence=0.95,
+            intent_type="action",
+            data=IntentData(period=period),
+            response=None,
+        )
+    return None
+
+
+def _rule_based_list_bookings(text: str) -> IntentDetectionResult | None:
+    """Fast-path booking schedule lookups."""
+    lower = text.lower().strip()
+    if not lower:
+        return None
+    if any(marker in lower for marker in _LIST_BOOKINGS_MARKERS):
+        period = "week" if any(word in lower for word in ("недел", "week")) else "today"
+        return IntentDetectionResult(
+            intent="list_bookings",
+            confidence=0.95,
+            intent_type="action",
+            data=IntentData(period=period),
+            response=None,
+        )
+    return None
+
+
+def _rule_based_write_post(text: str) -> IntentDetectionResult | None:
+    """Fast-path common content-generation phrasing."""
+    stripped = text.strip()
+    lower = stripped.lower()
+    if not stripped or _looks_like_personalization_rule(stripped):
+        return None
+    if not any(marker in lower for marker in _WRITE_POST_MARKERS):
+        return None
+    target_platform = "instagram" if "instagram" in lower else None
+    return IntentDetectionResult(
+        intent="write_post",
+        confidence=0.96,
+        intent_type="action",
+        data=IntentData(writing_topic=stripped, target_platform=target_platform),
+        response=None,
+    )
+
+
 
 def _rule_based_name_question(text: str) -> IntentDetectionResult | None:
     """Route direct name questions to chat so identity lookup can answer deterministically."""
@@ -1151,11 +1325,10 @@ def _rule_based_memory_save(text: str) -> IntentDetectionResult | None:
 
     stripped = text.strip()
     normalized = _strip_personalization_prefix(text)
-    lower = normalized.lower()
     if normalized == stripped or not normalized or _is_name_question(normalized):
         return None
 
-    if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS + _RULE_MARKERS):
+    if _looks_like_personalization_rule(normalized):
         return IntentDetectionResult(
             intent="set_user_rule",
             confidence=0.98,
@@ -1182,17 +1355,14 @@ def _rule_based_set_user_rule(
         return None
 
     normalized = _strip_personalization_prefix(text)
-    lower = normalized.lower()
-
     if _is_name_question(normalized):
         return None
 
     if _recent_context_asks_user_name(recent_context) and _looks_like_name(normalized):
         bare_name = normalized.strip().strip(".,!?\"'")
         normalized = f"меня зовут {bare_name}"
-        lower = normalized.lower()
 
-    if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS + _RULE_MARKERS):
+    if _looks_like_personalization_rule(normalized):
         return IntentDetectionResult(
             intent="set_user_rule",
             confidence=0.98,
@@ -1363,6 +1533,26 @@ async def detect_intent(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    track_drink_fast_path = _rule_based_track_drink(text)
+    if track_drink_fast_path:
+        return track_drink_fast_path
+
+    read_inbox_fast_path = _rule_based_read_inbox(text)
+    if read_inbox_fast_path:
+        return read_inbox_fast_path
+
+    list_events_fast_path = _rule_based_list_events(text)
+    if list_events_fast_path:
+        return list_events_fast_path
+
+    list_bookings_fast_path = _rule_based_list_bookings(text)
+    if list_bookings_fast_path:
+        return list_bookings_fast_path
+
+    write_post_fast_path = _rule_based_write_post(text)
+    if write_post_fast_path:
+        return write_post_fast_path
 
     forget_fast_path = _rule_based_memory_forget(text)
     if forget_fast_path:
@@ -1700,6 +1890,26 @@ async def detect_intent_scoped(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    track_drink_fast_path = _rule_based_track_drink(text)
+    if track_drink_fast_path:
+        return track_drink_fast_path
+
+    read_inbox_fast_path = _rule_based_read_inbox(text)
+    if read_inbox_fast_path:
+        return read_inbox_fast_path
+
+    list_events_fast_path = _rule_based_list_events(text)
+    if list_events_fast_path:
+        return list_events_fast_path
+
+    list_bookings_fast_path = _rule_based_list_bookings(text)
+    if list_bookings_fast_path:
+        return list_bookings_fast_path
+
+    write_post_fast_path = _rule_based_write_post(text)
+    if write_post_fast_path:
+        return write_post_fast_path
 
     forget_fast_path = _rule_based_memory_forget(text)
     if forget_fast_path:

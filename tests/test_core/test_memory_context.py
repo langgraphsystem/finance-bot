@@ -193,6 +193,7 @@ class TestQueryContextMap:
     def test_general_chat_profile_mem(self):
         cfg = QUERY_CONTEXT_MAP["general_chat"]
         assert cfg["mem"] == "profile"
+        assert cfg["hist"] == 0
         assert cfg["sql"] is False
 
     def test_undo_last_exists(self):

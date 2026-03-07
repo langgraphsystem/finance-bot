@@ -53,6 +53,27 @@ class TestGetCoreIdentity:
             result = await get_core_identity(str(uuid.uuid4()))
         assert result == _EMPTY_IDENTITY
 
+    async def test_filters_invalid_rules_from_profile(self):
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = [
+            "без эмодзи",
+            "напиши пост про AI для Instagram",
+            "запиши клиента на стрижку завтра в 14:00",
+        ]
+        mock_session.execute.return_value = mock_result
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with patch("src.core.identity.async_session", return_value=mock_ctx):
+            from src.core.identity import get_user_rules
+
+            rules = await get_user_rules(str(uuid.uuid4()))
+
+        assert rules == ["без эмодзи"]
+
     async def test_returns_empty_on_error(self):
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__.side_effect = Exception("DB down")
@@ -407,6 +428,11 @@ class TestIsValidRule:
         assert _is_valid_rule("я тебя назвал Хюррем") is False
         assert _is_valid_rule("Мындан кийин сенин атын Хюррем болот") is False
         assert _is_valid_rule("Запомни тебя буду называть Хюррем ок?") is False
+
+    def test_rejects_task_like_commands(self):
+        assert _is_valid_rule("напиши пост про AI для Instagram") is False
+        assert _is_valid_rule("запиши клиента на стрижку завтра в 14:00") is False
+        assert _is_valid_rule("прочитай почту") is False
 
 
 class TestFormatIdentityBlockInstructions:

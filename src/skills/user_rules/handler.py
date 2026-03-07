@@ -24,6 +24,7 @@ class UserRuleSkill(BaseSkill):
         from src.core.identity import (
             get_user_rules,
             immediate_identity_update,
+            is_valid_user_rule,
         )
         from src.core.memory.mem0_client import add_memory
         from src.skills.memory_vault.handler import skill as memory_vault_skill
@@ -39,6 +40,10 @@ class UserRuleSkill(BaseSkill):
                 context,
                 {"_intent": "memory_forget", "memory_query": rule_text},
             )
+
+        if not is_valid_user_rule(rule_text):
+            logger.info("Rejected invalid user rule text: %s", rule_text[:80])
+            return SkillResult(response_text=_msg("invalid_rule", context.language or "en"))
 
         user_id = str(context.user_id)
         language = context.language or "en"
@@ -143,6 +148,10 @@ def _msg(key: str, language: str, **kwargs: str) -> str:
         "rule_saved": {
             "ru": "Запомнила правило: <b>{rule}</b>\n\nТекущие правила:\n{rules}",
             "en": "Rule saved: <b>{rule}</b>\n\nCurrent rules:\n{rules}",
+        },
+        "invalid_rule": {
+            "ru": "Это похоже на обычный запрос, а не на постоянное правило для бота.",
+            "en": "That looks like a normal request, not a persistent bot rule.",
         },
     }
 

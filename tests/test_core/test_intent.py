@@ -432,3 +432,82 @@ async def test_detect_intent_fast_path_name_question_routes_to_general_chat_with
     assert result.intent == "general_chat"
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_track_drink_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("выпил кофе")
+
+    assert result.intent == "track_drink"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_write_post_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("напиши пост про AI для Instagram")
+
+    assert result.intent == "write_post"
+    assert result.data is not None
+    assert result.data.target_platform == "instagram"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_read_inbox_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("прочитай почту")
+
+    assert result.intent == "read_inbox"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_list_events_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("мои события на неделю")
+
+    assert result.intent == "list_events"
+    assert result.data is not None
+    assert result.data.period == "week"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_list_bookings_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("покажи записи на завтра")
+
+    assert result.intent == "list_bookings"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()

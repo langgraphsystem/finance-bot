@@ -42,6 +42,26 @@ _SKILL_ONLY_INTENTS = {
     "set_project",
     "create_project",
     "list_projects",
+    # Life tracking handlers are more reliable than generic data tools.
+    "quick_capture",
+    "track_food",
+    "track_drink",
+    "mood_checkin",
+    "day_plan",
+    "day_reflection",
+    "life_search",
+    "set_comm_mode",
+    "evening_recap",
+    # Booking/CRM handlers have richer DB semantics than generic query_data calls.
+    "create_booking",
+    "list_bookings",
+    "cancel_booking",
+    "reschedule_booking",
+    "add_contact",
+    "list_contacts",
+    "find_contact",
+    "send_to_client",
+    "receptionist",
 }
 _TOOL_ROUND_EXHAUSTED_RESPONSE = "I needed more steps to complete this request."
 

@@ -270,10 +270,10 @@ def _parse_preference_fact(content: str) -> dict:
 
 
 _RULE_KEYWORDS = (
-    "отвечай", "пиши", "говори", "используй", "без ", "не используй",
+    "отвечай", "говори", "используй", "без ", "не используй",
     "коротко", "подробно", "на русском", "на английском", "по-русски",
-    "respond", "answer", "write", "use ", "without", "no ", "always",
-    "never", "keep", "brief", "emoji", "эмодзи", "язык", "language",
+    "always respond", "respond", "answer", "reply in", "use ", "without", "no ",
+    "keep it brief", "keep responses", "emoji", "эмодзи", "язык", "language",
     "зови себя", "your name", "call yourself", "тебя зовут",
     "формат", "format", "стиль", "style", "тон", "tone",
 )
@@ -281,6 +281,28 @@ _RULE_KEYWORDS = (
 _RULE_REJECT_PREFIXES = (
     "как ", "what ", "who ", "where ", "when ", "why ",
     "забудь", "удали", "forget", "delete", "remove",
+)
+
+_RULE_ACTION_PREFIXES = (
+    "напиши ",
+    "write ",
+    "draft ",
+    "переведи ",
+    "translate ",
+    "прочитай ",
+    "check ",
+    "проверь ",
+    "найди ",
+    "find ",
+    "покажи ",
+    "show ",
+    "запиши клиента",
+    "book ",
+    "schedule ",
+    "создай ",
+    "create ",
+    "добавь ",
+    "add ",
 )
 
 _RULE_REJECT_EXACT = frozenset({
@@ -301,11 +323,18 @@ def _is_valid_rule(text: str) -> bool:
         return False
     if any(lower.startswith(p) for p in _RULE_REJECT_PREFIXES):
         return False
+    if any(lower.startswith(p) for p in _RULE_ACTION_PREFIXES):
+        return False
     if any(kw in lower for kw in _RULE_KEYWORDS):
         return True
     # Reject if no rule keyword found — likely garbage from LLM misclassification
     logger.debug("Rejected invalid rule (no keyword match): %s", stripped[:60])
     return False
+
+
+def is_valid_user_rule(text: str) -> bool:
+    """Public wrapper so routing and skills can share the same rule filter."""
+    return _is_valid_rule(text)
 
 
 async def _add_user_rule(user_id: str, rule_text: str) -> None:
@@ -357,7 +386,9 @@ async def get_user_rules(user_id: str) -> list[str]:
                 .limit(1)
             )
             rules = result.scalar_one_or_none()
-            return rules if isinstance(rules, list) else []
+            if not isinstance(rules, list):
+                return []
+            return [rule for rule in rules if is_valid_user_rule(rule)]
     except Exception as e:
         logger.warning("Failed to load user rules for %s: %s", user_id, e)
         return []
