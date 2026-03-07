@@ -11,6 +11,7 @@ Schema:
 
 import json
 import logging
+import re
 import uuid as _uuid
 
 from sqlalchemy import select, update
@@ -270,16 +271,50 @@ def _parse_preference_fact(content: str) -> dict:
 
 
 _RULE_KEYWORDS = (
-    "отвечай", "говори", "используй", "без ", "не используй",
-    "коротко", "подробно", "на русском", "на английском", "по-русски",
-    "always respond", "respond", "answer", "reply in", "use ", "without", "no ",
-    "keep it brief", "keep responses", "emoji", "эмодзи", "язык", "language",
-    "зови себя", "your name", "call yourself", "тебя зовут",
-    "формат", "format", "стиль", "style", "тон", "tone",
+    "на русском",
+    "на английском",
+    "по-русски",
+    "по-английски",
+    "без эмодзи",
+    "без emoji",
+    "не используй эмодзи",
+    "не используй emoji",
+    "always respond",
+    "reply in",
+    "answer in",
+    "keep it brief",
+    "keep responses",
+    "call yourself",
+    "your name is",
+    "зови себя",
+    "тебя зовут",
+    "пиши на",
+    "пиши без",
+)
+
+_RULE_WORD_KEYWORDS = (
+    "отвечай",
+    "говори",
+    "коротко",
+    "кратко",
+    "подробно",
+    "эмодзи",
+    "emoji",
+    "язык",
+    "language",
+    "формат",
+    "format",
+    "стиль",
+    "style",
+    "тон",
+    "tone",
 )
 
 _RULE_REJECT_PREFIXES = (
     "как ", "what ", "who ", "where ", "when ", "why ",
+    "что ", "кто ", "где ", "когда ", "почему ",
+    "о чём ", "о чем ", "что обсуждали", "what did we discuss",
+    "conversation history", "show conversation",
     "забудь", "удали", "forget", "delete", "remove",
 )
 
@@ -319,6 +354,8 @@ def _is_valid_rule(text: str) -> bool:
     if len(stripped) < 5:
         return False
     lower = stripped.lower()
+    if "?" in lower:
+        return False
     if lower in _RULE_REJECT_EXACT:
         return False
     if any(lower.startswith(p) for p in _RULE_REJECT_PREFIXES):
@@ -326,6 +363,8 @@ def _is_valid_rule(text: str) -> bool:
     if any(lower.startswith(p) for p in _RULE_ACTION_PREFIXES):
         return False
     if any(kw in lower for kw in _RULE_KEYWORDS):
+        return True
+    if any(re.search(rf"\b{re.escape(kw)}\b", lower) for kw in _RULE_WORD_KEYWORDS):
         return True
     # Reject if no rule keyword found — likely garbage from LLM misclassification
     logger.debug("Rejected invalid rule (no keyword match): %s", stripped[:60])
@@ -388,7 +427,40 @@ async def get_user_rules(user_id: str) -> list[str]:
             rules = result.scalar_one_or_none()
             if not isinstance(rules, list):
                 return []
-            return [rule for rule in rules if is_valid_user_rule(rule)]
+            valid_rules: list[str] = []
+            seen: set[str] = set()
+            changed = False
+            for rule in rules:
+                if not isinstance(rule, str):
+                    changed = True
+                    continue
+                cleaned = rule.strip()
+                if not is_valid_user_rule(cleaned):
+                    changed = True
+                    continue
+                normalized = cleaned.casefold()
+                if normalized in seen:
+                    changed = True
+                    continue
+                seen.add(normalized)
+                valid_rules.append(cleaned)
+
+            if changed or len(valid_rules) != len(rules):
+                await session.execute(
+                    update(UserProfile)
+                    .where(UserProfile.user_id == _uuid.UUID(user_id))
+                    .values(active_rules=valid_rules)
+                )
+                await session.commit()
+                await invalidate_identity_cache(user_id)
+                logger.info(
+                    "Cleaned invalid user rules for %s: %d -> %d",
+                    user_id,
+                    len(rules),
+                    len(valid_rules),
+                )
+
+            return valid_rules
     except Exception as e:
         logger.warning("Failed to load user rules for %s: %s", user_id, e)
         return []

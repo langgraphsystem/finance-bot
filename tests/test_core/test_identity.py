@@ -58,6 +58,7 @@ class TestGetCoreIdentity:
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = [
             "без эмодзи",
+            "о чём мы говорили сегодня?",
             "напиши пост про AI для Instagram",
             "запиши клиента на стрижку завтра в 14:00",
         ]
@@ -67,12 +68,16 @@ class TestGetCoreIdentity:
         mock_ctx.__aenter__.return_value = mock_session
         mock_ctx.__aexit__.return_value = False
 
-        with patch("src.core.identity.async_session", return_value=mock_ctx):
+        with (
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+        ):
             from src.core.identity import get_user_rules
 
             rules = await get_user_rules(str(uuid.uuid4()))
 
         assert rules == ["без эмодзи"]
+        mock_session.commit.assert_awaited_once()
 
     async def test_returns_empty_on_error(self):
         mock_ctx = AsyncMock()
@@ -252,6 +257,14 @@ class TestClearUserRules:
         assert cleared == 2
         mock_session.execute.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
+
+
+class TestRuleValidation:
+    def test_rejects_conversation_history_question(self):
+        assert not _is_valid_rule("о чём мы говорили сегодня?")
+
+    def test_accepts_actual_style_rule(self):
+        assert _is_valid_rule("всегда отвечай без эмодзи")
 
     async def test_returns_zero_when_no_rules(self):
         with patch(
