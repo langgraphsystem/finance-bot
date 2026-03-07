@@ -1889,6 +1889,35 @@ async def _handle_callback(
         await delete_pending_action(pending_id)
         return OutgoingMessage(text="❌ Отменено.", chat_id=message.chat_id)
 
+    elif action == "video":
+        # Video follow-up actions (YouTube / TikTok)
+        video_action = parts[1] if len(parts) > 1 else "deeper"
+        from src.skills.video_action.handler import handle_video_callback
+
+        skill_result = await handle_video_callback(
+            video_action, context.user_id, context.language or "en"
+        )
+        # Special case: save action needs actual Mem0 write
+        if video_action == "save":
+            from src.core.memory.mem0_client import add_memory
+            from src.core.video_session import get_video_session
+
+            session = await get_video_session(context.user_id)
+            if session:
+                content = f"Saved video: {session.url}"
+                if session.analysis:
+                    content += f"\n\nSummary: {session.analysis[:500]}"
+                await add_memory(
+                    content,
+                    user_id=context.user_id,
+                    metadata={"category": "content", "type": "saved_video"},
+                )
+        return OutgoingMessage(
+            text=skill_result.response_text,
+            chat_id=message.chat_id,
+            buttons=skill_result.buttons,
+        )
+
     elif action == "graph_resume":
         # Resume a paused LangGraph (approval or email HITL)
         thread_id = parts[1] if len(parts) > 1 else ""

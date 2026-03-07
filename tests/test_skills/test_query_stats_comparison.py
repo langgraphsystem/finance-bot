@@ -111,6 +111,7 @@ class TestGetComparisonData:
             family_id = str(uuid.uuid4())
             result = await stats_skill._get_comparison_data(
                 family_id=family_id,
+                role="owner",
                 current_start=date(2026, 2, 1),
                 current_end=date(2026, 2, 13),
                 prev_start=date(2026, 1, 1),
@@ -151,6 +152,7 @@ class TestGetComparisonData:
             family_id = str(uuid.uuid4())
             result = await stats_skill._get_comparison_data(
                 family_id=family_id,
+                role="owner",
                 current_start=date(2026, 2, 1),
                 current_end=date(2026, 2, 13),
                 prev_start=date(2026, 1, 1),
@@ -183,6 +185,7 @@ class TestGetComparisonData:
             family_id = str(uuid.uuid4())
             result = await stats_skill._get_comparison_data(
                 family_id=family_id,
+                role="owner",
                 current_start=date(2026, 2, 1),
                 current_end=date(2026, 2, 13),
                 prev_start=date(2026, 1, 1),
@@ -216,6 +219,7 @@ class TestGetComparisonData:
             family_id = str(uuid.uuid4())
             result = await stats_skill._get_comparison_data(
                 family_id=family_id,
+                role="owner",
                 current_start=date(2026, 2, 1),
                 current_end=date(2026, 2, 13),
                 prev_start=date(2026, 1, 1),
@@ -251,6 +255,7 @@ class TestGetComparisonData:
             family_id = str(uuid.uuid4())
             result = await stats_skill._get_comparison_data(
                 family_id=family_id,
+                role="owner",
                 current_start=date(2026, 2, 1),
                 current_end=date(2026, 2, 13),
                 prev_start=date(2026, 1, 1),

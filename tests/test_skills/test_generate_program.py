@@ -208,7 +208,7 @@ async def test_routes_bash_to_gpt(skill, ctx):
         )
 
     mock_gen.assert_called_once()
-    assert mock_gen.call_args.kwargs["model"] == "gpt-5.2"
+    assert mock_gen.call_args.kwargs["model"] == "gpt-5.4-2026-03-05"
 
 
 async def test_routes_html_to_gemini(skill, ctx):
@@ -236,7 +236,7 @@ async def test_routes_docker_description_to_gpt(skill, ctx):
         )
 
     mock_gen.assert_called_once()
-    assert mock_gen.call_args.kwargs["model"] == "gpt-5.2"
+    assert mock_gen.call_args.kwargs["model"] == "gpt-5.4-2026-03-05"
 
 
 async def test_routes_react_description_to_gemini(skill, ctx):
@@ -505,7 +505,7 @@ def test_select_model_python():
 
 
 def test_select_model_bash():
-    assert _select_model("bash", "anything") == "gpt-5.2"
+    assert _select_model("bash", "anything") == "gpt-5.4-2026-03-05"
 
 
 def test_select_model_javascript():
@@ -513,7 +513,7 @@ def test_select_model_javascript():
 
 
 def test_select_model_docker_from_description():
-    assert _select_model("", "create a dockerfile") == "gpt-5.2"
+    assert _select_model("", "create a dockerfile") == "gpt-5.4-2026-03-05"
 
 
 def test_select_model_react_from_description():

@@ -12,9 +12,23 @@ from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.llm.clients import google_client
 from src.core.observability import observe
+from src.core.video_session import VideoSession, save_video_session
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
+
+# Buttons shown after every video analysis
+_VIDEO_ACTION_BUTTONS = [
+    {"text": "📋 Контент-план", "callback": "video:content_plan"},
+    {"text": "📝 Пост", "callback": "video:post"},
+    {"text": "📌 Шаги", "callback": "video:steps"},
+    {"text": "💾 Сохранить", "callback": "video:save"},
+    {"text": "⏰ Напомнить", "callback": "video:remind"},
+    {"text": "🔍 Похожие", "callback": "video:similar"},
+    {"text": "📖 Подробнее", "callback": "video:deeper"},
+    {"text": "🌐 Перевести", "callback": "video:translate"},
+    {"text": "📄 Статья", "callback": "video:article"},
+]
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +39,16 @@ _YT_URL_RE = re.compile(
     r"|youtu\.be/"
     r"|m\.youtube\.com/watch\?v="
     r")[\w\-]+",
+)
+
+# Regex to detect TikTok URLs in text
+_TT_URL_RE = re.compile(
+    r"(?:https?://)?(?:www\.)?(?:"
+    r"tiktok\.com/@[\w.\-]+/video/\d+"
+    r"|tiktok\.com/t/[\w\-]+"
+    r"|vm\.tiktok\.com/[\w\-]+"
+    r"|vt\.tiktok\.com/[\w\-]+"
+    r")",
 )
 
 YOUTUBE_GROUNDING_PROMPT = """\
@@ -73,6 +97,20 @@ Rules:
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
 - ALWAYS respond in the same language as the user's message/query."""
 
+YOUTUBE_NATIVE_ANALYZE_PROMPT = """\
+You are directly watching a YouTube video. Analyze what you see and hear in the video itself.
+
+Rules:
+- Summarize the main topic and key points from the actual video content.
+- For tutorials: list numbered steps extracted from what is shown/said in the video.
+- For reviews: extract pros, cons, and verdict from the video content itself.
+- For lectures/talks: summarize the arguments and conclusions presented.
+- For music: identify the artist, song, genre, and mood from what you hear.
+- If the user asks a specific question, answer it using the video content.
+- Show the video title (bold) if identifiable. Include the original URL as a clickable link.
+- Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- ALWAYS respond in the same language as the user's message."""
+
 YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
 
 MAX_TRANSCRIPT_SEGMENTS = 150
@@ -115,7 +153,17 @@ class YouTubeSearchSkill:
         yt_url = extract_youtube_url(query)
         if yt_url:
             answer = await analyze_youtube_url(yt_url, query, language)
-            return SkillResult(response_text=answer)
+            session = VideoSession(url=yt_url, platform="youtube", analysis=answer, language=language)
+            await save_video_session(context.user_id, session)
+            return SkillResult(response_text=answer, buttons=_VIDEO_ACTION_BUTTONS)
+
+        # Check if query contains a TikTok URL → analyze that video
+        tt_url = extract_tiktok_url(query)
+        if tt_url:
+            answer = await analyze_tiktok_url(tt_url, query, language)
+            session = VideoSession(url=tt_url, platform="tiktok", analysis=answer, language=language)
+            await save_video_session(context.user_id, session)
+            return SkillResult(response_text=answer, buttons=_VIDEO_ACTION_BUTTONS)
 
         detail_mode = bool(intent_data.get("detail_mode"))
         has_api_key = bool(settings.youtube_api_key)
@@ -182,15 +230,154 @@ def extract_youtube_url(text: str) -> str | None:
     return m.group(0) if m else None
 
 
+def extract_tiktok_url(text: str) -> str | None:
+    """Extract the first TikTok URL from text, or None."""
+    m = _TT_URL_RE.search(text)
+    return m.group(0) if m else None
+
+
+async def download_tiktok_audio(url: str) -> tuple[bytes, str] | None:
+    """Download TikTok audio using yt-dlp. Returns (audio_bytes, filename) or None."""
+    import os
+    import tempfile
+
+    import yt_dlp
+
+    def _download() -> tuple[bytes, str] | None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_tpl = os.path.join(tmpdir, "audio.%(ext)s")
+            ydl_opts = {
+                "quiet": True,
+                "no_warnings": True,
+                "format": "bestaudio[ext=m4a]/bestaudio/best",
+                "outtmpl": output_tpl,
+                "noplaylist": True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    return None
+            for fname in os.listdir(tmpdir):
+                fpath = os.path.join(tmpdir, fname)
+                with open(fpath, "rb") as f:
+                    return f.read(), fname
+        return None
+
+    return await asyncio.to_thread(_download)
+
+
+async def transcribe_tiktok(url: str) -> str:
+    """Download TikTok audio and transcribe with Whisper. Returns transcript or ''."""
+    from src.core.voice import transcribe_video_audio
+
+    try:
+        result = await download_tiktok_audio(url)
+        if not result:
+            return ""
+        audio_bytes, filename = result
+        return await transcribe_video_audio(audio_bytes, filename)
+    except Exception as e:
+        logger.warning("TikTok audio transcription failed: %s", e)
+        return ""
+
+
+async def analyze_tiktok_url(url: str, user_text: str, language: str) -> str:
+    """Analyze a TikTok video URL.
+
+    Downloads audio via yt-dlp → transcribes with Whisper → Gemini summarizes.
+    Falls back to Google Search grounding if download/transcription fails.
+    """
+    client = google_client()
+    extra = user_text.replace(url, "").strip()
+    user_request = extra or "Summarize this video."
+
+    # Primary: download audio → transcribe → Gemini summarizes transcript
+    transcript = await transcribe_tiktok(url)
+    if transcript:
+        prompt = (
+            f"{YOUTUBE_NATIVE_ANALYZE_PROMPT}\n\n"
+            f"This is a TikTok video transcript:\n{transcript[:4000]}\n\n"
+            f"Video URL: {url}\n"
+            f"User request: {user_request}\n"
+            f"Respond in language: {language}"
+        )
+        try:
+            response = await client.aio.models.generate_content(
+                model="gemini-3.1-flash-lite-preview",
+                contents=prompt,
+            )
+            text = response.text or ""
+            if text:
+                return text
+        except Exception as e:
+            logger.warning("Gemini TikTok transcript analysis failed: %s", e)
+
+    # Fallback: Google Search grounding
+    extra_part = f"\nUser's comment: {extra}" if extra else ""
+    prompt = f"{YOUTUBE_ANALYZE_PROMPT}\n\nAnalyze this TikTok video: {url}{extra_part}"
+    try:
+        response = await client.aio.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+            ),
+        )
+        text = response.text or ""
+        if text:
+            return text
+    except Exception as e:
+        logger.warning("TikTok grounding fallback failed: %s", e)
+
+    return f'Could not analyze the video. Try opening it directly: <a href="{url}">{url}</a>'
+
+
+async def analyze_youtube_native(url: str, user_text: str, language: str) -> str:
+    """Analyze a YouTube video using Gemini's native video understanding.
+
+    Passes the YouTube URL as a fileData part — Gemini watches the actual video
+    content (audio + visuals) rather than searching for information about it.
+    """
+    client = google_client()
+    extra = user_text.replace(url, "").strip()
+    user_prompt = extra or "Analyze and summarize this video."
+    prompt = (
+        f"{YOUTUBE_NATIVE_ANALYZE_PROMPT}\n\n"
+        f"User request: {user_prompt}\n"
+        f"Video URL: {url}\n"
+        f"Respond in language: {language}"
+    )
+    response = await client.aio.models.generate_content(
+        model="gemini-3.1-flash-lite-preview",
+        contents=types.Content(
+            parts=[
+                types.Part(file_data=types.FileData(file_uri=url, mime_type="video/*")),
+                types.Part(text=prompt),
+            ]
+        ),
+    )
+    return response.text or ""
+
+
 async def analyze_youtube_url(url: str, user_text: str, language: str) -> str:
-    """Analyze a specific YouTube video URL using Gemini with Google Search grounding."""
+    """Analyze a specific YouTube video URL.
+
+    Tries native Gemini video understanding first (watches the actual video),
+    falls back to Google Search grounding if native processing fails.
+    """
+    # Primary: native video processing — Gemini watches the video directly
+    try:
+        text = await analyze_youtube_native(url, user_text, language)
+        if text:
+            return text
+    except Exception as e:
+        logger.warning("Gemini native video processing failed: %s, falling back to grounding", e)
+
+    # Fallback: Google Search grounding — finds info about the video
     client = google_client()
     system = YOUTUBE_ANALYZE_PROMPT.format(language=language)
-
-    # If the user added extra context beyond just the URL, include it
     extra = user_text.replace(url, "").strip()
     extra_part = f"\nUser's comment: {extra}" if extra else ""
-
     prompt = f"{system}\n\nAnalyze this YouTube video: {url}{extra_part}"
 
     try:
@@ -205,7 +392,7 @@ async def analyze_youtube_url(url: str, user_text: str, language: str) -> str:
         if text:
             return text
     except Exception as e:
-        logger.warning("Gemini YouTube URL analysis failed: %s", e)
+        logger.warning("Gemini YouTube grounding fallback also failed: %s", e)
 
     return f'Could not analyze the video. Try opening it directly: <a href="{url}">{url}</a>'
 

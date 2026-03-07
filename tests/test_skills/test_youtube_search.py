@@ -10,6 +10,7 @@ from src.gateway.types import IncomingMessage, MessageType
 from src.skills.youtube_search.handler import (
     YouTubeSearchSkill,
     _html_fallback,
+    extract_tiktok_url,
     extract_youtube_url,
 )
 
@@ -187,17 +188,22 @@ async def test_url_routes_to_analyze(skill, ctx):
         type=MessageType.text,
         text="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     )
-    with patch(
-        "src.skills.youtube_search.handler.analyze_youtube_url",
-        new_callable=AsyncMock,
-        return_value="<b>Never Gonna Give You Up</b> — Rick Astley",
-    ) as mock_analyze:
+    with (
+        patch(
+            "src.skills.youtube_search.handler.analyze_youtube_url",
+            new_callable=AsyncMock,
+            return_value="<b>Never Gonna Give You Up</b> — Rick Astley",
+        ) as mock_analyze,
+        patch("src.skills.youtube_search.handler.save_video_session", new_callable=AsyncMock),
+    ):
         result = await skill.execute(
             msg, ctx, {"youtube_query": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}
         )
 
     mock_analyze.assert_awaited_once()
     assert "Rick Astley" in result.response_text
+    # Action buttons should be present
+    assert result.buttons is not None
 
 
 @pytest.mark.asyncio
@@ -210,11 +216,14 @@ async def test_url_with_comment_routes_to_analyze(skill, ctx):
         type=MessageType.text,
         text="what is this? https://youtu.be/abc123",
     )
-    with patch(
-        "src.skills.youtube_search.handler.analyze_youtube_url",
-        new_callable=AsyncMock,
-        return_value="<b>Video Analysis</b>",
-    ) as mock_analyze:
+    with (
+        patch(
+            "src.skills.youtube_search.handler.analyze_youtube_url",
+            new_callable=AsyncMock,
+            return_value="<b>Video Analysis</b>",
+        ) as mock_analyze,
+        patch("src.skills.youtube_search.handler.save_video_session", new_callable=AsyncMock),
+    ):
         result = await skill.execute(
             msg, ctx, {"youtube_query": "what is this? https://youtu.be/abc123"}
         )
@@ -228,11 +237,39 @@ async def test_url_with_comment_routes_to_analyze(skill, ctx):
 
 
 @pytest.mark.asyncio
-async def test_analyze_youtube_url_calls_gemini_with_grounding():
-    """analyze_youtube_url uses Gemini with Google Search grounding."""
-    mock_response = MagicMock()
-    mock_response.text = "<b>Oil Change Tutorial</b> by ChrisFix — step by step guide"
+async def test_analyze_youtube_native_uses_file_data():
+    """analyze_youtube_native passes video URL as fileData part."""
+    from google.genai import types as gtypes
 
+    from src.skills.youtube_search.handler import analyze_youtube_native
+
+    mock_response = MagicMock()
+    mock_response.text = "<b>Oil Change Tutorial</b> — step by step guide"
+    mock_generate = AsyncMock(return_value=mock_response)
+
+    with patch("src.skills.youtube_search.handler.google_client") as mock_gc:
+        mock_gc.return_value.aio.models.generate_content = mock_generate
+        result = await analyze_youtube_native(
+            "https://youtube.com/watch?v=abc123", "https://youtube.com/watch?v=abc123", "en"
+        )
+
+    assert "Oil Change Tutorial" in result
+    call_kwargs = mock_generate.call_args
+    contents = call_kwargs.kwargs.get("contents")
+    if contents is None and call_kwargs.args:
+        contents = call_kwargs.args[0]
+    # Native call passes a Content object with fileData part
+    assert contents is not None
+    parts = contents.parts if hasattr(contents, "parts") else []
+    file_parts = [p for p in parts if hasattr(p, "file_data") and p.file_data]
+    assert len(file_parts) == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_youtube_url_uses_native_first():
+    """analyze_youtube_url tries native processing first, returns result if successful."""
+    mock_response = MagicMock()
+    mock_response.text = "<b>Video Content</b> — native analysis"
     mock_generate = AsyncMock(return_value=mock_response)
 
     with patch("src.skills.youtube_search.handler.google_client") as mock_gc:
@@ -243,16 +280,41 @@ async def test_analyze_youtube_url_calls_gemini_with_grounding():
             "https://youtube.com/watch?v=abc123", "https://youtube.com/watch?v=abc123", "en"
         )
 
-    assert "Oil Change Tutorial" in result
-    call_kwargs = mock_generate.call_args
-    config = call_kwargs.kwargs.get("config") or call_kwargs[1].get("config")
-    assert config is not None
-    assert len(config.tools) == 1
+    assert "Video Content" in result
+    # Only 1 call — native succeeded, no grounding fallback needed
+    assert mock_generate.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_youtube_url_falls_back_to_grounding_on_native_failure():
+    """When native processing fails, analyze_youtube_url falls back to grounding."""
+    grounding_response = MagicMock()
+    grounding_response.text = "<b>Oil Change</b> via Search Grounding"
+
+    call_count = 0
+
+    async def mock_generate(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise Exception("Native video not supported")
+        return grounding_response
+
+    with patch("src.skills.youtube_search.handler.google_client") as mock_gc:
+        mock_gc.return_value.aio.models.generate_content = mock_generate
+        from src.skills.youtube_search.handler import analyze_youtube_url
+
+        result = await analyze_youtube_url(
+            "https://youtube.com/watch?v=abc123", "https://youtube.com/watch?v=abc123", "en"
+        )
+
+    assert "Oil Change" in result
+    assert call_count == 2  # native failed + grounding succeeded
 
 
 @pytest.mark.asyncio
 async def test_analyze_youtube_url_failure_returns_link():
-    """When Gemini fails, return a fallback with the URL."""
+    """When both native and grounding fail, return a fallback with the URL."""
     mock_generate = AsyncMock(side_effect=Exception("API error"))
 
     with patch("src.skills.youtube_search.handler.google_client") as mock_gc:
@@ -264,6 +326,135 @@ async def test_analyze_youtube_url_failure_returns_link():
         )
 
     assert "https://youtube.com/watch?v=xyz" in result
+    assert "Could not analyze" in result
+
+
+# ---------------------------------------------------------------------------
+# TikTok URL detection and analysis
+# ---------------------------------------------------------------------------
+
+
+def test_extract_tiktok_url_standard():
+    url = "https://www.tiktok.com/@username/video/1234567890"
+    assert extract_tiktok_url(url) == url
+
+
+def test_extract_tiktok_url_short_vm():
+    url = "https://vm.tiktok.com/ABC123xyz"
+    assert extract_tiktok_url(url) is not None
+
+
+def test_extract_tiktok_url_vt():
+    url = "https://vt.tiktok.com/XYZ789"
+    assert extract_tiktok_url(url) is not None
+
+
+def test_extract_tiktok_url_embedded_in_text():
+    text = "посмотри это видео https://vm.tiktok.com/ABC123 круто"
+    assert extract_tiktok_url(text) is not None
+
+
+def test_extract_tiktok_url_none_for_plain_text():
+    assert extract_tiktok_url("how to dance tiktok tutorial") is None
+
+
+def test_extract_tiktok_url_none_for_youtube():
+    assert extract_tiktok_url("https://youtube.com/watch?v=abc123") is None
+
+
+@pytest.mark.asyncio
+async def test_tiktok_url_routes_to_analyze(skill, ctx):
+    """When query contains a TikTok URL, routes to analyze_tiktok_url."""
+    msg = IncomingMessage(
+        id="msg-tt-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="https://vm.tiktok.com/ABC123",
+    )
+    with (
+        patch(
+            "src.skills.youtube_search.handler.analyze_tiktok_url",
+            new_callable=AsyncMock,
+            return_value="<b>TikTok Dance</b> — cool moves",
+        ) as mock_analyze,
+        patch("src.skills.youtube_search.handler.save_video_session", new_callable=AsyncMock),
+    ):
+        result = await skill.execute(
+            msg, ctx, {"youtube_query": "https://vm.tiktok.com/ABC123"}
+        )
+
+    mock_analyze.assert_awaited_once()
+    assert "TikTok Dance" in result.response_text
+    assert result.buttons is not None
+
+
+@pytest.mark.asyncio
+async def test_analyze_tiktok_url_uses_transcript():
+    """When yt-dlp+Whisper succeeds, analyze_tiktok_url summarizes transcript via Gemini."""
+    from src.skills.youtube_search.handler import analyze_tiktok_url
+
+    mock_response = MagicMock()
+    mock_response.text = "<b>TikTok Video Analysis</b>"
+
+    with (
+        patch("src.skills.youtube_search.handler.transcribe_tiktok",
+              new_callable=AsyncMock,
+              return_value="This is the video transcript about dancing.") as mock_transcribe,
+        patch("src.skills.youtube_search.handler.google_client") as mock_gc,
+    ):
+        mock_gc.return_value.aio.models.generate_content = AsyncMock(return_value=mock_response)
+        result = await analyze_tiktok_url(
+            "https://vm.tiktok.com/ABC123", "https://vm.tiktok.com/ABC123", "en"
+        )
+
+    mock_transcribe.assert_awaited_once()
+    assert "TikTok Video" in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_tiktok_url_falls_back_to_grounding_on_empty_transcript():
+    """When transcript is empty, analyze_tiktok_url falls back to grounding."""
+    from src.skills.youtube_search.handler import analyze_tiktok_url
+
+    grounding_response = MagicMock()
+    grounding_response.text = "<b>TikTok via Grounding</b>"
+
+    with (
+        patch("src.skills.youtube_search.handler.transcribe_tiktok",
+              new_callable=AsyncMock,
+              return_value=""),
+        patch("src.skills.youtube_search.handler.google_client") as mock_gc,
+    ):
+        mock_gc.return_value.aio.models.generate_content = AsyncMock(
+            return_value=grounding_response
+        )
+        result = await analyze_tiktok_url(
+            "https://vm.tiktok.com/ABC123", "https://vm.tiktok.com/ABC123", "en"
+        )
+
+    assert "TikTok via Grounding" in result
+
+
+@pytest.mark.asyncio
+async def test_analyze_tiktok_url_failure_returns_link():
+    """When all methods fail, return fallback link."""
+    from src.skills.youtube_search.handler import analyze_tiktok_url
+
+    with (
+        patch("src.skills.youtube_search.handler.transcribe_tiktok",
+              new_callable=AsyncMock,
+              return_value=""),
+        patch("src.skills.youtube_search.handler.google_client") as mock_gc,
+    ):
+        mock_gc.return_value.aio.models.generate_content = AsyncMock(
+            side_effect=Exception("API error")
+        )
+        result = await analyze_tiktok_url(
+            "https://vm.tiktok.com/ABC123", "https://vm.tiktok.com/ABC123", "en"
+        )
+
+    assert "vm.tiktok.com" in result
     assert "Could not analyze" in result
 
 

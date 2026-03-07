@@ -10,7 +10,7 @@ def test_news_monitor_skill_attributes():
     skill = NewsMonitorSkill()
     assert skill.name == "news_monitor"
     assert "news_monitor" in skill.intents
-    assert skill.model == "gpt-5.2"
+    assert skill.model == "gpt-5.4-2026-03-05"
 
 
 def test_news_monitor_system_prompt(sample_context):

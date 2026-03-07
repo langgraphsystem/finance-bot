@@ -339,6 +339,7 @@ domains:
       - find
       - compare
       - youtube
+      - tiktok
       - map
       - price
       - поиск
@@ -352,6 +353,7 @@ domains:
       - compare_options
       - maps_search
       - youtube_search
+      - video_action
       - price_check
       - web_action
       - browser_action

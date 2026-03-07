@@ -99,6 +99,7 @@ from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
 from src.skills.write_sheets.handler import skill as write_sheets_skill
+from src.skills.video_action.handler import skill as video_action_skill
 from src.skills.youtube_search.handler import skill as youtube_search_skill
 
 
@@ -139,6 +140,7 @@ def create_registry() -> SkillRegistry:
     registry.register(compare_options_skill)
     registry.register(maps_search_skill)
     registry.register(youtube_search_skill)
+    registry.register(video_action_skill)
     registry.register(draft_message_skill)
     registry.register(translate_text_skill)
     registry.register(write_post_skill)

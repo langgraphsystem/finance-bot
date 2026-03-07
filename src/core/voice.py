@@ -8,6 +8,28 @@ from src.core.observability import observe
 logger = logging.getLogger(__name__)
 
 
+async def transcribe_video_audio(audio_bytes: bytes, filename: str = "audio.m4a") -> str:
+    """Transcribe downloaded video audio (no language hint — auto-detect)."""
+    client = openai_client()
+    try:
+        transcript = await client.audio.transcriptions.create(
+            model="gpt-4o-mini-transcribe",
+            file=(filename, audio_bytes),
+        )
+        return transcript.text
+    except Exception as e:
+        logger.warning("gpt-4o-mini-transcribe failed for video audio, trying whisper-1: %s", e)
+    try:
+        transcript = await client.audio.transcriptions.create(
+            model="whisper-1",
+            file=(filename, audio_bytes),
+        )
+        return transcript.text
+    except Exception as e:
+        logger.error("whisper-1 also failed for video audio: %s", e)
+        return ""
+
+
 @observe(name="voice_transcribe")
 async def transcribe_voice(audio_bytes: bytes, filename: str = "voice.ogg") -> str:
     """Transcribe voice message using gpt-4o-mini-transcribe with whisper-1 fallback."""
