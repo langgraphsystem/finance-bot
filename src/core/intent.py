@@ -1058,8 +1058,21 @@ def _strip_personalization_prefix(text: str) -> str:
     return stripped
 
 
+_NAME_REJECT_WORDS = frozenset({
+    # Russian verbs and function words that appear in sentences, not names
+    "зовут", "зови", "зовусь", "меня", "тебя", "твоё", "твое", "моё", "мое",
+    "имя", "назови", "называй", "буду", "буду", "будет", "зовётся",
+    # English equivalents
+    "name", "call", "called", "my", "your", "is", "am",
+})
+
+
 def _looks_like_name(text: str) -> bool:
-    """Heuristic: short human name reply without digits/punctuation noise."""
+    """Heuristic: short human name reply without digits/punctuation noise.
+
+    Returns True only for bare name strings like "Манас", "John Smith",
+    "Мария-Иванова". Rejects full sentences like "Меня зовут Манас".
+    """
     candidate = text.strip().strip(".,!?\"'")
     if not candidate or len(candidate) > 40:
         return False
@@ -1067,6 +1080,10 @@ def _looks_like_name(text: str) -> bool:
         return False
     parts = [part for part in re.split(r"[\s-]+", candidate) if part]
     if not parts or len(parts) > 3:
+        return False
+    # Reject if any part is a common verb/function word (not a name)
+    lower_parts = {p.lower() for p in parts}
+    if lower_parts & _NAME_REJECT_WORDS:
         return False
     return all(re.fullmatch(r"[A-Za-zА-Яа-яЁё]+", part) for part in parts)
 
