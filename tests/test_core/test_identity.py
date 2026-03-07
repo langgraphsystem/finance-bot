@@ -1,13 +1,22 @@
-"""Tests for core identity layer (Phase 2.3)."""
+"""Tests for core identity layer (Phase 2.3 + upsert fix)."""
 
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.identity import (
     _EMPTY_IDENTITY,
+    _parse_bot_identity_fact,
+    _parse_identity_fact,
     format_identity_block,
+    format_rules_block,
     get_core_identity,
+    immediate_identity_update,
     update_core_identity,
+)
+
+# Helper: patch _ensure_user_profile as no-op (DB-free tests)
+_no_ensure = patch(
+    "src.core.identity._ensure_user_profile", new_callable=AsyncMock
 )
 
 
@@ -67,6 +76,7 @@ class TestUpdateCoreIdentity:
         with (
             patch("src.core.identity.get_core_identity", mock_get),
             patch("src.core.identity.async_session", return_value=mock_ctx),
+            _no_ensure,
         ):
             result = await update_core_identity(uid, {"occupation": "plumber"})
         assert result["name"] == "Maria"
@@ -86,6 +96,7 @@ class TestUpdateCoreIdentity:
         with (
             patch("src.core.identity.get_core_identity", mock_get),
             patch("src.core.identity.async_session", return_value=mock_ctx),
+            _no_ensure,
         ):
             result = await update_core_identity(uid, {"occupation": None})
         assert "occupation" not in result
@@ -105,6 +116,125 @@ class TestUpdateCoreIdentity:
         ):
             result = await update_core_identity(uid, {"name": "Mary"})
         assert result == current
+
+    async def test_calls_ensure_user_profile(self):
+        """update_core_identity must call _ensure_user_profile before UPDATE."""
+        uid = str(uuid.uuid4())
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        mock_ensure = AsyncMock()
+        mock_get = AsyncMock(return_value={})
+        with (
+            patch("src.core.identity.get_core_identity", mock_get),
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity._ensure_user_profile", mock_ensure),
+        ):
+            await update_core_identity(uid, {"name": "Manas"})
+        mock_ensure.assert_awaited_once_with(mock_session, uid)
+
+
+class TestAddUserRule:
+    async def test_calls_ensure_user_profile(self):
+        """_add_user_rule must create profile if missing."""
+        from src.core.identity import _add_user_rule
+
+        uid = str(uuid.uuid4())
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = []
+        mock_session.execute.return_value = mock_result
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        mock_ensure = AsyncMock()
+        with (
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity._ensure_user_profile", mock_ensure),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+        ):
+            await _add_user_rule(uid, "без эмодзи")
+        mock_ensure.assert_awaited_once()
+
+
+class TestImmediateIdentityUpdate:
+    async def test_user_name_updates_identity(self):
+        uid = str(uuid.uuid4())
+        mock_update = AsyncMock(return_value={"name": "Манас"})
+        with (
+            patch("src.core.identity.update_core_identity", mock_update),
+        ):
+            await immediate_identity_update(uid, "user_identity", "меня зовут Манас")
+        mock_update.assert_awaited_once()
+        call_args = mock_update.call_args
+        assert call_args[0][1].get("name") == "Манас"
+
+    async def test_bot_name_updates_identity(self):
+        uid = str(uuid.uuid4())
+        mock_update = AsyncMock(return_value={"bot_name": "Хюррем"})
+        with (
+            patch("src.core.identity.update_core_identity", mock_update),
+        ):
+            await immediate_identity_update(uid, "bot_identity", "зови себя Хюррем")
+        mock_update.assert_awaited_once()
+        call_args = mock_update.call_args
+        assert call_args[0][1].get("bot_name") == "Хюррем"
+
+    async def test_user_rule_calls_add_rule(self):
+        uid = str(uuid.uuid4())
+        mock_add_rule = AsyncMock()
+        with (
+            patch("src.core.identity._add_user_rule", mock_add_rule),
+        ):
+            await immediate_identity_update(uid, "user_rule", "без эмодзи")
+        mock_add_rule.assert_awaited_once_with(uid, "без эмодзи")
+
+    async def test_ignores_non_identity_category(self):
+        uid = str(uuid.uuid4())
+        mock_update = AsyncMock()
+        with (
+            patch("src.core.identity.update_core_identity", mock_update),
+        ):
+            await immediate_identity_update(uid, "spending_pattern", "buys coffee daily")
+        mock_update.assert_not_awaited()
+
+
+class TestParseIdentityFact:
+    def test_parse_name_russian(self):
+        result = _parse_identity_fact("Меня зовут Манас")
+        assert result["name"] == "Манас"
+
+    def test_parse_name_english(self):
+        result = _parse_identity_fact("my name is John")
+        assert result["name"] == "John"
+
+    def test_parse_city(self):
+        result = _parse_identity_fact("живу в Бишкеке")
+        assert result["city"] == "Бишкеке"
+
+    def test_parse_occupation(self):
+        result = _parse_identity_fact("работаю программистом")
+        assert result["occupation"] == "программистом"
+
+    def test_raw_identity_fallback(self):
+        result = _parse_identity_fact("мне 25 лет")
+        assert "_raw_identity" in result
+
+
+class TestParseBotIdentityFact:
+    def test_parse_bot_name_ru(self):
+        result = _parse_bot_identity_fact("зови себя Хюррем")
+        assert result["bot_name"] == "Хюррем"
+
+    def test_parse_bot_name_en(self):
+        result = _parse_bot_identity_fact("your name is Luna")
+        assert result["bot_name"] == "Luna"
 
 
 class TestFormatIdentityBlock:
@@ -154,3 +284,22 @@ class TestFormatIdentityBlock:
     def test_only_none_values_returns_empty(self):
         result = format_identity_block({"name": None, "occupation": None})
         assert result == ""
+
+    def test_bot_name_included(self):
+        result = format_identity_block({"bot_name": "Хюррем"})
+        assert "Bot Name: Хюррем" in result
+
+    def test_response_language_included(self):
+        result = format_identity_block({"response_language": "ru"})
+        assert "Response Language: ru" in result
+
+
+class TestFormatRulesBlock:
+    def test_empty_rules(self):
+        assert format_rules_block([]) == ""
+
+    def test_rules_formatted(self):
+        result = format_rules_block(["без эмодзи", "отвечай коротко"])
+        assert "<user_rules>" in result
+        assert "- без эмодзи" in result
+        assert "- отвечай коротко" in result

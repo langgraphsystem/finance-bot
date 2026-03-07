@@ -20,6 +20,38 @@ from src.core.models.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
 
+
+async def _ensure_user_profile(session, user_id: str) -> None:
+    """Create a minimal user_profiles row if one doesn't exist yet.
+
+    Without this, UPDATE ... WHERE user_id=X silently affects 0 rows
+    and the bot says 'saved' but nothing persists.
+    """
+    from src.core.models.user import User
+
+    existing = await session.scalar(
+        select(UserProfile.id).where(UserProfile.user_id == _uuid.UUID(user_id)).limit(1)
+    )
+    if existing is not None:
+        return
+
+    user = await session.scalar(
+        select(User).where(User.id == _uuid.UUID(user_id))
+    )
+    if not user:
+        logger.warning("_ensure_user_profile: no user row for %s", user_id)
+        return
+
+    profile = UserProfile(
+        user_id=user.id,
+        family_id=user.family_id,
+        display_name=user.name,
+        preferred_language=getattr(user, "language", "en") or "en",
+    )
+    session.add(profile)
+    await session.flush()
+    logger.info("Created missing user_profile for %s", user_id)
+
 # Default empty identity
 _EMPTY_IDENTITY: dict = {}
 
@@ -44,8 +76,8 @@ _CATEGORY_FIELD_MAP = {
 
 def _get_redis():
     """Lazy import Redis to avoid circular imports."""
-    from src.core.redis_client import get_redis
-    return get_redis()
+    from src.core.db import redis
+    return redis
 
 
 async def get_core_identity(user_id: str) -> dict:
@@ -89,6 +121,7 @@ async def get_core_identity(user_id: str) -> dict:
 async def update_core_identity(user_id: str, updates: dict) -> dict:
     """Merge updates into core_identity (partial update, not replace).
 
+    Creates the user_profiles row if it doesn't exist yet (upsert).
     Invalidates Redis cache after successful write.
     """
     try:
@@ -98,6 +131,7 @@ async def update_core_identity(user_id: str, updates: dict) -> dict:
         merged = {k: v for k, v in merged.items() if v is not None}
 
         async with async_session() as session:
+            await _ensure_user_profile(session, user_id)
             await session.execute(
                 update(UserProfile)
                 .where(UserProfile.user_id == _uuid.UUID(user_id))
@@ -236,9 +270,13 @@ def _parse_preference_fact(content: str) -> dict:
 
 
 async def _add_user_rule(user_id: str, rule_text: str) -> None:
-    """Add a user rule to active_rules JSONB array."""
+    """Add a user rule to active_rules JSONB array.
+
+    Creates the user_profiles row if it doesn't exist yet (upsert).
+    """
     try:
         async with async_session() as session:
+            await _ensure_user_profile(session, user_id)
             result = await session.execute(
                 select(UserProfile.active_rules)
                 .where(UserProfile.user_id == _uuid.UUID(user_id))
