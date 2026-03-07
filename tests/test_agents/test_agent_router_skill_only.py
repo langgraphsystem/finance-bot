@@ -59,6 +59,7 @@ def agent_router():
     for skill in (
         _make_mock_skill("track_drink", ["track_drink"]),
         _make_mock_skill("list_bookings", ["list_bookings"]),
+        _make_mock_skill("shopping_list_add", ["shopping_list_add"]),
         _make_mock_skill("general_chat", ["general_chat"]),
     ):
         registry.register(skill)
@@ -90,4 +91,18 @@ async def test_list_bookings_bypasses_tool_routing(
     result = await agent_router.route("list_bookings", text_message, sample_context, {})
 
     assert result.response_text == "Response from list_bookings"
+    route_with_tools.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_shopping_list_add_bypasses_tool_routing(
+    agent_router, sample_context, text_message, monkeypatch
+):
+    monkeypatch.setattr("src.agents.base.assemble_context", AsyncMock(return_value=MagicMock()))
+    route_with_tools = AsyncMock(return_value=SkillResult(response_text="tool response"))
+    monkeypatch.setattr(agent_router, "route_with_tools", route_with_tools)
+
+    result = await agent_router.route("shopping_list_add", text_message, sample_context, {})
+
+    assert result.response_text == "Response from shopping_list_add"
     route_with_tools.assert_not_awaited()

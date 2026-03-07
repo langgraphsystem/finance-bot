@@ -450,6 +450,27 @@ async def test_detect_intent_fast_path_track_drink_without_llm():
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_numeric_coffee_falls_back_to_finance_llm():
+    expected = IntentDetectionResult(intent="add_expense", confidence=0.92, response="OK")
+
+    with (
+        patch(
+            "src.core.intent._detect_with_gemini",
+            new_callable=AsyncMock,
+            return_value=expected,
+        ) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("100 кофе")
+
+    assert result.intent == "add_expense"
+    mock_gemini.assert_awaited_once()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_write_post_without_llm():
     with (
         patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
@@ -462,6 +483,21 @@ async def test_detect_intent_fast_path_write_post_without_llm():
     assert result.intent == "write_post"
     assert result.data is not None
     assert result.data.target_platform == "instagram"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_set_user_rule_not_stolen_by_track_drink():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("всегда отвечай без эмодзи")
+
+    assert result.intent == "set_user_rule"
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()
 
@@ -509,5 +545,22 @@ async def test_detect_intent_fast_path_list_bookings_without_llm():
         result = await detect_intent("покажи записи на завтра")
 
     assert result.intent == "list_bookings"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_dialog_history_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("о чём мы говорили сегодня?")
+
+    assert result.intent == "dialog_history"
+    assert result.data is not None
+    assert result.data.period == "today"
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()

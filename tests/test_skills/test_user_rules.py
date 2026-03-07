@@ -100,3 +100,23 @@ async def test_user_rules_delegates_forget_command_to_memory_vault():
     mock_memory_forget.assert_awaited_once()
     mock_identity.assert_not_awaited()
     mock_add_memory.assert_not_awaited()
+
+
+async def test_user_rules_saves_user_name():
+    ctx = _MockContext()
+    with (
+        patch(
+            "src.core.identity.immediate_identity_update",
+            new_callable=AsyncMock,
+        ) as mock_identity,
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add_memory,
+    ):
+        result = await skill.execute(
+            _MockMessage(text="Меня зовут Манас"),
+            ctx,
+            {"rule_text": "Меня зовут Манас"},
+        )
+
+    assert "Манас" in result.response_text
+    mock_identity.assert_awaited_once_with("u1", "user_identity", "Меня зовут Манас")
+    mock_add_memory.assert_awaited_once()

@@ -41,10 +41,6 @@ class UserRuleSkill(BaseSkill):
                 {"_intent": "memory_forget", "memory_query": rule_text},
             )
 
-        if not is_valid_user_rule(rule_text):
-            logger.info("Rejected invalid user rule text: %s", rule_text[:80])
-            return SkillResult(response_text=_msg("invalid_rule", context.language or "en"))
-
         user_id = str(context.user_id)
         language = context.language or "en"
 
@@ -75,6 +71,10 @@ class UserRuleSkill(BaseSkill):
             )
 
         # General rule (style, language, emoji, etc.)
+        if not is_valid_user_rule(rule_text):
+            logger.info("Rejected invalid user rule text: %s", rule_text[:80])
+            return SkillResult(response_text=_msg("invalid_rule", language))
+
         await immediate_identity_update(user_id, "user_rule", rule_text)
         await add_memory(
             rule_text, user_id=user_id,

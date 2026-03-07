@@ -205,6 +205,10 @@ added_sources, removed_sources, new_instruction.
 ТАКЖЕ: если пользователь отправил ссылку YouTube (youtube.com/watch, youtu.be/, \
 youtube.com/shorts/) или TikTok (tiktok.com/, vm.tiktok.com/, vt.tiktok.com/) \
 — это ВСЕГДА youtube_search, даже без слова "youtube" или "tiktok"
+- video_action: действие с последним просмотренным видео — "расскажи подробнее", \
+"составь контент-план", "напиши пост по этому видео", "сделай статью", "переведи", \
+"выпиши шаги", "сохрани видео", "найди похожие", "напомни посмотреть", \
+"сделай сценарий", "процитируй ключевые моменты", "сделай резюме видео"
 - draft_message: написать сообщение, письмо, email ("write an email to school", \
 "напиши письмо", "draft a text to Mike", "compose a message")
 - translate_text: перевести текст ("translate to Spanish", "переведи на английский", \
@@ -665,6 +669,9 @@ intent_type: "action", confidence: 0.92
     "youtube_query": "запрос для поиска видео" или null,
     "detail_mode": true если пользователь просит подробный список, больше результатов, \
 маршрут с шагами, все видео, транскрипт — иначе false или null,
+    "video_action_type": для intent=video_action одно из: "deeper" | "steps" | "quotes" | \
+"content_plan" | "post" | "article" | "script" | "summary" | "save" | "remind" | \
+"translate" | "similar" — или null,
     "writing_topic": "тема/текст для написания" или null,
     "target_language": "целевой язык перевода" или null,
     "target_platform": "платформа для поста (google, instagram, etc.)" или null,
@@ -1015,6 +1022,28 @@ _RULE_MARKERS = (
     "in russian",
 )
 
+_RULE_PREFIXES = (
+    "всегда отвечай",
+    "отвечай",
+    "говори",
+    "пиши на",
+    "пиши без",
+    "без эмодзи",
+    "без emoji",
+    "на русском",
+    "по-русски",
+    "по английски",
+    "по-английски",
+    "коротко",
+    "кратко",
+    "always respond",
+    "reply in",
+    "keep it brief",
+    "no emoji",
+    "in english",
+    "in russian",
+)
+
 _TRACK_DRINK_MARKERS = (
     "кофе",
     "coffee",
@@ -1070,6 +1099,14 @@ _WRITE_POST_MARKERS = (
     "review response",
 )
 
+_DIALOG_HISTORY_MARKERS = (
+    "о чём мы говорили",
+    "что обсуждали",
+    "историю разговоров",
+    "what did we discuss",
+    "conversation history",
+)
+
 
 def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
     """Fast-path: bare 'напомни' / 'remind me' without details → set_reminder with no title."""
@@ -1113,6 +1150,15 @@ def _looks_like_money_message(text: str) -> bool:
         re.search(r"[$€£¥₽₸₹]\s*\d", text)
         or re.search(r"\b\d+(?:[.,]\d+)?\s*(?:usd|eur|rub|kzt|сом|руб|р\.?)\b", text)
     )
+
+
+def _tokenize_text(text: str) -> set[str]:
+    """Extract lowercase word tokens for boundary-safe heuristics."""
+    return {
+        token
+        for token in re.findall(r"[a-zа-яё]+", text.lower())
+        if token
+    }
 
 
 def _strip_personalization_prefix(text: str) -> str:
@@ -1205,7 +1251,7 @@ def _looks_like_personalization_rule(text: str) -> bool:
         return False
     if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS):
         return True
-    if any(marker in lower for marker in _RULE_MARKERS):
+    if any(lower.startswith(prefix) for prefix in _RULE_PREFIXES):
         return is_valid_user_rule(text)
     return False
 
@@ -1217,7 +1263,13 @@ def _rule_based_track_drink(text: str) -> IntentDetectionResult | None:
         return None
     if any(lower.startswith(prefix) for prefix in _PERSONALIZATION_PREFIXES):
         return None
-    if not any(marker in lower for marker in _TRACK_DRINK_MARKERS):
+    leading_number = re.match(r"^\s*(\d+)(?:[.,]\d+)?\b", lower)
+    if leading_number:
+        value = int(leading_number.group(1))
+        if value > 10 and "мл" not in lower and "ml" not in lower:
+            return None
+    tokens = _tokenize_text(lower)
+    if not tokens.intersection(_TRACK_DRINK_MARKERS):
         return None
     return IntentDetectionResult(
         intent="track_drink",
@@ -1226,6 +1278,27 @@ def _rule_based_track_drink(text: str) -> IntentDetectionResult | None:
         data=IntentData(),
         response=None,
     )
+
+
+def _rule_based_dialog_history(text: str) -> IntentDetectionResult | None:
+    """Fast-path direct requests to summarize prior conversations."""
+    lower = text.lower().strip()
+    if not lower:
+        return None
+    if any(marker in lower for marker in _DIALOG_HISTORY_MARKERS):
+        period = "today"
+        if any(word in lower for word in ("вчера", "yesterday")):
+            period = "yesterday"
+        elif any(word in lower for word in ("недел", "week")):
+            period = "week"
+        return IntentDetectionResult(
+            intent="dialog_history",
+            confidence=0.97,
+            intent_type="action",
+            data=IntentData(period=period),
+            response=None,
+        )
+    return None
 
 
 def _rule_based_read_inbox(text: str) -> IntentDetectionResult | None:
@@ -1553,6 +1626,10 @@ async def detect_intent(
     write_post_fast_path = _rule_based_write_post(text)
     if write_post_fast_path:
         return write_post_fast_path
+
+    dialog_history_fast_path = _rule_based_dialog_history(text)
+    if dialog_history_fast_path:
+        return dialog_history_fast_path
 
     forget_fast_path = _rule_based_memory_forget(text)
     if forget_fast_path:
@@ -1910,6 +1987,10 @@ async def detect_intent_scoped(
     write_post_fast_path = _rule_based_write_post(text)
     if write_post_fast_path:
         return write_post_fast_path
+
+    dialog_history_fast_path = _rule_based_dialog_history(text)
+    if dialog_history_fast_path:
+        return dialog_history_fast_path
 
     forget_fast_path = _rule_based_memory_forget(text)
     if forget_fast_path:

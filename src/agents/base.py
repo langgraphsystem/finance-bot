@@ -42,6 +42,10 @@ _SKILL_ONLY_INTENTS = {
     "set_project",
     "create_project",
     "list_projects",
+    "shopping_list_add",
+    "shopping_list_view",
+    "shopping_list_remove",
+    "shopping_list_clear",
     # Life tracking handlers are more reliable than generic data tools.
     "quick_capture",
     "track_food",
