@@ -269,11 +269,55 @@ def _parse_preference_fact(content: str) -> dict:
     return updates
 
 
+_RULE_KEYWORDS = (
+    "отвечай", "пиши", "говори", "используй", "без ", "не используй",
+    "коротко", "подробно", "на русском", "на английском", "по-русски",
+    "respond", "answer", "write", "use ", "without", "no ", "always",
+    "never", "keep", "brief", "emoji", "эмодзи", "язык", "language",
+    "зови себя", "your name", "call yourself", "тебя зовут",
+    "формат", "format", "стиль", "style", "тон", "tone",
+)
+
+_RULE_REJECT_PREFIXES = (
+    "как ", "what ", "who ", "where ", "when ", "why ",
+    "забудь", "удали", "forget", "delete", "remove",
+)
+
+_RULE_REJECT_EXACT = frozenset({
+    "да", "нет", "ок", "ok", "okay", "yes", "no", "хорошо", "ладно",
+    "понял", "поняла", "понятно", "ясно", "конечно", "sure", "yeah",
+    "да, всегда", "всегда", "always", "never", "никогда",
+    "спасибо", "thanks", "спс", "thx",
+})
+
+
+def _is_valid_rule(text: str) -> bool:
+    """Check if text looks like a legitimate user rule."""
+    stripped = text.strip()
+    if len(stripped) < 5:
+        return False
+    lower = stripped.lower()
+    if lower in _RULE_REJECT_EXACT:
+        return False
+    if any(lower.startswith(p) for p in _RULE_REJECT_PREFIXES):
+        return False
+    if any(kw in lower for kw in _RULE_KEYWORDS):
+        return True
+    # Reject if no rule keyword found — likely garbage from LLM misclassification
+    logger.debug("Rejected invalid rule (no keyword match): %s", stripped[:60])
+    return False
+
+
 async def _add_user_rule(user_id: str, rule_text: str) -> None:
     """Add a user rule to active_rules JSONB array.
 
     Creates the user_profiles row if it doesn't exist yet (upsert).
+    Validates that the text looks like a real rule before saving.
     """
+    if not _is_valid_rule(rule_text):
+        logger.info("Skipped invalid rule for %s: %s", user_id, rule_text[:60])
+        return
+
     try:
         async with async_session() as session:
             await _ensure_user_profile(session, user_id)
@@ -381,7 +425,22 @@ def format_identity_block(identity: dict) -> str:
     if not identity:
         return ""
 
+    # Build explicit LLM instructions for saved names
+    instructions: list[str] = []
+    if identity.get("bot_name"):
+        instructions.append(
+            f"Your name is {identity['bot_name']}. "
+            f"Always introduce yourself as {identity['bot_name']} when asked."
+        )
+    if identity.get("name"):
+        instructions.append(
+            f"The user's name is {identity['name']}. "
+            "Address them by name naturally."
+        )
+
     parts: list[str] = []
+    if instructions:
+        parts.append("IMPORTANT: " + " ".join(instructions))
     if identity.get("bot_name"):
         parts.append(f"Bot Name: {identity['bot_name']}")
     if identity.get("bot_role"):

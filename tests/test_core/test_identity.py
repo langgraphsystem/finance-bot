@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.identity import (
     _EMPTY_IDENTITY,
+    _is_valid_rule,
     _parse_bot_identity_fact,
     _parse_identity_fact,
     clear_identity_fields,
@@ -367,3 +368,66 @@ class TestFormatRulesBlock:
         assert "<user_rules>" in result
         assert "- без эмодзи" in result
         assert "- отвечай коротко" in result
+
+
+class TestIsValidRule:
+    def test_valid_rules(self):
+        assert _is_valid_rule("без эмодзи") is True
+        assert _is_valid_rule("отвечай коротко") is True
+        assert _is_valid_rule("пиши на русском") is True
+        assert _is_valid_rule("always respond in English") is True
+        assert _is_valid_rule("no emoji please") is True
+        assert _is_valid_rule("зови себя Хюррем") is True
+        assert _is_valid_rule("your name is Luna") is True
+        assert _is_valid_rule("keep it brief") is True
+
+    def test_rejects_garbage(self):
+        assert _is_valid_rule("да") is False
+        assert _is_valid_rule("ок") is False
+        assert _is_valid_rule("да, всегда") is False
+        assert _is_valid_rule("хорошо") is False
+        assert _is_valid_rule("спасибо") is False
+        assert _is_valid_rule("ok") is False
+
+    def test_rejects_short(self):
+        assert _is_valid_rule("да") is False
+        assert _is_valid_rule("нет") is False
+        assert _is_valid_rule("abc") is False
+
+    def test_rejects_questions(self):
+        assert _is_valid_rule("как тебя зовут?") is False
+        assert _is_valid_rule("what is your name") is False
+
+    def test_rejects_forget_commands(self):
+        assert _is_valid_rule("забудь правило") is False
+        assert _is_valid_rule("удали все") is False
+        assert _is_valid_rule("forget my name") is False
+
+    def test_rejects_no_keyword_match(self):
+        assert _is_valid_rule("я тебя назвал Хюррем") is False
+        assert _is_valid_rule("Мындан кийин сенин атын Хюррем болот") is False
+        assert _is_valid_rule("Запомни тебя буду называть Хюррем ок?") is False
+
+
+class TestFormatIdentityBlockInstructions:
+    def test_bot_name_instruction(self):
+        result = format_identity_block({"bot_name": "Хюррем"})
+        assert "IMPORTANT:" in result
+        assert "Your name is Хюррем" in result
+        assert "introduce yourself as Хюррем" in result
+
+    def test_user_name_instruction(self):
+        result = format_identity_block({"name": "Манас"})
+        assert "IMPORTANT:" in result
+        assert "user's name is Манас" in result
+        assert "Address them by name" in result
+
+    def test_both_names_instruction(self):
+        result = format_identity_block({"bot_name": "Хюррем", "name": "Манас"})
+        assert "Your name is Хюррем" in result
+        assert "user's name is Манас" in result
+
+    def test_no_instruction_without_names(self):
+        result = format_identity_block({"city": "Chicago"})
+        assert "IMPORTANT:" not in result
+        assert "City: Chicago" in result
