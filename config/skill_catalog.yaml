@@ -346,6 +346,11 @@ domains:
       - найди
       - сравни
       - цена
+      - подробнее
+      - контент-план
+      - content plan
+      - похожие видео
+      - similar video
     agent: research
     skills:
       - quick_answer

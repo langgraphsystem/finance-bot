@@ -441,6 +441,35 @@ async def _dispatch_message(
         intent_data = result.data.model_dump() if result.data else {}
         intent_data["confidence"] = result.confidence
 
+        # Video follow-up override: if LLM picked general intent but active video session
+        # exists and message matches follow-up keywords → route to video_action
+        if intent_name in ("general_chat", "quick_answer") and message.text:
+            _VIDEO_FOLLOWUP_MAP: list[tuple[str, list[str]]] = [
+                ("content_plan", ["контент-план", "контент план", "content plan", "план контента"]),
+                ("steps", ["по шагам", "пошагово", "список шагов", "выпиши шаги", "шаги из"]),
+                ("article", ["напиши статью", "сделай статью", "write an article", "blog post"]),
+                ("script", ["сценарий", "напиши сценарий", "write a script"]),
+                ("summary", ["резюме видео", "сделай резюме", "вкратце перескажи", "summarize video"]),
+                ("save", ["сохрани видео", "save video", "запомни видео"]),
+                ("remind", ["напомни посмотреть", "remind me to watch"]),
+                ("translate", ["переведи видео", "translate video"]),
+                ("similar", ["найди похожие", "похожие видео", "ещё видео", "find similar"]),
+                ("quotes", ["процитируй", "ключевые цитаты", "key quotes"]),
+                ("deeper", ["подробнее", "расскажи ещё", "расскажи еще", "tell me more", "more details", "подробней"]),
+            ]
+            text_lower = message.text.lower()
+            matched_action = None
+            for action, keywords in _VIDEO_FOLLOWUP_MAP:
+                if any(kw in text_lower for kw in keywords):
+                    matched_action = action
+                    break
+            if matched_action:
+                from src.core.video_session import get_video_session as _gvs
+                _vsess = await _gvs(context.user_id)
+                if _vsess:
+                    intent_name = "video_action"
+                    intent_data["video_action_type"] = matched_action
+
         # CLARIFY gate: if LLM is uncertain, present disambiguation buttons
         if (
             result.intent_type == "clarify"
