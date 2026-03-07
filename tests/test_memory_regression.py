@@ -120,11 +120,14 @@ class TestProblem7PastConversations:
 # ---------------------------------------------------------------------------
 class TestProblem8RuleCheck:
     async def test_post_gen_check_exists(self):
+        from src.core.config import settings
         from src.core.post_gen_check import check_response_rules
 
-        # With ff_post_gen_check=False, should always return OK
-        ok, violation = await check_response_rules("test", ["rule"])
+        with patch.object(settings, "ff_post_gen_check", False):
+            ok, violation = await check_response_rules("test", ["rule"])
+
         assert ok is True
+        assert violation == ""
 
     def test_feature_flag_exists(self):
         from src.core.config import settings

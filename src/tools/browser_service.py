@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import delete, select
 
+from src.core.config import settings
 from src.core.crypto import decrypt_token, encrypt_token
 from src.core.db import async_session
 from src.core.models.browser_action_log import BrowserActionLog
@@ -233,9 +234,10 @@ async def execute_with_session(
     """Execute a browser task with saved cookies.
 
     1. Load encrypted storage_state from DB
-    2. Launch Browser-Use with that state
-    3. Save updated cookies back to DB
-    4. Log the action
+    2. Try OpenAI Computer Use first when enabled
+    3. Fallback to Browser-Use if needed
+    4. Save updated cookies back to DB
+    5. Log the action
 
     Returns dict with success, result, engine keys.
     """
@@ -244,6 +246,41 @@ async def execute_with_session(
 
     domain = extract_domain(site)
     storage_state = await get_storage_state(user_id, domain)
+
+    if settings.ff_browser_computer_use and settings.openai_api_key:
+        from src.tools import computer_use_service
+
+        cu_result = await computer_use_service.execute_task(
+            storage_state=storage_state,
+            site=domain,
+            task=task,
+            max_steps=max(max_steps, 25),
+            timeout=max(timeout, 180),
+        )
+        if cu_result.get("storage_state"):
+            try:
+                await save_storage_state(
+                    user_id,
+                    family_id,
+                    domain,
+                    cu_result["storage_state"],
+                )
+            except Exception as e:
+                logger.warning("Failed to save updated cookies after computer-use task: %s", e)
+
+        cu_text = str(cu_result.get("result", ""))
+        if cu_result.get("success") or cu_text in {"LOGIN_REQUIRED", "CAPTCHA_DETECTED"}:
+            await log_action(
+                user_id=user_id,
+                action_type="browser_task",
+                url=cu_result.get("url") or f"https://{domain}",
+                details={
+                    "task": task[:200],
+                    "success": bool(cu_result.get("success")),
+                    "engine": cu_result.get("engine"),
+                },
+            )
+            return cu_result
 
     try:
         from browser_use import Agent as BrowserAgent

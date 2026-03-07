@@ -131,3 +131,48 @@ async def test_log_action():
             details={"task": "check booking"},
         )
         mock_session.add.assert_called_once()
+
+
+async def test_execute_with_session_prefers_computer_use_backend():
+    from src.tools import browser_service
+
+    with (
+        patch.object(browser_service.settings, "ff_browser_computer_use", True),
+        patch.object(browser_service.settings, "openai_api_key", "sk-test"),
+        patch(
+            "src.tools.browser_service.get_storage_state",
+            new_callable=AsyncMock,
+            return_value={"cookies": [{"name": "session", "value": "abc"}]},
+        ),
+        patch(
+            "src.tools.browser_service.save_storage_state",
+            new_callable=AsyncMock,
+        ) as mock_save,
+        patch(
+            "src.tools.browser_service.log_action",
+            new_callable=AsyncMock,
+        ) as mock_log,
+        patch(
+            "src.tools.computer_use_service.execute_task",
+            new_callable=AsyncMock,
+            return_value={
+                "success": True,
+                "result": "Order placed successfully.",
+                "engine": "openai_computer_use",
+                "storage_state": {"cookies": [{"name": "session", "value": "new"}]},
+                "url": "https://amazon.com/checkout/complete",
+            },
+        ) as mock_cu,
+    ):
+        result = await browser_service.execute_with_session(
+            user_id=_TEST_USER_ID,
+            family_id=_TEST_FAMILY_ID,
+            site="amazon.com",
+            task="Buy paper towels from my saved cart",
+        )
+
+    assert result["success"] is True
+    assert result["engine"] == "openai_computer_use"
+    mock_cu.assert_awaited_once()
+    mock_save.assert_awaited_once()
+    mock_log.assert_awaited_once()

@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    openai_computer_use_model: str = "gpt-5.4"
     google_ai_api_key: str = ""
     xai_api_key: str = ""
 
@@ -125,6 +126,7 @@ class Settings(BaseSettings):
     ff_sia_synthesis: bool = False
     ff_dual_search: bool = False
     ff_post_gen_check: bool = True
+    ff_browser_computer_use: bool = True
 
     @property
     def is_production(self) -> bool:
