@@ -10,25 +10,11 @@ from src.core.observability import observe
 from src.core.video_session import VideoSession, get_video_session
 from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
+from src.skills.video_action.i18n import get_video_buttons, get_writing_buttons, t
 
 logger = logging.getLogger(__name__)
 
 MODEL = "gemini-3.1-flash-lite-preview"
-
-# Action buttons shown after every video action response
-_BACK_BUTTONS = [
-    {"text": "📋 Контент-план", "callback": "video:content_plan"},
-    {"text": "📝 Пост", "callback": "video:post"},
-    {"text": "📌 Шаги", "callback": "video:steps"},
-    {"text": "💾 Сохранить", "callback": "video:save"},
-    {"text": "⏰ Напомнить", "callback": "video:remind"},
-    {"text": "🔍 Похожие", "callback": "video:similar"},
-    {"text": "📖 Подробнее", "callback": "video:deeper"},
-    {"text": "🌐 Перевести", "callback": "video:translate"},
-    {"text": "📄 Статья", "callback": "video:article"},
-]
-
-_NO_VIDEO_MSG = "No recent video found. Send a YouTube or TikTok link first."
 
 
 class VideoActionSkill:
@@ -45,7 +31,8 @@ class VideoActionSkill:
     ) -> SkillResult:
         action = intent_data.get("video_action_type") or "deeper"
         session = await get_video_session(context.user_id)
-        return await _dispatch(action, session, context.language or "en", message.text or "")
+        language = context.language or "en"
+        return await _dispatch(action, session, language, message.text or "")
 
     def get_system_prompt(self, context) -> str:
         return ""
@@ -64,7 +51,7 @@ async def _dispatch(
     user_text: str,
 ) -> SkillResult:
     if not session:
-        return SkillResult(response_text=_NO_VIDEO_MSG)
+        return SkillResult(response_text=t("no_video", language))
 
     handlers = {
         "deeper": _action_deeper,
@@ -85,7 +72,7 @@ async def _dispatch(
 
 
 # ---------------------------------------------------------------------------
-# Individual action handlers
+# Internal helpers
 # ---------------------------------------------------------------------------
 
 async def _gemini(prompt: str) -> str:
@@ -109,6 +96,10 @@ def _context_block(session: VideoSession) -> str:
     return "\n".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# Individual action handlers
+# ---------------------------------------------------------------------------
+
 async def _action_deeper(session: VideoSession, language: str, _: str) -> SkillResult:
     prompt = (
         f"Provide a detailed deep-dive analysis of this video. "
@@ -117,7 +108,10 @@ async def _action_deeper(session: VideoSession, language: str, _: str) -> SkillR
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not generate analysis.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_analysis", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_steps(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -128,7 +122,10 @@ async def _action_steps(session: VideoSession, language: str, _: str) -> SkillRe
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "No steps found.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_steps", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_quotes(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -138,7 +135,10 @@ async def _action_quotes(session: VideoSession, language: str, _: str) -> SkillR
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "No quotes extracted.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_quotes", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_content_plan(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -149,7 +149,10 @@ async def _action_content_plan(session: VideoSession, language: str, _: str) -> 
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not generate content plan.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_content_plan", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_post(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -161,12 +164,8 @@ async def _action_post(session: VideoSession, language: str, _: str) -> SkillRes
     )
     text = await _gemini(prompt)
     return SkillResult(
-        response_text=text or "Could not generate post.",
-        buttons=[
-            {"text": "📋 Контент-план", "callback": "video:content_plan"},
-            {"text": "📄 Статья", "callback": "video:article"},
-            {"text": "📝 Сценарий", "callback": "video:script"},
-        ],
+        response_text=text or t("err_post", language),
+        buttons=get_writing_buttons(language),
     )
 
 
@@ -178,7 +177,10 @@ async def _action_article(session: VideoSession, language: str, _: str) -> Skill
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not generate article.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_article", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_script(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -189,7 +191,10 @@ async def _action_script(session: VideoSession, language: str, _: str) -> SkillR
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not generate script.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_script", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_summary(session: VideoSession, language: str, _: str) -> SkillResult:
@@ -198,54 +203,52 @@ async def _action_summary(session: VideoSession, language: str, _: str) -> Skill
         f"Respond in {language}.\n\n{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not summarize.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_summary", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_save(session: VideoSession, language: str, _: str) -> SkillResult:
-    from src.core.memory.mem0_client import add_memory
-
-    content = f"Saved video: {session.url}"
-    if session.analysis:
-        content += f"\n\nSummary: {session.analysis[:500]}"
-
-    # We don't have user_id here directly — save will be handled via callback with user_id
     return SkillResult(
         response_text=(
-            f"💾 <b>Video saved to memory:</b>\n"
+            f'💾 <b>{t("saved_title", language)}</b>\n'
             f'<a href="{session.url}">{session.url}</a>\n\n'
-            f"You can ask me about it later."
+            f'{t("saved_note", language)}'
         ),
-        buttons=_BACK_BUTTONS,
-        # Pass add_memory as background task — user_id injected by router
-        background_tasks=[lambda: None],  # placeholder, actual save done in callback
+        buttons=get_video_buttons(language),
+        # Actual Mem0 save is handled in router.py callback with user_id
+        background_tasks=[lambda: None],
     )
 
 
 async def _action_remind(session: VideoSession, language: str, _: str) -> SkillResult:
     return SkillResult(
         response_text=(
-            f"⏰ When do you want to be reminded to watch this video?\n"
+            f'⏰ {t("remind_prompt", language)}\n'
             f'<a href="{session.url}">{session.url}</a>\n\n'
-            f'Reply with time, e.g. <b>"напомни через 2 часа"</b> or <b>"remind me tomorrow at 9am"</b>'
+            f'{t("remind_hint", language)}'
         ),
     )
 
 
 async def _action_translate(session: VideoSession, language: str, _: str) -> SkillResult:
-    target = "English" if language.startswith("ru") else "Russian"
+    target = "English" if language.startswith("ru") or language.startswith("es") else "Russian"
     prompt = (
         f"Retell and translate the key content of this video into {target}. "
         f"Keep the most important information. Use HTML tags.\n\n"
         f"{_context_block(session)}"
     )
     text = await _gemini(prompt)
-    return SkillResult(response_text=text or "Could not translate.", buttons=_BACK_BUTTONS)
+    return SkillResult(
+        response_text=text or t("err_translate", language),
+        buttons=get_video_buttons(language),
+    )
 
 
 async def _action_similar(session: VideoSession, language: str, _: str) -> SkillResult:
     from src.skills.youtube_search.handler import search_youtube_grounding
 
-    # Extract topic from analysis for search
     prompt = (
         f"In 5-7 words, what is the main topic of this video? "
         f"Reply with only the search query, no other text.\n\n"
@@ -258,8 +261,8 @@ async def _action_similar(session: VideoSession, language: str, _: str) -> Skill
     topic = topic.strip().strip('"').strip("'")
     result = await search_youtube_grounding(topic, language)
     return SkillResult(
-        response_text=f"<b>Similar videos for: {topic}</b>\n\n{result}",
-        buttons=_BACK_BUTTONS,
+        response_text=f'<b>{t("similar_title", language)} {topic}</b>\n\n{result}',
+        buttons=get_video_buttons(language),
     )
 
 

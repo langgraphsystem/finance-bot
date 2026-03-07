@@ -16,19 +16,7 @@ from src.core.video_session import VideoSession, save_video_session
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
-
-# Buttons shown after every video analysis
-_VIDEO_ACTION_BUTTONS = [
-    {"text": "📋 Контент-план", "callback": "video:content_plan"},
-    {"text": "📝 Пост", "callback": "video:post"},
-    {"text": "📌 Шаги", "callback": "video:steps"},
-    {"text": "💾 Сохранить", "callback": "video:save"},
-    {"text": "⏰ Напомнить", "callback": "video:remind"},
-    {"text": "🔍 Похожие", "callback": "video:similar"},
-    {"text": "📖 Подробнее", "callback": "video:deeper"},
-    {"text": "🌐 Перевести", "callback": "video:translate"},
-    {"text": "📄 Статья", "callback": "video:article"},
-]
+from src.skills.video_action.i18n import get_video_buttons
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +143,7 @@ class YouTubeSearchSkill:
             answer = await analyze_youtube_url(yt_url, query, language)
             session = VideoSession(url=yt_url, platform="youtube", analysis=answer, language=language)
             await save_video_session(context.user_id, session)
-            return SkillResult(response_text=answer, buttons=_VIDEO_ACTION_BUTTONS)
+            return SkillResult(response_text=answer, buttons=get_video_buttons(language))
 
         # Check if query contains a TikTok URL → analyze that video
         tt_url = extract_tiktok_url(query)
@@ -163,7 +151,7 @@ class YouTubeSearchSkill:
             answer = await analyze_tiktok_url(tt_url, query, language)
             session = VideoSession(url=tt_url, platform="tiktok", analysis=answer, language=language)
             await save_video_session(context.user_id, session)
-            return SkillResult(response_text=answer, buttons=_VIDEO_ACTION_BUTTONS)
+            return SkillResult(response_text=answer, buttons=get_video_buttons(language))
 
         detail_mode = bool(intent_data.get("detail_mode"))
         has_api_key = bool(settings.youtube_api_key)
