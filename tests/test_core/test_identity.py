@@ -7,6 +7,8 @@ from src.core.identity import (
     _EMPTY_IDENTITY,
     _parse_bot_identity_fact,
     _parse_identity_fact,
+    clear_identity_fields,
+    clear_user_rules,
     format_identity_block,
     format_rules_block,
     get_core_identity,
@@ -203,6 +205,68 @@ class TestImmediateIdentityUpdate:
         ):
             await immediate_identity_update(uid, "spending_pattern", "buys coffee daily")
         mock_update.assert_not_awaited()
+
+
+class TestClearUserRules:
+    async def test_clears_all_rules_and_returns_count(self):
+        uid = str(uuid.uuid4())
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch(
+                "src.core.identity.get_user_rules",
+                new_callable=AsyncMock,
+                return_value=["без эмодзи", "отвечай коротко"],
+            ),
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+        ):
+            cleared = await clear_user_rules(uid)
+
+        assert cleared == 2
+        mock_session.execute.assert_awaited_once()
+        mock_session.commit.assert_awaited_once()
+
+    async def test_returns_zero_when_no_rules(self):
+        with patch(
+            "src.core.identity.get_user_rules",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            cleared = await clear_user_rules(str(uuid.uuid4()))
+
+        assert cleared == 0
+
+
+class TestClearIdentityFields:
+    async def test_removes_requested_existing_fields_only(self):
+        uid = str(uuid.uuid4())
+        with (
+            patch(
+                "src.core.identity.get_core_identity",
+                new_callable=AsyncMock,
+                return_value={"bot_name": "Хюррем", "name": "Манас"},
+            ),
+            patch("src.core.identity.update_core_identity", new_callable=AsyncMock) as mock_update,
+        ):
+            removed = await clear_identity_fields(uid, ["bot_name", "city"])
+
+        assert removed == ["bot_name"]
+        mock_update.assert_awaited_once_with(uid, {"bot_name": None})
+
+    async def test_returns_empty_when_nothing_to_remove(self):
+        with patch(
+            "src.core.identity.get_core_identity",
+            new_callable=AsyncMock,
+            return_value={},
+        ):
+            removed = await clear_identity_fields(str(uuid.uuid4()), ["bot_name"])
+
+        assert removed == []
 
 
 class TestParseIdentityFact:

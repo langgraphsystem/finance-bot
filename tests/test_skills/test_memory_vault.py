@@ -1,9 +1,41 @@
 """Tests for Memory Vault skill — show / forget / save."""
 
+import importlib
+import sys
+import types
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, patch
 
-from src.skills.memory_vault.handler import MemoryVaultSkill
+
+class _DummyConnectionPool:
+    pass
+
+
+def _load_memory_vault_handler():
+    if "psycopg_pool" not in sys.modules:
+        psycopg_pool = types.ModuleType("psycopg_pool")
+        psycopg_pool.ConnectionPool = _DummyConnectionPool
+        sys.modules["psycopg_pool"] = psycopg_pool
+
+    if "mem0" not in sys.modules:
+        mem0 = types.ModuleType("mem0")
+
+        class _DummyMemory:
+            @classmethod
+            def from_config(cls, config):
+                return cls()
+
+        mem0.Memory = _DummyMemory
+        sys.modules["mem0"] = mem0
+        sys.modules["mem0.vector_stores"] = types.ModuleType("mem0.vector_stores")
+        pgvector = types.ModuleType("mem0.vector_stores.pgvector")
+        pgvector.ConnectionPool = _DummyConnectionPool
+        sys.modules["mem0.vector_stores.pgvector"] = pgvector
+
+    return importlib.import_module("src.skills.memory_vault.handler")
+
+
+MemoryVaultSkill = _load_memory_vault_handler().MemoryVaultSkill
 
 
 @dataclass
@@ -170,6 +202,135 @@ async def test_memory_forget_all():
         )
     assert "all memories cleared" in result.response_text.lower()
     mock_del_all.assert_called_once()
+
+
+async def test_memory_forget_all_rules_clears_rules_not_all_memories():
+    ctx = _MockContext()
+    with (
+        patch(
+            "src.core.identity.clear_user_rules",
+            new_callable=AsyncMock,
+            return_value=2,
+        ) as mock_clear_rules,
+        patch("src.core.identity.clear_identity_fields", new_callable=AsyncMock),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
+        patch("src.core.identity.remove_user_rule", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "id": "m1",
+                    "memory": "без эмодзи",
+                    "metadata": {"category": "user_rule"},
+                }
+            ],
+        ),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
+        patch(
+            "src.core.memory.mem0_client.delete_all_memories",
+            new_callable=AsyncMock,
+        ) as mock_del_all,
+    ):
+        result = await skill.execute(
+            _MockMessage(text="удали все правила"),
+            ctx,
+            {"_intent": "memory_forget", "memory_query": "удали все правила"},
+        )
+
+    assert "cleared all saved rules" in result.response_text.lower()
+    mock_clear_rules.assert_awaited_once_with("u1")
+    mock_del.assert_awaited_once_with("m1", "u1")
+    mock_del_all.assert_not_awaited()
+
+
+async def test_memory_forget_specific_saved_rule():
+    ctx = _MockContext()
+    with (
+        patch("src.core.identity.clear_user_rules", new_callable=AsyncMock, return_value=0),
+        patch("src.core.identity.clear_identity_fields", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "src.core.identity.get_user_rules",
+            new_callable=AsyncMock,
+            return_value=["Мындан кийин сенин атын Хюррем болот"],
+        ),
+        patch(
+            "src.core.identity.remove_user_rule",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_remove_rule,
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "id": "m1",
+                    "memory": "Мындан кийин сенин атын Хюррем болот",
+                    "metadata": {"category": "user_rule"},
+                }
+            ],
+        ),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
+        patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+    ):
+        result = await skill.execute(
+            _MockMessage(text="забудь Мындан кийин сенин атын Хюррем болот"),
+            ctx,
+            {
+                "_intent": "memory_forget",
+                "memory_query": "забудь Мындан кийин сенин атын Хюррем болот",
+            },
+        )
+
+    assert "removed saved rule" in result.response_text.lower()
+    mock_remove_rule.assert_awaited_once_with("u1", "Мындан кийин сенин атын Хюррем болот")
+    mock_del.assert_awaited_once_with("m1", "u1")
+
+
+async def test_memory_forget_bot_name_clears_identity():
+    ctx = _MockContext()
+    with (
+        patch("src.core.identity.clear_user_rules", new_callable=AsyncMock, return_value=0),
+        patch(
+            "src.core.identity.clear_identity_fields",
+            new_callable=AsyncMock,
+            return_value=["bot_name"],
+        ) as mock_clear_identity,
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
+        patch("src.core.identity.remove_user_rule", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "id": "m1",
+                    "memory": "зови себя Хюррем",
+                    "metadata": {"category": "bot_identity"},
+                }
+            ],
+        ),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
+        patch(
+            "src.core.memory.mem0_client.delete_all_memories",
+            new_callable=AsyncMock,
+        ) as mock_del_all,
+    ):
+        result = await skill.execute(
+            _MockMessage(text="забудь как тебя зовут"),
+            ctx,
+            {"_intent": "memory_forget", "memory_query": "забудь как тебя зовут"},
+        )
+
+    assert "forgot my saved name" in result.response_text.lower()
+    mock_clear_identity.assert_awaited_once_with("u1", ["bot_name"])
+    mock_del.assert_awaited_once_with("m1", "u1")
+    mock_del_all.assert_not_awaited()
 
 
 async def test_memory_forget_empty_query():

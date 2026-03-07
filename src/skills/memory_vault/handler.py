@@ -1,9 +1,18 @@
 """Memory Vault — user-controlled memory management (show / forget / save / update)."""
 
 import logging
+import re
 from typing import Any
 
 from src.core.observability import observe
+from src.core.personalization import (
+    has_all_marker,
+    is_bot_name_forget_request,
+    is_clear_all_rules_request,
+    is_user_name_forget_request,
+    match_saved_rule,
+    strip_forget_command,
+)
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
@@ -48,7 +57,12 @@ class MemoryVaultSkill:
         if intent == "memory_forget":
             query = intent_data.get("memory_query") or message.text or ""
             return await self._handle_forget(
-                context, query, search_memories, delete_memory, delete_all_memories
+                context,
+                query,
+                search_memories,
+                delete_memory,
+                delete_all_memories,
+                get_all_memories,
             )
 
         if intent == "memory_save":
@@ -91,15 +105,77 @@ class MemoryVaultSkill:
         )
 
     async def _handle_forget(
-        self, context, query, search_memories, delete_memory, delete_all_memories
+        self,
+        context,
+        query,
+        search_memories,
+        delete_memory,
+        delete_all_memories,
+        get_all_memories,
     ) -> SkillResult:
+        from src.core.identity import (
+            clear_identity_fields,
+            clear_user_rules,
+            get_user_rules,
+            remove_user_rule,
+        )
+
         query = query.strip()
         if not query:
             return SkillResult(response_text="What should I forget? Tell me what to remove.")
 
-        # Check for "clear all" / "forget everything"
-        lower = query.lower()
-        if any(kw in lower for kw in ["all", "everything", "всё", "все", "todo"]):
+        if is_clear_all_rules_request(query):
+            deleted_rules = await clear_user_rules(context.user_id)
+            await self._delete_personalization_memories(
+                context.user_id,
+                get_all_memories,
+                delete_memory,
+                categories={"user_rule"},
+            )
+            if deleted_rules:
+                return SkillResult(response_text="Cleared all saved rules.")
+            return SkillResult(response_text="I couldn't find any saved rules to clear.")
+
+        if is_bot_name_forget_request(query):
+            deleted_fields = await clear_identity_fields(context.user_id, ["bot_name"])
+            await self._delete_personalization_memories(
+                context.user_id,
+                get_all_memories,
+                delete_memory,
+                categories={"bot_identity"},
+            )
+            if deleted_fields:
+                return SkillResult(response_text="Forgot my saved name.")
+            return SkillResult(response_text="I don't have a saved assistant name.")
+
+        if is_user_name_forget_request(query):
+            deleted_fields = await clear_identity_fields(context.user_id, ["name"])
+            await self._delete_personalization_memories(
+                context.user_id,
+                get_all_memories,
+                delete_memory,
+                categories={"user_identity"},
+            )
+            if deleted_fields:
+                return SkillResult(response_text="Forgot your saved name.")
+            return SkillResult(response_text="I don't have your saved name yet.")
+
+        saved_rules = await get_user_rules(context.user_id)
+        matched_rule = match_saved_rule(query, saved_rules)
+        if matched_rule:
+            removed = await remove_user_rule(context.user_id, matched_rule)
+            if removed:
+                await self._delete_personalization_memories(
+                    context.user_id,
+                    get_all_memories,
+                    delete_memory,
+                    categories={"user_rule"},
+                    exact_texts={matched_rule},
+                )
+                return SkillResult(response_text=f"Removed saved rule: <b>{matched_rule}</b>.")
+            return SkillResult(response_text=f"I couldn't remove the saved rule '{matched_rule}'.")
+
+        if _is_clear_all_memory_request(query):
             await delete_all_memories(context.user_id)
             return SkillResult(response_text="All memories cleared.")
 
@@ -123,6 +199,43 @@ class MemoryVaultSkill:
                 f"matching '{query}'."
             )
         return SkillResult(response_text=f"Could not delete memories for '{query}'.")
+
+    async def _delete_personalization_memories(
+        self,
+        user_id,
+        get_all_memories,
+        delete_memory,
+        categories: set[str],
+        exact_texts: set[str] | None = None,
+    ) -> int:
+        memories = await get_all_memories(user_id)
+        if not memories:
+            return 0
+
+        normalized_texts = {_normalize_memory_text(text) for text in exact_texts or set()}
+        deleted = 0
+        for mem in memories:
+            mem_id = mem.get("id")
+            if not mem_id:
+                continue
+
+            text = mem.get("memory") or mem.get("text") or ""
+            metadata = mem.get("metadata") or {}
+            category = metadata.get("category") or mem.get("category")
+            matches_category = category in categories
+            matches_text = (
+                _normalize_memory_text(text) in normalized_texts if normalized_texts else False
+            )
+            if not matches_category and not matches_text:
+                continue
+
+            try:
+                await delete_memory(mem_id, user_id)
+                deleted += 1
+            except Exception:
+                logger.warning("Failed to delete personalization memory %s", mem_id, exc_info=True)
+
+        return deleted
 
     async def _handle_save(self, context, content, add_memory) -> SkillResult:
         content = content.strip()
@@ -184,3 +297,28 @@ class MemoryVaultSkill:
 
 
 skill = MemoryVaultSkill()
+
+
+def _normalize_memory_text(text: str) -> str:
+    return text.strip().strip("\"'`“”‘’.,!? ").lower()
+
+
+def _is_clear_all_memory_request(query: str) -> bool:
+    remainder = strip_forget_command(query)
+    if not remainder or not has_all_marker(remainder):
+        return False
+    tokens = {token.lower() for token in re.findall(r"[\wёЁ]+", remainder)}
+    allowed = {
+        "all",
+        "everything",
+        "todo",
+        "все",
+        "всё",
+        "memory",
+        "memories",
+        "память",
+        "памяти",
+        "воспоминание",
+        "воспоминания",
+    }
+    return tokens <= allowed

@@ -343,6 +343,39 @@ async def remove_user_rule(user_id: str, rule_text: str) -> bool:
         return False
 
 
+async def clear_user_rules(user_id: str) -> int:
+    """Remove all saved active_rules for a user."""
+    try:
+        rules = await get_user_rules(user_id)
+        if not rules:
+            return 0
+
+        async with async_session() as session:
+            await session.execute(
+                update(UserProfile)
+                .where(UserProfile.user_id == _uuid.UUID(user_id))
+                .values(active_rules=[])
+            )
+            await session.commit()
+
+        await invalidate_identity_cache(user_id)
+        return len(rules)
+    except Exception as e:
+        logger.warning("Failed to clear user rules for %s: %s", user_id, e)
+        return 0
+
+
+async def clear_identity_fields(user_id: str, fields: list[str]) -> list[str]:
+    """Delete selected keys from core_identity if they exist."""
+    current = await get_core_identity(user_id)
+    removable = [field for field in fields if current.get(field) is not None]
+    if not removable:
+        return []
+
+    await update_core_identity(user_id, {field: None for field in removable})
+    return removable
+
+
 def format_identity_block(identity: dict) -> str:
     """Format core identity as a compact context block for the system prompt."""
     if not identity:

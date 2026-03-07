@@ -5,6 +5,7 @@ from datetime import date
 
 from src.core.llm.clients import get_instructor_anthropic, google_client
 from src.core.observability import observe
+from src.core.personalization import has_forget_command, strip_forget_command
 from src.core.schemas.intent import IntentData, IntentDetectionResult
 
 logger = logging.getLogger(__name__)
@@ -1002,6 +1003,29 @@ def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
     return None
 
 
+def _rule_based_memory_forget(text: str) -> IntentDetectionResult | None:
+    """Fast-path for direct forget/delete memory commands."""
+    stripped = text.strip()
+    if not stripped or not has_forget_command(stripped):
+        return None
+    lower = stripped.lower()
+    scope = _extract_delete_scope(lower)
+    if scope in {"expenses", "income", "transactions"} and any(
+        hint in lower for hint in UNDO_LAST_HINTS
+    ):
+        return None
+    target = strip_forget_command(stripped)
+    if not target:
+        return None
+    return IntentDetectionResult(
+        intent="memory_forget",
+        confidence=0.95,
+        intent_type="action",
+        data=IntentData(memory_query=stripped),
+        response=None,
+    )
+
+
 def _strip_personalization_prefix(text: str) -> str:
     """Drop leading 'remember/save' wrappers before personalization matching."""
     stripped = text.strip()
@@ -1047,6 +1071,9 @@ def _rule_based_set_user_rule(
     recent_context: str | None = None,
 ) -> IntentDetectionResult | None:
     """Fast-path personalization so names/rules bypass ambiguous LLM routing."""
+    if has_forget_command(text):
+        return None
+
     normalized = _strip_personalization_prefix(text)
     lower = normalized.lower()
 
@@ -1229,6 +1256,10 @@ async def detect_intent(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    forget_fast_path = _rule_based_memory_forget(text)
+    if forget_fast_path:
+        return forget_fast_path
 
     rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
     if rule_fast_path:

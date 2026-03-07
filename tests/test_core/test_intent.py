@@ -262,6 +262,40 @@ async def test_detect_intent_fast_path_name_reply_from_recent_context():
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_fast_path_forget_rule_routes_to_memory_forget():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("забудь Мындан кийин сенин атын Хюррем болот")
+
+    assert result.intent == "memory_forget"
+    assert result.data is not None
+    assert result.data.memory_query == "забудь Мындан кийин сенин атын Хюррем болот"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_forget_name_does_not_route_to_set_user_rule():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("забудь как тебя зовут")
+
+    assert result.intent == "memory_forget"
+    assert result.data is not None
+    assert result.data.memory_query == "забудь как тебя зовут"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_relative_reminder_uses_tz_aware_deadline():
     """Relative reminder should bypass LLM and return timezone-aware ISO deadline."""
     with (
