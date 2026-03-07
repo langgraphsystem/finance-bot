@@ -1,5 +1,7 @@
 """Tests for scoped intent detection (supervisor-backed two-stage pipeline)."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from src.core.intent import (
@@ -192,3 +194,26 @@ def test_sia_intents_in_skill_catalog():
     assert tasks_domain is not None
     for skill in ("schedule_action", "list_scheduled_actions", "manage_scheduled_action"):
         assert skill in tasks_domain.skills, f"SIA skill '{skill}' missing from tasks catalog"
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_scoped_fast_path_set_user_rule():
+    """Scoped life routing should still short-circuit explicit personalization."""
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent_scoped
+
+        result = await detect_intent_scoped(
+            text="Запомни: меня зовут Манас",
+            domain="life",
+            intents=["quick_capture", "memory_save", "set_user_rule"],
+            recent_context=None,
+        )
+
+    assert result.intent == "set_user_rule"
+    assert result.data is not None
+    assert result.data.rule_text == "меня зовут Манас"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()

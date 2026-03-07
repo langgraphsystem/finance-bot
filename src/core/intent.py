@@ -928,6 +928,66 @@ _BARE_REMINDER_WORDS = {
     "recordatorio",
 }
 
+_PERSONALIZATION_PREFIXES = (
+    "запомни:",
+    "запомни,",
+    "запомни ",
+    "remember that ",
+    "remember: ",
+    "remember ",
+    "save this: ",
+)
+
+_QUESTION_NAME_PATTERNS = (
+    "как тебя зовут",
+    "как тебя зовут",
+    "как вас зовут",
+    "как меня зовут",
+    "what is your name",
+    "what's your name",
+    "do you know my name",
+)
+
+_BOT_NAME_MARKERS = (
+    "зови себя",
+    "тебя зовут",
+    "твоё имя",
+    "твое имя",
+    "your name is",
+    "call yourself",
+    "имя бота",
+    "назовись",
+)
+
+_USER_NAME_MARKERS = (
+    "меня зовут",
+    "моё имя",
+    "мое имя",
+    "my name is",
+    "i am ",
+    "я —",
+    "я -",
+)
+
+_RULE_MARKERS = (
+    "отвечай",
+    "пиши",
+    "без эмодзи",
+    "без emoji",
+    "на русском",
+    "по-русски",
+    "по английски",
+    "по-английски",
+    "коротко",
+    "кратко",
+    "always respond",
+    "reply in",
+    "keep it brief",
+    "no emoji",
+    "in english",
+    "in russian",
+)
+
 
 def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
     """Fast-path: bare 'напомни' / 'remind me' without details → set_reminder with no title."""
@@ -939,6 +999,74 @@ def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
             data=IntentData(),
             response=None,
         )
+    return None
+
+
+def _strip_personalization_prefix(text: str) -> str:
+    """Drop leading 'remember/save' wrappers before personalization matching."""
+    stripped = text.strip()
+    lower = stripped.lower()
+    for prefix in _PERSONALIZATION_PREFIXES:
+        if lower.startswith(prefix):
+            return stripped[len(prefix):].strip()
+    return stripped
+
+
+def _looks_like_name(text: str) -> bool:
+    """Heuristic: short human name reply without digits/punctuation noise."""
+    candidate = text.strip().strip(".,!?\"'")
+    if not candidate or len(candidate) > 40:
+        return False
+    if any(ch.isdigit() for ch in candidate):
+        return False
+    parts = [part for part in re.split(r"[\s-]+", candidate) if part]
+    if not parts or len(parts) > 3:
+        return False
+    return all(re.fullmatch(r"[A-Za-zА-Яа-яЁё]+", part) for part in parts)
+
+
+def _recent_context_asks_user_name(recent_context: str | None) -> bool:
+    """Detect if the bot just asked the user for their name."""
+    if not recent_context:
+        return False
+    lower = recent_context.lower()
+    ask_patterns = (
+        "как тебя зовут",
+        "как вас зовут",
+        "how should i call you",
+        "what should i call you",
+        "what is your name",
+        "скажи, пожалуйста: как тебя зовут",
+        "как к тебе обращаться",
+    )
+    return any(pattern in lower for pattern in ask_patterns)
+
+
+def _rule_based_set_user_rule(
+    text: str,
+    recent_context: str | None = None,
+) -> IntentDetectionResult | None:
+    """Fast-path personalization so names/rules bypass ambiguous LLM routing."""
+    normalized = _strip_personalization_prefix(text)
+    lower = normalized.lower()
+
+    if any(pattern in lower for pattern in _QUESTION_NAME_PATTERNS):
+        return None
+
+    if _recent_context_asks_user_name(recent_context) and _looks_like_name(normalized):
+        bare_name = normalized.strip().strip(".,!?\"'")
+        normalized = f"меня зовут {bare_name}"
+        lower = normalized.lower()
+
+    if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS + _RULE_MARKERS):
+        return IntentDetectionResult(
+            intent="set_user_rule",
+            confidence=0.98,
+            intent_type="action",
+            data=IntentData(rule_text=normalized),
+            response=None,
+        )
+
     return None
 
 
@@ -1101,6 +1229,10 @@ async def detect_intent(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
+    if rule_fast_path:
+        return rule_fast_path
 
     modify_fast_path = _rule_based_modify_program(text)
     if modify_fast_path:
@@ -1422,6 +1554,10 @@ async def detect_intent_scoped(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
+    if rule_fast_path:
+        return rule_fast_path
 
     modify_fast_path = _rule_based_modify_program(text)
     if modify_fast_path:

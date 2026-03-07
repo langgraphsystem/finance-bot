@@ -223,6 +223,45 @@ async def test_detect_intent_fast_path_delete_drink_specific_entry():
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_fast_path_set_user_rule_for_explicit_name():
+    """'Запомни: меня зовут ...' should bypass LLM and route to set_user_rule."""
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("Запомни: меня зовут Манас")
+
+    assert result.intent == "set_user_rule"
+    assert result.data is not None
+    assert result.data.rule_text == "меня зовут Манас"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_name_reply_from_recent_context():
+    """A bare name after the bot asks for it should be normalized into set_user_rule."""
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent(
+            "Манас",
+            recent_context="Bot: Скажи, пожалуйста: как тебя зовут?",
+        )
+
+    assert result.intent == "set_user_rule"
+    assert result.data is not None
+    assert result.data.rule_text == "меня зовут Манас"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_relative_reminder_uses_tz_aware_deadline():
     """Relative reminder should bypass LLM and return timezone-aware ISO deadline."""
     with (

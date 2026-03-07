@@ -80,6 +80,19 @@ _THANKS_REPLIES = {
 _RU_THANKS = frozenset({"спасибо", "спс"})
 _EN_THANKS = frozenset({"thanks", "thank you", "thx"})
 _ES_THANKS = frozenset({"gracias"})
+_BOT_NAME_QUESTIONS = frozenset({
+    "как тебя зовут",
+    "как вас зовут",
+    "what is your name",
+    "what's your name",
+    "who are you",
+})
+_USER_NAME_QUESTIONS = frozenset({
+    "как меня зовут",
+    "do you know my name",
+    "what is my name",
+    "what's my name",
+})
 
 
 def _is_greeting(text: str) -> bool:
@@ -103,6 +116,18 @@ def _is_thanks(text: str) -> bool:
     """Check if the message is a thank-you."""
     cleaned = text.lower().strip().rstrip("!.?  ")
     return cleaned in (_RU_THANKS | _EN_THANKS | _ES_THANKS)
+
+
+def _is_bot_name_question(text: str) -> bool:
+    """Check if the user asks for the assistant's name."""
+    cleaned = text.lower().strip().rstrip("!.?  ")
+    return cleaned in _BOT_NAME_QUESTIONS
+
+
+def _is_user_name_question(text: str) -> bool:
+    """Check if the user asks for their saved name."""
+    cleaned = text.lower().strip().rstrip("!.?  ")
+    return cleaned in _USER_NAME_QUESTIONS
 
 
 def _affirmation_reply(text: str, context_lang: str | None) -> str:
@@ -224,6 +249,8 @@ class GeneralChatSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        from src.core.identity import get_core_identity
+
         # Fast-path: simple greetings — no LLM needed
         text_raw = (message.text or "").strip()
         if text_raw and _is_greeting(text_raw):
@@ -233,6 +260,36 @@ class GeneralChatSkill:
         # Fast-path: affirmations/emoji/thanks — no LLM needed
         if text_raw and _is_affirmation(text_raw):
             return SkillResult(response_text=_affirmation_reply(text_raw, context.language))
+
+        if text_raw and _is_bot_name_question(text_raw):
+            identity = await get_core_identity(context.user_id)
+            bot_name = identity.get("bot_name") or "AI Assistant"
+            return SkillResult(
+                response_text=(
+                    f"Меня зовут <b>{bot_name}</b>."
+                    if (context.language or "").startswith("ru")
+                    else f"My name is <b>{bot_name}</b>."
+                )
+            )
+
+        if text_raw and _is_user_name_question(text_raw):
+            identity = await get_core_identity(context.user_id)
+            user_name = identity.get("name")
+            if user_name:
+                return SkillResult(
+                    response_text=(
+                        f"Тебя зовут <b>{user_name}</b>."
+                        if (context.language or "").startswith("ru")
+                        else f"Your name is <b>{user_name}</b>."
+                    )
+                )
+            return SkillResult(
+                response_text=(
+                    "Я пока не вижу у себя твоего имени. Напиши: <code>Меня зовут ...</code>."
+                    if (context.language or "").startswith("ru")
+                    else "I don't have your name saved yet. Send: <code>My name is ...</code>."
+                )
+            )
 
         from src.core.memory import sliding_window
 

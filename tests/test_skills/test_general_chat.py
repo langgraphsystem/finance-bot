@@ -1,5 +1,8 @@
 """Tests for general_chat skill."""
 
+import importlib
+import sys
+import types
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,14 +10,43 @@ import pytest
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
-from src.skills.general_chat.handler import (
-    GeneralChatSkill,
-    _affirmation_reply,
-    _detect_greeting_lang,
-    _is_affirmation,
-    _is_greeting,
-    _time_greeting,
-)
+
+
+class _DummyConnectionPool:
+    pass
+
+
+def _load_general_chat_handler():
+    if "psycopg_pool" not in sys.modules:
+        psycopg_pool = types.ModuleType("psycopg_pool")
+        psycopg_pool.ConnectionPool = _DummyConnectionPool
+        sys.modules["psycopg_pool"] = psycopg_pool
+
+    if "mem0" not in sys.modules:
+        mem0 = types.ModuleType("mem0")
+
+        class _DummyMemory:
+            @classmethod
+            def from_config(cls, config):
+                return cls()
+
+        mem0.Memory = _DummyMemory
+        sys.modules["mem0"] = mem0
+        sys.modules["mem0.vector_stores"] = types.ModuleType("mem0.vector_stores")
+        pgvector = types.ModuleType("mem0.vector_stores.pgvector")
+        pgvector.ConnectionPool = _DummyConnectionPool
+        sys.modules["mem0.vector_stores.pgvector"] = pgvector
+
+    return importlib.import_module("src.skills.general_chat.handler")
+
+
+_HANDLER = _load_general_chat_handler()
+GeneralChatSkill = _HANDLER.GeneralChatSkill
+_affirmation_reply = _HANDLER._affirmation_reply
+_detect_greeting_lang = _HANDLER._detect_greeting_lang
+_is_affirmation = _HANDLER._is_affirmation
+_is_greeting = _HANDLER._is_greeting
+_time_greeting = _HANDLER._time_greeting
 
 
 @pytest.fixture
@@ -346,3 +378,42 @@ async def test_short_input_uses_lower_max_tokens(skill, ctx):
 
     call_kwargs = mock_generate.call_args.kwargs
     assert call_kwargs.get("max_tokens", 1024) == 256
+
+
+@pytest.mark.asyncio
+async def test_bot_name_question_uses_identity_fast_path(skill, ctx):
+    """Assistant name questions should return deterministic identity-backed answer."""
+    with patch(
+        "src.core.identity.get_core_identity",
+        new_callable=AsyncMock,
+        return_value={"bot_name": "Хюррем"},
+    ):
+        result = await skill.execute(_msg("как тебя зовут?"), ctx, {})
+
+    assert "Хюррем" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_user_name_question_uses_identity_fast_path(skill, ctx):
+    """User name questions should use saved core identity, not LLM guesswork."""
+    with patch(
+        "src.core.identity.get_core_identity",
+        new_callable=AsyncMock,
+        return_value={"name": "Манас"},
+    ):
+        result = await skill.execute(_msg("как меня зовут?"), ctx, {})
+
+    assert "Манас" in result.response_text
+
+
+@pytest.mark.asyncio
+async def test_user_name_question_without_saved_name(skill, ctx):
+    """When no name is stored, the bot should ask for a direct identity statement."""
+    with patch(
+        "src.core.identity.get_core_identity",
+        new_callable=AsyncMock,
+        return_value={},
+    ):
+        result = await skill.execute(_msg("как меня зовут?"), ctx, {})
+
+    assert "Меня зовут" in result.response_text
