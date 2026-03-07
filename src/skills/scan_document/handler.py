@@ -65,6 +65,11 @@ _STRINGS = {
         "amounts": "Amounts:",
         "dates": "Dates:",
         "text": "Text:",
+        "photo_title": "Photo recognized",
+        "photo_objects": "Objects:",
+        "photo_category": "Category:",
+        "photo_text": "Text on image:",
+        "photo_mood": "Mood:",
     },
     "ru": {
         "send_file": "Отправьте фото или документ для распознавания.",
@@ -107,6 +112,11 @@ _STRINGS = {
         "amounts": "Суммы:",
         "dates": "Даты:",
         "text": "Текст:",
+        "photo_title": "Фото распознано",
+        "photo_objects": "Объекты:",
+        "photo_category": "Категория:",
+        "photo_text": "Текст на фото:",
+        "photo_mood": "Настроение:",
     },
     "es": {
         "send_file": "Envie una foto o documento para escanear.",
@@ -149,6 +159,11 @@ _STRINGS = {
         "amounts": "Montos:",
         "dates": "Fechas:",
         "text": "Texto:",
+        "photo_title": "Foto reconocida",
+        "photo_objects": "Objetos:",
+        "photo_category": "Categoria:",
+        "photo_text": "Texto en imagen:",
+        "photo_mood": "Estado de animo:",
     },
 }
 register_strings("scan_document", _STRINGS)
@@ -164,7 +179,8 @@ CLASSIFY_PROMPT = """Определи тип документа на фото. �
 - invoice (счёт, инвойс, счёт-фактура, bill)
 - rate_confirmation (rate confirmation, подтверждение рейса, load confirmation)
 - fuel_receipt (заправочный чек, топливо, gas receipt)
-- other (всё остальное: договор, документ, картинка, скриншот, текст)
+- photo (обычное фото: еда, люди, пейзаж, животные, селфи, предмет — НЕ документ)
+- other (всё остальное: договор, документ, скриншот, текст)
 
 Ответ (одно слово):"""
 
@@ -220,11 +236,22 @@ GENERIC_OCR_PROMPT = """Проанализируй фото/документ и 
 }
 Ответь ТОЛЬКО валидным JSON."""
 
+PHOTO_DESCRIBE_PROMPT = """Опиши что изображено на этом фото. Ответь в формате JSON:
+{
+  "description": "подробное описание фото (2-4 предложения)",
+  "objects": ["список основных объектов на фото"],
+  "category": "категория фото (еда, природа, люди, животные, транспорт, интерьер, предмет, другое)",
+  "text_on_image": "текст на фото если есть, иначе null",
+  "mood": "настроение/атмосфера фото (одно слово)" или null
+}
+Ответь ТОЛЬКО валидным JSON."""
+
 PROMPT_MAP = {
     "receipt": RECEIPT_OCR_PROMPT,
     "fuel_receipt": RECEIPT_OCR_PROMPT,
     "invoice": INVOICE_OCR_PROMPT,
     "rate_confirmation": RATE_CONF_OCR_PROMPT,
+    "photo": PHOTO_DESCRIBE_PROMPT,
     "other": GENERIC_OCR_PROMPT,
 }
 
@@ -357,7 +384,11 @@ class ScanDocumentSkill:
                     response_text=t_cached(_STRINGS, "failed_recognize", lang, "scan_document")
                 )
 
-        # Step 3: Store pending data in Redis for later save
+        # Step 3: Photo — just describe, no save flow
+        if doc_type == "photo":
+            return self._format_photo(raw_data, lang)
+
+        # Step 3b: Store pending data in Redis for later save
         pending_id = str(uuid.uuid4())[:8]
         await store_pending_doc(
             pending_id=pending_id,
@@ -398,7 +429,10 @@ class ScanDocumentSkill:
             contents=parts,
         )
         result = response.text.strip().lower()
-        for valid_type in ("receipt", "invoice", "rate_confirmation", "fuel_receipt", "other"):
+        valid_types = (
+            "receipt", "invoice", "rate_confirmation", "fuel_receipt", "photo", "other",
+        )
+        for valid_type in valid_types:
             if valid_type in result:
                 return valid_type
         return "other"
@@ -734,6 +768,40 @@ class ScanDocumentSkill:
                 },
             ],
         )
+
+    def _format_photo(self, data: dict, lang: str = "en") -> SkillResult:
+        """Format photo description response — no save buttons."""
+        ns = "scan_document"
+        description = data.get("description") or data.get("summary") or str(data)[:500]
+        objects = data.get("objects") or []
+        category = data.get("category")
+        text_on_image = data.get("text_on_image")
+        mood = data.get("mood")
+
+        response = (
+            "\U0001f4f7 <b>" + t_cached(_STRINGS, "photo_title", lang, ns) + "</b>\n\n"
+        )
+        response += f"{description}\n"
+        if objects:
+            response += (
+                f"\n\U0001f50d <b>{t_cached(_STRINGS, 'photo_objects', lang, ns)}</b> "
+                + ", ".join(objects[:10])
+                + "\n"
+            )
+        if category:
+            response += (
+                f"\U0001f4c1 <b>{t_cached(_STRINGS, 'photo_category', lang, ns)}</b> {category}\n"
+            )
+        if text_on_image:
+            response += (
+                f"\U0001f4dd <b>{t_cached(_STRINGS, 'photo_text', lang, ns)}</b> {text_on_image}\n"
+            )
+        if mood:
+            response += (
+                f"\U0001f3a8 <b>{t_cached(_STRINGS, 'photo_mood', lang, ns)}</b> {mood}\n"
+            )
+
+        return SkillResult(response_text=response)
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return CLASSIFY_PROMPT
