@@ -229,6 +229,27 @@ SCENARIOS: dict[str, list[tuple[str, str]]] = {
         ("спасибо!", "general_chat — thanks"),
         ("помощь", "general_chat — help request"),
     ],
+    # NOTE: memory tests are stateful — run in order.
+    # Steps 1-2 set bot name, steps 3-4 set user name, steps 5-6 test rules,
+    # steps 7-8 test memory_vault, step 9 tests forget.
+    "memory": [
+        ("Тебя зовут Хюррем", "set_identity — set bot name"),
+        ("как тебя зовут?", "general_chat — recall bot name → should say Хюррем"),
+        ("Меня зовут Манас", "set_identity — set user name"),
+        ("как меня зовут?", "general_chat — recall user name → should say Манас"),
+        ("всегда отвечай без эмодзи", "set_rule — add formatting rule"),
+        ("привет!", "general_chat — rule check: response must have no emoji"),
+        ("запомни: я предпочитаю краткие ответы", "memory_save — explicit memory"),
+        ("покажи мои воспоминания", "memory_show — list stored memories"),
+        ("забудь моё имя", "memory_forget — delete user name from memory"),
+        ("как меня зовут?", "general_chat — after forget: should not know name"),
+        ("удали все правила", "memory_forget — clear all rules"),
+    ],
+    "dialog_history": [
+        ("о чём мы говорили сегодня?", "dialog_history — today"),
+        ("что обсуждали на этой неделе?", "dialog_history — week"),
+        ("покажи историю разговоров за вчера", "dialog_history — yesterday"),
+    ],
 }
 
 

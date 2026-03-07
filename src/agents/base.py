@@ -29,6 +29,11 @@ _SKILL_ONLY_INTENTS = {
     "query_report",
     # set_user_rule uses dedicated handler for identity/rules DB writes.
     "set_user_rule",
+    # memory_vault intents use dedicated Mem0/identity handlers — must NOT go through
+    # data_tools LLM path (which would ignore the structured rule/identity logic).
+    "memory_show",
+    "memory_forget",
+    "memory_save",
     # dialog_history searches session_summaries directly.
     "dialog_history",
     # memory_update uses dedicated Mem0 search+delete+add flow.
