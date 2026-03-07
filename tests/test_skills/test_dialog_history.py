@@ -1,20 +1,14 @@
 """Tests for dialog_history skill."""
 
-# Stub heavy imports that require system libraries (psycopg, libpq)
-# before any src.skills.* import triggers src/skills/__init__.py
 import sys
 import types
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# ------------------------------------------------------------------
-# Minimal stubs so that the skill registry can be imported without
-# a real psycopg / libpq installation in the local dev environment.
-# ------------------------------------------------------------------
-for _mod_name in (
+for module_name in (
     "psycopg_pool",
     "psycopg",
     "psycopg.pq",
@@ -22,25 +16,21 @@ for _mod_name in (
     "mem0.vector_stores",
     "mem0.vector_stores.pgvector",
 ):
-    if _mod_name not in sys.modules:
-        sys.modules[_mod_name] = types.ModuleType(_mod_name)
+    if module_name not in sys.modules:
+        sys.modules[module_name] = types.ModuleType(module_name)
 
-# Also stub psycopg_pool.ConnectionPool used by mem0_client patch
-_pool_mod = sys.modules["psycopg_pool"]
-if not hasattr(_pool_mod, "ConnectionPool"):
-    _pool_mod.ConnectionPool = object  # type: ignore[attr-defined]
+pool_mod = sys.modules["psycopg_pool"]
+if not hasattr(pool_mod, "ConnectionPool"):
+    pool_mod.ConnectionPool = object  # type: ignore[attr-defined]
 
-# Stub mem0.Memory
-_mem0_mod = sys.modules["mem0"]
-if not hasattr(_mem0_mod, "Memory"):
-    _mem0_mod.Memory = MagicMock  # type: ignore[attr-defined]
-
-# ------------------------------------------------------------------
+mem0_mod = sys.modules["mem0"]
+if not hasattr(mem0_mod, "Memory"):
+    mem0_mod.Memory = MagicMock  # type: ignore[attr-defined]
 
 from src.core.context import SessionContext  # noqa: E402
 from src.skills.dialog_history.handler import (  # noqa: E402
     _detect_period,
-    _period_to_date,
+    _period_bounds,
     skill,
 )
 
@@ -56,14 +46,15 @@ def ctx():
         business_type=None,
         categories=[],
         merchant_mappings=[],
+        timezone="UTC",
     )
 
 
 @pytest.fixture
 def message():
-    m = MagicMock()
-    m.text = "о чём мы говорили на этой неделе?"
-    return m
+    msg = MagicMock()
+    msg.text = "о чём мы говорили на этой неделе?"
+    return msg
 
 
 class TestDetectPeriod:
@@ -89,31 +80,26 @@ class TestDetectPeriod:
         assert _detect_period("о чём мы говорили?") == "week"
 
 
-class TestPeriodToDate:
-    def test_today(self):
-        from datetime import date
+class TestPeriodBounds:
+    def test_today_uses_tz_aware_utc_start(self):
+        start_at, end_at = _period_bounds("today", "America/Chicago")
 
-        assert _period_to_date("today") == date.today()
+        assert start_at.tzinfo is UTC
+        assert end_at is None
 
-    def test_yesterday(self):
-        from datetime import date, timedelta
+    def test_yesterday_returns_closed_open_window(self):
+        start_at, end_at = _period_bounds("yesterday", "UTC")
 
-        assert _period_to_date("yesterday") == date.today() - timedelta(days=1)
+        assert start_at.tzinfo is UTC
+        assert end_at is not None
+        assert end_at.tzinfo is UTC
+        assert end_at - start_at == timedelta(days=1)
 
-    def test_week(self):
-        from datetime import date, timedelta
+    def test_unknown_timezone_falls_back_to_utc(self):
+        start_at, end_at = _period_bounds("week", "Mars/Olympus")
 
-        assert _period_to_date("week") == date.today() - timedelta(weeks=1)
-
-    def test_month(self):
-        from datetime import date, timedelta
-
-        assert _period_to_date("month") == date.today() - timedelta(days=30)
-
-    def test_unknown_defaults_to_week(self):
-        from datetime import date, timedelta
-
-        assert _period_to_date("unknown") == date.today() - timedelta(weeks=1)
+        assert start_at.tzinfo is UTC
+        assert end_at is None
 
 
 class TestDialogHistorySkill:
@@ -144,7 +130,7 @@ class TestDialogHistorySkill:
         assert result.response_text
         assert "Обсуждали бюджет" in result.response_text
 
-    async def test_returns_no_history_message_when_empty(self, ctx):
+    async def test_yesterday_uses_exclusive_upper_bound(self, ctx):
         from unittest.mock import patch
 
         mock_session = AsyncMock()
@@ -162,8 +148,16 @@ class TestDialogHistorySkill:
         with patch("src.core.db.async_session", return_value=mock_ctx_mgr):
             result = await skill.execute(msg, ctx)
 
+        query = mock_session.execute.await_args.args[0]
+        compiled = str(query)
+
+        assert "created_at >=" in compiled
+        assert "created_at <" in compiled
         assert result.response_text
-        assert "yesterday" in result.response_text or "вчера" in result.response_text.lower()
+        assert (
+            "вчера" in result.response_text.lower()
+            or "yesterday" in result.response_text.lower()
+        )
 
     async def test_returns_error_on_db_failure(self, ctx, message):
         from unittest.mock import patch
@@ -211,6 +205,7 @@ class TestDialogHistorySkill:
             business_type=None,
             categories=[],
             merchant_mappings=[],
+            timezone="UTC",
         )
         msg = MagicMock()
         msg.text = "о чём мы говорили?"

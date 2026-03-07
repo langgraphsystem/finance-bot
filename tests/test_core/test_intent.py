@@ -400,3 +400,35 @@ async def test_detect_intent_undo_last_phrase_not_overridden_by_fast_path():
     assert result.intent == "undo_last"
     mock_gemini.assert_awaited_once()
     mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_explicit_memory_save_without_rules():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("Запомни: я люблю зелёный чай")
+
+    assert result.intent == "memory_save"
+    assert result.data is not None
+    assert result.data.memory_query == "я люблю зелёный чай"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_fast_path_name_question_routes_to_general_chat_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("как тебя зовут?")
+
+    assert result.intent == "general_chat"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()

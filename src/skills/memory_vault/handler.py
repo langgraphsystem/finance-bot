@@ -1,4 +1,4 @@
-"""Memory Vault — user-controlled memory management (show / forget / save / update)."""
+"""Memory Vault - user-controlled memory management (show / forget / save / update)."""
 
 import logging
 import re
@@ -32,7 +32,7 @@ register_strings("memory_vault", {"en": {}, "ru": {}, "es": {}})
 class MemoryVaultSkill:
     name = "memory_vault"
     intents = ["memory_show", "memory_forget", "memory_save", "memory_update"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="memory_vault")
     async def execute(
@@ -46,7 +46,7 @@ class MemoryVaultSkill:
             delete_all_memories,
             delete_memory,
             get_all_memories,
-            search_memories,
+            search_memories_all_namespaces,
         )
 
         intent = intent_data.get("_intent") or "memory_show"
@@ -59,7 +59,7 @@ class MemoryVaultSkill:
             return await self._handle_forget(
                 context,
                 query,
-                search_memories,
+                search_memories_all_namespaces,
                 delete_memory,
                 delete_all_memories,
                 get_all_memories,
@@ -72,33 +72,56 @@ class MemoryVaultSkill:
         if intent == "memory_update":
             content = intent_data.get("memory_query") or message.text or ""
             return await self._handle_update(
-                context, content, search_memories, delete_memory, add_memory
+                context,
+                content,
+                search_memories_all_namespaces,
+                delete_memory,
+                add_memory,
             )
 
         return SkillResult(response_text="Unknown memory action.")
 
     async def _handle_show(self, context, get_all_memories) -> SkillResult:
-        memories = await get_all_memories(context.user_id)
-        if not memories:
-            return SkillResult(response_text="No stored memories yet.")
+        from src.core.identity import get_core_identity, get_user_rules
 
-        lines = []
-        for i, mem in enumerate(memories[:MAX_DISPLAY_MEMORIES], 1):
+        memories = await get_all_memories(context.user_id)
+
+        sections: list[str] = []
+        try:
+            identity = await get_core_identity(context.user_id)
+            if identity:
+                id_lines: list[str] = []
+                if identity.get("name"):
+                    id_lines.append(f"• Your name: <b>{identity['name']}</b>")
+                if identity.get("bot_name"):
+                    id_lines.append(f"• My name: <b>{identity['bot_name']}</b>")
+                if id_lines:
+                    sections.append("<b>Identity:</b>\n" + "\n".join(id_lines))
+
+            rules = await get_user_rules(context.user_id)
+            if rules:
+                rule_lines = "\n".join(f"• {rule}" for rule in rules)
+                sections.append(f"<b>Your rules:</b>\n{rule_lines}")
+        except Exception:
+            logger.warning("Failed to load core identity for memory_show", exc_info=True)
+
+        mem_lines = []
+        for index, mem in enumerate(memories[:MAX_DISPLAY_MEMORIES], 1):
             text = mem.get("memory", mem.get("text", ""))
             if text:
-                lines.append(f"{i}. {text}")
+                mem_lines.append(f"{index}. {text}")
 
-        if not lines:
+        if mem_lines:
+            extra = ""
+            if len(memories) > MAX_DISPLAY_MEMORIES:
+                extra = f"\n... and {len(memories) - MAX_DISPLAY_MEMORIES} more."
+            sections.append(f"<b>Memories ({len(memories)}):</b>\n" + "\n".join(mem_lines) + extra)
+
+        if not sections:
             return SkillResult(response_text="No stored memories yet.")
 
-        header = f"<b>Your memories ({len(memories)} total):</b>\n\n"
-        body = "\n".join(lines)
-        extra = ""
-        if len(memories) > MAX_DISPLAY_MEMORIES:
-            extra = f"\n\n... and {len(memories) - MAX_DISPLAY_MEMORIES} more."
-
         return SkillResult(
-            response_text=header + body + extra,
+            response_text="\n\n".join(sections),
             buttons=[
                 {"text": "Clear all", "callback": "memory:clear_all"},
             ],
@@ -186,17 +209,18 @@ class MemoryVaultSkill:
         deleted = 0
         for mem in matches:
             mem_id = mem.get("id")
-            if mem_id:
-                try:
-                    await delete_memory(mem_id, context.user_id)
-                    deleted += 1
-                except Exception:
-                    logger.warning("Failed to delete memory %s", mem_id, exc_info=True)
+            if not mem_id:
+                continue
+            try:
+                await delete_memory(mem_id, context.user_id)
+                deleted += 1
+            except Exception:
+                logger.warning("Failed to delete memory %s", mem_id, exc_info=True)
 
         if deleted:
+            suffix = "s" if deleted > 1 else ""
             return SkillResult(
-                response_text=f"Deleted {deleted} memory{'s' if deleted > 1 else ''} "
-                f"matching '{query}'."
+                response_text=f"Deleted {deleted} memory{suffix} matching '{query}'."
             )
         return SkillResult(response_text=f"Could not delete memories for '{query}'.")
 
@@ -247,23 +271,23 @@ class MemoryVaultSkill:
             user_id=context.user_id,
             metadata={"type": "explicit", "source": "memory_vault"},
         )
-        # Phase 11: Confirmation with saved content
-        return SkillResult(
-            response_text=f"Saved: <b>{content[:100]}</b>"
-        )
+        return SkillResult(response_text=f"Saved: <b>{content[:100]}</b>")
 
     async def _handle_update(
-        self, context, content, search_memories, delete_memory, add_memory
+        self,
+        context,
+        content,
+        search_memories,
+        delete_memory,
+        add_memory,
     ) -> SkillResult:
-        """Phase 11: Update an existing memory fact."""
+        """Update an existing memory fact."""
         content = content.strip()
         if not content:
             return SkillResult(response_text="What should I update?")
 
-        # Search for existing fact
         matches = await search_memories(content, context.user_id, limit=3)
         if matches:
-            # Delete the closest match, then add the new version
             top = matches[0]
             mem_id = top.get("id")
             old_text = top.get("memory", top.get("text", ""))
@@ -282,7 +306,6 @@ class MemoryVaultSkill:
                 response_text=f"Updated: <b>{old_text[:80]}</b> → <b>{content[:80]}</b>"
             )
 
-        # No match found — just save as new
         await add_memory(
             content=content,
             user_id=context.user_id,
@@ -299,8 +322,10 @@ class MemoryVaultSkill:
 skill = MemoryVaultSkill()
 
 
+
 def _normalize_memory_text(text: str) -> str:
     return text.strip().strip("\"'`“”‘’.,!? ").lower()
+
 
 
 def _is_clear_all_memory_request(query: str) -> bool:

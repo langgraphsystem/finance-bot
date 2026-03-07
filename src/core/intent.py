@@ -1106,40 +1106,71 @@ def _recent_context_asks_user_name(recent_context: str | None) -> bool:
 
 
 def _is_name_question(text: str) -> bool:
-    """Detect if text is a question about names, not a command to set one.
-
-    Catches: "как тебя зовут?", "а как твое имя?", "ты знаешь мое имя?",
-    "меня зовут как?" — anything that is asking, not telling.
-    """
+    """Detect if text asks about a saved name instead of setting one."""
     lower = text.lower().strip()
+    name_markers = _QUESTION_NAME_PATTERNS + _BOT_NAME_MARKERS + _USER_NAME_MARKERS
 
-    # Explicit question patterns
     if any(pattern in lower for pattern in _QUESTION_NAME_PATTERNS):
         return True
 
-    # Ends with "?" — likely a question, not a command
-    if lower.rstrip().endswith("?"):
+    if lower.endswith("?") and any(marker in lower for marker in name_markers):
         return True
 
-    # Starts with question word (any language) before a name marker
     question_starts = (
-        # Russian
         "как ", "какое ", "какой ", "какая ", "что ", "кто ", "а как ",
-        # English
         "what ", "who ", "how ", "do you ", "does ",
-        # Spanish
         "cómo ", "cuál ", "quién ", "cual ",
-        # Turkish
         "adın ne", "senin adın", "benim adım",
-        # Kyrgyz
         "сенин атын", "менин атым",
-        # Kazakh
         "сенің атың", "менің атым",
     )
-    if any(lower.startswith(q) for q in question_starts):
-        return True
+    return any(lower.startswith(prefix) for prefix in question_starts) and any(
+        marker in lower for marker in name_markers
+    )
 
-    return False
+
+
+def _rule_based_name_question(text: str) -> IntentDetectionResult | None:
+    """Route direct name questions to chat so identity lookup can answer deterministically."""
+    if not _is_name_question(text):
+        return None
+    return IntentDetectionResult(
+        intent="general_chat",
+        confidence=0.97,
+        intent_type="chat",
+        data=IntentData(),
+        response=None,
+    )
+
+
+
+def _rule_based_memory_save(text: str) -> IntentDetectionResult | None:
+    """Fast-path explicit remember/save commands before they fall into rule routing."""
+    if has_forget_command(text):
+        return None
+
+    stripped = text.strip()
+    normalized = _strip_personalization_prefix(text)
+    lower = normalized.lower()
+    if normalized == stripped or not normalized or _is_name_question(normalized):
+        return None
+
+    if any(marker in lower for marker in _BOT_NAME_MARKERS + _USER_NAME_MARKERS + _RULE_MARKERS):
+        return IntentDetectionResult(
+            intent="set_user_rule",
+            confidence=0.98,
+            intent_type="action",
+            data=IntentData(rule_text=normalized),
+            response=None,
+        )
+
+    return IntentDetectionResult(
+        intent="memory_save",
+        confidence=0.97,
+        intent_type="action",
+        data=IntentData(memory_query=normalized),
+        response=None,
+    )
 
 
 def _rule_based_set_user_rule(
@@ -1336,6 +1367,14 @@ async def detect_intent(
     forget_fast_path = _rule_based_memory_forget(text)
     if forget_fast_path:
         return forget_fast_path
+
+    name_question_fast_path = _rule_based_name_question(text)
+    if name_question_fast_path:
+        return name_question_fast_path
+
+    memory_save_fast_path = _rule_based_memory_save(text)
+    if memory_save_fast_path:
+        return memory_save_fast_path
 
     rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
     if rule_fast_path:
@@ -1661,6 +1700,18 @@ async def detect_intent_scoped(
     bare_reminder = _rule_based_bare_reminder(text)
     if bare_reminder:
         return bare_reminder
+
+    forget_fast_path = _rule_based_memory_forget(text)
+    if forget_fast_path:
+        return forget_fast_path
+
+    name_question_fast_path = _rule_based_name_question(text)
+    if name_question_fast_path:
+        return name_question_fast_path
+
+    memory_save_fast_path = _rule_based_memory_save(text)
+    if memory_save_fast_path:
+        return memory_save_fast_path
 
     rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
     if rule_fast_path:

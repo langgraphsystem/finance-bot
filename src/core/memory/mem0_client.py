@@ -7,11 +7,12 @@ to `{user_id}:{domain}` for namespace isolation.
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # ------------------------------------------------------------------
-# Patch psycopg_pool.ConnectionPool to inject prepare_threshold=0.
+# Patch psycopg_pool.ConnectionPool to disable prepared statements.
 # Required for PgBouncer/Supavisor transaction-mode compatibility.
 #
 # Mem0's pgvector module does `from psycopg_pool import ConnectionPool`
@@ -19,19 +20,38 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 # module attribute alone does NOT affect mem0's already-imported reference.
 # We must ALSO patch mem0.vector_stores.pgvector.ConnectionPool directly.
 # ------------------------------------------------------------------
-import psycopg_pool as _psycopg_pool
+try:
+    import psycopg_pool as _psycopg_pool
+except ImportError:
+    class _UnavailableConnectionPool:
+        """Fallback used in test environments without libpq/psycopg bindings."""
+
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("psycopg_pool is unavailable in this environment")
+
+        def __class_getitem__(cls, item):
+            return cls
+
+    _psycopg_pool = SimpleNamespace(ConnectionPool=_UnavailableConnectionPool)
 
 _OrigConnectionPool = _psycopg_pool.ConnectionPool
 
 
 class _PatchedConnectionPool(_OrigConnectionPool):
-    """ConnectionPool that injects prepare_threshold=0 into every connection."""
+    """ConnectionPool that disables prepared statements on every connection."""
 
     def __init__(self, *args, **kw):
-        conn_kwargs = kw.get("kwargs") or {}
-        if "prepare_threshold" not in conn_kwargs:
-            conn_kwargs["prepare_threshold"] = 0
+        conn_kwargs = dict(kw.get("kwargs") or {})
+        conn_kwargs["prepare_threshold"] = None
         kw["kwargs"] = conn_kwargs
+        orig_configure = kw.get("configure")
+
+        def _configure(conn):
+            conn.prepare_threshold = None
+            if orig_configure:
+                orig_configure(conn)
+
+        kw["configure"] = _configure
         super().__init__(*args, **kw)
 
     def __class_getitem__(cls, item):
@@ -148,7 +168,7 @@ def get_memory() -> Memory:
     """Get or initialize Mem0 client.
 
     The psycopg_pool.ConnectionPool class is patched at module level (above)
-    to inject ``prepare_threshold=0`` into every connection, so Mem0's
+    to disable prepared statements on every connection, so Mem0's
     internally-created pool already has the fix applied.
     """
     global _memory
@@ -215,6 +235,39 @@ def _resolve_user_id(user_id: str, domain: MemoryDomain | None) -> str:
 
     return scoped_user_id(user_id, domain)
 
+def _all_namespace_user_ids(user_id: str) -> list[str]:
+    """Return legacy + domain-scoped Mem0 namespaces for the user."""
+    from src.core.memory.mem0_domains import MemoryDomain, scoped_user_id
+
+    scoped_ids = [scoped_user_id(user_id, domain) for domain in MemoryDomain]
+    return [user_id, *scoped_ids]
+
+
+def _normalize_mem0_results(results: Any) -> list[dict]:
+    """Normalize Mem0 responses into a plain list of memory dicts."""
+    if isinstance(results, dict):
+        normalized = results.get("results", [])
+    else:
+        normalized = results
+    return normalized if isinstance(normalized, list) else []
+
+
+def _dedupe_memories(memories: list[dict]) -> list[dict]:
+    """Deduplicate memories across legacy and scoped namespaces."""
+    deduped: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for mem in memories:
+        mem_id = str(mem.get("id") or "")
+        text = str(mem.get("memory") or mem.get("text") or "")
+        key = (mem_id, text)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(mem)
+
+    return deduped
+
 
 async def search_memories(
     query: str,
@@ -242,6 +295,38 @@ async def search_memories(
         return results.get("results", []) if isinstance(results, dict) else results
     except Exception as e:
         logger.error("Mem0 search failed: %s", e)
+        cb.record_failure()
+        _reset_memory()
+        return []
+
+async def search_memories_all_namespaces(
+    query: str,
+    user_id: str,
+    limit: int = 10,
+    filters: dict[str, Any] | None = None,
+) -> list[dict]:
+    """Search legacy + domain-scoped Mem0 namespaces for a user."""
+    cb = get_circuit("mem0")
+    if not cb.can_execute():
+        logger.warning("Mem0 circuit OPEN, skipping search")
+        return []
+    try:
+        memory = get_memory()
+        results: list[dict] = []
+        for scoped_uid in _all_namespace_user_ids(user_id):
+            kwargs: dict[str, Any] = {"query": query, "user_id": scoped_uid, "limit": limit}
+            if filters:
+                kwargs["filters"] = filters
+            results.extend(_normalize_mem0_results(memory.search(**kwargs)))
+
+        deduped = _dedupe_memories(results)
+        scored = [mem for mem in deduped if isinstance(mem.get("score"), (int, float))]
+        unscored = [mem for mem in deduped if mem not in scored]
+        scored.sort(key=lambda mem: float(mem.get("score", 0.0)), reverse=True)
+        cb.record_success()
+        return (scored + unscored)[:limit]
+    except Exception as e:
+        logger.error("Mem0 cross-namespace search failed: %s", e)
         cb.record_failure()
         _reset_memory()
         return []
@@ -422,17 +507,27 @@ async def get_all_memories(
     user_id: str,
     domain: MemoryDomain | None = None,
 ) -> list[dict]:
-    """Get all memories for a user (optionally scoped to a domain)."""
+    """Get all memories for a user.
+
+    When ``domain`` is ``None``, aggregates both legacy unscoped memories and
+    all domain-scoped namespaces so memory_vault/GDPR flows see the full state.
+    """
     cb = get_circuit("mem0")
     if not cb.can_execute():
         logger.warning("Mem0 circuit OPEN, skipping get_all")
         return []
     try:
         memory = get_memory()
-        scoped_uid = _resolve_user_id(user_id, domain)
-        results = memory.get_all(user_id=scoped_uid)
+        if domain is not None:
+            scoped_uid = _resolve_user_id(user_id, domain)
+            results = _normalize_mem0_results(memory.get_all(user_id=scoped_uid))
+        else:
+            results = []
+            for scoped_uid in _all_namespace_user_ids(user_id):
+                results.extend(_normalize_mem0_results(memory.get_all(user_id=scoped_uid)))
+            results = _dedupe_memories(results)
         cb.record_success()
-        return results.get("results", []) if isinstance(results, dict) else results
+        return results
     except Exception as e:
         logger.error("Mem0 get_all failed: %s", e)
         cb.record_failure()
@@ -456,15 +551,26 @@ async def delete_memory(memory_id: str, user_id: str) -> None:
         _reset_memory()
 
 
-async def delete_all_memories(user_id: str) -> None:
-    """Delete all memories for a user (GDPR)."""
+async def delete_all_memories(
+    user_id: str,
+    domain: MemoryDomain | None = None,
+) -> None:
+    """Delete all memories for a user.
+
+    When ``domain`` is ``None``, clears both legacy unscoped memories and all
+    domain-scoped namespaces.
+    """
     cb = get_circuit("mem0")
     if not cb.can_execute():
         logger.warning("Mem0 circuit OPEN, skipping delete_all")
         return
     try:
         memory = get_memory()
-        memory.delete_all(user_id=user_id)
+        if domain is not None:
+            memory.delete_all(user_id=_resolve_user_id(user_id, domain))
+        else:
+            for scoped_uid in _all_namespace_user_ids(user_id):
+                memory.delete_all(user_id=scoped_uid)
         cb.record_success()
     except Exception as e:
         logger.warning("Mem0 delete_all failed: %s", e)

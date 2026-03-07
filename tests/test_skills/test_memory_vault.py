@@ -1,4 +1,4 @@
-"""Tests for Memory Vault skill — show / forget / save."""
+"""Tests for Memory Vault skill - show / forget / save."""
 
 import importlib
 import sys
@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 
 class _DummyConnectionPool:
     pass
+
 
 
 def _load_memory_vault_handler():
@@ -68,12 +69,49 @@ async def test_memory_show_empty():
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
+        patch("src.core.identity.get_core_identity", new_callable=AsyncMock, return_value={}),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
-        result = await skill.execute(
-            _MockMessage(), ctx, {"_intent": "memory_show"}
-        )
+        result = await skill.execute(_MockMessage(), ctx, {"_intent": "memory_show"})
     assert "no stored memories" in result.response_text.lower()
+
+
+async def test_memory_show_with_identity_and_rules_even_without_memories():
+    ctx = _MockContext()
+    with (
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "src.core.identity.get_core_identity",
+            new_callable=AsyncMock,
+            return_value={"name": "Манас", "bot_name": "Хюррем"},
+        ),
+        patch(
+            "src.core.identity.get_user_rules",
+            new_callable=AsyncMock,
+            return_value=["отвечай кратко"],
+        ),
+    ):
+        result = await skill.execute(_MockMessage(), ctx, {"_intent": "memory_show"})
+
+    assert "Identity:" in result.response_text
+    assert "Манас" in result.response_text
+    assert "Хюррем" in result.response_text
+    assert "отвечай кратко" in result.response_text
 
 
 async def test_memory_show_with_memories():
@@ -91,25 +129,31 @@ async def test_memory_show_with_memories():
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
+        patch("src.core.identity.get_core_identity", new_callable=AsyncMock, return_value={}),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
         result = await skill.execute(_MockMessage(), ctx, {"_intent": "memory_show"})
     assert "coffee" in result.response_text
     assert "Brooklyn" in result.response_text
     assert result.buttons is not None
-    assert any("clear" in b["text"].lower() for b in result.buttons)
+    assert any("clear" in button["text"].lower() for button in result.buttons)
 
 
 async def test_memory_save():
     ctx = _MockContext()
     with (
-        patch(
-            "src.core.memory.mem0_client.add_memory", new_callable=AsyncMock
-        ) as mock_add,
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add,
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
     ):
         result = await skill.execute(
             _MockMessage(text="I love sushi"),
@@ -130,11 +174,12 @@ async def test_memory_save_empty():
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
     ):
-        result = await skill.execute(
-            _MockMessage(text=""), ctx, {"_intent": "memory_save"}
-        )
+        result = await skill.execute(_MockMessage(text=""), ctx, {"_intent": "memory_save"})
     assert "what should i remember" in result.response_text.lower()
 
 
@@ -145,14 +190,13 @@ async def test_memory_forget_with_matches():
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
         patch(
-            "src.core.memory.mem0_client.search_memories",
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
             new_callable=AsyncMock,
             return_value=matches,
         ),
-        patch(
-            "src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock
-        ) as mock_del,
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
         result = await skill.execute(
             _MockMessage(text="forget about rain"),
@@ -169,12 +213,13 @@ async def test_memory_forget_no_matches():
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
         patch(
-            "src.core.memory.mem0_client.search_memories",
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
             new_callable=AsyncMock,
             return_value=[],
         ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
         result = await skill.execute(
             _MockMessage(text="forget about unicorns"),
@@ -189,11 +234,16 @@ async def test_memory_forget_all():
     with (
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch(
-            "src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock
+            "src.core.memory.mem0_client.delete_all_memories",
+            new_callable=AsyncMock,
         ) as mock_del_all,
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
         result = await skill.execute(
             _MockMessage(text="forget everything"),
@@ -227,7 +277,10 @@ async def test_memory_forget_all_rules_clears_rules_not_all_memories():
             ],
         ),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
         patch(
             "src.core.memory.mem0_client.delete_all_memories",
@@ -273,7 +326,10 @@ async def test_memory_forget_specific_saved_rule():
             ],
         ),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
     ):
@@ -314,7 +370,10 @@ async def test_memory_forget_bot_name_clears_identity():
             ],
         ),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
         patch(
             "src.core.memory.mem0_client.delete_all_memories",
@@ -338,20 +397,24 @@ async def test_memory_forget_empty_query():
     with (
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
-        patch("src.core.memory.mem0_client.search_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
     ):
-        result = await skill.execute(
-            _MockMessage(text=""), ctx, {"_intent": "memory_forget"}
-        )
+        result = await skill.execute(_MockMessage(text=""), ctx, {"_intent": "memory_forget"})
     assert "what should i forget" in result.response_text.lower()
+
 
 
 def test_skill_intents():
     assert "memory_show" in skill.intents
     assert "memory_forget" in skill.intents
     assert "memory_save" in skill.intents
+
 
 
 def test_skill_name():

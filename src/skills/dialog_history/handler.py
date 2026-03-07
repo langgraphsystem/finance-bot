@@ -1,11 +1,12 @@
-"""Skill: dialog_history — search past conversations.
+"""Skill: dialog_history - search past conversations.
 
 Handles: "о чём мы говорили вчера?", "what did we discuss last week?",
 "какие идеи были на этой неделе?", "our conversation history".
 """
 
 import logging
-from datetime import date, timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from src.skills.base import BaseSkill, SkillResult
 
@@ -29,9 +30,8 @@ class DialogHistorySkill(BaseSkill):
         text = message.text or ""
         language = context.language or "en"
 
-        # Determine search period
         period = _detect_period(text)
-        start_date = _period_to_date(period)
+        start_at, end_at = _period_bounds(period, getattr(context, "timezone", None))
 
         try:
             async with async_session() as session:
@@ -39,36 +39,39 @@ class DialogHistorySkill(BaseSkill):
                     select(SessionSummary)
                     .where(
                         SessionSummary.user_id == context.user_id,
-                        SessionSummary.created_at >= start_date,
+                        SessionSummary.created_at >= start_at,
                     )
                     .order_by(SessionSummary.created_at.desc())
                     .limit(10)
                 )
+                if end_at is not None:
+                    query = query.where(SessionSummary.created_at < end_at)
                 result = await session.execute(query)
                 summaries = result.scalars().all()
 
             if not summaries:
-                return SkillResult(
-                    response_text=_no_history_msg(period, language),
-                )
+                return SkillResult(response_text=_no_history_msg(period, language))
 
-            # Format summaries
             lines: list[str] = []
-            for s in summaries:
-                dt = s.created_at.strftime("%d.%m %H:%M") if s.created_at else "?"
-                summary_text = (s.summary or "")[:200]
+            for summary in summaries:
+                dt = summary.created_at.strftime("%d.%m %H:%M") if summary.created_at else "?"
+                summary_text = (summary.summary or "")[:200]
                 lines.append(f"<b>{dt}</b>: {summary_text}")
 
             header = _header_msg(period, language)
             body = "\n\n".join(lines)
             return SkillResult(response_text=f"{header}\n\n{body}")
 
-        except Exception as e:
-            logger.error("Dialog history search failed: %s", e)
+        except Exception as exc:
+            logger.error("Dialog history search failed: %s", exc)
             return SkillResult(
-                response_text="Failed to search dialog history." if language != "ru"
-                else "Не удалось найти историю диалогов.",
+                response_text=(
+                    "Failed to search dialog history."
+                    if language != "ru"
+                    else "Не удалось найти историю диалогов."
+                ),
             )
+
 
 
 def _detect_period(text: str) -> str:
@@ -80,33 +83,54 @@ def _detect_period(text: str) -> str:
     month_markers = ["месяц", "month", "mes", "monat"]
     today_markers = ["сегодня", "today", "hoy", "heute"]
 
-    for m in yesterday_markers:
-        if m in lower:
+    for marker in yesterday_markers:
+        if marker in lower:
             return "yesterday"
-    for m in week_markers:
-        if m in lower:
+    for marker in week_markers:
+        if marker in lower:
             return "week"
-    for m in month_markers:
-        if m in lower:
+    for marker in month_markers:
+        if marker in lower:
             return "month"
-    for m in today_markers:
-        if m in lower:
+    for marker in today_markers:
+        if marker in lower:
             return "today"
-    return "week"  # Default to week
+    return "week"
 
 
-def _period_to_date(period: str) -> date:
-    """Convert period string to start date."""
-    today = date.today()
+
+def _resolve_timezone(tz_name: str | None) -> ZoneInfo:
+    if not tz_name:
+        return ZoneInfo("UTC")
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        logger.warning("Unknown timezone for dialog_history: %s", tz_name)
+        return ZoneInfo("UTC")
+
+
+
+def _period_bounds(period: str, tz_name: str | None) -> tuple[datetime, datetime | None]:
+    """Return inclusive start and exclusive end datetimes for the requested period."""
+    tz = _resolve_timezone(tz_name)
+    now_local = datetime.now(tz)
+    start_of_today = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+
     if period == "today":
-        return today
+        return start_of_today.astimezone(UTC), None
     if period == "yesterday":
-        return today - timedelta(days=1)
+        start = start_of_today - timedelta(days=1)
+        end = start_of_today
+        return start.astimezone(UTC), end.astimezone(UTC)
     if period == "week":
-        return today - timedelta(weeks=1)
+        start = start_of_today - timedelta(weeks=1)
+        return start.astimezone(UTC), None
     if period == "month":
-        return today - timedelta(days=30)
-    return today - timedelta(weeks=1)
+        start = start_of_today - timedelta(days=30)
+        return start.astimezone(UTC), None
+    start = start_of_today - timedelta(weeks=1)
+    return start.astimezone(UTC), None
+
 
 
 def _header_msg(period: str, language: str) -> str:
@@ -119,6 +143,7 @@ def _header_msg(period: str, language: str) -> str:
     }
     ru, en = headers.get(period, headers["week"])
     return ru if is_ru else en
+
 
 
 def _no_history_msg(period: str, language: str) -> str:
