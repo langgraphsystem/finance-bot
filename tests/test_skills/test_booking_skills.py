@@ -84,6 +84,27 @@ async def test_list_bookings_empty():
     assert "clear" in result.response_text.lower() or "no" in result.response_text.lower()
 
 
+async def test_list_bookings_tomorrow_empty_label():
+    skill = ListBookingsSkill()
+    ctx = _make_context()
+    msg = _make_message("show bookings tomorrow")
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_session.execute = AsyncMock(return_value=mock_result)
+
+    with patch(
+        "src.skills.list_bookings.handler.async_session",
+        return_value=mock_session,
+    ):
+        result = await skill.execute(msg, ctx, {"period": "tomorrow"})
+
+    assert "tomorrow" in result.response_text.lower()
+
+
 async def test_cancel_booking_not_found():
     skill = CancelBookingSkill()
     ctx = _make_context()

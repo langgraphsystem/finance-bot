@@ -239,8 +239,6 @@ async def test_url_with_comment_routes_to_analyze(skill, ctx):
 @pytest.mark.asyncio
 async def test_analyze_youtube_native_uses_file_data():
     """analyze_youtube_native passes video URL as fileData part."""
-    from google.genai import types as gtypes
-
     from src.skills.youtube_search.handler import analyze_youtube_native
 
     mock_response = MagicMock()

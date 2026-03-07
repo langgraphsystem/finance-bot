@@ -275,7 +275,10 @@ async def _action_save_content(
         # Fallback: save video URL if no generated content yet
         return await _action_save(session, language, _, user_id)
     return SkillResult(
-        response_text=f'💾 <b>{t("saved_content_title", language)}</b>\n{t("saved_note", language)}',
+        response_text=(
+            f'💾 <b>{t("saved_content_title", language)}</b>\n'
+            f'{t("saved_note", language)}'
+        ),
         buttons=get_video_buttons(language),
         background_tasks=[lambda: None],  # actual Mem0 write done in router.py
     )

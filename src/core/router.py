@@ -444,23 +444,50 @@ async def _dispatch_message(
         # Video follow-up override: if LLM picked general intent but active video session
         # exists and message matches follow-up keywords → route to video_action
         if intent_name in ("general_chat", "quick_answer") and message.text:
-            _VIDEO_FOLLOWUP_MAP: list[tuple[str, list[str]]] = [
-                ("content_plan", ["контент-план", "контент план", "content plan", "план контента"]),
+            video_followup_map: list[tuple[str, list[str]]] = [
+                (
+                    "content_plan",
+                    ["контент-план", "контент план", "content plan", "план контента"],
+                ),
                 ("steps", ["по шагам", "пошагово", "список шагов", "выпиши шаги", "шаги из"]),
                 ("article", ["напиши статью", "сделай статью", "write an article", "blog post"]),
                 ("script", ["сценарий", "напиши сценарий", "write a script"]),
-                ("summary", ["резюме видео", "сделай резюме", "вкратце перескажи", "summarize video"]),
+                (
+                    "summary",
+                    ["резюме видео", "сделай резюме", "вкратце перескажи", "summarize video"],
+                ),
                 ("save", ["сохрани видео", "save video", "запомни видео"]),
-                ("save_content", ["сохрани это", "сохрани текст", "запомни это", "save this", "save the text", "сохрани контент", "сохрани план"]),
+                (
+                    "save_content",
+                    [
+                        "сохрани это",
+                        "сохрани текст",
+                        "запомни это",
+                        "save this",
+                        "save the text",
+                        "сохрани контент",
+                        "сохрани план",
+                    ],
+                ),
                 ("remind", ["напомни посмотреть", "remind me to watch"]),
                 ("translate", ["переведи видео", "translate video"]),
                 ("similar", ["найди похожие", "похожие видео", "ещё видео", "find similar"]),
                 ("quotes", ["процитируй", "ключевые цитаты", "key quotes"]),
-                ("deeper", ["подробнее", "расскажи ещё", "расскажи еще", "tell me more", "more details", "подробней"]),
+                (
+                    "deeper",
+                    [
+                        "подробнее",
+                        "расскажи ещё",
+                        "расскажи еще",
+                        "tell me more",
+                        "more details",
+                        "подробней",
+                    ],
+                ),
             ]
             text_lower = message.text.lower()
             matched_action = None
-            for action, keywords in _VIDEO_FOLLOWUP_MAP:
+            for action, keywords in video_followup_map:
                 if any(kw in text_lower for kw in keywords):
                     matched_action = action
                     break
@@ -3151,4 +3178,3 @@ async def _check_browser_booking_flow(
         chat_id=message.chat_id,
         buttons=result.get("buttons"),
     )
-

@@ -31,7 +31,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "saved_content_title": "Saved to memory.",
         "saved_note": "You can ask me about it later.",
         "remind_prompt": "When do you want to be reminded to watch this video?",
-        "remind_hint": 'Reply with time, e.g. <b>"remind me in 2 hours"</b> or <b>"tomorrow at 9am"</b>',
+        "remind_hint": (
+            'Reply with time, e.g. <b>"remind me in 2 hours"</b> '
+            'or <b>"tomorrow at 9am"</b>'
+        ),
         "similar_title": "Similar videos for:",
     },
     "ru": {
@@ -60,7 +63,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "saved_content_title": "Сохранено в память.",
         "saved_note": "Можете спросить меня об этом позже.",
         "remind_prompt": "Когда напомнить посмотреть это видео?",
-        "remind_hint": 'Ответьте временем, например <b>«напомни через 2 часа»</b> или <b>«завтра в 9 утра»</b>',
+        "remind_hint": (
+            "Ответьте временем, например <b>«напомни через 2 часа»</b> "
+            "или <b>«завтра в 9 утра»</b>"
+        ),
         "similar_title": "Похожие видео по теме:",
     },
     "es": {
@@ -89,7 +95,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "saved_content_title": "Guardado en memoria.",
         "saved_note": "Puedes preguntarme sobre él más tarde.",
         "remind_prompt": "¿Cuándo quieres que te recuerde ver este video?",
-        "remind_hint": 'Responde con la hora, p.ej. <b>«recuérdame en 2 horas»</b> o <b>«mañana a las 9am»</b>',
+        "remind_hint": (
+            "Responde con la hora, p.ej. <b>«recuérdame en 2 horas»</b> "
+            "o <b>«mañana a las 9am»</b>"
+        ),
         "similar_title": "Videos similares para:",
     },
 }

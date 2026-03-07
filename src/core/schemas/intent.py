@@ -90,7 +90,8 @@ class IntentData(BaseModel):
     destination: str | None = None  # destination for directions
     youtube_query: str | None = None  # YouTube video search query
     detail_mode: bool | None = None  # true = use direct API for richer results
-    video_action_type: str | None = None  # deeper/steps/post/content_plan/article/save/remind/translate/similar/script/quotes/summary
+    video_action_type: str | None = None  # deeper/steps/post/content_plan/article/
+    # save/remind/translate/similar/script/quotes/summary
 
     # Writing fields (Phase 3)
     writing_topic: str | None = None

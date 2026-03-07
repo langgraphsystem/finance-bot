@@ -95,11 +95,11 @@ from src.skills.track_food.handler import skill as track_food_skill
 from src.skills.translate_text.handler import skill as translate_text_skill
 from src.skills.undo_last.handler import skill as undo_last_skill
 from src.skills.user_rules.handler import skill as user_rules_skill
+from src.skills.video_action.handler import skill as video_action_skill
 from src.skills.web_action.handler import skill as web_action_skill
 from src.skills.web_search.handler import skill as web_search_skill
 from src.skills.write_post.handler import skill as write_post_skill
 from src.skills.write_sheets.handler import skill as write_sheets_skill
-from src.skills.video_action.handler import skill as video_action_skill
 from src.skills.youtube_search.handler import skill as youtube_search_skill
 
 

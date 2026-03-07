@@ -204,7 +204,7 @@ class TestRouteCallsCorrectSkill:
         intent_data: dict = {}
         await agent_router.route("add_expense", text_message, sample_context, intent_data)
         assert intent_data.get("_agent") == "chat"
-        assert intent_data.get("_model") == "gpt-5.4-2026-03-05"
+        assert intent_data.get("_model") == "gpt-5.2"
 
     @pytest.mark.asyncio
     async def test_route_set_reminder_skips_tool_augmented_path(

@@ -141,7 +141,12 @@ class YouTubeSearchSkill:
         yt_url = extract_youtube_url(query)
         if yt_url:
             answer = await analyze_youtube_url(yt_url, query, language)
-            session = VideoSession(url=yt_url, platform="youtube", analysis=answer, language=language)
+            session = VideoSession(
+                url=yt_url,
+                platform="youtube",
+                analysis=answer,
+                language=language,
+            )
             await save_video_session(context.user_id, session)
             return SkillResult(response_text=answer, buttons=get_video_buttons(language))
 
@@ -149,7 +154,12 @@ class YouTubeSearchSkill:
         tt_url = extract_tiktok_url(query)
         if tt_url:
             answer = await analyze_tiktok_url(tt_url, query, language)
-            session = VideoSession(url=tt_url, platform="tiktok", analysis=answer, language=language)
+            session = VideoSession(
+                url=tt_url,
+                platform="tiktok",
+                analysis=answer,
+                language=language,
+            )
             await save_video_session(context.user_id, session)
             return SkillResult(response_text=answer, buttons=get_video_buttons(language))
 
