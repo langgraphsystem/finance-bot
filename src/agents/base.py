@@ -374,6 +374,9 @@ class AgentRouter:
         if not skill:
             return SkillResult(response_text="Произошла ошибка маршрутизации. Попробуйте ещё раз.")
 
+        # Expose the resolved intent so skill handlers can branch by intent name.
+        intent_data["_intent"] = intent
+
         return await skill.execute(message, context, intent_data)
 
     async def _fallback_context(
