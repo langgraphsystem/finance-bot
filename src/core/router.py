@@ -1,4 +1,4 @@
-"""Message router — main orchestration: message → intent → skill → response."""
+﻿"""Message router — main orchestration: message → intent → skill → response."""
 
 import asyncio
 import base64
@@ -622,6 +622,7 @@ async def _dispatch_message(
             skill = registry.get(intent_name)
             if not skill:
                 skill = registry.get("general_chat")
+            intent_data["_intent"] = intent_name
             skill_result = await skill.execute(message, context, intent_data)
         except Exception as inner_e:
             logger.error("Fallback skill %s also failed: %s", intent_name, inner_e, exc_info=True)
@@ -3080,3 +3081,4 @@ async def _check_browser_booking_flow(
         chat_id=message.chat_id,
         buttons=result.get("buttons"),
     )
+
