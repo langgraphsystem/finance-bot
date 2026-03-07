@@ -296,6 +296,35 @@ async def test_detect_intent_fast_path_forget_name_does_not_route_to_set_user_ru
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_question_with_marker_not_set_user_rule():
+    """Questions containing name markers must NOT route to set_user_rule."""
+    questions = [
+        "как тебя зовут?",
+        "как твое имя?",
+        "а как твое имя?",
+        "ты знаешь мое имя?",
+        "какое у тебя имя?",
+        "меня зовут как?",
+        "как меня зовут?",
+        "what is your name?",
+        "what's my name?",
+        "who are you?",
+    ]
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock),
+    ):
+        mock_gemini.return_value = IntentDetectionResult(
+            intent="general_chat", confidence=0.9, intent_type="chat",
+        )
+        from src.core.intent import detect_intent
+
+        for q in questions:
+            result = await detect_intent(q)
+            assert result.intent != "set_user_rule", f"'{q}' wrongly routed to set_user_rule"
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_relative_reminder_uses_tz_aware_deadline():
     """Relative reminder should bypass LLM and return timezone-aware ISO deadline."""
     with (

@@ -941,12 +941,34 @@ _PERSONALIZATION_PREFIXES = (
 
 _QUESTION_NAME_PATTERNS = (
     "как тебя зовут",
-    "как тебя зовут",
     "как вас зовут",
     "как меня зовут",
+    "как твое имя",
+    "как твоё имя",
+    "как мое имя",
+    "как моё имя",
+    "какое у тебя имя",
+    "какое твое имя",
+    "какое твоё имя",
+    "а как тебя зовут",
+    "а как твое имя",
+    "а как твоё имя",
+    "ты знаешь мое имя",
+    "ты знаешь моё имя",
+    "ты помнишь мое имя",
+    "ты помнишь моё имя",
+    "ты помнишь как меня зовут",
+    "ты знаешь как меня зовут",
+    "знаешь мое имя",
+    "помнишь мое имя",
+    "помнишь как меня зовут",
     "what is your name",
     "what's your name",
+    "what is my name",
+    "what's my name",
     "do you know my name",
+    "do you remember my name",
+    "who are you",
 )
 
 _BOT_NAME_MARKERS = (
@@ -1066,6 +1088,43 @@ def _recent_context_asks_user_name(recent_context: str | None) -> bool:
     return any(pattern in lower for pattern in ask_patterns)
 
 
+def _is_name_question(text: str) -> bool:
+    """Detect if text is a question about names, not a command to set one.
+
+    Catches: "как тебя зовут?", "а как твое имя?", "ты знаешь мое имя?",
+    "меня зовут как?" — anything that is asking, not telling.
+    """
+    lower = text.lower().strip()
+
+    # Explicit question patterns
+    if any(pattern in lower for pattern in _QUESTION_NAME_PATTERNS):
+        return True
+
+    # Ends with "?" — likely a question, not a command
+    if lower.rstrip().endswith("?"):
+        return True
+
+    # Starts with question word (any language) before a name marker
+    question_starts = (
+        # Russian
+        "как ", "какое ", "какой ", "какая ", "что ", "кто ", "а как ",
+        # English
+        "what ", "who ", "how ", "do you ", "does ",
+        # Spanish
+        "cómo ", "cuál ", "quién ", "cual ",
+        # Turkish
+        "adın ne", "senin adın", "benim adım",
+        # Kyrgyz
+        "сенин атын", "менин атым",
+        # Kazakh
+        "сенің атың", "менің атым",
+    )
+    if any(lower.startswith(q) for q in question_starts):
+        return True
+
+    return False
+
+
 def _rule_based_set_user_rule(
     text: str,
     recent_context: str | None = None,
@@ -1077,7 +1136,7 @@ def _rule_based_set_user_rule(
     normalized = _strip_personalization_prefix(text)
     lower = normalized.lower()
 
-    if any(pattern in lower for pattern in _QUESTION_NAME_PATTERNS):
+    if _is_name_question(normalized):
         return None
 
     if _recent_context_asks_user_name(recent_context) and _looks_like_name(normalized):
