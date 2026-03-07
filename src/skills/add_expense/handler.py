@@ -120,7 +120,11 @@ class AddExpenseSkill:
                     {"text": "❌ Отмена", "callback": f"cancel:{tx_id}"},
                 ],
                 background_tasks=[
-                    lambda: async_mem0_update.kiq(context.user_id, message.text or ""),
+                    lambda: async_mem0_update.kiq(
+                        context.user_id,
+                        message.text or "",
+                        {"transaction_id": tx_id},
+                    ),
                     lambda: (
                         async_update_merchant_mapping.kiq(
                             context.family_id, merchant, category_id, scope
