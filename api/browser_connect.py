@@ -16,13 +16,12 @@ router = APIRouter(prefix="/api/browser-connect", tags=["browser-connect"])
 
 def _render_connect_page(token: str, provider: str) -> str:
     safe_token = html.escape(token)
-    safe_provider = html.escape(provider)
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Connect {safe_provider}</title>
+  <title>Secure Sign In</title>
   <style>
     :root {{
       color-scheme: light;
@@ -46,7 +45,7 @@ def _render_connect_page(token: str, provider: str) -> str:
     main {{
       max-width: 760px;
       margin: 0 auto;
-      padding: 18px 14px 40px;
+      padding: 16px 14px calc(220px + env(safe-area-inset-bottom));
     }}
     .panel {{
       background: var(--panel);
@@ -55,19 +54,6 @@ def _render_connect_page(token: str, provider: str) -> str:
       box-shadow: 0 18px 40px rgba(24,34,47,0.12);
       padding: 16px;
       margin-top: 14px;
-    }}
-    h1 {{
-      margin: 0 0 8px;
-      font-size: clamp(1.5rem, 4vw, 2.2rem);
-    }}
-    p {{
-      margin: 0;
-      line-height: 1.45;
-    }}
-    .status {{
-      margin-top: 10px;
-      font-size: 0.95rem;
-      white-space: pre-line;
     }}
     .screen-wrap {{
       position: relative;
@@ -85,10 +71,51 @@ def _render_connect_page(token: str, provider: str) -> str:
       user-select: none;
       -webkit-user-select: none;
     }}
+    .hero {{
+      display: grid;
+      gap: 8px;
+    }}
+    h1 {{
+      margin: 0;
+      font-size: clamp(1.35rem, 4vw, 2rem);
+    }}
+    p {{
+      margin: 0;
+      line-height: 1.45;
+      font-size: 1rem;
+    }}
+    .status {{
+      display: none;
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(217, 74, 30, 0.08);
+      color: #7c2d12;
+      font-size: 0.92rem;
+      line-height: 1.35;
+      white-space: pre-line;
+    }}
+    .status.visible {{
+      display: block;
+    }}
+    .dock {{
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 30;
+      max-width: 760px;
+      margin: 0 auto;
+    }}
     .controls {{
       display: grid;
       gap: 10px;
-      margin-top: 14px;
+      padding: 14px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid var(--line);
+      box-shadow: 0 18px 48px rgba(24,34,47,0.18);
+      backdrop-filter: blur(12px);
     }}
     .row {{
       display: grid;
@@ -104,16 +131,22 @@ def _render_connect_page(token: str, provider: str) -> str:
       border-radius: 16px;
       padding: 14px;
       font: inherit;
+      font-size: 16px;
+      background: #fff;
     }}
     button {{
       border: none;
       border-radius: 16px;
-      padding: 12px;
+      min-height: 50px;
+      padding: 12px 10px;
       font: inherit;
       font-weight: 600;
       background: #fff;
       color: var(--ink);
       border: 1px solid var(--line);
+      font-size: 15px;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }}
     button.primary {{
       background: var(--accent);
@@ -126,28 +159,40 @@ def _render_connect_page(token: str, provider: str) -> str:
       border-color: transparent;
     }}
     .hint {{
-      margin-top: 12px;
       font-size: 0.92rem;
       color: rgba(24,34,47,0.78);
+      line-height: 1.35;
+    }}
+    @media (max-width: 480px) {{
+      .row,
+      .row.compact {{
+        grid-template-columns: repeat(2, 1fr);
+      }}
     }}
   </style>
 </head>
 <body>
   <main>
     <div class="panel">
-      <h1>Connect {safe_provider}</h1>
-      <p>
-        Log in inside this secure browser. When the session is ready,
-        Finance Bot will return you to Telegram automatically.
-      </p>
-      <div id="status" class="status">Preparing secure browser...</div>
+      <div class="hero">
+        <h1>Sign in to continue</h1>
+        <p>
+          Use this secure browser to log in. As soon as the session is ready,
+          Finance Bot will return you to Telegram automatically.
+        </p>
+      </div>
+      <div id="status" class="status" aria-live="polite"></div>
     </div>
 
     <div class="panel">
       <div class="screen-wrap">
         <img id="screen" alt="Remote browser screen">
       </div>
-      <div class="controls">
+    </div>
+  </main>
+
+  <div class="dock">
+    <div class="controls">
         <input id="textInput" type="text" placeholder="Type text here, then tap Send">
         <div class="row">
           <button class="primary" id="sendText">Send</button>
@@ -165,13 +210,12 @@ def _render_connect_page(token: str, provider: str) -> str:
           <button id="reloadScreen">Reload Screen</button>
           <button class="warn" id="openTelegram">Open Telegram</button>
         </div>
-      </div>
       <div class="hint">
         Tap directly on the screenshot to click. Use Send, Tab, and Enter
         to fill forms, password fields, SMS codes, or 2FA prompts.
       </div>
     </div>
-  </main>
+  </div>
 
   <script>
     const token = {safe_token!r};
@@ -207,15 +251,13 @@ def _render_connect_page(token: str, provider: str) -> str:
     }}
 
     function updateStatus(state) {{
-      const lines = [
-        `Status: ${{state.status}}`,
-        `Provider: ${{state.provider}}`,
-        `URL: ${{state.current_url || 'loading...'}}`,
-      ];
       if (state.error) {{
-        lines.push(`Issue: ${{state.error}}`);
+        statusEl.classList.add('visible');
+        statusEl.textContent = 'Connection issue. Reload the screen and try again.';
+      }} else {{
+        statusEl.classList.remove('visible');
+        statusEl.textContent = '';
       }}
-      statusEl.textContent = lines.join('\\n');
       lastReturnUrl = state.return_url || '';
       if (state.status === 'completed' && lastReturnUrl) {{
         window.location.replace(lastReturnUrl);
@@ -284,6 +326,7 @@ def _render_connect_page(token: str, provider: str) -> str:
         updateStatus(state);
         refreshImage();
       }} catch (error) {{
+        statusEl.classList.add('visible');
         statusEl.textContent = 'Connection issue. Pull to refresh or tap Reload Screen.';
       }}
     }}, 2500);

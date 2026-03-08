@@ -32,8 +32,8 @@ async def test_browser_connect_page_renders_provider(client):
         resp = await client.get("/api/browser-connect/test-token")
 
     assert resp.status_code == 200
-    assert "Connect uber.com" in resp.text
-    assert "remote browser" in resp.text.lower()
+    assert "Sign in to continue" in resp.text
+    assert "Connect uber.com" not in resp.text
 
 
 async def test_browser_connect_state_returns_telegram_deep_link(client):
