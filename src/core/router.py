@@ -1,4 +1,4 @@
-﻿"""Message router — main orchestration: message → intent → skill → response."""
+"""Message router — main orchestration: message → intent → skill → response."""
 
 import asyncio
 import base64
@@ -335,6 +335,10 @@ async def _dispatch_message(
 
     # Intercept active browser login flow BEFORE intent detection
     if message.type == MessageType.text and message.text:
+        taxi_result = await _check_browser_taxi_flow(message, context)
+        if taxi_result:
+            return taxi_result
+
         login_result = await _check_browser_login_flow(message, context)
         if login_result:
             return login_result
@@ -1987,6 +1991,55 @@ async def _handle_callback(
         answer = parts[2] if len(parts) > 2 else "no"
         return await _resume_graph(thread_id, answer, message)
 
+    # ── Taxi booking flow callbacks ──
+
+    elif action == "taxi_login_ready":
+        from src.tools import taxi_booking
+
+        result = await taxi_booking.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "taxi_select":
+        from src.tools import taxi_booking
+
+        index = int(parts[2]) if len(parts) > 2 else 0
+        result = await taxi_booking.handle_option_selection(context.user_id, index)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "taxi_confirm":
+        from src.tools import taxi_booking
+
+        result = await taxi_booking.confirm_booking(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "taxi_back":
+        from src.tools import taxi_booking
+
+        result = await taxi_booking.handle_back_to_options(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "taxi_cancel":
+        from src.tools import taxi_booking
+
+        await taxi_booking.cancel_flow(context.user_id)
+        return OutgoingMessage(text="Taxi booking cancelled.", chat_id=message.chat_id)
+
     # ── Hotel booking flow callbacks ──
 
     elif action == "hotel_platform":
@@ -3073,6 +3126,31 @@ async def _execute_pending_maps_search(
         remove_reply_keyboard=True,
     )
 
+
+async def _check_browser_taxi_flow(
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage | None:
+    """Check if user has an active taxi booking flow."""
+    from src.tools import taxi_booking
+
+    state = await taxi_booking.get_taxi_state(context.user_id)
+    if not state:
+        return None
+
+    step = state.get("step")
+    if step not in ("awaiting_destination", "awaiting_login", "awaiting_selection", "confirming"):
+        return None
+
+    result = await taxi_booking.handle_text_input(context.user_id, message.text or "")
+    if not result:
+        return None
+
+    return OutgoingMessage(
+        text=result["text"],
+        chat_id=message.chat_id,
+        buttons=result.get("buttons"),
+    )
 
 async def _check_browser_login_flow(
     message: IncomingMessage,

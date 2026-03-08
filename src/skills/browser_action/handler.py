@@ -24,7 +24,7 @@ from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
-from src.tools import browser_booking, browser_login, browser_service
+from src.tools import browser_booking, browser_login, browser_service, taxi_booking
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +60,11 @@ class BrowserActionSkill:
         "жильё", "жилье", "accommodation", "lodging",
         "найди отель", "find a hotel", "найти отель",
         "search hotel", "ищу отель", "нужен отель",
+    )
+
+    _TAXI_KEYWORDS = (
+        "taxi", "uber", "lyft", "такси", "поездк", "ride",
+        "вызови такси", "закажи такси", "order a ride", "book a ride",
     )
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -99,7 +104,19 @@ class BrowserActionSkill:
                     buttons=result.get("buttons"),
                 )
 
-        # 2. Check for active login flow — handle the next step
+        # 2. Check for active taxi booking flow — handle text input
+        taxi_state = await taxi_booking.get_taxi_state(context.user_id)
+        if taxi_state:
+            result = await taxi_booking.handle_text_input(
+                context.user_id, message.text or ""
+            )
+            if result:
+                return SkillResult(
+                    response_text=result["text"],
+                    buttons=result.get("buttons"),
+                )
+
+        # 3. Check for active login flow — handle the next step
         login_state = await browser_login.get_login_state(context.user_id)
         if login_state:
             result = await browser_login.handle_step(
@@ -112,15 +129,14 @@ class BrowserActionSkill:
             )
             return self._login_step_to_result(result)
 
-        # 3. Extract domain from task if not provided
+        # 4. Extract domain from task if not provided
         if not site:
             site = self._extract_site_from_task(task)
 
         domain = browser_service.extract_domain(site) if site else ""
 
-        # 4. Hotel search / booking request → new multi-step flow
+        # 5. Hotel search / booking request → multi-step flow
         if self._is_hotel_request(task, domain):
-            # Build pre-parsed hotel data from intent detection (avoids redundant LLM call)
             pre_parsed = self._build_hotel_pre_parsed(intent_data)
             search_result = await browser_booking.start_flow(
                 user_id=context.user_id,
@@ -134,7 +150,21 @@ class BrowserActionSkill:
                 buttons=search_result.get("buttons"),
             )
 
-        # Need a domain for non-hotel tasks
+        # 6. Taxi / ride-hailing request → dedicated multi-step flow
+        if self._is_taxi_request(task, domain):
+            ride_result = await taxi_booking.start_flow(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                task=task,
+                language=context.language or "en",
+                site_hint=domain or site,
+            )
+            return SkillResult(
+                response_text=ride_result["text"],
+                buttons=ride_result.get("buttons"),
+            )
+
+        # Need a domain for non-flow tasks
         if not domain:
             return SkillResult(
                 response_text="Which website should I use? "
@@ -336,6 +366,18 @@ class BrowserActionSkill:
         task_lower = task.lower()
         return any(v in task_lower for v in self._BOOKING_VERBS)
 
+    def _is_taxi_request(self, task: str, domain: str) -> bool:
+        """Check if this is a taxi / ride-hailing request."""
+        task_lower = task.lower()
+        if domain in ("uber.com", "lyft.com"):
+            return True
+        if any(keyword in task_lower for keyword in self._TAXI_KEYWORDS):
+            ride_verbs = (
+                "закажи", "вызови", "book", "order", "call", "request", "ride", "поездк",
+            )
+            return any(verb in task_lower for verb in ride_verbs)
+        return False
+
     def _is_payment_task(self, task: str) -> bool:
         """Check if the task involves payment/purchase."""
         task_lower = task.lower()
@@ -363,7 +405,19 @@ class BrowserActionSkill:
         if domain_match:
             return domain_match.group(1)
 
+        alias_map = {
+            "uber": "uber.com",
+            "lyft": "lyft.com",
+        }
+        task_lower = task.lower()
+        for alias, site in alias_map.items():
+            if re.search(rf"\b{alias}\b", task_lower):
+                return site
+
         return None
 
 
 skill = BrowserActionSkill()
+
+
+

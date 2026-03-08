@@ -43,6 +43,8 @@ _LOGIN_URLS: dict[str, str] = {
     "ostrovok.ru": "https://ostrovok.ru/auth/signin/",
     "ozon.ru": "https://www.ozon.ru/login/",
     "wildberries.ru": "https://www.wildberries.ru/security/login",
+    "uber.com": "https://m.uber.com/go/home",
+    "lyft.com": "https://ride.lyft.com/",
 }
 
 
@@ -390,3 +392,4 @@ async def execute_with_session(
             "result": f"Browser task failed: {e}",
             "engine": "browser_use",
         }
+

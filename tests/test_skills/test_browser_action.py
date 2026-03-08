@@ -5,9 +5,14 @@ from unittest.mock import AsyncMock, patch
 from src.gateway.types import IncomingMessage, MessageType
 from src.skills.browser_action.handler import BrowserActionSkill
 
-# Shared mock: no active booking flow
+# Shared mocks: no active browser subflows
 _no_booking = patch(
     "src.skills.browser_action.handler.browser_booking.get_booking_state",
+    new_callable=AsyncMock,
+    return_value=None,
+)
+_no_taxi = patch(
+    "src.skills.browser_action.handler.taxi_booking.get_taxi_state",
     new_callable=AsyncMock,
     return_value=None,
 )
@@ -35,7 +40,7 @@ def test_browser_action_system_prompt(sample_context):
 async def test_browser_action_empty_message(sample_context):
     skill = BrowserActionSkill()
     msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
-    with _no_booking, _no_login:
+    with _no_booking, _no_taxi, _no_login:
         result = await skill.execute(msg, sample_context, {})
     assert (
         "what" in result.response_text.lower()
@@ -56,6 +61,7 @@ async def test_browser_action_vague_booking_asks_details(sample_context):
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
@@ -86,6 +92,7 @@ async def test_browser_action_detailed_booking_starts_flow(sample_context):
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
@@ -115,6 +122,7 @@ async def test_browser_action_hotel_keyword_starts_flow(sample_context):
     intent_data = {"browser_task": "найди отель в Париже на завтра"}
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
@@ -140,6 +148,7 @@ async def test_browser_action_payment_needs_approval(sample_context):
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch("src.skills.browser_action.handler.approval_manager") as mock_approval,
     ):
@@ -162,6 +171,7 @@ async def test_browser_action_with_session_executes(sample_context):
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
@@ -196,6 +206,7 @@ async def test_browser_action_no_session_suggests_extension(sample_context):
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
@@ -221,6 +232,7 @@ async def test_browser_action_expired_session_suggests_extension(sample_context)
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
@@ -254,7 +266,7 @@ async def test_browser_action_vague_shopping_asks_product(sample_context):
         "browser_task": "купи",
         "browser_target_site": "amazon.com",
     }
-    with _no_booking, _no_login:
+    with _no_booking, _no_taxi, _no_login:
         result = await skill.execute(msg, sample_context, intent_data)
     assert "amazon.com" in result.response_text
     assert "find" in result.response_text.lower()
@@ -273,6 +285,7 @@ async def test_browser_action_read_only_on_booking_site_skips_search(sample_cont
     }
     with (
         _no_booking,
+        _no_taxi,
         _no_login,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
@@ -292,3 +305,60 @@ async def test_browser_action_read_only_on_booking_site_skips_search(sample_cont
     ):
         result = await skill.execute(msg, sample_context, intent_data)
     assert "confirmed" in result.response_text.lower()
+
+
+async def test_browser_action_taxi_request_starts_flow(sample_context):
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="закажи такси в uber до аэропорта",
+    )
+    intent_data = {
+        "browser_task": "закажи такси в uber до аэропорта",
+    }
+    with (
+        _no_booking,
+        _no_taxi,
+        _no_login,
+        patch(
+            "src.skills.browser_action.handler.taxi_booking.start_flow",
+            new_callable=AsyncMock,
+            return_value={
+                "text": "<b>Uber ride options</b>",
+                "buttons": [{"text": "1. UberX", "callback": "taxi_select:abc:0"}],
+            },
+        ) as mock_flow,
+    ):
+        result = await skill.execute(msg, sample_context, intent_data)
+    mock_flow.assert_awaited_once()
+    assert "Uber" in result.response_text
+    assert result.buttons is not None
+
+
+async def test_browser_action_extracts_uber_alias(sample_context):
+    skill = BrowserActionSkill()
+    msg = IncomingMessage(
+        id="1",
+        user_id="u1",
+        chat_id="c1",
+        type=MessageType.text,
+        text="order an uber to downtown",
+    )
+    with (
+        _no_booking,
+        _no_taxi,
+        _no_login,
+        patch(
+            "src.skills.browser_action.handler.taxi_booking.start_flow",
+            new_callable=AsyncMock,
+            return_value={"text": "OK", "buttons": None},
+        ) as mock_flow,
+    ):
+        await skill.execute(msg, sample_context, {"browser_task": msg.text})
+    assert mock_flow.await_args.kwargs["site_hint"] == "uber.com"
+
+
+
