@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy import select
 
 from api.schemas.browser_extension import (
+    ExtensionStatusResponse,
     ListSessionsResponse,
     SaveSessionRequest,
     SaveSessionResponse,
@@ -124,6 +125,23 @@ async def list_sessions(
         ))
 
     return ListSessionsResponse(sessions=sessions)
+
+
+@router.get("/status", response_model=ExtensionStatusResponse)
+async def extension_status(
+    user: tuple[str, str] = Depends(get_user_by_token),
+):
+    """Validate extension credentials and return connection summary."""
+    user_id, family_id = user
+    sessions = await browser_service.list_user_sessions(user_id)
+    sites = sorted(session["site"] for session in sessions)
+    return ExtensionStatusResponse(
+        ok=True,
+        user_id=user_id,
+        family_id=family_id,
+        session_count=len(sites),
+        sites=sites,
+    )
 
 
 @router.delete("/session/{site}")

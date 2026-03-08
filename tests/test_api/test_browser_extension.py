@@ -163,6 +163,29 @@ async def test_list_sessions(client):
     assert data["sessions"][0]["cookie_count"] == 2
 
 
+async def test_extension_status(client):
+    with patch(
+        "api.browser_extension.browser_service.list_user_sessions",
+        new_callable=AsyncMock,
+        return_value=[
+            {"site": "booking.com", "updated_at": "2026-03-07", "expired": False},
+            {"site": "amazon.com", "updated_at": "2026-03-07", "expired": False},
+        ],
+    ):
+        resp = await client.get(
+            "/api/ext/status",
+            headers={"Authorization": f"Bearer {_TEST_TOKEN}"},
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["user_id"] == _TEST_USER_ID
+    assert data["family_id"] == _TEST_FAMILY_ID
+    assert data["session_count"] == 2
+    assert data["sites"] == ["amazon.com", "booking.com"]
+
+
 async def test_delete_session(client):
     with patch(
         "api.browser_extension.browser_service.delete_session",

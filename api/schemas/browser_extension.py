@@ -34,3 +34,11 @@ class SessionInfo(BaseModel):
 
 class ListSessionsResponse(BaseModel):
     sessions: list[SessionInfo]
+
+
+class ExtensionStatusResponse(BaseModel):
+    ok: bool
+    user_id: str
+    family_id: str
+    session_count: int
+    sites: list[str]

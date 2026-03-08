@@ -7,6 +7,8 @@ const cookieCountEl = document.getElementById('cookieCount');
 const apiUrlEl = document.getElementById('apiUrl');
 const tokenEl = document.getElementById('token');
 const saveApiBtnEl = document.getElementById('saveApiBtn');
+const checkConnectionBtnEl = document.getElementById('checkConnectionBtn');
+const connectionInfoEl = document.getElementById('connectionInfo');
 const savedListEl = document.getElementById('savedList');
 
 let currentDomain = '';
@@ -22,27 +24,50 @@ function clearStatus() {
   statusEl.textContent = '';
 }
 
+function normalizeApiUrl(value) {
+  const trimmed = (value || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (trimmed.endsWith('/webhook')) {
+    return trimmed.slice(0, -'/webhook'.length);
+  }
+  if (trimmed.endsWith('/api/ext')) {
+    return trimmed.slice(0, -'/api/ext'.length);
+  }
+  return trimmed;
+}
+
+function setConnectionInfo(text) {
+  connectionInfoEl.textContent = text;
+}
+
 // Load saved settings
 chrome.storage.sync.get(['apiUrl', 'token'], (data) => {
   if (data.apiUrl) apiUrlEl.value = data.apiUrl;
   if (data.token) tokenEl.value = data.token;
   if (data.apiUrl && data.token) {
+    checkConnection();
     loadSessions();
   }
 });
 
 // Save settings button
 saveApiBtnEl.addEventListener('click', () => {
-  const apiUrl = apiUrlEl.value.trim().replace(/\/+$/, '');
+  const apiUrl = normalizeApiUrl(apiUrlEl.value);
   const token = tokenEl.value.trim();
   if (!apiUrl || !token) {
     showStatus('Enter both API URL and token', 'error');
     return;
   }
+  apiUrlEl.value = apiUrl;
   chrome.storage.sync.set({ apiUrl, token }, () => {
     showStatus('Settings saved', 'success');
+    checkConnection();
     loadSessions();
   });
+});
+
+checkConnectionBtnEl.addEventListener('click', () => {
+  checkConnection();
 });
 
 // Get current tab and its cookies
@@ -185,6 +210,38 @@ async function loadSessions() {
     });
   } catch (err) {
     console.error('Failed to load sessions:', err);
+  }
+}
+
+async function checkConnection() {
+  const settings = await chrome.storage.sync.get(['apiUrl', 'token']);
+  if (!settings.apiUrl || !settings.token) {
+    setConnectionInfo('Not connected');
+    return;
+  }
+
+  try {
+    const resp = await fetch(normalizeApiUrl(settings.apiUrl) + '/api/ext/status', {
+      headers: { 'Authorization': 'Bearer ' + settings.token },
+    });
+
+    if (!resp.ok) {
+      setConnectionInfo('Connection failed');
+      return;
+    }
+
+    const data = await resp.json();
+    const sites = data.sites && data.sites.length
+      ? '\nSaved sites: ' + data.sites.join(', ')
+      : '\nSaved sites: none';
+    setConnectionInfo(
+      'Connected\nUser: ' + data.user_id.slice(0, 8) +
+      '\nSessions: ' + data.session_count +
+      sites
+    );
+  } catch (err) {
+    setConnectionInfo('Connection failed');
+    console.error('Connection check failed:', err);
   }
 }
 

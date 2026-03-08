@@ -864,6 +864,7 @@ async def _handle_slash_command(
     elif text == "/extension":
         import secrets
 
+        from src.core.config import settings
         from src.core.db import redis
 
         if not context.family_id:
@@ -873,14 +874,18 @@ async def _handle_slash_command(
             )
         token = secrets.token_urlsafe(24)
         await redis.set(f"ext_token:{token}", context.user_id, ex=86400 * 30)
+        api_url = settings.public_base_url or "https://your-app.up.railway.app"
         return OutgoingMessage(
             text=(
-                "<b>Browser Extension Setup</b>\n\n"
+                "<b>Browser Connect</b>\n\n"
+                "Use your own browser for login. I will reuse the saved session after that.\n\n"
+                f"API URL: <code>{api_url}</code>\n"
                 f"Your token: <code>{token}</code>\n\n"
-                "1. Install the extension\n"
-                "2. Paste this token in extension settings\n"
-                "3. Log into any site (booking.com, etc.)\n"
-                "4. Click extension → Save Session"
+                "1. Install/load the browser extension\n"
+                "2. Paste the API URL and token into the extension\n"
+                "3. Open the target site in your browser and log in yourself\n"
+                "4. Click the extension → Save Session\n"
+                "5. Return to Telegram and ask me to continue"
             ),
             chat_id=message.chat_id,
         )

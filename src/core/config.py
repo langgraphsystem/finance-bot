@@ -44,6 +44,15 @@ class Settings(BaseSettings):
             return url.replace("postgres://", "postgresql+asyncpg://", 1)
         return url
 
+    @property
+    def public_base_url(self) -> str:
+        """Infer the public app base URL from configured callbacks/webhook."""
+        if self.google_redirect_uri:
+            return self.google_redirect_uri.rsplit("/oauth/", 1)[0]
+        if self.telegram_webhook_url:
+            return self.telegram_webhook_url.rsplit("/", 1)[0]
+        return ""
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
