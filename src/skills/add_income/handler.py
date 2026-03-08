@@ -41,6 +41,8 @@ class AddIncomeSkill:
         amount = intent_data.get("amount")
         description = intent_data.get("description") or intent_data.get("merchant")
         scope = intent_data.get("scope", "business" if context.business_type else "family")
+        if context.role == "member":
+            scope = "family"
         tx_date = intent_data.get("date") or date.today().isoformat()
 
         if not amount:

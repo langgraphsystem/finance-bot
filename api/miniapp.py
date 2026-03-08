@@ -858,9 +858,13 @@ async def delete_budget(
     _require_owner(user)
     async with async_session() as session:
         b = await session.scalar(
-            select(Budget).where(
-                Budget.id == budget_id,
-                Budget.family_id == user.family_id,
+            apply_scope_filter(
+                select(Budget).where(
+                    Budget.id == budget_id,
+                    Budget.family_id == user.family_id,
+                ),
+                Budget,
+                user.role.value,
             )
         )
         if not b:

@@ -52,6 +52,8 @@ class AddExpenseSkill:
         merchant = intent_data.get("merchant")
         category_name = intent_data.get("category")
         scope = intent_data.get("scope", "family")
+        if context.role == "member":
+            scope = "family"
         tx_date = intent_data.get("date") or date.today().isoformat()
         confidence = intent_data.get("confidence", 0.5)
 
