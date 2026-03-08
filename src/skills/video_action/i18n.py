@@ -333,9 +333,76 @@ _STRINGS: dict[str, dict[str, str]] = {
         ),
         "similar_title": "Video simili per:",
     },
+    "ky": {
+        "btn_content_plan": "📋 Контент-план",
+        "btn_post": "📝 Пост",
+        "btn_steps": "📌 Кадамдар",
+        "btn_save": "💾 Сактоо",
+        "btn_remind": "⏰ Эскертүү",
+        "btn_similar": "🔍 Окшош",
+        "btn_deeper": "📖 Толугураак",
+        "btn_translate": "🌐 Которуу",
+        "btn_article": "📄 Макала",
+        "btn_quotes": "💬 Негизги цитаталар",
+        "btn_script": "📝 Сценарий",
+        "btn_save_content": "💾 Муну сактоо",
+        "no_video": "Акыркы видео табылган жок. Биринчи YouTube же TikTok шилтемесин жөнөтүңүз.",
+        "err_analysis": "Анализ түзүлгөн жок.",
+        "err_steps": "Кадамдар табылган жок.",
+        "err_quotes": "Цитаталар алынган жок.",
+        "err_content_plan": "Контент-план түзүлгөн жок.",
+        "err_post": "Пост түзүлгөн жок.",
+        "err_article": "Макала жазылган жок.",
+        "err_script": "Сценарий жазылган жок.",
+        "err_summary": "Кыскача мазмун түзүлгөн жок.",
+        "err_translate": "Котормо жасалган жок.",
+        "saved_title": "Видео эс тутумга сакталды:",
+        "saved_content_title": "Эс тутумга сакталды.",
+        "saved_note": "Кийинчерээк мага суроо бере аласыз.",
+        "remind_prompt": "Бул видеону качан карайм деп эскертейин?",
+        "remind_hint": (
+            'Убакыт менен жооп бериңиз, мис. <b>«2 сааттан кийин эскерт»</b> '
+            'же <b>«эртең саат 9да»</b>'
+        ),
+        "similar_title": "Окшош видеолор:",
+    },
+    "kk": {
+        "btn_content_plan": "📋 Контент-жоспар",
+        "btn_post": "📝 Пост",
+        "btn_steps": "📌 Қадамдар",
+        "btn_save": "💾 Сақтау",
+        "btn_remind": "⏰ Еске салу",
+        "btn_similar": "🔍 Ұқсас",
+        "btn_deeper": "📖 Толығырақ",
+        "btn_translate": "🌐 Аудару",
+        "btn_article": "📄 Мақала",
+        "btn_quotes": "💬 Негізгі дәйексөздер",
+        "btn_script": "📝 Сценарий",
+        "btn_save_content": "💾 Мұны сақтау",
+        "no_video": "Соңғы бейне табылмады. Алдымен YouTube немесе TikTok сілтемесін жіберіңіз.",
+        "err_analysis": "Талдау жасалмады.",
+        "err_steps": "Қадамдар табылмады.",
+        "err_quotes": "Дәйексөздер алынбады.",
+        "err_content_plan": "Контент-жоспар жасалмады.",
+        "err_post": "Пост жасалмады.",
+        "err_article": "Мақала жазылмады.",
+        "err_script": "Сценарий жазылмады.",
+        "err_summary": "Қысқаша мазмұн жасалмады.",
+        "err_translate": "Аударма жасалмады.",
+        "saved_title": "Бейне жадқа сақталды:",
+        "saved_content_title": "Жадқа сақталды.",
+        "saved_note": "Кейінірек маған сұрай аласыз.",
+        "remind_prompt": "Бұл бейнені қашан қарайын деп еске салайын?",
+        "remind_hint": (
+            'Уақытпен жауап беріңіз, мыс. <b>«2 сағаттан кейін еске сал»</b> '
+            'немесе <b>«ертең сағат 9да»</b>'
+        ),
+        "similar_title": "Ұқсас бейнелер:",
+    },
 }
 
 register_strings("video_action", _STRINGS)
+
 
 # Button definitions — order matters (shown as inline keyboard rows)
 # Displayed after initial video analysis (2 per row via builder.adjust(2))
