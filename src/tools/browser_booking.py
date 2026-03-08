@@ -401,6 +401,7 @@ async def start_flow(
     flow_id = str(uuid.uuid4())[:8]
     state = {
         "flow_id": flow_id,
+        "user_id": user_id,
         "step": "platform_selection",
         "task": task,
         "family_id": family_id,
@@ -520,7 +521,7 @@ async def check_auth_and_search(user_id: str) -> dict[str, Any]:
     state["step"] = "awaiting_login"
     await _set_state(user_id, state)
 
-    login_url = browser_service.get_connect_url(site)
+    login_url = await _get_connect_url(state, user_id, site)
     parsed = state.get("parsed", {})
     city = parsed.get("city", "")
 
@@ -557,7 +558,7 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
 
     storage_state = await browser_service.get_storage_state(user_id, site)
     if not storage_state:
-        login_url = browser_service.get_connect_url(site)
+        login_url = await _get_connect_url(state, user_id, site)
         return {
             "action": "need_login",
             "text": (
@@ -576,6 +577,19 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
     state["step"] = "browser_searching"
     await _set_state(user_id, state)
     return await execute_browser_search(user_id)
+
+
+async def _get_connect_url(state: dict[str, Any], user_id: str, site: str) -> str:
+    from src.tools import browser_service, remote_browser_connect
+
+    flow_user_id = state.get("user_id") or user_id
+    family_id = state.get("family_id")
+    if flow_user_id and family_id:
+        try:
+            return await remote_browser_connect.create_connect_url(flow_user_id, family_id, site)
+        except Exception as e:
+            logger.warning("Hosted browser connect URL fallback for %s: %s", site, e)
+    return browser_service.get_connect_url(site)
 
 
 # ── Playwright-based Search ──────────────────────────────────────────────────

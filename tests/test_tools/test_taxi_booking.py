@@ -39,6 +39,7 @@ async def test_start_flow_requires_destination():
 async def test_check_auth_and_fetch_options_prompts_login_when_session_missing():
     state = {
         "flow_id": "flow-1",
+        "user_id": _TEST_USER_ID,
         "family_id": _TEST_FAMILY_ID,
         "provider": "uber.com",
         "destination": "Airport",
@@ -52,11 +53,16 @@ async def test_check_auth_and_fetch_options_prompts_login_when_session_missing()
             new_callable=AsyncMock,
             return_value=None,
         ),
+        patch(
+            "src.tools.remote_browser_connect.create_connect_url",
+            new_callable=AsyncMock,
+            return_value="https://bot.example.com/api/browser-connect/token-1",
+        ),
     ):
         result = await taxi_booking.check_auth_and_fetch_options(_TEST_USER_ID)
     mock_set.assert_awaited_once()
     assert result["action"] == "need_login"
-    assert "/api/ext/connect?provider=uber.com" in result["buttons"][0]["url"]
+    assert "/api/browser-connect/token-1" in result["buttons"][0]["url"]
     assert "return you to Telegram automatically" in result["text"]
 
 

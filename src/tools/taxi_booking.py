@@ -221,6 +221,7 @@ async def start_flow(
     flow_id = str(uuid.uuid4())
     state = {
         "flow_id": flow_id,
+        "user_id": user_id,
         "family_id": family_id,
         "language": language,
         "provider": provider,
@@ -261,7 +262,7 @@ async def check_auth_and_fetch_options(user_id: str) -> dict[str, Any]:
     if not storage_state:
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
-        return _build_login_prompt(state)
+        return await _build_login_prompt(state)
 
     state["step"] = "fetching_options"
     await _set_state(user_id, state)
@@ -278,7 +279,7 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
     provider = state["provider"]
     storage_state = await browser_service.get_storage_state(user_id, provider)
     if not storage_state:
-        return _build_login_prompt(
+        return await _build_login_prompt(
             state,
             prefix="I still don't see a saved session for this provider.",
         )
@@ -324,11 +325,12 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
     if "LOGIN_REQUIRED" in raw.upper() or status == "LOGIN_REQUIRED":
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
-        return _build_login_prompt(state)
+        return await _build_login_prompt(state)
 
     if "CAPTCHA_DETECTED" in raw.upper():
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
+        connect_url = await _get_connect_url(state)
         return {
             "action": "captcha",
             "text": (
@@ -338,7 +340,7 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
             "buttons": [
                 {
                     "text": f"Connect {_provider_label(provider)}",
-                    "url": browser_service.get_connect_url(provider),
+                    "url": connect_url,
                 },
                 {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
                 {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
@@ -411,7 +413,7 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
     if "LOGIN_REQUIRED" in raw.upper() or status == "LOGIN_REQUIRED":
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
-        return _build_login_prompt(state)
+        return await _build_login_prompt(state)
 
     if status == "PRICE_CHANGED":
         state["review"] = {
@@ -545,11 +547,12 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
     if "LOGIN_REQUIRED" in raw.upper():
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
-        return _build_login_prompt(state)
+        return await _build_login_prompt(state)
 
     if "CAPTCHA_DETECTED" in raw.upper():
         state["step"] = "awaiting_login"
         await _set_state(user_id, state)
+        connect_url = await _get_connect_url(state)
         return {
             "action": "captcha",
             "text": (
@@ -559,7 +562,7 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
             "buttons": [
                 {
                     "text": f"Connect {_provider_label(provider)}",
-                    "url": browser_service.get_connect_url(provider),
+                    "url": connect_url,
                 },
                 {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
                 {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
@@ -597,11 +600,11 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
     }
 
 
-def _build_login_prompt(
+async def _build_login_prompt(
     state: dict[str, Any],
     prefix: str | None = None,
 ) -> dict[str, Any]:
-    from src.tools import browser_service
+    connect_url = await _get_connect_url(state)
 
     provider = state["provider"]
     flow_id = state["flow_id"]
@@ -619,11 +622,25 @@ def _build_login_prompt(
             "If this is your first browser setup, send /extension once."
         ),
         "buttons": [
-            {"text": f"Connect {provider_label}", "url": browser_service.get_connect_url(provider)},
+            {"text": f"Connect {provider_label}", "url": connect_url},
             {"text": "Ready — continue", "callback": f"taxi_login_ready:{flow_id}"},
             {"text": "Cancel", "callback": f"taxi_cancel:{flow_id}"},
         ],
     }
+
+
+async def _get_connect_url(state: dict[str, Any]) -> str:
+    from src.tools import browser_service, remote_browser_connect
+
+    provider = state["provider"]
+    user_id = state.get("user_id")
+    family_id = state.get("family_id")
+    if user_id and family_id:
+        try:
+            return await remote_browser_connect.create_connect_url(user_id, family_id, provider)
+        except Exception as e:
+            logger.warning("Hosted browser connect URL fallback for %s: %s", provider, e)
+    return browser_service.get_connect_url(provider)
 
 
 def _build_option_buttons(options: list[dict[str, Any]], flow_id: str) -> list[dict[str, str]]:
