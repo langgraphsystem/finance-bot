@@ -32,6 +32,16 @@ class SessionContext:
     active_domain: str | None = None
     user_profile: dict[str, Any] = field(default_factory=dict)
 
+    # RBAC Phase 1
+    membership_type: str | None = None
+    permissions: list[str] = field(default_factory=list)
+
+    def has_permission(self, permission: str) -> bool:
+        """Check if user has a specific permission. Owner has all."""
+        if self.role == "owner":
+            return True
+        return permission in self.permissions
+
     def can_access_transaction(self, transaction: Any) -> bool:
         """Check access to a transaction."""
         if str(transaction.family_id) != self.family_id:

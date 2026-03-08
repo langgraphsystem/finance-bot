@@ -27,6 +27,7 @@ from src.core.models.family import Family
 from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
+from src.core.models.workspace_membership import WorkspaceMembership
 from src.core.profiles import ProfileLoader
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
@@ -208,6 +209,16 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
 
+        # Load membership
+        membership_result = await session.execute(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id,
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status == "active",
+            )
+        )
+        membership = membership_result.scalar_one_or_none()
+
         return SessionContext(
             user_id=str(user.id),
             family_id=str(user.family_id),
@@ -220,6 +231,8 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             profile_config=profile,
             timezone=user_timezone,
             user_profile=_build_user_profile(prof_row),
+            membership_type=membership.membership_type.value if membership else None,
+            permissions=membership.permissions if membership else [],
         )
 
 
@@ -279,6 +292,16 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
 
+        # Load membership
+        membership_result = await session.execute(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id,
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status == "active",
+            )
+        )
+        membership = membership_result.scalar_one_or_none()
+
         return SessionContext(
             user_id=str(user.id),
             family_id=str(user.family_id),
@@ -291,6 +314,8 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             profile_config=profile,
             timezone=user_timezone,
             user_profile=_build_user_profile(prof_row),
+            membership_type=membership.membership_type.value if membership else None,
+            permissions=membership.permissions if membership else [],
         )
 
 
