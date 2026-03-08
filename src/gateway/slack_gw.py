@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -124,8 +125,20 @@ class SlackGateway:
     # ------------------------------------------------------------------
     @staticmethod
     def _sanitize(text: str) -> str:
-        """Remove surrogate characters that httpx cannot encode as JSON."""
-        return text.encode("utf-8", errors="replace").decode("utf-8")
+        """Convert HTML to Slack mrkdwn and remove surrogate characters."""
+        # Remove lone surrogates that break JSON encoding
+        text = re.sub(r"[\ud800-\udfff]", "", text)
+        # HTML → Slack mrkdwn
+        text = re.sub(r"<b>(.*?)</b>", r"*\1*", text)
+        text = re.sub(r"<strong>(.*?)</strong>", r"*\1*", text)
+        text = re.sub(r"<i>(.*?)</i>", r"_\1_", text)
+        text = re.sub(r"<em>(.*?)</em>", r"_\1_", text)
+        text = re.sub(r"<code>(.*?)</code>", r"`\1`", text)
+        text = re.sub(r"<pre>(.*?)</pre>", r"```\1```", text, flags=re.DOTALL)
+        text = re.sub(r'<a href="(.*?)">(.*?)</a>', r"<\1|\2>", text)
+        # Strip remaining HTML tags
+        text = re.sub(r"<[^>]+>", "", text)
+        return text
 
     async def send(self, message: OutgoingMessage) -> None:
         """Send a message to Slack via chat.postMessage."""
@@ -333,7 +346,7 @@ class SlackGateway:
                 actions.append(
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": btn["text"]},
+                        "text": {"type": "plain_text", "text": self._sanitize(btn["text"])},
                         "url": btn["url"],
                     }
                 )
@@ -341,7 +354,7 @@ class SlackGateway:
                 actions.append(
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": btn["text"]},
+                        "text": {"type": "plain_text", "text": self._sanitize(btn["text"])},
                         "action_id": btn["callback"],
                         "value": btn["callback"],
                     }
