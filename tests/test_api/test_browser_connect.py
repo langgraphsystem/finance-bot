@@ -59,7 +59,7 @@ async def test_browser_connect_state_returns_telegram_deep_link(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "completed"
-    assert data["return_url"] == "https://t.me/HurremBot?start=browser_connect"
+    assert data["return_url"] == "https://t.me/HurremBot?start=browser_connect_test-token"
 
 
 async def test_browser_connect_action_proxies_to_manager(client):

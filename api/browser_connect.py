@@ -292,6 +292,13 @@ def _render_connect_page(token: str, provider: str) -> str:
 </html>"""
 
 
+async def _build_return_url(token: str) -> str:
+    bot_username = await get_bot_username()
+    if not bot_username:
+        return ""
+    return f"https://t.me/{bot_username}?start=browser_connect_{token}"
+
+
 @router.get("/{token}", response_class=HTMLResponse)
 async def browser_connect_page(token: str) -> HTMLResponse:
     try:
@@ -313,10 +320,9 @@ async def browser_connect_state(token: str) -> BrowserConnectStateResponse:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    bot_username = await get_bot_username()
     return_url = ""
-    if state["status"] == "completed" and bot_username:
-        return_url = f"https://t.me/{bot_username}?start=browser_connect"
+    if state["status"] == "completed":
+        return_url = await _build_return_url(token)
 
     return BrowserConnectStateResponse(
         ok=True,
@@ -359,10 +365,9 @@ async def browser_connect_action(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    bot_username = await get_bot_username()
     return_url = ""
-    if state["status"] == "completed" and bot_username:
-        return_url = f"https://t.me/{bot_username}?start=browser_connect"
+    if state["status"] == "completed":
+        return_url = await _build_return_url(token)
 
     return BrowserConnectStateResponse(
         ok=True,

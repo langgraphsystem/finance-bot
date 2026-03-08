@@ -27,6 +27,37 @@ VIEWPORT_WIDTH = 430
 VIEWPORT_HEIGHT = 932
 _TOKEN_PREFIX = "browser_connect"
 _AUTH_PATH_HINTS = ("/login", "/signin", "/sign-in", "/auth", "/challenge", "/verify")
+_GENERIC_LOGIN_MARKERS = (
+    " login",
+    " sign in",
+    " log in",
+    " continue with google",
+    " continue with apple",
+    " continue with facebook",
+    " forgot password",
+    " phone number",
+    " email address",
+)
+_PROVIDER_LOGIN_MARKERS: dict[str, tuple[str, ...]] = {
+    "uber.com": (
+        "login",
+        "sign in",
+        "log in",
+        "continue with google",
+        "continue with apple",
+        "continue with facebook",
+    ),
+}
+_PROVIDER_AUTH_MARKERS: dict[str, tuple[str, ...]] = {
+    "uber.com": (
+        "where to?",
+        "activity",
+        "services",
+        "account",
+        "wallet",
+        "home",
+    ),
+}
 _PRESS_KEY_MAP = {
     "enter": "Enter",
     "tab": "Tab",
@@ -183,9 +214,42 @@ async def _close_session(session: RemoteBrowserSession) -> None:
 
 
 async def _refresh_session_snapshot(session: RemoteBrowserSession) -> None:
-    session.screenshot_png = await session.page.screenshot(type="png", full_page=False)
-    session.current_url = session.page.url
+    try:
+        session.screenshot_png = await session.page.screenshot(type="png", full_page=False)
+        session.current_url = session.page.url
+    except Exception as e:
+        logger.warning("Failed to refresh browser-connect snapshot for %s: %s", session.token, e)
+        if not session.error:
+            session.error = str(e)
     session.updated_at = time.time()
+
+
+async def _page_text(session: RemoteBrowserSession) -> str:
+    try:
+        text = await session.page.text_content("body")
+    except Exception:
+        return ""
+    return (text or "").strip().lower()
+
+
+def _contains_any(text: str, markers: tuple[str, ...]) -> bool:
+    lowered = f" {text} "
+    return any(marker in lowered for marker in markers)
+
+
+async def _looks_authenticated(session: RemoteBrowserSession) -> bool:
+    body_text = await _page_text(session)
+    provider = session.provider
+
+    login_markers = _GENERIC_LOGIN_MARKERS + _PROVIDER_LOGIN_MARKERS.get(provider, ())
+    if body_text and _contains_any(body_text, login_markers):
+        return False
+
+    auth_markers = _PROVIDER_AUTH_MARKERS.get(provider, ())
+    if auth_markers:
+        return _contains_any(body_text, auth_markers)
+
+    return True
 
 
 async def _maybe_complete_login(session: RemoteBrowserSession) -> bool:
@@ -202,6 +266,7 @@ async def _maybe_complete_login(session: RemoteBrowserSession) -> bool:
         has_provider_cookie
         and _provider_matches(session.page.url, session.provider)
         and not _is_auth_like(session.page.url)
+        and await _looks_authenticated(session)
     ):
         await browser_service.save_storage_state(
             session.user_id,

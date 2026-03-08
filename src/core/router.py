@@ -856,7 +856,13 @@ async def _handle_slash_command(
     if text.startswith("/start"):
         payload = text.split(maxsplit=1)[1].strip() if " " in text else ""
         if payload == "browser_connect":
-            return await _resume_browser_connect(message, context)
+            return await _resume_browser_connect(message, context, token=None)
+        if payload.startswith("browser_connect_"):
+            return await _resume_browser_connect(
+                message,
+                context,
+                token=payload.removeprefix("browser_connect_"),
+            )
 
     if text == "/export":
         import json
@@ -1002,12 +1008,32 @@ async def _handle_slash_command(
 async def _resume_browser_connect(
     message: IncomingMessage,
     context: SessionContext,
+    token: str | None = None,
 ) -> OutgoingMessage:
     """Resume an active browser-based task after the user logs in."""
-    from src.tools import browser_booking, taxi_booking
+    from src.tools import browser_booking, browser_service, remote_browser_connect, taxi_booking
+
+    connect_payload: dict[str, Any] | None = None
+    connect_provider = ""
+    if token:
+        connect_payload = await remote_browser_connect.get_token_payload(token)
+        if connect_payload and str(connect_payload.get("user_id")) != context.user_id:
+            return OutgoingMessage(
+                text="This browser connect session belongs to another user.",
+                chat_id=message.chat_id,
+            )
+        connect_provider = str((connect_payload or {}).get("provider") or "")
 
     taxi_state = await taxi_booking.get_taxi_state(context.user_id)
-    if taxi_state and taxi_state.get("step") == "awaiting_login":
+    taxi_matches_provider = connect_provider and (
+        browser_service.extract_domain(str(taxi_state.get("provider", ""))) == connect_provider
+        if taxi_state
+        else False
+    )
+    if taxi_state and (
+        taxi_state.get("step") == "awaiting_login"
+        or taxi_matches_provider
+    ):
         result = await taxi_booking.handle_login_ready(context.user_id)
         return OutgoingMessage(
             text=result.get("text", "Browser connected."),
@@ -1016,13 +1042,33 @@ async def _resume_browser_connect(
         )
 
     booking_state = await browser_booking.get_booking_state(context.user_id)
-    if booking_state and booking_state.get("step") == "awaiting_login":
+    booking_matches_provider = connect_provider and (
+        browser_service.extract_domain(str(booking_state.get("site", ""))) == connect_provider
+        if booking_state
+        else False
+    )
+    if booking_state and (
+        booking_state.get("step") == "awaiting_login"
+        or booking_matches_provider
+    ):
         result = await browser_booking.handle_login_ready(context.user_id)
         return OutgoingMessage(
             text=result.get("text", "Browser connected."),
             chat_id=message.chat_id,
             buttons=result.get("buttons"),
         )
+
+    if connect_provider:
+        saved_state = await browser_service.get_storage_state(context.user_id, connect_provider)
+        if saved_state:
+            provider_label = connect_provider.replace(".com", "").title()
+            return OutgoingMessage(
+                text=(
+                    f"{provider_label} is connected and the session is saved.\n\n"
+                    "Send the request again and I will continue from Telegram."
+                ),
+                chat_id=message.chat_id,
+            )
 
     return OutgoingMessage(
         text="Browser connected. Return to your previous request in Telegram.",

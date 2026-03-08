@@ -13,14 +13,19 @@ async def test_start_browser_connect_resumes_taxi_flow(sample_context):
         user_id=sample_context.user_id,
         chat_id="chat-1",
         type=MessageType.text,
-        text="/start browser_connect",
+        text="/start browser_connect_test-token",
     )
 
     with (
         patch(
+            "src.tools.remote_browser_connect.get_token_payload",
+            new_callable=AsyncMock,
+            return_value={"user_id": sample_context.user_id, "provider": "uber.com"},
+        ),
+        patch(
             "src.tools.taxi_booking.get_taxi_state",
             new_callable=AsyncMock,
-            return_value={"step": "awaiting_login"},
+            return_value={"step": "awaiting_login", "provider": "uber.com"},
         ),
         patch(
             "src.tools.taxi_booking.handle_login_ready",
@@ -44,10 +49,15 @@ async def test_start_browser_connect_resumes_hotel_flow(sample_context):
         user_id=sample_context.user_id,
         chat_id="chat-1",
         type=MessageType.text,
-        text="/start browser_connect",
+        text="/start browser_connect_test-token",
     )
 
     with (
+        patch(
+            "src.tools.remote_browser_connect.get_token_payload",
+            new_callable=AsyncMock,
+            return_value={"user_id": sample_context.user_id, "provider": "booking.com"},
+        ),
         patch(
             "src.tools.taxi_booking.get_taxi_state",
             new_callable=AsyncMock,
@@ -56,7 +66,7 @@ async def test_start_browser_connect_resumes_hotel_flow(sample_context):
         patch(
             "src.tools.browser_booking.get_booking_state",
             new_callable=AsyncMock,
-            return_value={"step": "awaiting_login"},
+            return_value={"step": "awaiting_login", "site": "booking.com"},
         ),
         patch(
             "src.tools.browser_booking.handle_login_ready",
@@ -80,10 +90,15 @@ async def test_start_browser_connect_without_pending_flow(sample_context):
         user_id=sample_context.user_id,
         chat_id="chat-1",
         type=MessageType.text,
-        text="/start browser_connect",
+        text="/start browser_connect_test-token",
     )
 
     with (
+        patch(
+            "src.tools.remote_browser_connect.get_token_payload",
+            new_callable=AsyncMock,
+            return_value={"user_id": sample_context.user_id, "provider": "uber.com"},
+        ),
         patch(
             "src.tools.taxi_booking.get_taxi_state",
             new_callable=AsyncMock,
@@ -94,8 +109,35 @@ async def test_start_browser_connect_without_pending_flow(sample_context):
             new_callable=AsyncMock,
             return_value=None,
         ),
+        patch(
+            "src.tools.browser_service.get_storage_state",
+            new_callable=AsyncMock,
+            return_value={"cookies": [{"name": "session"}]},
+        ),
     ):
         result = await _handle_slash_command(message, sample_context)
 
     assert result is not None
-    assert "Browser connected" in result.text
+    assert "connected and the session is saved" in result.text
+
+
+async def test_start_browser_connect_rejects_token_for_other_user(sample_context):
+    from src.core.router import _handle_slash_command
+
+    message = IncomingMessage(
+        id="4",
+        user_id=sample_context.user_id,
+        chat_id="chat-1",
+        type=MessageType.text,
+        text="/start browser_connect_test-token",
+    )
+
+    with patch(
+        "src.tools.remote_browser_connect.get_token_payload",
+        new_callable=AsyncMock,
+        return_value={"user_id": "someone-else", "provider": "uber.com"},
+    ):
+        result = await _handle_slash_command(message, sample_context)
+
+    assert result is not None
+    assert "belongs to another user" in result.text
