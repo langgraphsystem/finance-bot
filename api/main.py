@@ -603,12 +603,13 @@ async def _handle_channel_onboarding(incoming, gw):
     onboarding = registry.get("onboarding")
 
     onboarding_state = await _get_onboarding_state(state_key)
+    chosen_lang = await _get_onboarding_language(state_key)
     intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
     # Pass channel info so onboarding skill uses channel-agnostic registration
     intent_data["channel"] = incoming.channel
     intent_data["channel_user_id"] = incoming.channel_user_id or incoming.user_id
 
-    msg_language = incoming.language or "en"
+    msg_language = chosen_lang or incoming.language or "en"
     result = await onboarding.execute(
         incoming,
         SessionContext(
