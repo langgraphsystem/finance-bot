@@ -58,6 +58,7 @@ from src.core.models.usage_log import UsageLog
 from src.core.models.user import User
 from src.core.models.user_context import UserContext
 from src.core.models.user_profile import UserProfile
+from src.core.models.user_project import UserProject
 
 __all__ = [
     "Base",
@@ -119,4 +120,5 @@ __all__ = [
     "UserProfile",
     "UserBrowserSession",
     "BrowserActionLog",
+    "UserProject",
 ]
