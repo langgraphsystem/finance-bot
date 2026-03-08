@@ -106,22 +106,25 @@ _STRINGS: dict[str, dict[str, str]] = {
 register_strings("video_action", _STRINGS)
 
 # Button definitions — order matters (shown as inline keyboard rows)
+# Displayed after initial video analysis (2 per row via builder.adjust(2))
 _BUTTON_KEYS = [
+    ("btn_deeper", "video:deeper"),
+    ("btn_steps", "video:steps"),
     ("btn_content_plan", "video:content_plan"),
     ("btn_post", "video:post"),
-    ("btn_steps", "video:steps"),
-    ("btn_save", "video:save"),
-    ("btn_remind", "video:remind"),
-    ("btn_similar", "video:similar"),
-    ("btn_deeper", "video:deeper"),
-    ("btn_translate", "video:translate"),
     ("btn_article", "video:article"),
+    ("btn_quotes", "video:quotes"),
+    ("btn_translate", "video:translate"),
+    ("btn_similar", "video:similar"),
+    ("btn_remind", "video:remind"),
+    ("btn_save", "video:save"),
 ]
 
 _WRITING_BUTTON_KEYS = [
     ("btn_content_plan", "video:content_plan"),
     ("btn_article", "video:article"),
     ("btn_script", "video:script"),
+    ("btn_save", "video:save"),
 ]
 
 

@@ -132,14 +132,22 @@ class ReadInboxSkill:
         if not messages:
             return SkillResult(response_text="📭 Новых писем нет.")
 
-        # Parse headers into readable format
-        parsed = [parse_email_headers(m) for m in messages]
+        # Parse headers + preserve full message data for attachments
+        parsed = []
+        for m in messages:
+            info = parse_email_headers(m)
+            info["message_id"] = m.get("id", "")
+            info["attachments"] = m.get("attachments", [])
+            parsed.append(info)
 
         # Cache parsed results for follow-up queries
         await self._cache_inbox(context.user_id, parsed)
 
+        def _att_icon(e: dict) -> str:
+            return " 📎" if e.get("attachments") else ""
+
         email_text = "\n".join(
-            f"{i}. From: {e['from']}\n   Subject: {e['subject']}\n   {e['snippet'][:100]}"
+            f"{i}. From: {e['from']}\n   Subject: {e['subject']}{_att_icon(e)}\n   {e['snippet'][:100]}"
             for i, e in enumerate(parsed, 1)
         )
 
@@ -164,13 +172,16 @@ class ReadInboxSkill:
                 )
 
             email_info = cached[idx - 1]
-            # Try to get full thread for richer context
+            message_id = email_info.get("message_id") or email_info.get("id", "")
+            thread_id = email_info.get("thread_id", "")
+
+            # Fetch full thread for richer context
             thread_text = f"From: {email_info['from']}\nSubject: {email_info['subject']}\n"
             thread_text += f"Date: {email_info['date']}\n\n{email_info['snippet']}"
 
-            if email_info.get("thread_id"):
+            if thread_id:
                 try:
-                    thread_msgs = await google.get_thread(email_info["thread_id"])
+                    thread_msgs = await google.get_thread(thread_id)
                     thread_parsed = [parse_email_headers(m) for m in thread_msgs]
                     thread_text = "\n---\n".join(
                         f"From: {e['from']}\nSubject: {e['subject']}\n"
@@ -180,8 +191,61 @@ class ReadInboxSkill:
                 except Exception as e:
                     logger.warning("Thread fetch failed: %s", e)
 
+            # Mark as read automatically
+            if message_id:
+                try:
+                    await google.mark_as_read(message_id)
+                except Exception as e:
+                    logger.warning("Mark as read failed: %s", e)
+
             result = await _detail_with_llm(thread_text, context.language or "ru")
-            return SkillResult(response_text=result)
+
+            # Build action buttons
+            buttons = []
+            if thread_id and message_id:
+                # Store reply context in Redis
+                import secrets
+                from src.core.db import redis as _redis
+                reply_key = secrets.token_urlsafe(8)
+                await _redis.set(
+                    f"email_reply:{reply_key}",
+                    json.dumps({
+                        "thread_id": thread_id,
+                        "to": email_info.get("from", ""),
+                        "subject": email_info.get("subject", ""),
+                        "user_id": context.user_id,
+                    }),
+                    ex=1800,
+                )
+                buttons.append({"text": "↩️ Ответить", "callback": f"email_reply:{reply_key}"})
+
+            if message_id:
+                trash_key = f"{message_id}"
+                buttons.append({"text": "🗑 В корзину", "callback": f"email_trash:{trash_key}"})
+
+            # Attachment download buttons
+            attachments = email_info.get("attachments", [])
+            for att in attachments[:3]:  # max 3 buttons
+                filename = att.get("filename", "file")
+                att_id = att.get("attachment_id", "")
+                if att_id and message_id:
+                    import secrets as _sec
+                    att_key = _sec.token_urlsafe(8)
+                    from src.core.db import redis as _redis2
+                    await _redis2.set(
+                        f"email_att:{att_key}",
+                        json.dumps({
+                            "message_id": message_id,
+                            "attachment_id": att_id,
+                            "filename": filename,
+                            "mime_type": att.get("mime_type", "application/octet-stream"),
+                            "user_id": context.user_id,
+                        }),
+                        ex=1800,
+                    )
+                    buttons.append({"text": f"📥 {filename[:20]}", "callback": f"email_download:{att_key}"})
+
+            return SkillResult(response_text=result, buttons=buttons or None)
 
         except Exception as e:
             logger.warning("Email detail failed: %s", e)

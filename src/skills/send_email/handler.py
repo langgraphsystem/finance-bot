@@ -55,27 +55,50 @@ class SendEmailSkill:
                 response_text="Укажите получателя. Например: «напиши email john@example.com ...»"
             )
 
+        # Detect attachment from Telegram message
+        attachment_bytes: bytes | None = None
+        attachment_filename: str | None = None
+        attachment_mime: str | None = None
+
+        if message.document_bytes and message.document_file_name:
+            attachment_bytes = message.document_bytes
+            attachment_filename = message.document_file_name
+            attachment_mime = message.document_mime_type or "application/octet-stream"
+        elif message.photo_bytes:
+            attachment_bytes = message.photo_bytes
+            attachment_filename = "photo.jpg"
+            attachment_mime = "image/jpeg"
+
         # Draft the email body via LLM
         body = await _draft_body(email_to, email_subject, email_body_hint, query, context.language)
 
         # Store pending action — require user confirmation before sending
         from src.core.pending_actions import store_pending_action
 
+        action_data: dict = {
+            "email_to": email_to,
+            "email_subject": email_subject or "No Subject",
+            "email_body": body,
+        }
+        if attachment_bytes:
+            import base64
+            action_data["attachment_b64"] = base64.b64encode(attachment_bytes).decode()
+            action_data["attachment_filename"] = attachment_filename
+            action_data["attachment_mime"] = attachment_mime
+
         pending_id = await store_pending_action(
             intent="send_email",
             user_id=context.user_id,
             family_id=context.family_id,
-            action_data={
-                "email_to": email_to,
-                "email_subject": email_subject or "No Subject",
-                "email_body": body,
-            },
+            action_data=action_data,
         )
 
+        attachment_note = f"\n📎 <i>{attachment_filename}</i>" if attachment_filename else ""
         preview = (
             f"<b>Черновик email:</b>\n\n"
             f"<b>To:</b> {email_to}\n"
-            f"<b>Subject:</b> {email_subject or 'No Subject'}\n\n"
+            f"<b>Subject:</b> {email_subject or 'No Subject'}"
+            f"{attachment_note}\n\n"
             f"{body[:500]}"
         )
 
@@ -124,19 +147,42 @@ async def execute_send(action_data: dict, user_id: str) -> str:
         return "Ошибка подключения к Gmail. Попробуйте /connect"
 
     try:
-        await google.send_message(
-            to=action_data["email_to"],
-            subject=action_data["email_subject"],
-            body=action_data["email_body"],
-        )
+        if action_data.get("thread_id"):
+            # Reply to existing thread
+            await google.reply_to_thread(
+                thread_id=action_data["thread_id"],
+                to=action_data["email_to"],
+                body=action_data["email_body"],
+            )
+        elif action_data.get("attachment_b64"):
+            import base64
+            attachment_bytes = base64.b64decode(action_data["attachment_b64"])
+            await google.send_message_with_attachment(
+                to=action_data["email_to"],
+                subject=action_data["email_subject"],
+                body=action_data["email_body"],
+                attachment_bytes=attachment_bytes,
+                filename=action_data.get("attachment_filename", "attachment"),
+                mime_type=action_data.get("attachment_mime", "application/octet-stream"),
+            )
+        else:
+            await google.send_message(
+                to=action_data["email_to"],
+                subject=action_data["email_subject"],
+                body=action_data["email_body"],
+            )
     except Exception as e:
         logger.error("Gmail send failed: %s", e)
         return "Не удалось отправить email. Попробуйте позже."
 
+    attachment_note = (
+        f"\n📎 {action_data['attachment_filename']}" if action_data.get("attachment_filename") else ""
+    )
     return (
         f"✅ Email отправлен!\n\n"
         f"<b>To:</b> {action_data['email_to']}\n"
         f"<b>Subject:</b> {action_data['email_subject']}"
+        f"{attachment_note}"
     )
 
 

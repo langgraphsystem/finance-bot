@@ -96,13 +96,16 @@ def _context_block(session: VideoSession) -> str:
     return "\n".join(parts)
 
 
-def _save_btn(language: str) -> dict:
+def _save_content_btn(language: str) -> dict:
     return {"text": t("btn_save_content", language), "callback": "video:save_content"}
 
 
 def _buttons_with_save(language: str) -> list[dict]:
-    """Video action buttons with save_content prepended."""
-    return [_save_btn(language)] + get_video_buttons(language)
+    """Video action buttons with save_content prepended (replaces video:save slot)."""
+    buttons = get_video_buttons(language)
+    # Replace the last btn (video:save) with save_content so user can save the generated text
+    without_save = [b for b in buttons if b["callback"] != "video:save"]
+    return [_save_content_btn(language)] + without_save
 
 
 # ---------------------------------------------------------------------------

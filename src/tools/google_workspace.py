@@ -126,6 +126,66 @@ class GoogleWorkspaceClient:
         )
         return result.get("data", result)
 
+    async def send_message_with_attachment(
+        self,
+        *,
+        to: str,
+        subject: str,
+        body: str,
+        attachment_bytes: bytes,
+        filename: str,
+        mime_type: str = "application/octet-stream",
+        is_html: bool = False,
+    ) -> dict:
+        """Send an email with a file attachment via Composio GMAIL_SEND_EMAIL."""
+        import base64
+
+        result = await self._aexecute(
+            "GMAIL_SEND_EMAIL",
+            {
+                "recipient_email": to,
+                "subject": subject,
+                "body": body,
+                "is_html": is_html,
+                "user_id": "me",
+                "attachment": base64.b64encode(attachment_bytes).decode(),
+                "attachment_name": filename,
+                "attachment_mime_type": mime_type,
+            },
+        )
+        return result.get("data", result)
+
+    async def get_attachment(self, message_id: str, attachment_id: str) -> bytes:
+        """Download a Gmail attachment by ID. Returns raw bytes."""
+        import base64
+
+        result = await self._aexecute(
+            "GMAIL_FETCH_ATTACHMENT",
+            {
+                "message_id": message_id,
+                "attachment_id": attachment_id,
+                "user_id": "me",
+            },
+        )
+        data = result.get("data", result)
+        raw = data.get("data", "") if isinstance(data, dict) else ""
+        # Gmail API returns URL-safe base64
+        return base64.urlsafe_b64decode(raw + "==") if raw else b""
+
+    async def mark_as_read(self, message_id: str) -> None:
+        """Mark a Gmail message as read."""
+        await self._aexecute(
+            "GMAIL_MARK_EMAIL_AS_READ",
+            {"message_id": message_id, "user_id": "me"},
+        )
+
+    async def trash_message(self, message_id: str) -> None:
+        """Move a Gmail message to trash."""
+        await self._aexecute(
+            "GMAIL_MOVE_EMAIL_TO_TRASH",
+            {"message_id": message_id, "user_id": "me"},
+        )
+
     async def create_draft(
         self, *, to: str, subject: str, body: str, is_html: bool = False
     ) -> dict:
@@ -326,13 +386,29 @@ class GoogleWorkspaceClient:
 
         Ensures ``parse_email_headers()`` can extract id, threadId,
         snippet, and payload.headers (from, subject, date).
+        Also extracts attachment metadata into ``attachments`` list.
         """
         if not msg or not isinstance(msg, dict):
             return msg
 
-        # If already in Gmail API format (has payload.headers), return as-is
-        if msg.get("payload", {}).get("headers"):
-            return msg
+        # Extract attachment metadata from parts (Gmail API full format)
+        attachments = []
+        payload = msg.get("payload", {})
+        if payload.get("headers"):
+            # Already Gmail API format — parse parts for attachments
+            for part in payload.get("parts", []):
+                filename = part.get("filename", "")
+                attachment_id = part.get("body", {}).get("attachmentId", "")
+                if filename and attachment_id:
+                    attachments.append({
+                        "filename": filename,
+                        "attachment_id": attachment_id,
+                        "mime_type": part.get("mimeType", "application/octet-stream"),
+                        "size": part.get("body", {}).get("size", 0),
+                    })
+            result = dict(msg)
+            result["attachments"] = attachments
+            return result
 
         # Build Gmail-API-compatible structure from Composio flat response
         headers = []
@@ -342,15 +418,25 @@ class GoogleWorkspaceClient:
                 name = key.capitalize() if key != "from" else "From"
                 headers.append({"name": name, "value": value})
 
-        # Try to build a subject header
         if not any(h["name"].lower() == "subject" for h in headers):
             subject = msg.get("subject") or msg.get("Subject", "")
             if subject:
                 headers.append({"name": "Subject", "value": subject})
+
+        # Parse attachments from Composio flat format if present
+        for att in msg.get("attachments", []):
+            if isinstance(att, dict) and att.get("filename"):
+                attachments.append({
+                    "filename": att.get("filename", ""),
+                    "attachment_id": att.get("attachmentId", att.get("id", "")),
+                    "mime_type": att.get("mimeType", "application/octet-stream"),
+                    "size": att.get("size", 0),
+                })
 
         return {
             "id": msg.get("id", msg.get("messageId", "")),
             "threadId": msg.get("threadId", msg.get("thread_id", "")),
             "snippet": msg.get("snippet", msg.get("body", "")[:200] if msg.get("body") else ""),
             "payload": {"headers": headers},
+            "attachments": attachments,
         }
