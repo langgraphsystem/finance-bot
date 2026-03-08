@@ -40,6 +40,9 @@ class Document(Base, TimestampMixin):
     parent_document_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
+    visibility: Mapped[str | None] = mapped_column(
+        String(20), nullable=True,
+    )
 
     __table_args__ = (
         Index("ix_documents_family_id", "family_id"),

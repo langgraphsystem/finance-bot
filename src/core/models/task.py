@@ -46,6 +46,9 @@ class Task(Base, TimestampMixin):
     original_reminder_time: Mapped[str | None] = mapped_column(
         String(10), nullable=True
     )  # "HH:MM" for DST-safe recurring advancement
+    visibility: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="private_user",
+    )
 
     user = relationship("User")
     assignee = relationship("Contact", foreign_keys=[assigned_to])

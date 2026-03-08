@@ -37,6 +37,9 @@ class Transaction(Base, TimestampMixin):
     )
     ai_confidence: Mapped[float] = mapped_column(Numeric(3, 2), default=1.0)
     is_corrected: Mapped[bool] = mapped_column(Boolean, default=False)
+    visibility: Mapped[str | None] = mapped_column(
+        String(20), nullable=True,
+    )
 
     category = relationship("Category")
     contact = relationship("Contact")

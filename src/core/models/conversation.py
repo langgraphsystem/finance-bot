@@ -24,3 +24,6 @@ class ConversationMessage(Base):
     entities: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    visibility: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, default="private_user",
+    )
