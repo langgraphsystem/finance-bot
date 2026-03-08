@@ -14,6 +14,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_deeper": "📖 Deeper",
         "btn_translate": "🌐 Translate",
         "btn_article": "📄 Article",
+        "btn_quotes": "💬 Key quotes",
         "btn_script": "📝 Script",
         "btn_save_content": "💾 Save this",
         # Response strings
@@ -47,6 +48,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_deeper": "📖 Подробнее",
         "btn_translate": "🌐 Перевести",
         "btn_article": "📄 Статья",
+        "btn_quotes": "💬 Ключевые цитаты",
         "btn_script": "📝 Сценарий",
         "btn_save_content": "💾 Сохранить это",
         "no_video": "Видео не найдено. Сначала отправьте ссылку на YouTube или TikTok.",
@@ -79,6 +81,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_deeper": "📖 Más detalles",
         "btn_translate": "🌐 Traducir",
         "btn_article": "📄 Artículo",
+        "btn_quotes": "💬 Citas clave",
         "btn_script": "📝 Guión",
         "btn_save_content": "💾 Guardar esto",
         "no_video": "No se encontró video reciente. Envía un enlace de YouTube o TikTok primero.",
