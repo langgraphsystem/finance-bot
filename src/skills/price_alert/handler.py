@@ -1,4 +1,4 @@
-"""Price alert skill — create persistent price monitors.
+﻿"""Price alert skill — create persistent price monitors.
 
 Users say "alert me when lumber drops below $5 at Home Depot" and the bot
 creates a Monitor record. The proactivity engine checks it periodically.
@@ -42,7 +42,7 @@ register_strings("price_alert", {"en": {}, "ru": {}, "es": {}})
 class PriceAlertSkill:
     name = "price_alert"
     intents = ["price_alert"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)

@@ -1,4 +1,4 @@
-"""List contacts skill — show all contacts/clients."""
+﻿"""List contacts skill — show all contacts/clients."""
 
 import logging
 from typing import Any
@@ -27,7 +27,7 @@ register_strings("list_contacts", {"en": {}, "ru": {}, "es": {}})
 class ListContactsSkill:
     name = "list_contacts"
     intents = ["list_contacts"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="list_contacts")
     async def execute(

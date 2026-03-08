@@ -141,11 +141,11 @@ class QueryStatsSkill:
     async def _get_comparison_data(
         self,
         family_id: str,
-        role: str,
         current_start: date,
         current_end: date,
         prev_start: date,
         prev_end: date,
+        role: str = "owner",
     ) -> dict:
         """Get spending comparison between two periods."""
         async with async_session() as session:

@@ -1,4 +1,4 @@
-"""Add recurring payment skill — manages subscriptions, rent, and other recurring expenses."""
+﻿"""Add recurring payment skill — manages subscriptions, rent, and other recurring expenses."""
 
 import logging
 import uuid
@@ -103,7 +103,7 @@ register_strings("add_recurring", {"en": {}, "ru": {}, "es": {}})
 class AddRecurringSkill:
     name = "add_recurring"
     intents = ["add_recurring"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,

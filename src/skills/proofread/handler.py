@@ -1,4 +1,4 @@
-"""Proofread skill — checks grammar and spelling using Claude Haiku."""
+﻿"""Proofread skill — checks grammar and spelling using Claude Haiku."""
 
 import logging
 from typing import Any
@@ -33,7 +33,7 @@ register_strings("proofread", {"en": {}, "ru": {}, "es": {}})
 class ProofreadSkill:
     name = "proofread"
     intents = ["proofread"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="proofread")
     async def execute(
@@ -65,7 +65,7 @@ async def check_text(text: str, language: str) -> str:
     system = PROOFREAD_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.4-2026-03-05", system,
+            "gpt-5.2", system,
             [{"role": "user", "content": f"Proofread this:\n\n{text}"}],
             max_tokens=1024,
         )

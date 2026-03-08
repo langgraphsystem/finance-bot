@@ -1,4 +1,4 @@
-"""Universal receptionist skill — config-driven business front desk.
+﻿"""Universal receptionist skill — config-driven business front desk.
 
 Reads specialist config from the user's profile to answer questions
 about services, pricing, working hours, staff, and FAQ.
@@ -45,7 +45,7 @@ register_strings("receptionist", {"en": {}, "ru": {}, "es": {}})
 class ReceptionistSkill:
     name = "receptionist"
     intents = ["receptionist"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return RECEPTIONIST_SYSTEM_PROMPT.format(language=context.language or "en")

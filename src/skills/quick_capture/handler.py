@@ -1,4 +1,4 @@
-"""Quick capture skill — save a note with auto-tags and Mem0 indexing."""
+﻿"""Quick capture skill — save a note with auto-tags and Mem0 indexing."""
 
 import logging
 from typing import Any
@@ -29,7 +29,7 @@ register_strings("quick_capture", {"en": {}, "ru": {}, "es": {}})
 class QuickCaptureSkill:
     name = "quick_capture"
     intents = ["quick_capture"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="quick_capture")
     async def execute(

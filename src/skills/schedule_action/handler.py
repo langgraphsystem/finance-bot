@@ -1,4 +1,4 @@
-"""Schedule action skill — create Scheduled Intelligence Actions."""
+﻿"""Schedule action skill — create Scheduled Intelligence Actions."""
 
 import logging
 import re
@@ -512,7 +512,7 @@ def _schedule_description(
 class ScheduleActionSkill:
     name = "schedule_action"
     intents = ["schedule_action"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="schedule_action")
     async def execute(

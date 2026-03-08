@@ -1,4 +1,4 @@
-"""Reschedule event skill — moves calendar events via Google Calendar API."""
+﻿"""Reschedule event skill — moves calendar events via Google Calendar API."""
 
 import logging
 from datetime import datetime, timedelta
@@ -31,7 +31,7 @@ register_strings("reschedule_event", {"en": {}, "ru": {}, "es": {}})
 class RescheduleEventSkill:
     name = "reschedule_event"
     intents = ["reschedule_event"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="reschedule_event")
     async def execute(
@@ -147,7 +147,7 @@ async def _parse_reschedule(user_text: str, events_list: str, language: str) -> 
     )
     try:
         return await generate_text(
-            "gpt-5.4-2026-03-05", system, [{"role": "user", "content": user_text}], max_tokens=256
+            "gpt-5.2", system, [{"role": "user", "content": user_text}], max_tokens=256
         )
     except Exception as e:
         logger.warning("Reschedule parse failed: %s", e)

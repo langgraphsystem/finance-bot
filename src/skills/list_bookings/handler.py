@@ -1,4 +1,4 @@
-"""List bookings skill — show today's/week's schedule."""
+﻿"""List bookings skill — show today's/week's schedule."""
 
 import logging
 from datetime import datetime, timedelta
@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 _STRINGS = {
     "en": {
         "today": "Today's",
+        "tomorrow": "Tomorrow's",
+        "yesterday": "Yesterday's",
         "week": "This week's",
         "empty": "📋 {label} schedule is clear. No bookings.",
         "header": "📋 <b>{label} bookings ({count}):</b>\n",
@@ -28,6 +30,8 @@ _STRINGS = {
     },
     "ru": {
         "today": "Сегодня",
+        "tomorrow": "Завтра",
+        "yesterday": "Вчера",
         "week": "На этой неделе",
         "empty": "📋 {label} — расписание свободно.",
         "header": "📋 <b>{label} — записи ({count}):</b>\n",
@@ -35,6 +39,8 @@ _STRINGS = {
     },
     "es": {
         "today": "Hoy",
+        "tomorrow": "Mañana",
+        "yesterday": "Ayer",
         "week": "Esta semana",
         "empty": "📋 {label} — sin reservas.",
         "header": "📋 <b>{label} — reservas ({count}):</b>\n",
@@ -52,7 +58,7 @@ ALWAYS respond in the same language as the user's message/query."""
 class ListBookingsSkill:
     name = "list_bookings"
     intents = ["list_bookings"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="list_bookings")
     async def execute(
@@ -65,19 +71,28 @@ class ListBookingsSkill:
         now = datetime.now(tz)
         period = intent_data.get("period") or "today"
         lang = context.language or "en"
+        start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_range = start_range + timedelta(days=1)
+        label = t(_STRINGS, "today", lang)
 
-        if period == "today":
-            start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if period == "tomorrow":
+            start_range = start_range + timedelta(days=1)
             end_range = start_range + timedelta(days=1)
-            label = t(_STRINGS, "today", lang)
+            label = t(_STRINGS, "tomorrow", lang)
+        elif period == "yesterday":
+            start_range = start_range - timedelta(days=1)
+            end_range = start_range + timedelta(days=1)
+            label = t(_STRINGS, "yesterday", lang)
         elif period == "week":
-            start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
             end_range = start_range + timedelta(days=7)
             label = t(_STRINGS, "week", lang)
-        else:
-            start_range = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            end_range = start_range + timedelta(days=1)
-            label = t(_STRINGS, "today", lang)
+        elif period == "custom":
+            date_from = intent_data.get("date_from")
+            date_to = intent_data.get("date_to")
+            if date_from and date_to:
+                start_range = datetime.fromisoformat(date_from).replace(tzinfo=tz)
+                end_range = datetime.fromisoformat(date_to).replace(tzinfo=tz) + timedelta(days=1)
+                label = f"{date_from} - {date_to}"
 
         async with async_session() as session:
             result = await session.execute(

@@ -1,4 +1,4 @@
-"""Set reminder skill — create a task with optional recurrence and context-aware time extraction."""
+﻿"""Set reminder skill — create a task with optional recurrence and context-aware time extraction."""
 
 import json as _json
 import logging
@@ -378,7 +378,7 @@ async def _extract_from_context(
     )
 
     response = await client.chat.completions.create(
-        model="gpt-5.4-2026-03-05",
+        model="gpt-5.2",
         max_completion_tokens=512,
         response_format={"type": "json_object"},
         **PromptAdapter.for_openai(system, [{"role": "user", "content": user_prompt}]),
@@ -390,7 +390,7 @@ async def _extract_from_context(
 class SetReminderSkill:
     name = "set_reminder"
     intents = ["set_reminder"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="set_reminder")
     async def execute(

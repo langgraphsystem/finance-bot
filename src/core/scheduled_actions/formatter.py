@@ -1,4 +1,4 @@
-"""Message formatter for scheduled action outputs."""
+﻿"""Message formatter for scheduled action outputs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ _SECTION_ICONS = {
 _DEFAULT_GREETING_ICON = "☀️"
 _DECISION_READY_MODELS = [
     "claude-sonnet-4-6",
-    "gpt-5.4-2026-03-05",
+    "gpt-5.2",
     "gemini-3.1-flash-lite-preview",
 ]
 _TOP_PRIORITY_HEADERS = {

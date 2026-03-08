@@ -1,4 +1,4 @@
-"""Follow-up email skill — finds unanswered emails via real Gmail API."""
+﻿"""Follow-up email skill — finds unanswered emails via real Gmail API."""
 
 import logging
 from typing import Any
@@ -34,7 +34,7 @@ register_strings("follow_up_email", {"en": {}, "ru": {}, "es": {}})
 class FollowUpEmailSkill:
     name = "follow_up_email"
     intents = ["follow_up_email"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="follow_up_email")
     async def execute(
@@ -78,7 +78,7 @@ async def _analyze_follow_ups(email_data: str, language: str) -> str:
     system = FOLLOW_UP_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.4-2026-03-05", system,
+            "gpt-5.2", system,
             [{"role": "user", "content": f"My unread emails:\n{email_data}"}],
             max_tokens=1024,
         )

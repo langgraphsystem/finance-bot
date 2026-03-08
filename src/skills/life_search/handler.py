@@ -1,4 +1,4 @@
-"""Life search skill — hybrid semantic + SQL search across life events and memories."""
+﻿"""Life search skill — hybrid semantic + SQL search across life events and memories."""
 
 import logging
 from typing import Any
@@ -41,7 +41,7 @@ register_strings("life_search", {"en": {}, "ru": {}, "es": {}})
 class LifeSearchSkill:
     name = "life_search"
     intents = ["life_search"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="life_search")
     async def execute(

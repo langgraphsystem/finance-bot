@@ -1075,7 +1075,8 @@ _READ_INBOX_MARKERS = (
 _LIST_EVENTS_MARKERS = (
     "мои события",
     "что в календаре",
-    "календар",
+    "календарь",
+    "в календаре",
     "what's on my calendar",
     "what is on my calendar",
     "my calendar",
@@ -1330,7 +1331,7 @@ def _rule_based_list_events(text: str) -> IntentDetectionResult | None:
     if any(marker in lower for marker in _LIST_EVENTS_MARKERS) or (
         "расписан" in lower and not any(word in lower for word in ("клиент", "запис", "booking"))
     ):
-        period = "week" if any(word in lower for word in ("недел", "week")) else "today"
+        period = _rule_based_period(lower)
         return IntentDetectionResult(
             intent="list_events",
             confidence=0.95,
@@ -1347,7 +1348,7 @@ def _rule_based_list_bookings(text: str) -> IntentDetectionResult | None:
     if not lower:
         return None
     if any(marker in lower for marker in _LIST_BOOKINGS_MARKERS):
-        period = "week" if any(word in lower for word in ("недел", "week")) else "today"
+        period = _rule_based_period(lower)
         return IntentDetectionResult(
             intent="list_bookings",
             confidence=0.95,
@@ -1356,6 +1357,19 @@ def _rule_based_list_bookings(text: str) -> IntentDetectionResult | None:
             response=None,
         )
     return None
+
+
+def _rule_based_period(lower: str) -> str:
+    """Infer a simple period string from a lowercased request."""
+    if any(word in lower for word in ("завтра", "tomorrow", "mañana")):
+        return "tomorrow"
+    if any(word in lower for word in ("вчера", "yesterday", "ayer")):
+        return "yesterday"
+    if any(word in lower for word in ("недел", "week", "semana")):
+        return "week"
+    if any(word in lower for word in ("месяц", "month", "mes")):
+        return "month"
+    return "today"
 
 
 def _rule_based_write_post(text: str) -> IntentDetectionResult | None:
@@ -1809,6 +1823,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "compare_options": 'сравнение ("compare PEX vs copper")',
         "maps_search": 'поиск мест ("кафе рядом", "directions to Walmart")',
         "youtube_search": 'поиск видео ("найди видео", YouTube ссылка)',
+        "video_action": 'действие с видео ("сделай пост по этому видео", "найди похожие")',
         "price_check": 'проверить цену ("check price at Home Depot")',
         "web_action": 'действие на сайте ("зайди на сайт и посмотри")',
         "browser_action": 'бронирование/покупка через браузер ("закажи на Amazon")',
@@ -1956,63 +1971,70 @@ async def detect_intent_scoped(
     Uses a compact prompt with only the domain's intents (~2K tokens).
     """
     # Fast-path rules still apply
-    delete_fast_path = _rule_based_delete_intent(text)
+    def _scoped_fast_path(result: IntentDetectionResult | None) -> IntentDetectionResult | None:
+        if result and result.intent in intents:
+            return result
+        return None
+
+    delete_fast_path = _scoped_fast_path(_rule_based_delete_intent(text))
     if delete_fast_path:
         return delete_fast_path
 
-    relative_reminder = _rule_based_relative_reminder(text)
+    relative_reminder = _scoped_fast_path(_rule_based_relative_reminder(text))
     if relative_reminder:
         return relative_reminder
 
-    bare_reminder = _rule_based_bare_reminder(text)
+    bare_reminder = _scoped_fast_path(_rule_based_bare_reminder(text))
     if bare_reminder:
         return bare_reminder
 
-    track_drink_fast_path = _rule_based_track_drink(text)
+    track_drink_fast_path = _scoped_fast_path(_rule_based_track_drink(text))
     if track_drink_fast_path:
         return track_drink_fast_path
 
-    read_inbox_fast_path = _rule_based_read_inbox(text)
+    read_inbox_fast_path = _scoped_fast_path(_rule_based_read_inbox(text))
     if read_inbox_fast_path:
         return read_inbox_fast_path
 
-    list_events_fast_path = _rule_based_list_events(text)
+    list_events_fast_path = _scoped_fast_path(_rule_based_list_events(text))
     if list_events_fast_path:
         return list_events_fast_path
 
-    list_bookings_fast_path = _rule_based_list_bookings(text)
+    list_bookings_fast_path = _scoped_fast_path(_rule_based_list_bookings(text))
     if list_bookings_fast_path:
         return list_bookings_fast_path
 
-    write_post_fast_path = _rule_based_write_post(text)
+    write_post_fast_path = _scoped_fast_path(_rule_based_write_post(text))
     if write_post_fast_path:
         return write_post_fast_path
 
-    dialog_history_fast_path = _rule_based_dialog_history(text)
+    dialog_history_fast_path = _scoped_fast_path(_rule_based_dialog_history(text))
     if dialog_history_fast_path:
         return dialog_history_fast_path
 
-    forget_fast_path = _rule_based_memory_forget(text)
+    forget_fast_path = _scoped_fast_path(_rule_based_memory_forget(text))
     if forget_fast_path:
         return forget_fast_path
 
-    name_question_fast_path = _rule_based_name_question(text)
+    name_question_fast_path = _scoped_fast_path(_rule_based_name_question(text))
     if name_question_fast_path:
         return name_question_fast_path
 
-    memory_save_fast_path = _rule_based_memory_save(text)
+    memory_save_fast_path = _scoped_fast_path(_rule_based_memory_save(text))
     if memory_save_fast_path:
         return memory_save_fast_path
 
-    rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
+    rule_fast_path = _scoped_fast_path(
+        _rule_based_set_user_rule(text, recent_context=recent_context)
+    )
     if rule_fast_path:
         return rule_fast_path
 
-    modify_fast_path = _rule_based_modify_program(text)
+    modify_fast_path = _scoped_fast_path(_rule_based_modify_program(text))
     if modify_fast_path:
         return modify_fast_path
 
-    program_fast_path = _rule_based_generate_program(text)
+    program_fast_path = _scoped_fast_path(_rule_based_generate_program(text))
     if program_fast_path:
         return program_fast_path
 

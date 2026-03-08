@@ -1,4 +1,4 @@
-"""Create task skill — add a task via natural language."""
+﻿"""Create task skill — add a task via natural language."""
 
 import logging
 import uuid
@@ -75,7 +75,7 @@ register_strings("create_task", {"en": {}, "ru": {}, "es": {}})
 class CreateTaskSkill:
     name = "create_task"
     intents = ["create_task"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="create_task")
     async def execute(

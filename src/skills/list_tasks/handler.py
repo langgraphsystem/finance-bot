@@ -1,4 +1,4 @@
-"""List tasks skill — show open tasks for the user."""
+﻿"""List tasks skill — show open tasks for the user."""
 
 import logging
 import uuid
@@ -53,7 +53,7 @@ register_strings("list_tasks", _STRINGS)
 class ListTasksSkill:
     name = "list_tasks"
     intents = ["list_tasks"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="list_tasks")
     async def execute(

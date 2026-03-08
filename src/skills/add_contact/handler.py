@@ -1,4 +1,4 @@
-"""Add contact skill — save a new client/contact to CRM."""
+﻿"""Add contact skill — save a new client/contact to CRM."""
 
 import logging
 import uuid
@@ -27,7 +27,7 @@ register_strings("add_contact", {"en": {}, "ru": {}, "es": {}})
 class AddContactSkill:
     name = "add_contact"
     intents = ["add_contact"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="add_contact")
     async def execute(

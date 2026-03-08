@@ -1,4 +1,4 @@
-"""Usage tracker — logs LLM token usage per request to usage_logs table."""
+﻿"""Usage tracker — logs LLM token usage per request to usage_logs table."""
 
 import logging
 import uuid
@@ -16,7 +16,7 @@ _COST_PER_1K: dict[str, tuple[float, float]] = {
     "claude-opus-4-6": (0.015, 0.075),
     "claude-sonnet-4-6": (0.003, 0.015),
     "claude-haiku-4-5": (0.0008, 0.004),
-    "gpt-5.4-2026-03-05": (0.005, 0.015),
+    "gpt-5.2": (0.005, 0.015),
     "gemini-3.1-flash-lite-preview": (0.0001, 0.0004),
     "gemini-3.1-pro-preview": (0.00125, 0.005),
     "gemini-3.1-flash-image-preview": (0.0001, 0.0004),

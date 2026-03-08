@@ -1,4 +1,4 @@
-"""Track food skill — logs meals and food intake."""
+﻿"""Track food skill — logs meals and food intake."""
 
 import logging
 from typing import Any
@@ -42,7 +42,7 @@ register_strings("track_food", {"en": {}, "ru": {}, "es": {}})
 class TrackFoodSkill:
     name = "track_food"
     intents = ["track_food"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="track_food")
     async def execute(

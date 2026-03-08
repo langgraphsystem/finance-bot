@@ -1,4 +1,4 @@
-"""Set communication mode skill — switches between silent, receipt, coaching."""
+﻿"""Set communication mode skill — switches between silent, receipt, coaching."""
 
 import logging
 from typing import Any
@@ -52,7 +52,7 @@ register_strings("set_comm_mode", {"en": {}, "ru": {}, "es": {}})
 class SetCommModeSkill:
     name = "set_comm_mode"
     intents = ["set_comm_mode"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="set_comm_mode")
     async def execute(

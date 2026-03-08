@@ -1,4 +1,4 @@
-"""Undo last transaction skill."""
+﻿"""Undo last transaction skill."""
 
 import logging
 import uuid
@@ -27,7 +27,7 @@ register_strings("undo_last", {"en": {}, "ru": {}, "es": {}})
 class UndoLastSkill:
     name = "undo_last"
     intents = ["undo_last"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="undo_last")
     async def execute(

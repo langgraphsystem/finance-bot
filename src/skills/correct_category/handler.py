@@ -1,4 +1,4 @@
-"""Correct category skill — updates the category of the last transaction."""
+﻿"""Correct category skill — updates the category of the last transaction."""
 
 import logging
 import uuid
@@ -26,7 +26,7 @@ register_strings("correct_category", {"en": {}, "ru": {}, "es": {}})
 class CorrectCategorySkill:
     name = "correct_category"
     intents = ["correct_category"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,

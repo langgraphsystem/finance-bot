@@ -1,4 +1,4 @@
-"""Agent configurations for Finance Bot.
+﻿"""Agent configurations for Finance Bot.
 
 Defines specialized agents, each with a narrow system prompt,
 model selection, and context configuration. This yields 60-70%
@@ -176,7 +176,7 @@ AGENTS: list[AgentConfig] = [
             "add_recurring",
             "delete_data",
         ],
-        default_model="gpt-5.4-2026-03-05",
+        default_model="gpt-5.2",
         context_config={"mem": "mappings", "hist": 5, "sql": False, "sum": False},
         data_tools_enabled=True,
     ),
@@ -203,7 +203,7 @@ AGENTS: list[AgentConfig] = [
             "shopping_list_remove",
             "shopping_list_clear",
         ],
-        default_model="gpt-5.4-2026-03-05",
+        default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 5, "sql": False, "sum": False},
         data_tools_enabled=True,
     ),
@@ -216,6 +216,7 @@ AGENTS: list[AgentConfig] = [
             "compare_options",
             "maps_search",
             "youtube_search",
+            "video_action",
             "price_check",
             "web_action",
             "browser_action",
@@ -262,7 +263,7 @@ AGENTS: list[AgentConfig] = [
             "reschedule_event",
             "morning_brief",
         ],
-        default_model="gpt-5.4-2026-03-05",
+        default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
     ),
     AgentConfig(
@@ -290,7 +291,7 @@ AGENTS: list[AgentConfig] = [
             "create_project",
             "list_projects",
         ],
-        default_model="gpt-5.4-2026-03-05",
+        default_model="gpt-5.2",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},
         data_tools_enabled=True,
     ),
@@ -308,7 +309,7 @@ AGENTS: list[AgentConfig] = [
             "send_to_client",
             "receptionist",
         ],
-        default_model="gpt-5.4-2026-03-05",
+        default_model="gpt-5.2",
         context_config={"mem": "profile", "hist": 3, "sql": False, "sum": False},
         data_tools_enabled=True,
     ),

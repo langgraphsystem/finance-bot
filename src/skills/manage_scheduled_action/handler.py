@@ -1,4 +1,4 @@
-"""Manage scheduled action skill — pause, resume, delete, reschedule."""
+﻿"""Manage scheduled action skill — pause, resume, delete, reschedule."""
 
 import logging
 import re
@@ -434,7 +434,7 @@ def _reschedule_action(
 class ManageScheduledActionSkill:
     name = "manage_scheduled_action"
     intents = ["manage_scheduled_action"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="manage_scheduled_action")
     async def execute(

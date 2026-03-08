@@ -1,4 +1,4 @@
-"""List events skill — fetches real calendar events via Google Calendar API."""
+﻿"""List events skill — fetches real calendar events via Google Calendar API."""
 
 import logging
 from datetime import datetime, timedelta
@@ -33,7 +33,7 @@ register_strings("list_events", {"en": {}, "ru": {}, "es": {}})
 class ListEventsSkill:
     name = "list_events"
     intents = ["list_events"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="list_events")
     async def execute(
@@ -57,7 +57,10 @@ class ListEventsSkill:
         time_max = time_min + timedelta(days=1)
 
         period = intent_data.get("period", "today")
-        if period == "week":
+        if period == "tomorrow":
+            time_min = time_min + timedelta(days=1)
+            time_max = time_min + timedelta(days=1)
+        elif period == "week":
             time_max = time_min + timedelta(days=7)
         elif period == "month":
             time_max = time_min + timedelta(days=30)
@@ -91,7 +94,7 @@ async def _format_events(event_data: str, language: str) -> str:
     system = LIST_EVENTS_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.4-2026-03-05", system,
+            "gpt-5.2", system,
             [{"role": "user", "content": f"My events:\n{event_data}"}],
             max_tokens=1024,
         )

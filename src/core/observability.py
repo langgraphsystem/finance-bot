@@ -15,6 +15,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from functools import wraps
+from numbers import Integral
 from typing import Any
 
 from src.core.config import settings
@@ -68,22 +69,28 @@ def extract_usage_openai(response: Any) -> LLMUsage:
     if not usage:
         return LLMUsage()
 
+    def _int_attr(obj: Any, attr: str) -> int | None:
+        value = getattr(obj, attr, None)
+        if isinstance(value, Integral):
+            return int(value)
+        return None
+
     # Responses API uses input_tokens/output_tokens;
     # Chat Completions uses prompt_tokens/completion_tokens.
-    tokens_input = getattr(usage, "input_tokens", None)
+    tokens_input = _int_attr(usage, "input_tokens")
     if tokens_input is None:
-        tokens_input = getattr(usage, "prompt_tokens", 0)
-    tokens_output = getattr(usage, "output_tokens", None)
+        tokens_input = _int_attr(usage, "prompt_tokens") or 0
+    tokens_output = _int_attr(usage, "output_tokens")
     if tokens_output is None:
-        tokens_output = getattr(usage, "completion_tokens", 0)
+        tokens_output = _int_attr(usage, "completion_tokens") or 0
 
     cached = 0
     # Responses API: input_tokens_details.cached_tokens
-    details = getattr(usage, "input_tokens_details", None) or getattr(
-        usage, "prompt_tokens_details", None
-    )
-    if details:
-        cached = getattr(details, "cached_tokens", 0)
+    details = getattr(usage, "input_tokens_details", None)
+    cached = _int_attr(details, "cached_tokens") or 0
+    if not cached:
+        prompt_details = getattr(usage, "prompt_tokens_details", None)
+        cached = _int_attr(prompt_details, "cached_tokens") or 0
 
     return LLMUsage(
         tokens_input=tokens_input,

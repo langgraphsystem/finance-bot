@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 
 
 @dataclass
@@ -26,11 +26,11 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="google",
         model_id="gemini-3.1-flash-lite-preview",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.4-2026-03-05",
+        fallback_model_id="gpt-5.2",
     ),
     "chat": ModelConfig(
         provider="openai",
-        model_id="gpt-5.4-2026-03-05",
+        model_id="gpt-5.2",
         fallback_provider="google",
         fallback_model_id="gemini-3.1-flash-lite-preview",
         reasoning_effort="low",   # fast, conversational
@@ -40,13 +40,13 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
         provider="anthropic",
         model_id="claude-sonnet-4-6",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.4-2026-03-05",
+        fallback_model_id="gpt-5.2",
     ),
     "complex": ModelConfig(
         provider="anthropic",
-        model_id="claude-opus-4-6",
+        model_id="claude-sonnet-4-6",
         fallback_provider="openai",
-        fallback_model_id="gpt-5.4-2026-03-05",
+        fallback_model_id="gpt-5.2",
     ),
     "summarization": ModelConfig(
         provider="google",
@@ -60,7 +60,7 @@ TASK_MODEL_MAP: dict[str, ModelConfig] = {
     ),
     "tasks": ModelConfig(
         provider="openai",
-        model_id="gpt-5.4-2026-03-05",
+        model_id="gpt-5.2",
         fallback_provider="google",
         fallback_model_id="gemini-3.1-flash-lite-preview",
         reasoning_effort="low",   # task parsing needs to be fast

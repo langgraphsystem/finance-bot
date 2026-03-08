@@ -1,4 +1,4 @@
-"""Budget management skill — set and view spending limits."""
+﻿"""Budget management skill — set and view spending limits."""
 
 import logging
 import uuid
@@ -29,7 +29,7 @@ register_strings("set_budget", {"en": {}, "ru": {}, "es": {}})
 class SetBudgetSkill:
     name = "set_budget"
     intents = ["set_budget"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="set_budget")
     async def execute(

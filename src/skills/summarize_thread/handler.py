@@ -1,4 +1,4 @@
-"""Summarize thread skill — fetches real email thread, summarizes with LLM."""
+﻿"""Summarize thread skill — fetches real email thread, summarizes with LLM."""
 
 import logging
 from typing import Any
@@ -32,7 +32,7 @@ register_strings("summarize_thread", {"en": {}, "ru": {}, "es": {}})
 class SummarizeThreadSkill:
     name = "summarize_thread"
     intents = ["summarize_thread"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="summarize_thread")
     async def execute(
@@ -78,7 +78,7 @@ async def _summarize(thread_text: str, language: str) -> str:
     system = SUMMARIZE_THREAD_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.4-2026-03-05", system,
+            "gpt-5.2", system,
             [{"role": "user", "content": f"Email thread:\n{thread_text}"}],
             max_tokens=1024,
         )

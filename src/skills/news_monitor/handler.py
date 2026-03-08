@@ -1,4 +1,4 @@
-"""News monitor skill — create persistent news/topic monitors.
+﻿"""News monitor skill — create persistent news/topic monitors.
 
 Users say "monitor plumbing industry news" or "alert me about school closings"
 and the bot creates a Monitor record checked by the proactivity engine.
@@ -33,7 +33,7 @@ register_strings("news_monitor", {"en": {}, "ru": {}, "es": {}})
 class NewsMonitorSkill:
     name = "news_monitor"
     intents = ["news_monitor"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)

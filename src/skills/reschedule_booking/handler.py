@@ -1,4 +1,4 @@
-"""Reschedule booking skill — move an appointment to a new time."""
+﻿"""Reschedule booking skill — move an appointment to a new time."""
 
 import logging
 from datetime import datetime
@@ -45,7 +45,7 @@ register_strings("reschedule_booking", {"en": {}, "ru": {}, "es": {}})
 class RescheduleBookingSkill:
     name = "reschedule_booking"
     intents = ["reschedule_booking"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     @observe(name="reschedule_booking")
     async def execute(

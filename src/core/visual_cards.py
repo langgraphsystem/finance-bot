@@ -1,4 +1,4 @@
-"""Visual card generation — LLM-generated HTML → WeasyPrint PNG."""
+﻿"""Visual card generation — LLM-generated HTML → WeasyPrint PNG."""
 
 import logging
 import re
@@ -50,7 +50,7 @@ def _strip_markdown_fences(text: str) -> str:
     return text
 
 
-FALLBACK_MODELS = ["claude-sonnet-4-6", "gpt-5.4-2026-03-05"]
+FALLBACK_MODELS = ["claude-sonnet-4-6", "gpt-5.2"]
 
 
 @observe(name="generate_card_html")
