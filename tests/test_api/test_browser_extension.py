@@ -199,7 +199,8 @@ async def test_extension_connect_redirects_to_provider_login(client):
 
     assert resp.status_code == 200
     assert "Connecting Uber" in resp.text
-    assert "https://m.uber.com/go/home" in resp.text
+    assert "https://auth.uber.com/v2/" in resp.text
+    assert "next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome" in resp.text
 
 
 async def test_delete_session(client):

@@ -45,7 +45,7 @@ def _render_connect_page(token: str, provider: str) -> str:
     main {{
       max-width: 760px;
       margin: 0 auto;
-      padding: 16px 14px calc(220px + env(safe-area-inset-bottom));
+      padding: 16px 14px calc(96px + env(safe-area-inset-bottom));
     }}
     .panel {{
       background: var(--panel);
@@ -117,6 +117,29 @@ def _render_connect_page(token: str, provider: str) -> str:
       box-shadow: 0 18px 48px rgba(24,34,47,0.18);
       backdrop-filter: blur(12px);
     }}
+    .controls-head {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }}
+    .controls-title {{
+      font-size: 0.98rem;
+      font-weight: 700;
+    }}
+    .controls-actions {{
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }}
+    .controls-body {{
+      display: grid;
+      gap: 10px;
+    }}
+    .dock.collapsed .controls-body {{
+      display: none;
+    }}
     .row {{
       display: grid;
       gap: 8px;
@@ -164,6 +187,27 @@ def _render_connect_page(token: str, provider: str) -> str:
       line-height: 1.35;
     }}
     @media (max-width: 480px) {{
+      main {{
+        padding-bottom: calc(86px + env(safe-area-inset-bottom));
+      }}
+      .dock {{
+        left: 10px;
+        right: 10px;
+        bottom: max(10px, env(safe-area-inset-bottom));
+      }}
+      .controls {{
+        padding: 12px;
+        border-radius: 20px;
+      }}
+      .controls-head {{
+        align-items: stretch;
+      }}
+      .controls-actions {{
+        width: 100%;
+      }}
+      .controls-actions button {{
+        flex: 1 1 0;
+      }}
       .row,
       .row.compact {{
         grid-template-columns: repeat(2, 1fr);
@@ -193,6 +237,14 @@ def _render_connect_page(token: str, provider: str) -> str:
 
   <div class="dock">
     <div class="controls">
+      <div class="controls-head">
+        <div class="controls-title">Browser controls</div>
+        <div class="controls-actions">
+          <button id="toggleControls">Show Controls</button>
+          <button class="warn" id="openTelegram">Open Telegram</button>
+        </div>
+      </div>
+      <div class="controls-body" id="controlsBody">
         <input id="textInput" type="text" placeholder="Type text here, then tap Send">
         <div class="row">
           <button class="primary" id="sendText">Send</button>
@@ -208,11 +260,11 @@ def _render_connect_page(token: str, provider: str) -> str:
         <div class="row">
           <button id="backPage">Back</button>
           <button id="reloadScreen">Reload Screen</button>
-          <button class="warn" id="openTelegram">Open Telegram</button>
         </div>
-      <div class="hint">
-        Tap directly on the screenshot to click. Use Send, Tab, and Enter
-        to fill forms, password fields, SMS codes, or 2FA prompts.
+        <div class="hint">
+          Tap directly on the screenshot to click. Open controls only when you need
+          typing, Enter, Tab, SMS codes, or scrolling.
+        </div>
       </div>
     </div>
   </div>
@@ -222,7 +274,14 @@ def _render_connect_page(token: str, provider: str) -> str:
     const screenEl = document.getElementById('screen');
     const statusEl = document.getElementById('status');
     const textInputEl = document.getElementById('textInput');
+    const dockEl = document.querySelector('.dock');
+    const toggleControlsEl = document.getElementById('toggleControls');
     let lastReturnUrl = '';
+
+    function setControlsCollapsed(collapsed) {{
+      dockEl.classList.toggle('collapsed', collapsed);
+      toggleControlsEl.textContent = collapsed ? 'Show Controls' : 'Hide Controls';
+    }}
 
     async function fetchState() {{
       const resp = await fetch(`/api/browser-connect/${{token}}/state`, {{ cache: 'no-store' }});
@@ -271,6 +330,9 @@ def _render_connect_page(token: str, provider: str) -> str:
     }}
 
     screenEl.addEventListener('click', async (event) => {{
+      if (dockEl.classList.contains('collapsed') === false && window.innerWidth <= 480) {{
+        setControlsCollapsed(true);
+      }}
       const rect = screenEl.getBoundingClientRect();
       const scaleX = screenEl.naturalWidth / rect.width;
       const scaleY = screenEl.naturalHeight / rect.height;
@@ -278,6 +340,12 @@ def _render_connect_page(token: str, provider: str) -> str:
       const y = (event.clientY - rect.top) * scaleY;
       await postAction({{ action: 'click', x, y }});
     }});
+
+    toggleControlsEl.addEventListener('click', () => {{
+      setControlsCollapsed(!dockEl.classList.contains('collapsed'));
+    }});
+
+    textInputEl.addEventListener('focus', () => setControlsCollapsed(false));
 
     document.getElementById('sendText').addEventListener('click', async () => {{
       if (!textInputEl.value) return;
@@ -319,6 +387,7 @@ def _render_connect_page(token: str, provider: str) -> str:
       }}
     }});
 
+    setControlsCollapsed(window.innerWidth <= 480);
     reloadAll();
     setInterval(async () => {{
       try {{
