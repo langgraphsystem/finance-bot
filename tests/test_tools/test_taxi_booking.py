@@ -23,6 +23,14 @@ def test_parse_taxi_request_english_pickup_and_destination():
     assert parsed["destination"] == "O'Hare Airport"
 
 
+def test_parse_taxi_request_rejects_ambiguous_provider_hint():
+    parsed = taxi_booking.parse_taxi_request(
+        "book a ride to the airport",
+        site_hint="uber.com or lyft.com",
+    )
+    assert parsed["provider"] is None
+
+
 async def test_start_flow_requires_destination():
     with patch("src.tools.taxi_booking._set_state", new_callable=AsyncMock) as mock_set:
         result = await taxi_booking.start_flow(

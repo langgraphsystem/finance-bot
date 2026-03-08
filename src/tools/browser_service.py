@@ -50,7 +50,10 @@ _LOGIN_URLS: dict[str, str] = {
     "ostrovok.ru": "https://ostrovok.ru/auth/signin/",
     "ozon.ru": "https://www.ozon.ru/login/",
     "wildberries.ru": "https://www.wildberries.ru/security/login",
-    "uber.com": "https://m.uber.com/go/home",
+    "uber.com": (
+        "https://auth.uber.com/v2/"
+        "?next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome"
+    ),
     "lyft.com": "https://ride.lyft.com/",
 }
 

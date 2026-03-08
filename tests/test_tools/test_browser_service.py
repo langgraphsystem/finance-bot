@@ -5,7 +5,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.tools import browser_service
-from src.tools.browser_service import extract_domain, get_connect_url
+from src.tools.browser_service import extract_domain, get_connect_url, get_login_url
 
 _TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 _TEST_FAMILY_ID = "00000000-0000-0000-0000-000000000002"
@@ -195,3 +195,9 @@ def test_get_connect_url_uses_public_base_url():
     ):
         url = get_connect_url("m.uber.com")
     assert url == "https://bot.example.com/api/ext/connect?provider=uber.com"
+
+
+def test_get_login_url_uses_direct_uber_auth_entrypoint():
+    url = get_login_url("uber.com")
+    assert url.startswith("https://auth.uber.com/v2/")
+    assert "next_url=" in url

@@ -751,7 +751,23 @@ def _normalize_provider(value: str | None) -> str | None:
     if not value:
         return None
     lowered = value.lower().strip()
-    return _PROVIDER_ALIASES.get(lowered, lowered if "." in lowered else None)
+    if lowered in _PROVIDER_ALIASES:
+        return _PROVIDER_ALIASES[lowered]
+
+    matches = [
+        canonical
+        for alias, canonical in _PROVIDER_ALIASES.items()
+        if re.search(rf"\b{re.escape(alias)}\b", lowered, flags=re.IGNORECASE)
+    ]
+    unique_matches = list(dict.fromkeys(matches))
+    if len(unique_matches) == 1:
+        return unique_matches[0]
+    if len(unique_matches) > 1:
+        return None
+
+    if re.fullmatch(r"[a-z0-9.-]+\.[a-z]{2,}", lowered):
+        return lowered
+    return None
 
 
 def _provider_label(provider: str) -> str:
