@@ -386,7 +386,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     function updateStatus(state) {{
       if (state.error) {{
         statusEl.classList.add('visible');
-        statusEl.textContent = 'Connection issue. Reload the screen and try again.';
+        statusEl.textContent = 'Connection issue. Refresh this page and try again.';
       }} else {{
         statusEl.classList.remove('visible');
         statusEl.textContent = '';
@@ -502,7 +502,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
         refreshImage();
       }} catch (error) {{
         statusEl.classList.add('visible');
-        statusEl.textContent = 'Connection issue. Pull to refresh or tap Reload Screen.';
+        statusEl.textContent = 'Connection issue. Pull to refresh the page and try again.';
       }}
     }}, 2500);
   </script>
