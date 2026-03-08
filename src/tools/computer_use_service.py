@@ -41,6 +41,152 @@ Rules:
 - When you are done, return a concise plain-text summary of the final state.
 """
 
+_SHOPPING_DOMAINS = (
+    "amazon.",
+    "walmart.",
+    "target.",
+    "ebay.",
+    "bestbuy.",
+    "costco.",
+    "aliexpress.",
+    "ozon.",
+    "wildberries.",
+)
+_FOOD_DOMAINS = (
+    "ubereats.",
+    "doordash.",
+    "grubhub.",
+    "instacart.",
+    "postmates.",
+    "deliveroo.",
+    "glovo.",
+    "yandexeda.",
+)
+_TAXI_DOMAINS = (
+    "uber.",
+    "lyft.",
+    "bolt.eu",
+    "grab.",
+    "careem.",
+    "yango.",
+)
+_TRAVEL_DOMAINS = (
+    "booking.",
+    "airbnb.",
+    "hotels.",
+    "expedia.",
+    "agoda.",
+    "kayak.",
+    "skyscanner.",
+    "ostrovok.",
+)
+_ACCOUNT_KEYWORDS = (
+    "status",
+    "reservation",
+    "booking status",
+    "trip",
+    "order status",
+    "my orders",
+    "my bookings",
+    "track package",
+    "refund",
+    "account",
+    "profile",
+    "history",
+    "invoice",
+    "receipt",
+    "заказ",
+    "статус",
+    "бронь",
+    "поездк",
+    "аккаунт",
+    "истори",
+    "проверь",
+    "квитанц",
+)
+_SHOPPING_KEYWORDS = (
+    "buy",
+    "purchase",
+    "order",
+    "cart",
+    "checkout",
+    "add to cart",
+    "купи",
+    "закажи",
+    "товар",
+    "корзин",
+    "покуп",
+    "оформ",
+)
+_FOOD_KEYWORDS = (
+    "food",
+    "restaurant",
+    "delivery",
+    "takeout",
+    "meal",
+    "groceries",
+    "ubereats",
+    "doordash",
+    "достав",
+    "еда",
+    "продукт",
+    "ресторан",
+    "суши",
+    "пицц",
+)
+_TAXI_KEYWORDS = (
+    "taxi",
+    "ride",
+    "cab",
+    "uber",
+    "lyft",
+    "pickup",
+    "dropoff",
+    "surge",
+    "такси",
+    "поездк",
+    "вызови",
+)
+_BLOCKED_KEY_COMBOS = {
+    frozenset({"CTRL", "L"}),
+    frozenset({"CTRL", "TAB"}),
+    frozenset({"CTRL", "W"}),
+    frozenset({"CTRL", "R"}),
+    frozenset({"CTRL", "T"}),
+    frozenset({"CTRL", "N"}),
+    frozenset({"ALT", "D"}),
+    frozenset({"ALT", "LEFT"}),
+    frozenset({"ALT", "RIGHT"}),
+    frozenset({"F5"}),
+    frozenset({"F6"}),
+}
+_KEY_MAP = {
+    "ENTER": "Enter",
+    "RETURN": "Enter",
+    "TAB": "Tab",
+    "ESCAPE": "Escape",
+    "ESC": "Escape",
+    "SPACE": " ",
+    "BACKSPACE": "Backspace",
+    "DELETE": "Delete",
+    "CTRL": "Control",
+    "CONTROL": "Control",
+    "ALT": "Alt",
+    "SHIFT": "Shift",
+    "ARROWUP": "ArrowUp",
+    "ARROWDOWN": "ArrowDown",
+    "ARROWLEFT": "ArrowLeft",
+    "ARROWRIGHT": "ArrowRight",
+    "UP": "ArrowUp",
+    "DOWN": "ArrowDown",
+    "LEFT": "ArrowLeft",
+    "RIGHT": "ArrowRight",
+    "HOME": "Home",
+    "END": "End",
+    "PAGEUP": "PageUp",
+    "PAGEDOWN": "PageDown",
+}
+
 
 def _item_type(item: Any) -> str:
     if isinstance(item, dict):
@@ -52,6 +198,177 @@ def _item_value(item: Any, key: str, default: Any = None) -> Any:
     if isinstance(item, dict):
         return item.get(key, default)
     return getattr(item, key, default)
+
+
+def _classify_task(site: str, task: str) -> str:
+    domain = site.lower()
+    lower = task.lower()
+
+    if any(marker in domain for marker in _FOOD_DOMAINS) or any(
+        marker in lower for marker in _FOOD_KEYWORDS
+    ):
+        return "food_delivery"
+
+    if any(marker in domain for marker in _TAXI_DOMAINS) or any(
+        marker in lower for marker in _TAXI_KEYWORDS
+    ):
+        return "taxi"
+
+    if any(marker in domain for marker in _TRAVEL_DOMAINS):
+        return "travel"
+
+    if any(marker in lower for marker in _ACCOUNT_KEYWORDS):
+        return "account"
+
+    if any(marker in domain for marker in _SHOPPING_DOMAINS) or any(
+        marker in lower for marker in _SHOPPING_KEYWORDS
+    ):
+        return "shopping"
+
+    return "generic"
+
+
+def _key_combo(keys: list[Any]) -> str | None:
+    normalized = [str(key).upper() for key in keys if str(key).strip()]
+    if not normalized:
+        return None
+
+    if frozenset(normalized) in _BLOCKED_KEY_COMBOS:
+        return None
+
+    mapped = [_KEY_MAP.get(key, str(key).title()) for key in normalized]
+    if len(mapped) == 1:
+        return mapped[0]
+    return "+".join(mapped)
+
+
+def build_system_prompt(site: str, task: str) -> str:
+    profile = _classify_task(site, task)
+    domain = site.lower()
+
+    profile_instructions = {
+        "shopping": """\
+Task type: shopping / product purchase.
+
+What to do:
+- Find the exact product or the closest clearly matching option.
+- Check price, seller, quantity, shipping cost, delivery date, and cart / checkout state.
+- If the product is ambiguous, compare the top options and explain the differences.
+- If the user already asked to buy/order, proceed through cart and checkout when possible.
+- If anything is unclear at the final irreversible step, stop on the review page and summarize.""",
+        "food_delivery": """\
+Task type: food / grocery delivery.
+
+What to do:
+- Use the saved address and saved payment method if already available on the site.
+- Find the requested restaurant or store, choose matching items, and note substitutions if needed.
+- Check subtotal, fees, taxes, tip, ETA, and the final checkout state.
+- If the exact item is unavailable, report the closest options instead of inventing a replacement.
+- If the order is ready to place, say whether it was placed or is waiting on final review.""",
+        "taxi": """\
+Task type: taxi / ride-hailing.
+
+What to do:
+- Identify pickup and dropoff from the task or from saved locations on the site.
+- Compare relevant ride options if more than one appears.
+- Check ETA, fare, surge / extra fees, and booking status.
+- If the ride is not yet confirmed, stop on the final confirmation step and report what remains.
+- If the task is explicit and the site confirms the ride, report the confirmed ride details.""",
+        "travel": """\
+Task type: travel / reservations.
+
+What to do:
+- Review reservations, prices, dates, policies, travelers, and confirmation state.
+- For search flows, return the strongest matching options with price and cancellation terms.
+- For booking-management flows, report the exact reservation state and next actionable step.
+- Stop immediately if the site requires a fresh login or verification.""",
+        "account": """\
+Task type: authenticated account lookup.
+
+What to do:
+- Read the account page carefully and summarize the exact status you see.
+- Prefer order status, reservations, subscriptions, messages, invoices, refunds, or trip history.
+- Do not make changes unless the task explicitly asks for one.""",
+        "generic": """\
+Task type: generic authenticated website task.
+
+What to do:
+- Navigate carefully, inspect the relevant page, and complete the user's task if it is unambiguous.
+- Summarize the final state and any important values you observed.""",
+    }
+
+    output_expectations = {
+        "shopping": """\
+Return plain text with these fields when available:
+Status:
+Site:
+Item:
+Price:
+Shipping:
+Taxes/Fees:
+Delivery:
+Checkout state:
+URL:""",
+        "food_delivery": """\
+Return plain text with these fields when available:
+Status:
+Site:
+Store/Restaurant:
+Items:
+Subtotal:
+Fees/Tip:
+ETA:
+Checkout state:
+URL:""",
+        "taxi": """\
+Return plain text with these fields when available:
+Status:
+Site:
+Ride type:
+Pickup:
+Dropoff:
+ETA:
+Fare:
+Fees/Surge:
+Confirmation state:
+URL:""",
+        "travel": """\
+Return plain text with these fields when available:
+Status:
+Site:
+Reservation / Option:
+Dates:
+Price:
+Policy:
+Next step:
+URL:""",
+        "account": """\
+Return plain text with these fields when available:
+Status:
+Site:
+Subject:
+Current state:
+Important details:
+Next step:
+URL:""",
+        "generic": """\
+Return a concise plain-text summary of the final state.
+Include the final URL when it helps the user verify the result.""",
+    }
+
+    site_line = f"Current site: {domain}" if domain else "Current site: not specified"
+    return (
+        f"{DEFAULT_SYSTEM_PROMPT.strip()}\n\n"
+        f"{site_line}\n\n"
+        f"{profile_instructions[profile]}\n\n"
+        "Safety and accuracy rules:\n"
+        "- Prefer saved carts, saved addresses, and already-signed-in state when available.\n"
+        "- Do not invent prices, ETAs, fees, or confirmation numbers.\n"
+        "- If the task becomes ambiguous, say exactly what is missing.\n"
+        "- If the site asks for a new login, MFA, phone verification, or CAPTCHA, "
+        "stop with the exact sentinel.\n\n"
+        f"{output_expectations[profile]}"
+    )
 
 
 async def _take_screenshot(page: Any) -> str:
@@ -91,8 +408,11 @@ async def _execute_actions(page: Any, actions: list[Any]) -> None:
                 keys = _get("keys", [])
                 if not isinstance(keys, list):
                     keys = [keys]
-                for key in keys:
-                    await page.keyboard.press(" " if key == "SPACE" else str(key))
+                combo = _key_combo(keys)
+                if combo:
+                    await page.keyboard.press(combo)
+                else:
+                    logger.info("Skipping blocked or empty keypress combo: %s", keys)
             elif action_type == "drag":
                 await page.mouse.move(_get("startX"), _get("startY"))
                 await page.mouse.down()
@@ -145,7 +465,7 @@ async def execute_task(
     site: str,
     task: str,
     start_url: str | None = None,
-    system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+    system_prompt: str | None = None,
     model: str | None = None,
     max_steps: int = DEFAULT_MAX_STEPS,
     timeout: float = DEFAULT_TIMEOUT_S,
@@ -170,6 +490,7 @@ async def execute_task(
     client = openai_client()
     current_model = model or settings.openai_computer_use_model
     target_url = start_url or f"https://{site}"
+    resolved_system_prompt = system_prompt or build_system_prompt(site, task)
     start_time = time.monotonic()
 
     async with async_playwright() as playwright:
@@ -197,7 +518,7 @@ async def execute_task(
                 tools=[_computer_tool()],
                 reasoning={"effort": "medium"},
                 input=[
-                    {"role": "developer", "content": system_prompt},
+                    {"role": "developer", "content": resolved_system_prompt},
                     {
                         "role": "user",
                         "content": [
