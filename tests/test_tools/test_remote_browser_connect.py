@@ -70,3 +70,29 @@ async def test_looks_authenticated_accepts_uber_account_page():
     result = await remote_browser_connect._looks_authenticated(session)
 
     assert result is True
+
+
+def test_build_client_profile_uses_mobile_viewport_for_phone():
+    profile = remote_browser_connect._build_client_profile(
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15"
+    )
+
+    assert profile.is_mobile is True
+    assert profile.has_touch is True
+    assert profile.viewport == {
+        "width": remote_browser_connect.MOBILE_VIEWPORT_WIDTH,
+        "height": remote_browser_connect.MOBILE_VIEWPORT_HEIGHT,
+    }
+
+
+def test_build_client_profile_uses_desktop_viewport_for_computer():
+    profile = remote_browser_connect._build_client_profile(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0"
+    )
+
+    assert profile.is_mobile is False
+    assert profile.has_touch is False
+    assert profile.viewport == {
+        "width": remote_browser_connect.DESKTOP_VIEWPORT_WIDTH,
+        "height": remote_browser_connect.DESKTOP_VIEWPORT_HEIGHT,
+    }

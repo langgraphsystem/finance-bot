@@ -23,8 +23,10 @@ from src.tools import browser_service
 logger = logging.getLogger(__name__)
 
 CONNECT_TTL_S = 900
-VIEWPORT_WIDTH = 430
-VIEWPORT_HEIGHT = 932
+MOBILE_VIEWPORT_WIDTH = 430
+MOBILE_VIEWPORT_HEIGHT = 932
+DESKTOP_VIEWPORT_WIDTH = 1440
+DESKTOP_VIEWPORT_HEIGHT = 1100
 _TOKEN_PREFIX = "browser_connect"
 _AUTH_PATH_HINTS = ("/login", "/signin", "/sign-in", "/auth", "/challenge", "/verify")
 _GENERIC_LOGIN_MARKERS = (
@@ -87,6 +89,13 @@ class RemoteBrowserSession:
     action_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
+@dataclass(frozen=True)
+class BrowserClientProfile:
+    viewport: dict[str, int]
+    is_mobile: bool
+    has_touch: bool
+
+
 def _token_key(token: str) -> str:
     return f"{_TOKEN_PREFIX}:{token}"
 
@@ -100,6 +109,33 @@ def _is_auth_like(url: str) -> bool:
 def _provider_matches(url: str, provider: str) -> bool:
     host = browser_service.extract_domain(url)
     return host == browser_service.extract_domain(provider)
+
+
+def _is_mobile_user_agent(user_agent: str | None) -> bool:
+    lowered = (user_agent or "").lower()
+    mobile_markers = (
+        "iphone",
+        "ipad",
+        "ipod",
+        "android",
+        "mobile",
+        "windows phone",
+    )
+    return any(marker in lowered for marker in mobile_markers)
+
+
+def _build_client_profile(user_agent: str | None) -> BrowserClientProfile:
+    if _is_mobile_user_agent(user_agent):
+        return BrowserClientProfile(
+            viewport={"width": MOBILE_VIEWPORT_WIDTH, "height": MOBILE_VIEWPORT_HEIGHT},
+            is_mobile=True,
+            has_touch=True,
+        )
+    return BrowserClientProfile(
+        viewport={"width": DESKTOP_VIEWPORT_WIDTH, "height": DESKTOP_VIEWPORT_HEIGHT},
+        is_mobile=False,
+        has_touch=False,
+    )
 
 
 async def create_connect_url(user_id: str, family_id: str, provider: str) -> str:
@@ -132,7 +168,7 @@ async def get_token_payload(token: str) -> dict[str, Any] | None:
     return data
 
 
-async def ensure_session(token: str) -> RemoteBrowserSession:
+async def ensure_session(token: str, *, user_agent: str | None = None) -> RemoteBrowserSession:
     """Create or return an active hosted browser session."""
     await _cleanup_stale_sessions()
 
@@ -159,10 +195,11 @@ async def ensure_session(token: str) -> RemoteBrowserSession:
                 "--no-default-browser-check",
             ],
         )
+        profile = _build_client_profile(user_agent)
         context = await browser.new_context(
-            viewport={"width": VIEWPORT_WIDTH, "height": VIEWPORT_HEIGHT},
-            is_mobile=True,
-            has_touch=True,
+            viewport=profile.viewport,
+            is_mobile=profile.is_mobile,
+            has_touch=profile.has_touch,
         )
         page = await context.new_page()
         await page.goto(
@@ -290,8 +327,8 @@ def _session_state_payload(session: RemoteBrowserSession) -> dict[str, Any]:
     }
 
 
-async def get_session_state(token: str) -> dict[str, Any]:
-    session = await ensure_session(token)
+async def get_session_state(token: str, *, user_agent: str | None = None) -> dict[str, Any]:
+    session = await ensure_session(token, user_agent=user_agent)
     async with session.action_lock:
         await _refresh_session_snapshot(session)
         await _maybe_complete_login(session)

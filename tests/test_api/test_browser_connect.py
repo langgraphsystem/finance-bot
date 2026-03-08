@@ -29,11 +29,16 @@ async def test_browser_connect_page_renders_provider(client):
             "error": "",
         },
     ):
-        resp = await client.get("/api/browser-connect/test-token")
+        resp = await client.get(
+            "/api/browser-connect/test-token",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0"},
+        )
 
     assert resp.status_code == 200
     assert "Sign in to continue" in resp.text
     assert "Connect uber.com" not in resp.text
+    assert "Browser controls" in resp.text
+    assert "Controls Ready" in resp.text
 
 
 async def test_browser_connect_state_returns_telegram_deep_link(client):
@@ -54,7 +59,10 @@ async def test_browser_connect_state_returns_telegram_deep_link(client):
             return_value="HurremBot",
         ),
     ):
-        resp = await client.get("/api/browser-connect/test-token/state")
+        resp = await client.get(
+            "/api/browser-connect/test-token/state",
+            headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)"},
+        )
 
     assert resp.status_code == 200
     data = resp.json()

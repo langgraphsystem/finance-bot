@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, Response
 
 from api.browser_extension import get_bot_username
@@ -43,9 +43,13 @@ def _render_connect_page(token: str, provider: str) -> str:
       color: var(--ink);
     }}
     main {{
-      max-width: 760px;
+      max-width: 1240px;
       margin: 0 auto;
       padding: 16px 14px calc(96px + env(safe-area-inset-bottom));
+    }}
+    .workspace {{
+      display: grid;
+      gap: 14px;
     }}
     .panel {{
       background: var(--panel);
@@ -213,6 +217,39 @@ def _render_connect_page(token: str, provider: str) -> str:
         grid-template-columns: repeat(2, 1fr);
       }}
     }}
+    @media (min-width: 900px) {{
+      main {{
+        padding: 20px 16px 24px;
+      }}
+      .workspace {{
+        grid-template-columns: minmax(0, 1fr) 340px;
+        align-items: start;
+      }}
+      .screen-panel {{
+        min-width: 0;
+      }}
+      .dock {{
+        position: sticky;
+        top: 20px;
+        left: auto;
+        right: auto;
+        bottom: auto;
+        max-width: none;
+      }}
+      .controls {{
+        padding: 16px;
+      }}
+      .controls-body {{
+        display: grid;
+      }}
+      .controls-actions {{
+        justify-content: flex-start;
+      }}
+      .row,
+      .row.compact {{
+        grid-template-columns: repeat(2, 1fr);
+      }}
+    }}
   </style>
 </head>
 <body>
@@ -228,46 +265,48 @@ def _render_connect_page(token: str, provider: str) -> str:
       <div id="status" class="status" aria-live="polite"></div>
     </div>
 
-    <div class="panel">
-      <div class="screen-wrap">
-        <img id="screen" alt="Remote browser screen">
+    <div class="workspace">
+      <div class="panel screen-panel">
+        <div class="screen-wrap">
+          <img id="screen" alt="Remote browser screen">
+        </div>
+      </div>
+
+      <div class="dock">
+        <div class="controls">
+          <div class="controls-head">
+            <div class="controls-title">Browser controls</div>
+            <div class="controls-actions">
+              <button id="toggleControls">Show Controls</button>
+              <button class="warn" id="openTelegram">Open Telegram</button>
+            </div>
+          </div>
+          <div class="controls-body" id="controlsBody">
+            <input id="textInput" type="text" placeholder="Type text here, then tap Send">
+            <div class="row">
+              <button class="primary" id="sendText">Send</button>
+              <button id="tabKey">Tab</button>
+              <button id="enterKey">Enter</button>
+            </div>
+            <div class="row compact">
+              <button id="backspaceKey">Backspace</button>
+              <button id="scrollUp">Scroll Up</button>
+              <button id="scrollDown">Scroll Down</button>
+              <button id="refreshPage">Refresh</button>
+            </div>
+            <div class="row">
+              <button id="backPage">Back</button>
+              <button id="reloadScreen">Reload Screen</button>
+            </div>
+            <div class="hint">
+              Tap directly on the screenshot to click. Open controls only when you need
+              typing, Enter, Tab, SMS codes, or scrolling.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
-
-  <div class="dock">
-    <div class="controls">
-      <div class="controls-head">
-        <div class="controls-title">Browser controls</div>
-        <div class="controls-actions">
-          <button id="toggleControls">Show Controls</button>
-          <button class="warn" id="openTelegram">Open Telegram</button>
-        </div>
-      </div>
-      <div class="controls-body" id="controlsBody">
-        <input id="textInput" type="text" placeholder="Type text here, then tap Send">
-        <div class="row">
-          <button class="primary" id="sendText">Send</button>
-          <button id="tabKey">Tab</button>
-          <button id="enterKey">Enter</button>
-        </div>
-        <div class="row compact">
-          <button id="backspaceKey">Backspace</button>
-          <button id="scrollUp">Scroll Up</button>
-          <button id="scrollDown">Scroll Down</button>
-          <button id="refreshPage">Refresh</button>
-        </div>
-        <div class="row">
-          <button id="backPage">Back</button>
-          <button id="reloadScreen">Reload Screen</button>
-        </div>
-        <div class="hint">
-          Tap directly on the screenshot to click. Open controls only when you need
-          typing, Enter, Tab, SMS codes, or scrolling.
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script>
     const token = {safe_token!r};
@@ -278,7 +317,18 @@ def _render_connect_page(token: str, provider: str) -> str:
     const toggleControlsEl = document.getElementById('toggleControls');
     let lastReturnUrl = '';
 
+    function isDesktopLayout() {{
+      return window.innerWidth >= 900;
+    }}
+
     function setControlsCollapsed(collapsed) {{
+      if (isDesktopLayout()) {{
+        dockEl.classList.remove('collapsed');
+        toggleControlsEl.textContent = 'Controls Ready';
+        toggleControlsEl.disabled = true;
+        return;
+      }}
+      toggleControlsEl.disabled = false;
       dockEl.classList.toggle('collapsed', collapsed);
       toggleControlsEl.textContent = collapsed ? 'Show Controls' : 'Hide Controls';
     }}
@@ -330,7 +380,7 @@ def _render_connect_page(token: str, provider: str) -> str:
     }}
 
     screenEl.addEventListener('click', async (event) => {{
-      if (dockEl.classList.contains('collapsed') === false && window.innerWidth <= 480) {{
+      if (dockEl.classList.contains('collapsed') === false && !isDesktopLayout()) {{
         setControlsCollapsed(true);
       }}
       const rect = screenEl.getBoundingClientRect();
@@ -387,8 +437,9 @@ def _render_connect_page(token: str, provider: str) -> str:
       }}
     }});
 
-    setControlsCollapsed(window.innerWidth <= 480);
+    setControlsCollapsed(!isDesktopLayout());
     reloadAll();
+    window.addEventListener('resize', () => setControlsCollapsed(!isDesktopLayout()));
     setInterval(async () => {{
       try {{
         const state = await fetchState();
@@ -412,9 +463,12 @@ async def _build_return_url(token: str) -> str:
 
 
 @router.get("/{token}", response_class=HTMLResponse)
-async def browser_connect_page(token: str) -> HTMLResponse:
+async def browser_connect_page(request: Request, token: str) -> HTMLResponse:
     try:
-        state = await remote_browser_connect.get_session_state(token)
+        state = await remote_browser_connect.get_session_state(
+            token,
+            user_agent=request.headers.get("user-agent"),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -424,9 +478,12 @@ async def browser_connect_page(token: str) -> HTMLResponse:
 
 
 @router.get("/{token}/state", response_model=BrowserConnectStateResponse)
-async def browser_connect_state(token: str) -> BrowserConnectStateResponse:
+async def browser_connect_state(request: Request, token: str) -> BrowserConnectStateResponse:
     try:
-        state = await remote_browser_connect.get_session_state(token)
+        state = await remote_browser_connect.get_session_state(
+            token,
+            user_agent=request.headers.get("user-agent"),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
