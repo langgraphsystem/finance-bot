@@ -176,3 +176,11 @@ async def test_execute_with_session_prefers_computer_use_backend():
     mock_cu.assert_awaited_once()
     mock_save.assert_awaited_once()
     mock_log.assert_awaited_once()
+
+
+def test_extract_domain_normalizes_uber_mobile_subdomain():
+    assert extract_domain("https://m.uber.com/go/home") == "uber.com"
+
+
+def test_extract_domain_normalizes_lyft_ride_subdomain():
+    assert extract_domain("ride.lyft.com") == "lyft.com"

@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 # Sessions expire after 30 days by default
 DEFAULT_SESSION_TTL_DAYS = 30
 
+# Canonical domains for providers that use multiple subdomains for auth/booking.
+_CANONICAL_DOMAIN_SUFFIXES: dict[str, str] = {
+    "uber.com": "uber.com",
+    "lyft.com": "lyft.com",
+}
+
 # Mapping of popular domains to their specific login page URLs
 _LOGIN_URLS: dict[str, str] = {
     "booking.com": "https://account.booking.com/sign-in",
@@ -72,6 +78,11 @@ def extract_domain(url_or_site: str) -> str:
     site = site.split("/")[0].split("?")[0].split("#")[0]
     # Strip www prefix
     site = re.sub(r"^www\.", "", site)
+
+    for suffix, canonical in _CANONICAL_DOMAIN_SUFFIXES.items():
+        if site == suffix or site.endswith(f".{suffix}"):
+            return canonical
+
     return site
 
 
