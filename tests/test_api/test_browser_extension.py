@@ -164,13 +164,20 @@ async def test_list_sessions(client):
 
 
 async def test_extension_status(client):
-    with patch(
-        "api.browser_extension.browser_service.list_user_sessions",
-        new_callable=AsyncMock,
-        return_value=[
-            {"site": "booking.com", "updated_at": "2026-03-07", "expired": False},
-            {"site": "amazon.com", "updated_at": "2026-03-07", "expired": False},
-        ],
+    with (
+        patch(
+            "api.browser_extension.browser_service.list_user_sessions",
+            new_callable=AsyncMock,
+            return_value=[
+                {"site": "booking.com", "updated_at": "2026-03-07", "expired": False},
+                {"site": "amazon.com", "updated_at": "2026-03-07", "expired": False},
+            ],
+        ),
+        patch(
+            "api.browser_extension.get_bot_username",
+            new_callable=AsyncMock,
+            return_value="HurremBot",
+        ),
     ):
         resp = await client.get(
             "/api/ext/status",
@@ -184,6 +191,15 @@ async def test_extension_status(client):
     assert data["family_id"] == _TEST_FAMILY_ID
     assert data["session_count"] == 2
     assert data["sites"] == ["amazon.com", "booking.com"]
+    assert data["bot_username"] == "HurremBot"
+
+
+async def test_extension_connect_redirects_to_provider_login(client):
+    resp = await client.get("/api/ext/connect", params={"provider": "uber.com"})
+
+    assert resp.status_code == 200
+    assert "Connecting Uber" in resp.text
+    assert "https://m.uber.com/go/home" in resp.text
 
 
 async def test_delete_session(client):

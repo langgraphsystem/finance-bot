@@ -520,7 +520,7 @@ async def check_auth_and_search(user_id: str) -> dict[str, Any]:
     state["step"] = "awaiting_login"
     await _set_state(user_id, state)
 
-    login_url = browser_service.get_login_url(site)
+    login_url = browser_service.get_connect_url(site)
     parsed = state.get("parsed", {})
     city = parsed.get("city", "")
 
@@ -529,13 +529,12 @@ async def check_auth_and_search(user_id: str) -> dict[str, Any]:
         "text": (
             f"I need access to <b>{site}</b> to search hotels"
             f"{f' in {city}' if city else ''}.\n\n"
-            f"1. Open the link below and log in\n"
-            f"2. Click the Finance Bot extension to save your session\n"
-            f"3. Come back and tap <b>Ready</b>\n\n"
-            f"Don't have the extension? Send /extension"
+            "Tap the connect button below and log in in your browser.\n"
+            "Finance Bot will save the session and return you to Telegram automatically.\n\n"
+            "If this is your first browser setup, send /extension once."
         ),
         "buttons": [
-            {"text": f"Log in to {site}", "url": login_url},
+            {"text": f"Connect {site}", "url": login_url},
             {"text": "Ready — check session", "callback": f"hotel_login_ready:{flow_id}"},
             {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"},
         ],
@@ -558,18 +557,16 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
 
     storage_state = await browser_service.get_storage_state(user_id, site)
     if not storage_state:
-        login_url = browser_service.get_login_url(site)
+        login_url = browser_service.get_connect_url(site)
         return {
             "action": "need_login",
             "text": (
                 f"I still don't see a saved session for <b>{site}</b>.\n\n"
-                "Make sure you:\n"
-                "1. Logged into the site in your browser\n"
-                "2. Clicked the Finance Bot extension → Save Session\n\n"
-                "Try again when ready."
+                "Open the connect flow below and finish the login in your browser.\n"
+                "I will continue automatically as soon as the session is available."
             ),
             "buttons": [
-                {"text": f"Log in to {site}", "url": login_url},
+                {"text": f"Connect {site}", "url": login_url},
                 {"text": "Ready — check again", "callback": f"hotel_login_ready:{flow_id}"},
                 {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"},
             ],

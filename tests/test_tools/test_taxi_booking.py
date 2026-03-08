@@ -56,7 +56,8 @@ async def test_check_auth_and_fetch_options_prompts_login_when_session_missing()
         result = await taxi_booking.check_auth_and_fetch_options(_TEST_USER_ID)
     mock_set.assert_awaited_once()
     assert result["action"] == "need_login"
-    assert result["buttons"][0]["url"].startswith("https://")
+    assert "/api/ext/connect?provider=uber.com" in result["buttons"][0]["url"]
+    assert "return you to Telegram automatically" in result["text"]
 
 
 async def test_handle_option_selection_prepares_confirmation():

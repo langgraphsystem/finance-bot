@@ -10,7 +10,9 @@ import json
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select
 
 from api.schemas.browser_extension import (
@@ -29,6 +31,7 @@ from src.tools import browser_service
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ext", tags=["browser-extension"])
+_BOT_USERNAME_CACHE: str | None = None
 
 
 async def get_user_by_token(authorization: str = Header(...)) -> tuple[str, str]:
@@ -60,6 +63,32 @@ async def get_user_by_token(authorization: str = Header(...)) -> tuple[str, str]
         raise HTTPException(status_code=500, detail="Database error")
 
     return (user_id, family_id)
+
+
+async def get_bot_username() -> str:
+    """Resolve and cache the Telegram bot username for deep-link redirects."""
+    global _BOT_USERNAME_CACHE
+
+    if _BOT_USERNAME_CACHE:
+        return _BOT_USERNAME_CACHE
+
+    token = (getattr(browser_service.settings, "telegram_bot_token", "") or "").strip()
+    if not token:
+        return ""
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            response.raise_for_status()
+    except Exception as e:
+        logger.warning("Failed to fetch Telegram bot username: %s", e)
+        return ""
+
+    data = response.json()
+    username = ((data.get("result") or {}).get("username") or "").strip()
+    if username:
+        _BOT_USERNAME_CACHE = username
+    return username
 
 
 @router.post("/session", response_model=SaveSessionResponse)
@@ -141,7 +170,60 @@ async def extension_status(
         family_id=family_id,
         session_count=len(sites),
         sites=sites,
+        bot_username=await get_bot_username(),
     )
+
+
+@router.get("/connect", response_class=HTMLResponse)
+async def extension_connect(provider: str = Query(..., min_length=1)) -> HTMLResponse:
+    """Bootstrap a browser-connect flow, then redirect to the provider login page."""
+    domain = browser_service.extract_domain(provider)
+    login_url = browser_service.get_login_url(domain)
+    provider_label = domain.replace(".com", "").replace(".", " ").title()
+    html = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connect {provider_label}</title>
+  <meta http-equiv="refresh" content="0;url={login_url}">
+  <style>
+    body {{
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #f5efe4, #dce8f3);
+      color: #1b2430;
+    }}
+    main {{
+      max-width: 32rem;
+      padding: 2rem;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 16px 40px rgba(27, 36, 48, 0.15);
+    }}
+    a {{
+      color: #0b57d0;
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Connecting {provider_label}</h1>
+    <p>
+      Finish the login in your browser. Finance Bot will detect the session
+      and return you to Telegram automatically.
+    </p>
+    <p>If redirect does not start, <a href="{login_url}">open {provider_label}</a>.</p>
+  </main>
+  <script>
+    window.location.replace({json.dumps(login_url)});
+  </script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 @router.delete("/session/{site}")

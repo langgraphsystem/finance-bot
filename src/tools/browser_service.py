@@ -11,6 +11,7 @@ import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import quote
 
 from sqlalchemy import delete, select
 
@@ -61,6 +62,15 @@ def get_login_url(domain: str) -> str:
     """
     domain = extract_domain(domain)
     return _LOGIN_URLS.get(domain, f"https://{domain}")
+
+
+def get_connect_url(domain: str) -> str:
+    """Return the browser-connect bootstrap URL for a provider when available."""
+    provider = extract_domain(domain)
+    if not settings.public_base_url:
+        return get_login_url(provider)
+    encoded_provider = quote(provider, safe="")
+    return f"{settings.public_base_url}/api/ext/connect?provider={encoded_provider}"
 
 
 def extract_domain(url_or_site: str) -> str:

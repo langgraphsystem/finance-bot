@@ -4,7 +4,8 @@ import json
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.tools.browser_service import extract_domain
+from src.tools import browser_service
+from src.tools.browser_service import extract_domain, get_connect_url
 
 _TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
 _TEST_FAMILY_ID = "00000000-0000-0000-0000-000000000002"
@@ -184,3 +185,13 @@ def test_extract_domain_normalizes_uber_mobile_subdomain():
 
 def test_extract_domain_normalizes_lyft_ride_subdomain():
     assert extract_domain("ride.lyft.com") == "lyft.com"
+
+
+def test_get_connect_url_uses_public_base_url():
+    with patch.object(
+        browser_service.settings,
+        "google_redirect_uri",
+        "https://bot.example.com/oauth/google/callback",
+    ):
+        url = get_connect_url("m.uber.com")
+    assert url == "https://bot.example.com/api/ext/connect?provider=uber.com"

@@ -853,6 +853,10 @@ async def _handle_slash_command(
 ) -> OutgoingMessage | None:
     """Handle slash commands: /export, /delete_all, /invite."""
     text = (message.text or "").strip()
+    if text.startswith("/start"):
+        payload = text.split(maxsplit=1)[1].strip() if " " in text else ""
+        if payload == "browser_connect":
+            return await _resume_browser_connect(message, context)
 
     if text == "/export":
         import json
@@ -939,14 +943,15 @@ async def _handle_slash_command(
         return OutgoingMessage(
             text=(
                 "<b>Browser Connect</b>\n\n"
-                "Use your own browser for login. I will reuse the saved session after that.\n\n"
+                "Use your own browser for login. After the one-time setup, I can reuse the "
+                "saved session and return you to Telegram automatically.\n\n"
                 f"API URL: <code>{api_url}</code>\n"
                 f"Your token: <code>{token}</code>\n\n"
                 "1. Install/load the browser extension\n"
                 "2. Paste the API URL and token into the extension\n"
-                "3. Open the target site in your browser and log in yourself\n"
-                "4. Click the extension → Save Session\n"
-                "5. Return to Telegram and ask me to continue"
+                "3. After that, use the Connect button inside Telegram flows\n"
+                "4. Log in in your browser\n"
+                "5. The extension will save the session and return you to Telegram automatically"
             ),
             chat_id=message.chat_id,
         )
@@ -992,6 +997,37 @@ async def _handle_slash_command(
             return OutgoingMessage(text="Ошибка при присоединении.", chat_id=message.chat_id)
 
     return None  # Not a known slash command — continue to intent detection
+
+
+async def _resume_browser_connect(
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage:
+    """Resume an active browser-based task after the user logs in."""
+    from src.tools import browser_booking, taxi_booking
+
+    taxi_state = await taxi_booking.get_taxi_state(context.user_id)
+    if taxi_state and taxi_state.get("step") == "awaiting_login":
+        result = await taxi_booking.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", "Browser connected."),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    booking_state = await browser_booking.get_booking_state(context.user_id)
+    if booking_state and booking_state.get("step") == "awaiting_login":
+        result = await browser_booking.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", "Browser connected."),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    return OutgoingMessage(
+        text="Browser connected. Return to your previous request in Telegram.",
+        chat_id=message.chat_id,
+    )
 
 
 async def _set_onboarding_state(

@@ -3,7 +3,7 @@
   "name": "Finance Bot — Session Saver",
   "version": "1.0",
   "description": "Save browser sessions for Finance Bot automation",
-  "permissions": ["cookies", "activeTab", "storage"],
+  "permissions": ["cookies", "activeTab", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
   "action": {
     "default_popup": "popup.html",

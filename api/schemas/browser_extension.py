@@ -42,3 +42,4 @@ class ExtensionStatusResponse(BaseModel):
     family_id: str
     session_count: int
     sites: list[str]
+    bot_username: str = ""

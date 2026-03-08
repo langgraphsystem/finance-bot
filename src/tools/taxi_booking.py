@@ -332,13 +332,13 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
         return {
             "action": "captcha",
             "text": (
-                "The provider showed a CAPTCHA. Please open the site in your browser, "
-                "solve it, save the session again, then tap <b>Ready</b>."
+                "The provider showed a CAPTCHA. Open the connect flow below, solve it in your "
+                "browser, and I will continue automatically when the session is ready."
             ),
             "buttons": [
                 {
-                    "text": f"Open {_provider_label(provider)}",
-                    "url": browser_service.get_login_url(provider),
+                    "text": f"Connect {_provider_label(provider)}",
+                    "url": browser_service.get_connect_url(provider),
                 },
                 {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
                 {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
@@ -553,13 +553,13 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
         return {
             "action": "captcha",
             "text": (
-                "The provider asked for a CAPTCHA. Open the site in your browser, "
-                "solve it, save the session again, then tap <b>Ready</b>."
+                "The provider asked for a CAPTCHA. Open the connect flow below, solve it in your "
+                "browser, and I will continue automatically when the session is ready."
             ),
             "buttons": [
                 {
-                    "text": f"Open {_provider_label(provider)}",
-                    "url": browser_service.get_login_url(provider),
+                    "text": f"Connect {_provider_label(provider)}",
+                    "url": browser_service.get_connect_url(provider),
                 },
                 {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
                 {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
@@ -613,14 +613,13 @@ def _build_login_prompt(
         "action": "need_login",
         "text": (
             f"{intro}\n\n"
-            "1. Open the provider in your browser\n"
-            "2. Log in to your account\n"
-            "3. Click the Finance Bot extension and save the session\n"
-            "4. Come back here and tap <b>Ready — continue</b>\n\n"
-            "If you still need the browser extension setup, send /extension."
+            "Tap the connect button below and log in in your browser.\n"
+            "When the login finishes, Finance Bot will save the session and return you to "
+            "Telegram automatically.\n\n"
+            "If this is your first browser setup, send /extension once."
         ),
         "buttons": [
-            {"text": f"Open {provider_label}", "url": browser_service.get_login_url(provider)},
+            {"text": f"Connect {provider_label}", "url": browser_service.get_connect_url(provider)},
             {"text": "Ready — continue", "callback": f"taxi_login_ready:{flow_id}"},
             {"text": "Cancel", "callback": f"taxi_cancel:{flow_id}"},
         ],
