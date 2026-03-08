@@ -25,10 +25,14 @@ from src.core.models.enums import (
     InvoiceStatus,
     LifeEventType,
     LoadStatus,
+    MembershipRole,
+    MembershipStatus,
+    MembershipType,
     MessageRole,
     MonitorType,
     OutputMode,
     PaymentFrequency,
+    ResourceVisibility,
     RunStatus,
     ScheduleKind,
     Scope,
@@ -59,6 +63,7 @@ from src.core.models.user import User
 from src.core.models.user_context import UserContext
 from src.core.models.user_profile import UserProfile
 from src.core.models.user_project import UserProject
+from src.core.models.workspace_membership import WorkspaceMembership
 
 __all__ = [
     "Base",
@@ -89,6 +94,10 @@ __all__ = [
     "TaskStatus",
     "TransactionType",
     "UserRole",
+    "MembershipRole",
+    "MembershipStatus",
+    "MembershipType",
+    "ResourceVisibility",
     "Family",
     "User",
     "Category",
@@ -121,4 +130,5 @@ __all__ = [
     "UserBrowserSession",
     "BrowserActionLog",
     "UserProject",
+    "WorkspaceMembership",
 ]
