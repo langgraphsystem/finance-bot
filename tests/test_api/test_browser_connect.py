@@ -37,8 +37,28 @@ async def test_browser_connect_page_renders_provider(client):
     assert resp.status_code == 200
     assert "Sign in to continue" in resp.text
     assert "Connect uber.com" not in resp.text
-    assert "Browser controls" in resp.text
-    assert "Controls Ready" in resp.text
+    assert "Type or paste" in resp.text
+    assert "Type into the site" in resp.text
+    assert "Browser controls" not in resp.text
+    assert "Controls Ready" not in resp.text
+
+
+async def test_browser_connect_page_debug_mode_exposes_advanced_tools(client):
+    with patch(
+        "api.browser_connect.remote_browser_connect.get_session_state",
+        new_callable=AsyncMock,
+        return_value={
+            "status": "active",
+            "provider": "uber.com",
+            "current_url": "https://m.uber.com/go/home",
+            "error": "",
+        },
+    ):
+        resp = await client.get("/api/browser-connect/test-token?debug=1")
+
+    assert resp.status_code == 200
+    assert "Advanced tools" in resp.text
+    assert "Refresh page" in resp.text
 
 
 async def test_browser_connect_state_returns_telegram_deep_link(client):

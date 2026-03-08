@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import html
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
 from api.browser_extension import get_bot_username
@@ -14,8 +14,29 @@ from src.tools import remote_browser_connect
 router = APIRouter(prefix="/api/browser-connect", tags=["browser-connect"])
 
 
-def _render_connect_page(token: str, provider: str) -> str:
+def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> str:
     safe_token = html.escape(token)
+    debug_panel = """
+      <section id="debugPanel" class="debug-panel">
+        <div class="debug-title">Advanced tools</div>
+        <div class="debug-grid">
+          <button id="backPage">Back</button>
+          <button id="refreshPage">Refresh page</button>
+          <button id="reloadScreen">Reload preview</button>
+        </div>
+      </section>
+    """ if debug else ""
+    debug_js = """
+    document.getElementById('backPage').addEventListener(
+      'click',
+      () => postAction({ action: 'back' })
+    );
+    document.getElementById('refreshPage').addEventListener(
+      'click',
+      () => postAction({ action: 'refresh' })
+    );
+    document.getElementById('reloadScreen').addEventListener('click', () => reloadAll());
+    """ if debug else ""
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -43,13 +64,9 @@ def _render_connect_page(token: str, provider: str) -> str:
       color: var(--ink);
     }}
     main {{
-      max-width: 1240px;
+      max-width: 980px;
       margin: 0 auto;
-      padding: 16px 14px calc(96px + env(safe-area-inset-bottom));
-    }}
-    .workspace {{
-      display: grid;
-      gap: 14px;
+      padding: 16px 14px calc(104px + env(safe-area-inset-bottom));
     }}
     .panel {{
       background: var(--panel);
@@ -71,9 +88,10 @@ def _render_connect_page(token: str, provider: str) -> str:
       display: block;
       width: 100%;
       height: auto;
-      touch-action: manipulation;
+      touch-action: none;
       user-select: none;
       -webkit-user-select: none;
+      cursor: pointer;
     }}
     .hero {{
       display: grid;
@@ -102,64 +120,103 @@ def _render_connect_page(token: str, provider: str) -> str:
     .status.visible {{
       display: block;
     }}
-    .dock {{
+    .hint {{
+      margin-top: 12px;
+      font-size: 0.94rem;
+      color: rgba(24,34,47,0.78);
+      line-height: 1.4;
+    }}
+    .assist-bar {{
       position: fixed;
       left: 12px;
       right: 12px;
       bottom: max(12px, env(safe-area-inset-bottom));
-      z-index: 30;
-      max-width: 760px;
+      z-index: 35;
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      max-width: 980px;
       margin: 0 auto;
     }}
-    .controls {{
-      display: grid;
-      gap: 10px;
-      padding: 14px;
-      border-radius: 24px;
-      background: rgba(255, 255, 255, 0.96);
+    .assist-button {{
       border: 1px solid var(--line);
-      box-shadow: 0 18px 48px rgba(24,34,47,0.18);
+      border-radius: 999px;
+      min-height: 48px;
+      padding: 12px 18px;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--ink);
+      box-shadow: 0 14px 30px rgba(24,34,47,0.14);
+      backdrop-filter: blur(12px);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }}
+    .assist-button.primary {{
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+    }}
+    .assist-button.hidden {{
+      display: none;
+    }}
+    .composer {{
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 40;
+      max-width: 980px;
+      margin: 0 auto;
+      transform: translateY(calc(100% + 20px));
+      transition: transform 0.18s ease;
+    }}
+    .composer.visible {{
+      transform: translateY(0);
+    }}
+    .composer-card {{
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.98);
+      border: 1px solid var(--line);
+      box-shadow: 0 20px 48px rgba(24,34,47,0.18);
       backdrop-filter: blur(12px);
     }}
-    .controls-head {{
+    .composer-head {{
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
     }}
-    .controls-title {{
-      font-size: 0.98rem;
+    .composer-title {{
+      font-size: 1rem;
       font-weight: 700;
     }}
-    .controls-actions {{
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
+    .composer-note {{
+      font-size: 0.9rem;
+      color: rgba(24,34,47,0.72);
+      line-height: 1.35;
     }}
-    .controls-body {{
-      display: grid;
-      gap: 10px;
-    }}
-    .dock.collapsed .controls-body {{
-      display: none;
-    }}
-    .row {{
-      display: grid;
-      gap: 8px;
-      grid-template-columns: repeat(3, 1fr);
-    }}
-    .row.compact {{
-      grid-template-columns: repeat(4, 1fr);
-    }}
-    input {{
+    .composer-input {{
       width: 100%;
+      min-height: 92px;
       border: 1px solid var(--line);
-      border-radius: 16px;
-      padding: 14px;
+      border-radius: 18px;
+      padding: 14px 16px;
       font: inherit;
       font-size: 16px;
       background: #fff;
+      resize: vertical;
+    }}
+    .composer-actions {{
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(4, 1fr);
     }}
     button {{
       border: none;
@@ -185,68 +242,42 @@ def _render_connect_page(token: str, provider: str) -> str:
       color: #fff;
       border-color: transparent;
     }}
-    .hint {{
-      font-size: 0.92rem;
+    .ghost-button {{
+      background: transparent;
       color: rgba(24,34,47,0.78);
-      line-height: 1.35;
+    }}
+    .debug-panel {{
+      display: grid;
+      gap: 10px;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid var(--line);
+    }}
+    .debug-title {{
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: rgba(24,34,47,0.7);
+    }}
+    .debug-grid {{
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(3, 1fr);
     }}
     @media (max-width: 480px) {{
       main {{
-        padding-bottom: calc(86px + env(safe-area-inset-bottom));
+        padding-bottom: calc(88px + env(safe-area-inset-bottom));
       }}
-      .dock {{
+      .assist-bar,
+      .composer {{
         left: 10px;
         right: 10px;
         bottom: max(10px, env(safe-area-inset-bottom));
       }}
-      .controls {{
-        padding: 12px;
-        border-radius: 20px;
-      }}
-      .controls-head {{
-        align-items: stretch;
-      }}
-      .controls-actions {{
-        width: 100%;
-      }}
-      .controls-actions button {{
+      .assist-button {{
         flex: 1 1 0;
       }}
-      .row,
-      .row.compact {{
-        grid-template-columns: repeat(2, 1fr);
-      }}
-    }}
-    @media (min-width: 900px) {{
-      main {{
-        padding: 20px 16px 24px;
-      }}
-      .workspace {{
-        grid-template-columns: minmax(0, 1fr) 340px;
-        align-items: start;
-      }}
-      .screen-panel {{
-        min-width: 0;
-      }}
-      .dock {{
-        position: sticky;
-        top: 20px;
-        left: auto;
-        right: auto;
-        bottom: auto;
-        max-width: none;
-      }}
-      .controls {{
-        padding: 16px;
-      }}
-      .controls-body {{
-        display: grid;
-      }}
-      .controls-actions {{
-        justify-content: flex-start;
-      }}
-      .row,
-      .row.compact {{
+      .composer-actions,
+      .debug-grid {{
         grid-template-columns: repeat(2, 1fr);
       }}
     }}
@@ -265,72 +296,65 @@ def _render_connect_page(token: str, provider: str) -> str:
       <div id="status" class="status" aria-live="polite"></div>
     </div>
 
-    <div class="workspace">
-      <div class="panel screen-panel">
-        <div class="screen-wrap">
-          <img id="screen" alt="Remote browser screen">
-        </div>
+    <div class="panel">
+      <div class="screen-wrap">
+        <img id="screen" alt="Remote browser screen">
       </div>
-
-      <div class="dock">
-        <div class="controls">
-          <div class="controls-head">
-            <div class="controls-title">Browser controls</div>
-            <div class="controls-actions">
-              <button id="toggleControls">Show Controls</button>
-              <button class="warn" id="openTelegram">Open Telegram</button>
-            </div>
-          </div>
-          <div class="controls-body" id="controlsBody">
-            <input id="textInput" type="text" placeholder="Type text here, then tap Send">
-            <div class="row">
-              <button class="primary" id="sendText">Send</button>
-              <button id="tabKey">Tab</button>
-              <button id="enterKey">Enter</button>
-            </div>
-            <div class="row compact">
-              <button id="backspaceKey">Backspace</button>
-              <button id="scrollUp">Scroll Up</button>
-              <button id="scrollDown">Scroll Down</button>
-              <button id="refreshPage">Refresh</button>
-            </div>
-            <div class="row">
-              <button id="backPage">Back</button>
-              <button id="reloadScreen">Reload Screen</button>
-            </div>
-            <div class="hint">
-              Tap directly on the screenshot to click. Open controls only when you need
-              typing, Enter, Tab, SMS codes, or scrolling.
-            </div>
-          </div>
-        </div>
+      <div class="hint">
+        Tap the page to interact. Swipe up or down on the page to move.
+        Only open the typing drawer when you need phone, email, password, or SMS code input.
       </div>
     </div>
   </main>
+
+  <div class="assist-bar">
+    <button class="assist-button primary" id="openComposer">Type or paste</button>
+    <button class="assist-button hidden" id="continueTelegram">Return to Telegram</button>
+  </div>
+
+  <section class="composer" id="composer" aria-hidden="true">
+    <div class="composer-card">
+      <div class="composer-head">
+        <div>
+          <div class="composer-title">Type into the site</div>
+          <div class="composer-note">
+            Use this only for phone, email, password, one-time codes, or other secure fields.
+          </div>
+        </div>
+        <button class="ghost-button" id="closeComposer">Close</button>
+      </div>
+      <textarea
+        class="composer-input"
+        id="textInput"
+        placeholder="Phone, email, password, or code"
+      ></textarea>
+      <div class="composer-actions">
+        <button class="primary" id="sendText">Paste into site</button>
+        <button id="nextField">Next</button>
+        <button id="continueKey">Continue</button>
+        <button id="deleteKey">Delete</button>
+      </div>
+      {debug_panel}
+    </div>
+  </section>
 
   <script>
     const token = {safe_token!r};
     const screenEl = document.getElementById('screen');
     const statusEl = document.getElementById('status');
     const textInputEl = document.getElementById('textInput');
-    const dockEl = document.querySelector('.dock');
-    const toggleControlsEl = document.getElementById('toggleControls');
+    const composerEl = document.getElementById('composer');
+    const openComposerEl = document.getElementById('openComposer');
+    const closeComposerEl = document.getElementById('closeComposer');
+    const continueTelegramEl = document.getElementById('continueTelegram');
     let lastReturnUrl = '';
+    let touchStart = null;
+    let touchLast = null;
+    let wheelLock = false;
 
-    function isDesktopLayout() {{
-      return window.innerWidth >= 900;
-    }}
-
-    function setControlsCollapsed(collapsed) {{
-      if (isDesktopLayout()) {{
-        dockEl.classList.remove('collapsed');
-        toggleControlsEl.textContent = 'Controls Ready';
-        toggleControlsEl.disabled = true;
-        return;
-      }}
-      toggleControlsEl.disabled = false;
-      dockEl.classList.toggle('collapsed', collapsed);
-      toggleControlsEl.textContent = collapsed ? 'Show Controls' : 'Hide Controls';
+    function setComposerOpen(open) {{
+      composerEl.classList.toggle('visible', open);
+      composerEl.setAttribute('aria-hidden', open ? 'false' : 'true');
     }}
 
     async function fetchState() {{
@@ -368,6 +392,7 @@ def _render_connect_page(token: str, provider: str) -> str:
         statusEl.textContent = '';
       }}
       lastReturnUrl = state.return_url || '';
+      continueTelegramEl.classList.toggle('hidden', !lastReturnUrl);
       if (state.status === 'completed' && lastReturnUrl) {{
         window.location.replace(lastReturnUrl);
       }}
@@ -380,9 +405,6 @@ def _render_connect_page(token: str, provider: str) -> str:
     }}
 
     screenEl.addEventListener('click', async (event) => {{
-      if (dockEl.classList.contains('collapsed') === false && !isDesktopLayout()) {{
-        setControlsCollapsed(true);
-      }}
       const rect = screenEl.getBoundingClientRect();
       const scaleX = screenEl.naturalWidth / rect.width;
       const scaleY = screenEl.naturalHeight / rect.height;
@@ -391,55 +413,88 @@ def _render_connect_page(token: str, provider: str) -> str:
       await postAction({{ action: 'click', x, y }});
     }});
 
-    toggleControlsEl.addEventListener('click', () => {{
-      setControlsCollapsed(!dockEl.classList.contains('collapsed'));
+    screenEl.addEventListener('wheel', async (event) => {{
+      event.preventDefault();
+      if (wheelLock) {{
+        return;
+      }}
+      wheelLock = true;
+      try {{
+        await postAction({{ action: 'scroll', delta_y: event.deltaY }});
+      }} finally {{
+        window.setTimeout(() => {{
+          wheelLock = false;
+        }}, 120);
+      }}
+    }}, {{ passive: false }});
+
+    screenEl.addEventListener('touchstart', (event) => {{
+      const touch = event.touches[0];
+      touchStart = touch;
+      touchLast = touch;
+    }}, {{ passive: true }});
+
+    screenEl.addEventListener('touchmove', (event) => {{
+      touchLast = event.touches[0];
+      event.preventDefault();
+    }}, {{ passive: false }});
+
+    screenEl.addEventListener('touchend', async (event) => {{
+      if (!touchStart) {{
+        return;
+      }}
+      const rect = screenEl.getBoundingClientRect();
+      const scaleX = screenEl.naturalWidth / rect.width;
+      const scaleY = screenEl.naturalHeight / rect.height;
+      const finalTouch = touchLast || event.changedTouches[0];
+      const deltaY = touchStart.clientY - finalTouch.clientY;
+      const deltaX = touchStart.clientX - finalTouch.clientX;
+      touchStart = null;
+      touchLast = null;
+
+      if (Math.abs(deltaY) > 18 || Math.abs(deltaX) > 18) {{
+        await postAction({{ action: 'scroll', delta_y: deltaY * 2.4 }});
+        return;
+      }}
+
+      const x = (finalTouch.clientX - rect.left) * scaleX;
+      const y = (finalTouch.clientY - rect.top) * scaleY;
+      await postAction({{ action: 'click', x, y }});
     }});
 
-    textInputEl.addEventListener('focus', () => setControlsCollapsed(false));
+    openComposerEl.addEventListener('click', () => {{
+      setComposerOpen(true);
+      textInputEl.focus();
+    }});
+    closeComposerEl.addEventListener('click', () => setComposerOpen(false));
 
     document.getElementById('sendText').addEventListener('click', async () => {{
       if (!textInputEl.value) return;
       await postAction({{ action: 'type', text: textInputEl.value }});
       textInputEl.value = '';
+      setComposerOpen(false);
     }});
-    document.getElementById('tabKey').addEventListener(
+    document.getElementById('nextField').addEventListener(
       'click',
       () => postAction({{ action: 'press', key: 'tab' }})
     );
-    document.getElementById('enterKey').addEventListener(
+    document.getElementById('continueKey').addEventListener(
       'click',
       () => postAction({{ action: 'press', key: 'enter' }})
     );
-    document.getElementById('backspaceKey').addEventListener(
+    document.getElementById('deleteKey').addEventListener(
       'click',
       () => postAction({{ action: 'press', key: 'backspace' }})
     );
-    document.getElementById('scrollUp').addEventListener(
-      'click',
-      () => postAction({{ action: 'scroll', delta_y: -650 }})
-    );
-    document.getElementById('scrollDown').addEventListener(
-      'click',
-      () => postAction({{ action: 'scroll', delta_y: 650 }})
-    );
-    document.getElementById('refreshPage').addEventListener(
-      'click',
-      () => postAction({{ action: 'refresh' }})
-    );
-    document.getElementById('backPage').addEventListener(
-      'click',
-      () => postAction({{ action: 'back' }})
-    );
-    document.getElementById('reloadScreen').addEventListener('click', () => reloadAll());
-    document.getElementById('openTelegram').addEventListener('click', () => {{
+    continueTelegramEl.addEventListener('click', () => {{
       if (lastReturnUrl) {{
         window.location.href = lastReturnUrl;
       }}
     }});
 
-    setControlsCollapsed(!isDesktopLayout());
+    {debug_js}
+
     reloadAll();
-    window.addEventListener('resize', () => setControlsCollapsed(!isDesktopLayout()));
     setInterval(async () => {{
       try {{
         const state = await fetchState();
@@ -463,7 +518,11 @@ async def _build_return_url(token: str) -> str:
 
 
 @router.get("/{token}", response_class=HTMLResponse)
-async def browser_connect_page(request: Request, token: str) -> HTMLResponse:
+async def browser_connect_page(
+    request: Request,
+    token: str,
+    debug: bool = Query(False),
+) -> HTMLResponse:
     try:
         state = await remote_browser_connect.get_session_state(
             token,
@@ -474,7 +533,7 @@ async def browser_connect_page(request: Request, token: str) -> HTMLResponse:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    return HTMLResponse(_render_connect_page(token, state["provider"]))
+    return HTMLResponse(_render_connect_page(token, state["provider"], debug=debug))
 
 
 @router.get("/{token}/state", response_model=BrowserConnectStateResponse)

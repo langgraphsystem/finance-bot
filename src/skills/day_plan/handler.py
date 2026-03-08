@@ -128,13 +128,11 @@ class DayPlanSkill:
     ) -> SkillResult:
         text = message.text or ""
         language = context.language or "en"
-
-        # If user sent a help/description query — ask for actual tasks
-        if _is_help_query(text):
-            return SkillResult(response_text=_t("ask_tasks", language))
-
-        # Extract tasks from intent_data or parse from text
         tasks: list[str] = intent_data.get("tasks", [])
+
+        # If tasks were already extracted upstream, trust them over the generic trigger text.
+        if not tasks and _is_help_query(text):
+            return SkillResult(response_text=_t("ask_tasks", language))
 
         if not tasks and text.strip():
             raw = text.strip()
