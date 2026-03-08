@@ -8,12 +8,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.models.category import Category
-from src.core.models.enums import ConversationState, Scope, UserRole
+from src.core.models.enums import (
+    ConversationState,
+    MembershipRole,
+    MembershipStatus,
+    MembershipType,
+    Scope,
+    UserRole,
+)
 from src.core.models.family import Family
 from src.core.models.merchant_mapping import MerchantMapping
 from src.core.models.user import User
 from src.core.models.user_context import UserContext
 from src.core.models.user_profile import UserProfile
+from src.core.models.workspace_membership import ROLE_PRESETS, WorkspaceMembership
 
 
 def generate_invite_code() -> str:
@@ -71,6 +79,17 @@ async def create_family(
     )
     session.add(user)
     await session.flush()
+
+    # Create workspace membership
+    wm = WorkspaceMembership(
+        family_id=family.id,
+        user_id=user.id,
+        membership_type=MembershipType.family,
+        role=MembershipRole.owner,
+        permissions=ROLE_PRESETS["owner"],
+        status=MembershipStatus.active,
+    )
+    session.add(wm)
 
     # Create user context
     ctx = UserContext(
@@ -170,6 +189,17 @@ async def create_family_for_channel(
     session.add(user)
     await session.flush()
 
+    # Create workspace membership
+    wm = WorkspaceMembership(
+        family_id=family.id,
+        user_id=user.id,
+        membership_type=MembershipType.family,
+        role=MembershipRole.owner,
+        permissions=ROLE_PRESETS["owner"],
+        status=MembershipStatus.active,
+    )
+    session.add(wm)
+
     ctx = UserContext(
         user_id=user.id,
         family_id=family.id,
@@ -256,6 +286,17 @@ async def join_family_for_channel(
     session.add(user)
     await session.flush()
 
+    # Create workspace membership
+    wm = WorkspaceMembership(
+        family_id=family.id,
+        user_id=user.id,
+        membership_type=MembershipType.family,
+        role=MembershipRole.family_member,
+        permissions=ROLE_PRESETS["family_member"],
+        status=MembershipStatus.active,
+    )
+    session.add(wm)
+
     ctx = UserContext(
         user_id=user.id,
         family_id=family.id,
@@ -316,6 +357,17 @@ async def join_family(
     )
     session.add(user)
     await session.flush()
+
+    # Create workspace membership
+    wm = WorkspaceMembership(
+        family_id=family.id,
+        user_id=user.id,
+        membership_type=MembershipType.family,
+        role=MembershipRole.family_member,
+        permissions=ROLE_PRESETS["family_member"],
+        status=MembershipStatus.active,
+    )
+    session.add(wm)
 
     ctx = UserContext(
         user_id=user.id,
