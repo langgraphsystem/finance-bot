@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from src.core.access import get_default_visibility
 from src.core.audit import log_action
 from src.core.context import SessionContext
 from src.core.db import async_session
@@ -70,6 +71,7 @@ class AddIncomeSkill:
                 description=description,
                 date=date.fromisoformat(tx_date) if isinstance(tx_date, str) else tx_date,
                 scope=Scope(scope) if scope else Scope.family,
+                visibility=get_default_visibility(Scope(scope)).value,
                 ai_confidence=1.0,
             )
             session.add(tx)

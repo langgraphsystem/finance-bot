@@ -104,6 +104,7 @@ class CreateTaskSkill:
             priority=priority,
             due_at=deadline,
             domain="tasks",
+            visibility="private_user",
             source_message_id=message.id,
         )
 

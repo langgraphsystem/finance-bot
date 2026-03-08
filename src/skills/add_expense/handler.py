@@ -6,6 +6,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from src.core.access import get_default_visibility
 from src.core.audit import log_action
 from src.core.categorization import categorize_transaction
 from src.core.context import SessionContext
@@ -85,6 +86,7 @@ class AddExpenseSkill:
                     merchant=merchant,
                     date=date.fromisoformat(tx_date) if isinstance(tx_date, str) else tx_date,
                     scope=Scope(scope) if scope else Scope.family,
+                    visibility=get_default_visibility(Scope(scope)).value,
                     ai_confidence=confidence,
                 )
                 session.add(tx)

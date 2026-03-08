@@ -240,6 +240,21 @@ async def create_record(
     record_id = uuid.uuid4()
     data["id"] = record_id
 
+    # Inject default visibility for tables that support it
+    if table in ("transactions", "tasks", "documents") and "visibility" not in data:
+        if "scope" in data:
+            from src.core.access import get_default_visibility
+            from src.core.models.enums import Scope as ScopeEnum
+
+            try:
+                data["visibility"] = get_default_visibility(ScopeEnum(data["scope"])).value
+            except ValueError:
+                pass
+        elif table == "tasks":
+            data["visibility"] = "private_user"
+        elif table == "documents":
+            data["visibility"] = "private_user"
+
     # Coerce enum values and UUID foreign keys
     for k, v in list(data.items()):
         data[k] = _coerce_enum(model, k, v)
