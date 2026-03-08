@@ -190,3 +190,32 @@ class InteractionChannel(enum.StrEnum):
 class InteractionDirection(enum.StrEnum):
     inbound = "inbound"
     outbound = "outbound"
+
+
+class MembershipType(enum.StrEnum):
+    family = "family"
+    worker = "worker"
+
+
+class MembershipRole(enum.StrEnum):
+    owner = "owner"
+    partner = "partner"
+    family_member = "family_member"
+    worker = "worker"
+    assistant = "assistant"
+    accountant = "accountant"
+    viewer = "viewer"
+    custom = "custom"
+
+
+class MembershipStatus(enum.StrEnum):
+    invited = "invited"
+    active = "active"
+    suspended = "suspended"
+    revoked = "revoked"
+
+
+class ResourceVisibility(enum.StrEnum):
+    private_user = "private_user"
+    family_shared = "family_shared"
+    work_shared = "work_shared"
