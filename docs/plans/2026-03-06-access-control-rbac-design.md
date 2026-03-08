@@ -1,7 +1,7 @@
 ﻿# Production Access Control Design
 
 **Date:** 2026-03-06
-**Status:** Proposed
+**Status:** Phase 0 done, Phase 1 done (2026-03-08)
 **Scope:** Family / worker access, privacy boundaries, RBAC, RLS
 
 ---
@@ -544,21 +544,27 @@ Immediate high-risk gaps:
 
 ## Rollout Plan
 
-### Phase 0: Emergency Hotfixes
+### Phase 0: Emergency Hotfixes — DONE (2026-03-08)
 
-Do immediately:
+- ✅ hide `invite_code` from `/api/me` for non-owner (already done)
+- ✅ switch miniapp `life-events` to `user_id` (already done)
+- ✅ switch miniapp `tasks` to `user_id` (already done)
+- ✅ Budget DELETE — add `apply_scope_filter()`
+- ✅ add_expense / add_income — force member to `scope=family`
 
-- hide `invite_code` from `/api/me` for non-owner
-- switch miniapp `life-events` to `user_id`
-- switch miniapp `tasks` to `user_id` or `visibility`
-- block `member` access to private/personal/business data without explicit permission
+### Phase 1: Introduce Membership + Visibility — DONE (2026-03-08)
 
-### Phase 1: Introduce Membership + Visibility
-
-- new membership table
-- new enums
-- new visibility fields
-- default backfill
+- ✅ `workspace_memberships` table + migration 030
+- ✅ `MembershipType`, `MembershipRole`, `MembershipStatus`, `ResourceVisibility` enums
+- ✅ `ROLE_PRESETS` (8 roles with default permissions)
+- ✅ `visibility` column on transactions, tasks, documents, conversation_messages, session_summaries
+- ✅ Backfill: existing users → workspace_memberships, transactions visibility from scope
+- ✅ Access layer: `apply_visibility_filter()`, `can_view_visibility()`, `get_default_visibility()`
+- ✅ `SessionContext` extended with `permissions`, `membership_type`, `has_permission()`
+- ✅ Load membership in context builders (`build_session_context`, `build_context_from_channel`)
+- ✅ Auto-create membership on user creation (all 4 create/join functions)
+- ✅ Set visibility on record creation (expense, income, task, data_tools)
+- ✅ 10 member isolation regression tests
 
 ### Phase 2: App-Level Access Layer
 
