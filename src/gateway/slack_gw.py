@@ -122,6 +122,11 @@ class SlackGateway:
     # ------------------------------------------------------------------
     # Outbound: send messages via Web API
     # ------------------------------------------------------------------
+    @staticmethod
+    def _sanitize(text: str) -> str:
+        """Remove surrogate characters that httpx cannot encode as JSON."""
+        return text.encode("utf-8", errors="replace").decode("utf-8")
+
     async def send(self, message: OutgoingMessage) -> None:
         """Send a message to Slack via chat.postMessage."""
         client = await self._get_client()
@@ -129,7 +134,7 @@ class SlackGateway:
         blocks = self._build_blocks(message)
         payload: dict[str, Any] = {
             "channel": message.chat_id,
-            "text": message.text,  # fallback for notifications
+            "text": self._sanitize(message.text),  # fallback for notifications
         }
         if blocks:
             payload["blocks"] = blocks
