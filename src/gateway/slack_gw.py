@@ -131,10 +131,11 @@ class SlackGateway:
         """Send a message to Slack via chat.postMessage."""
         client = await self._get_client()
 
-        blocks = self._build_blocks(message)
+        clean_text = self._sanitize(message.text)
+        blocks = self._build_blocks(message, clean_text)
         payload: dict[str, Any] = {
             "channel": message.chat_id,
-            "text": self._sanitize(message.text),  # fallback for notifications
+            "text": clean_text,  # fallback for notifications
         }
         if blocks:
             payload["blocks"] = blocks
@@ -316,13 +317,14 @@ class SlackGateway:
             logger.exception("Slack file upload failed, sending fallback")
             await self.send(OutgoingMessage(text=fallback_text, chat_id=chat_id))
 
-    def _build_blocks(self, message: OutgoingMessage) -> list[dict] | None:
+    def _build_blocks(self, message: OutgoingMessage, clean_text: str | None = None) -> list[dict] | None:
         """Convert OutgoingMessage to Slack Block Kit blocks."""
         if not message.buttons:
             return None
 
+        text = clean_text if clean_text is not None else self._sanitize(message.text)
         blocks: list[dict] = [
-            {"type": "section", "text": {"type": "mrkdwn", "text": message.text}},
+            {"type": "section", "text": {"type": "mrkdwn", "text": text}},
         ]
 
         actions = []
