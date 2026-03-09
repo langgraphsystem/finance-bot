@@ -1,7 +1,7 @@
 ﻿# Production Access Control Design
 
 **Date:** 2026-03-06
-**Status:** Phase 0-3 done, Phase 4 partial (2026-03-09)
+**Status:** Phase 0-4 done (2026-03-09)
 **Scope:** Family / worker access, privacy boundaries, RBAC, RLS
 
 ---
@@ -588,7 +588,7 @@ Immediate high-risk gaps:
 - ✅ Migration 032: drop duplicate `ix_wm_family_user` index
 - ✅ 12 RLS context unit tests, 15 RBAC integration tests
 
-### Phase 4: UX Rollout — PARTIAL (2026-03-09)
+### Phase 4: UX Rollout — DONE (2026-03-09)
 
 - ✅ Invite wizard: 3-step callback flow (type → role → show code + Redis role storage)
 - ✅ List members skill with manage button for owners
@@ -597,9 +597,10 @@ Immediate high-risk gaps:
 - ✅ 5 miniapp API endpoints: GET /family/members, PUT role, PUT suspend, PUT activate, DELETE
 - ✅ Permission checks on critical mutating skills (edit_finance, delete_finance, create_finance)
 - ✅ Audit trail for permission/role changes (log_action on all member operations)
-- ⬜ Miniapp frontend: no "Team Members" UI screen yet (API exists, UI pending)
-- ⬜ Access Screen with permission toggles (only preset roles, no per-permission UI)
-- ⬜ Confirmation modals in miniapp (API changes immediately)
+- ✅ Miniapp frontend: Team Members screen (owner-only, member detail modal, role changer)
+- ✅ Access Screen: invite wizard shows permissions summary + "Always hidden" block before confirm
+- ✅ Confirmation screen: Telegram invite flow (access summary → confirm → generate code)
+- ✅ DB-level RLS integration tests (4 tests, PostgreSQL-only with RLS_TESTS=1 gate)
 
 ---
 

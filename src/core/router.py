@@ -2031,6 +2031,62 @@ async def _handle_callback(
             if role in ("owner", "custom") or role not in ROLE_PRESETS:
                 return OutgoingMessage(text="Invalid role.", chat_id=message.chat_id)
 
+            perms = ROLE_PRESETS.get(role, [])
+            perm_labels = {
+                "view_finance": "\U0001f4b0 View finances",
+                "create_finance": "\u2795 Add transactions",
+                "edit_finance": "\u270f\ufe0f Edit transactions",
+                "delete_finance": "\U0001f5d1 Delete transactions",
+                "view_reports": "\U0001f4ca View reports",
+                "export_reports": "\U0001f4e5 Export reports",
+                "view_budgets": "\U0001f3af View budgets",
+                "manage_budgets": "\U0001f3af Manage budgets",
+                "view_work_tasks": "\u2705 Work tasks",
+                "manage_work_tasks": "\u2705 Manage work tasks",
+                "view_work_documents": "\U0001f4c4 Work documents",
+                "manage_work_documents": "\U0001f4c4 Manage work docs",
+                "view_contacts": "\U0001f464 View contacts",
+                "manage_contacts": "\U0001f464 Manage contacts",
+                "invite_members": "\U0001f517 Invite members",
+                "manage_members": "\U0001f465 Manage members",
+            }
+
+            can_see = "\n".join(
+                f"  {perm_labels.get(p, p)}" for p in perms
+            )
+            cannot_see = (
+                "  \U0001f512 Personal bot chats\n"
+                "  \U0001f512 Personal memory\n"
+                "  \U0001f512 Personal notes / life events\n"
+                "  \U0001f512 Personal email / calendar\n"
+                "  \U0001f512 Personal drafts / browser sessions"
+            )
+
+            role_label = role.replace("_", " ").title()
+
+            return OutgoingMessage(
+                text=(
+                    f"<b>Access: {role_label}</b>\n\n"
+                    f"<b>Can access:</b>\n{can_see}\n\n"
+                    f"<b>Always hidden:</b>\n{cannot_see}"
+                ),
+                chat_id=message.chat_id,
+                buttons=[
+                    {
+                        "text": "\u2705 Confirm & Generate Code",
+                        "callback": f"invite:confirm:{role}",
+                    },
+                    {"text": "\u25c0\ufe0f Back", "callback": "members:invite"},
+                ],
+            )
+
+        if sub == "confirm":
+            role = rest[0] if rest else "viewer"
+            from src.core.models.workspace_membership import ROLE_PRESETS
+
+            if role in ("owner", "custom") or role not in ROLE_PRESETS:
+                return OutgoingMessage(text="Invalid role.", chat_id=message.chat_id)
+
             from src.core.family import get_invite_code
 
             async with async_session() as session:
@@ -2046,10 +2102,12 @@ async def _handle_callback(
             if len(perms) > 5:
                 perm_text += f" +{len(perms) - 5} more"
 
+            role_label = role.replace("_", " ").title()
+
             return OutgoingMessage(
                 text=(
                     f"<b>Invite ready!</b>\n\n"
-                    f"Role: <b>{role.replace('_', ' ').title()}</b>\n"
+                    f"Role: <b>{role_label}</b>\n"
                     f"Permissions: {perm_text}\n\n"
                     f"Share this invite code:\n"
                     f"<code>{invite_code}</code>\n\n"

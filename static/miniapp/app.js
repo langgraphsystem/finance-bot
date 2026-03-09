@@ -88,6 +88,7 @@ function navigate(tab) {
     dashboard: 'Dashboard', transactions: 'Transactions',
     add: 'New Record',      stats: 'Statistics',
     tasks: 'Tasks',         life: 'Life',        settings: 'Settings',
+    members: 'Team Members',
   };
   document.getElementById('screen-title').textContent = titles[tab] || tab;
   renderTab(tab);
@@ -105,6 +106,7 @@ async function renderTab(tab) {
     case 'stats':        await renderStats(content);        break;
     case 'tasks':        await renderTasks(content);        break;
     case 'life':         await renderLife(content);         break;
+    case 'members':      await renderMembers(content);      break;
     case 'settings':     await renderSettings(content);     break;
     default: content.innerHTML = '<div class="empty"><p>Coming soon</p></div>';
   }
@@ -1022,9 +1024,12 @@ async function renderSettings(content) {
 
       <div class="section-title">FAMILY</div>
       <div class="card" style="padding:0">
+        ${profile.role === 'owner' ? `
+        <div class="settings-row" onclick="navigate('members')">
+          <div class="row-left"><span class="row-icon">👥</span><span class="row-label">Team Members</span></div><span class="row-arrow">›</span></div>` : ''}
         <div class="settings-row" onclick="showInviteCode()">
           <div class="row-left"><span class="row-icon">🔗</span><span class="row-label">Invite Code</span></div>
-          <span class="row-value" style="font-family:monospace;font-weight:600">${profile.invite_code}</span></div>
+          <span class="row-value" style="font-family:monospace;font-weight:600">${profile.invite_code || '—'}</span></div>
       </div>
 
       ${recurring.length > 0 ? `
@@ -1202,6 +1207,222 @@ async function exportCSV() {
     a.href = url; a.download = `transactions_${new Date().toISOString().split('T')[0]}.csv`;
     a.click(); URL.revokeObjectURL(url);
     toast('✅ Exported!');
+  } catch (e) { toast('❌ '+e.message); }
+}
+
+// ─── MEMBERS ──────────────────────────────────────────────────────────────
+const ROLE_LABELS = {
+  owner: '👑 Owner', partner: '💑 Partner', family_member: '👨‍👩‍👧 Family',
+  worker: '💼 Worker', assistant: '📋 Assistant', accountant: '📊 Accountant',
+  viewer: '👁 Viewer', custom: '⚙️ Custom',
+};
+
+const PERMISSION_LABELS = {
+  view_finance: '💰 View finances', create_finance: '➕ Add transactions',
+  edit_finance: '✏️ Edit transactions', delete_finance: '🗑 Delete transactions',
+  view_reports: '📊 View reports', export_reports: '📥 Export reports',
+  view_budgets: '🎯 View budgets', manage_budgets: '🎯 Manage budgets',
+  view_work_tasks: '✅ View work tasks', manage_work_tasks: '✅ Manage work tasks',
+  view_work_documents: '📄 View work docs', manage_work_documents: '📄 Manage work docs',
+  view_contacts: '👤 View contacts', manage_contacts: '👤 Manage contacts',
+  invite_members: '🔗 Invite members', manage_members: '👥 Manage members',
+};
+
+const ROLE_PRESETS = {
+  partner: ['view_finance','create_finance','edit_finance','view_budgets','manage_budgets','view_reports'],
+  family_member: ['create_finance','view_budgets'],
+  worker: ['view_work_tasks','manage_work_tasks','view_contacts'],
+  assistant: ['view_work_tasks','manage_work_tasks','view_contacts','manage_contacts','view_work_documents'],
+  accountant: ['view_finance','create_finance','edit_finance','view_reports','export_reports','view_budgets','manage_budgets'],
+  viewer: ['view_finance','view_reports','view_budgets'],
+};
+
+const ALWAYS_HIDDEN = [
+  '🔒 Personal bot chats', '🔒 Personal memory', '🔒 Personal notes & life events',
+  '🔒 Personal email & calendar', '🔒 Personal drafts & browser sessions',
+];
+
+async function renderMembers(content) {
+  try {
+    const members = await get('/family/members');
+    content.innerHTML = `
+      <div class="card" style="text-align:center;padding:16px">
+        <button class="btn btn-primary" onclick="showInviteWizard()" style="width:100%">➕ Invite New Member</button>
+      </div>
+      <div class="section-title">MEMBERS (${members.length})</div>
+      <div class="card" style="padding:0">
+        ${members.length === 0 ? '<div class="empty"><p>No members yet</p></div>' :
+          members.map(m => `
+          <div class="settings-row" style="flex-wrap:wrap;gap:8px" onclick="showMemberDetail('${escAttr(m.id)}')">
+            <div class="row-left" style="flex:1;min-width:0">
+              <div class="avatar" style="width:36px;height:36px;font-size:15px;flex-shrink:0">${(m.user_name||'?')[0].toUpperCase()}</div>
+              <div style="min-width:0">
+                <div class="row-label">${esc(m.user_name||'Unknown')}</div>
+                <div style="font-size:12px;color:var(--hint)">${ROLE_LABELS[m.role]||m.role}${m.status!=='active'?' · <span style="color:var(--destructive)">'+esc(m.status)+'</span>':''}</div>
+              </div>
+            </div>
+            ${m.role !== 'owner' ? '<span class="row-arrow">›</span>' : ''}
+          </div>`).join('')}
+      </div>
+      <div style="height:16px"></div>`;
+    state._members = members;
+  } catch (e) { content.innerHTML = `<div class="empty"><p>${esc(e.message)}</p></div>`; }
+}
+
+function showMemberDetail(memberId) {
+  const m = (state._members||[]).find(x => x.id === memberId);
+  if (!m || m.role === 'owner') return;
+  haptic('light');
+  const perms = (m.permissions||[]).map(p => PERMISSION_LABELS[p]||p).join('<br>');
+  openModal(`
+    <div class="modal-title">${esc(m.user_name||'Unknown')}</div>
+    <div style="text-align:center;margin:8px 0">
+      <div class="avatar" style="width:56px;height:56px;font-size:24px;margin:0 auto">${(m.user_name||'?')[0].toUpperCase()}</div>
+      <div style="margin-top:8px;font-size:15px;color:var(--hint)">${ROLE_LABELS[m.role]||m.role} · ${esc(m.membership_type)}</div>
+      <div style="margin-top:4px;font-size:13px;color:var(--hint)">${m.status}</div>
+    </div>
+    ${perms ? `<div class="section-title">PERMISSIONS</div><div class="card" style="font-size:13px;line-height:1.8">${perms}</div>` : ''}
+    <div class="section-title">ACTIONS</div>
+    <div class="card" style="padding:0">
+      <div class="settings-row" onclick="showRoleChanger('${escAttr(memberId)}')">
+        <div class="row-left"><span class="row-icon">🔄</span><span class="row-label">Change Role</span></div><span class="row-arrow">›</span></div>
+      ${m.status === 'active' ? `
+      <div class="settings-row" onclick="suspendMember('${escAttr(memberId)}')">
+        <div class="row-left"><span class="row-icon">⏸</span><span class="row-label">Suspend</span></div><span class="row-arrow">›</span></div>` : `
+      <div class="settings-row" onclick="activateMember('${escAttr(memberId)}')">
+        <div class="row-left"><span class="row-icon">▶️</span><span class="row-label">Activate</span></div><span class="row-arrow">›</span></div>`}
+      <div class="settings-row" onclick="removeMember('${escAttr(memberId)}')">
+        <div class="row-left"><span class="row-icon" style="background:rgba(255,59,48,0.1)">🗑</span><span class="row-label" style="color:var(--destructive)">Remove</span></div><span class="row-arrow">›</span></div>
+    </div>`);
+}
+
+function showRoleChanger(memberId) {
+  const roles = ['partner','family_member','worker','assistant','accountant','viewer'];
+  setModalContent(`
+    <div class="modal-title">Choose New Role</div>
+    <div class="card" style="padding:0">
+      ${roles.map(r => `
+      <div class="settings-row" onclick="changeMemberRole('${escAttr(memberId)}','${r}')">
+        <div class="row-left"><span class="row-label">${ROLE_LABELS[r]||r}</span></div><span class="row-arrow">›</span></div>`).join('')}
+    </div>`);
+}
+
+async function changeMemberRole(memberId, role) {
+  haptic('medium');
+  try {
+    await put('/family/members/'+memberId+'/role', {role});
+    toast('✅ Role updated');
+    closeModal();
+    await renderMembers(document.getElementById('content'));
+  } catch (e) { toast('❌ '+e.message); }
+}
+
+async function suspendMember(memberId) {
+  haptic('medium');
+  try {
+    await put('/family/members/'+memberId+'/suspend', {});
+    toast('⏸ Member suspended');
+    closeModal();
+    await renderMembers(document.getElementById('content'));
+  } catch (e) { toast('❌ '+e.message); }
+}
+
+async function activateMember(memberId) {
+  haptic('medium');
+  try {
+    await put('/family/members/'+memberId+'/activate', {});
+    toast('▶️ Member activated');
+    closeModal();
+    await renderMembers(document.getElementById('content'));
+  } catch (e) { toast('❌ '+e.message); }
+}
+
+async function removeMember(memberId) {
+  haptic('medium');
+  try {
+    await del('/family/members/'+memberId);
+    toast('🗑 Member removed');
+    closeModal();
+    await renderMembers(document.getElementById('content'));
+  } catch (e) { toast('❌ '+e.message); }
+}
+
+function showInviteWizard() {
+  haptic('light');
+  setModalContent(`
+    <div class="modal-title">Invite New Member</div>
+    <div class="section-title">MEMBERSHIP TYPE</div>
+    <div class="card" style="padding:0">
+      <div class="settings-row" onclick="inviteStep2('family')">
+        <div class="row-left"><span class="row-icon">👨‍👩‍👧</span><span class="row-label">Family</span></div><span class="row-arrow">›</span></div>
+      <div class="settings-row" onclick="inviteStep2('worker')">
+        <div class="row-left"><span class="row-icon">💼</span><span class="row-label">Worker</span></div><span class="row-arrow">›</span></div>
+    </div>`);
+}
+
+function inviteStep2(type) {
+  haptic('light');
+  const roles = type === 'family'
+    ? ['partner','family_member','viewer']
+    : ['worker','assistant','accountant','viewer'];
+  setModalContent(`
+    <div class="modal-title">Choose Role</div>
+    <div class="card" style="padding:0">
+      ${roles.map(r => `
+      <div class="settings-row" onclick="inviteAccessScreen('${r}')">
+        <div class="row-left"><span class="row-label">${ROLE_LABELS[r]||r}</span></div><span class="row-arrow">›</span></div>`).join('')}
+    </div>`);
+}
+
+function inviteAccessScreen(role) {
+  haptic('light');
+  const perms = ROLE_PRESETS[role] || [];
+  const permHtml = perms.map(p => `<div style="padding:4px 0">✅ ${PERMISSION_LABELS[p]||p}</div>`).join('');
+  const hiddenHtml = ALWAYS_HIDDEN.map(h => `<div style="padding:4px 0;color:var(--hint)">${h}</div>`).join('');
+  setModalContent(`
+    <div class="modal-title">Access: ${ROLE_LABELS[role]||role}</div>
+    <div class="section-title">CAN ACCESS</div>
+    <div class="card" style="font-size:13px;line-height:1.6">${permHtml || '<div style="color:var(--hint)">No permissions</div>'}</div>
+    <div class="section-title">ALWAYS HIDDEN</div>
+    <div class="card" style="font-size:13px;line-height:1.6">${hiddenHtml}</div>
+    <div class="btn-wrap" style="padding:16px 0">
+      <button class="btn btn-primary" onclick="inviteConfirmScreen('${escAttr(role)}')" style="width:100%">Continue</button>
+    </div>`);
+}
+
+async function inviteConfirmScreen(role) {
+  haptic('light');
+  const perms = ROLE_PRESETS[role] || [];
+  const canSee = perms.slice(0,4).map(p => (PERMISSION_LABELS[p]||p).replace(/^[^\s]+\s/,'')).join(', ');
+  setModalContent(`
+    <div class="modal-title">Confirm Invite</div>
+    <div class="card">
+      <div style="font-size:15px;margin-bottom:12px"><b>Role:</b> ${ROLE_LABELS[role]||role}</div>
+      <div style="font-size:14px;color:var(--hint);margin-bottom:8px"><b>Can see:</b> ${canSee || 'nothing'}</div>
+      <div style="font-size:14px;color:var(--hint)"><b>Cannot see:</b> private chats, memory, email</div>
+    </div>
+    <div class="btn-wrap" style="padding:16px 0">
+      <button class="btn btn-primary" onclick="generateInviteCode('${escAttr(role)}')" style="width:100%">Generate Invite Code</button>
+    </div>`);
+}
+
+async function generateInviteCode(role) {
+  haptic('medium');
+  try {
+    const profile = await get('/me');
+    const code = profile.invite_code;
+    setModalContent(`
+      <div class="modal-title">Invite Ready!</div>
+      <div style="text-align:center;padding:16px 0">
+        <div style="font-size:13px;color:var(--hint);margin-bottom:8px">Role: ${ROLE_LABELS[role]||role}</div>
+        <div class="invite-code-box">
+          <div class="invite-code" onclick="copyInvite('${escAttr(code)}')">${esc(code)}</div>
+          <div class="invite-hint">Tap code to copy · New member sends: /invite ${esc(code)}</div>
+        </div>
+      </div>
+      <div class="btn-wrap" style="padding-bottom:16px">
+        <button class="btn btn-primary" onclick="copyInvite('${escAttr(code)}')" style="width:100%">📋 Copy Code</button>
+      </div>`);
   } catch (e) { toast('❌ '+e.message); }
 }
 
