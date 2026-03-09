@@ -10,7 +10,10 @@ Tests cover:
 - Lost-in-the-Middle positioning
 """
 
-from unittest.mock import AsyncMock, patch
+import uuid
+from datetime import date
+from decimal import Decimal
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -22,6 +25,8 @@ from src.core.memory.context import (
     _apply_overflow_trimming,
     _format_memories_block,
     _format_sql_block,
+    _load_sql_stats,
+    _resolve_sql_period,
     _trim_memories,
     _truncate_to_budget,
     assemble_context,
@@ -164,6 +169,36 @@ class TestFormatSqlBlock:
         result = _format_sql_block(stats)
         assert "Продукты" in result
         assert "Транспорт" in result
+
+    def test_uses_period_label_and_previous_label(self):
+        stats = {
+            "period_label": "эту неделю",
+            "month_start": "2026-02-01",
+            "total_expense": 500.0,
+            "total_income": 700.0,
+            "previous_expense": 400.0,
+            "previous_label": "предыдущую неделю",
+            "by_category": [],
+        }
+        result = _format_sql_block(stats)
+        assert "Эту неделю:" in result
+        assert "Предыдущую неделю расходы" in result
+
+
+class TestResolveSqlPeriod:
+    def test_query_stats_week(self):
+        start, end, label = _resolve_sql_period("query_stats", {"period": "week"})
+        assert start <= end
+        assert label == "эту неделю"
+
+    def test_query_report_explicit_month(self):
+        start, end, label = _resolve_sql_period(
+            "query_report",
+            {"date": "2026-01-15"},
+        )
+        assert start == date(2026, 1, 1)
+        assert end == date(2026, 2, 1)
+        assert label == "2026-01"
 
 
 # ---------------------------------------------------------------------------
@@ -626,3 +661,82 @@ class TestAssembleContext:
         # Domain segmentation: query_stats → [finance, core]
         mock_deps["mem0"].search_memories_multi_domain.assert_called_once()
         assert len(result.memories) == 1
+
+    @pytest.mark.asyncio
+    async def test_sql_loader_receives_role_and_intent_data(self, mock_deps):
+        with patch(
+            "src.core.memory.context._load_sql_stats",
+            new_callable=AsyncMock,
+            return_value={
+                "period_label": "эту неделю",
+                "month_start": "2026-02-01",
+                "total_expense": 0,
+                "total_income": 0,
+                "by_category": [],
+                "previous_expense": 0,
+                "previous_label": "предыдущую неделю",
+            },
+        ) as mock_sql:
+            await assemble_context(
+                user_id="user-1",
+                family_id="family-1",
+                current_message="покажи статистику за неделю",
+                intent="query_stats",
+                system_prompt="prompt",
+                role="member",
+                intent_data={"period": "week"},
+            )
+
+        mock_sql.assert_awaited_once_with(
+            "family-1",
+            role="member",
+            user_id="user-1",
+            intent="query_stats",
+            intent_data={"period": "week"},
+        )
+
+
+class TestLoadSqlStats:
+    @pytest.mark.asyncio
+    async def test_applies_visibility_filter_and_period(self):
+        expense_result = MagicMock()
+        expense_result.all.return_value = [
+            (None, Decimal("125"), 2),
+        ]
+        income_result = MagicMock()
+        income_result.scalar.return_value = Decimal("300")
+        prev_result = MagicMock()
+        prev_result.scalar.return_value = Decimal("80")
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(
+            side_effect=[expense_result, income_result, prev_result]
+        )
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        ctx.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "src.core.db.async_session",
+                return_value=ctx,
+            ),
+            patch(
+                "src.core.access.apply_visibility_filter",
+                side_effect=lambda stmt, model, role, user_id: stmt,
+            ) as mock_filter,
+        ):
+            stats = await _load_sql_stats(
+                str(uuid.uuid4()),
+                role="member",
+                user_id=str(uuid.uuid4()),
+                intent="query_stats",
+                intent_data={"period": "week"},
+            )
+
+        assert stats["period_label"] == "эту неделю"
+        assert stats["by_category"][0]["name"] == "Без категории"
+        assert stats["total_expense"] == 125.0
+        assert stats["total_income"] == 300.0
+        assert stats["previous_expense"] == 80.0
+        assert mock_filter.call_count == 3

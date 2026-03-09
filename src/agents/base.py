@@ -249,6 +249,8 @@ class AgentRouter:
                 current_message=message.text or ".",
                 intent=intent,
                 system_prompt=prompt,
+                role=context.role,
+                intent_data=intent_data,
             )
             system_prompt = assembled.system_prompt if assembled else prompt
             messages = assembled.messages if assembled else []
@@ -368,6 +370,8 @@ class AgentRouter:
                     current_message=message.text or ".",
                     intent=intent,
                     system_prompt=prompt,
+                    role=context.role,
+                    intent_data=intent_data,
                 )
                 intent_data["_assembled"] = assembled
                 intent_data["_agent"] = agent.name
@@ -426,6 +430,8 @@ class AgentRouter:
                     current_message=message.text or ".",
                     intent=intent,
                     system_prompt=system_prompt,
+                    role=context.role,
+                    intent_data=intent_data,
                 )
                 intent_data["_assembled"] = assembled
             except Exception as e:

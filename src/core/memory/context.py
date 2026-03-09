@@ -10,6 +10,7 @@ heavy context layers for simple queries (saves 80-96% tokens).
 import asyncio
 import logging
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
@@ -290,79 +291,223 @@ class AssembledContext:
 
 
 # ---------------------------------------------------------------------------
-# SQL stats loader (unchanged)
+# SQL stats loader
 # ---------------------------------------------------------------------------
-async def _load_sql_stats(family_id: str) -> dict[str, Any]:
-    """Layer 4: Load SQL aggregates for current month."""
-    import uuid
+def _parse_sql_date(value: str | None) -> date | None:
+    """Parse YYYY-MM-DD strings used by analytics intent data."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
 
+
+def _resolve_sql_period(
+    intent: str,
+    intent_data: dict[str, Any] | None,
+) -> tuple[date, date, str]:
+    """Resolve the analytics period from query_stats/query_report intent data."""
+    today = date.today()
+    data = intent_data or {}
+
+    if intent == "query_report":
+        period = data.get("period")
+        month_date = _parse_sql_date(data.get("date") or data.get("date_from"))
+
+        if period == "prev_month":
+            first_this_month = today.replace(day=1)
+            last_day_prev = first_this_month - timedelta(days=1)
+            start = last_day_prev.replace(day=1)
+            return start, first_this_month, start.strftime("%Y-%m")
+
+        if month_date:
+            start = month_date.replace(day=1)
+            if start.month == 12:
+                end = start.replace(year=start.year + 1, month=1)
+            else:
+                end = start.replace(month=start.month + 1)
+            return start, end, start.strftime("%Y-%m")
+
+        start = today.replace(day=1)
+        return start, today + timedelta(days=1), "этот месяц"
+
+    period = (data.get("period") or "month").lower()
+
+    if period == "today":
+        return today, today + timedelta(days=1), "сегодня"
+
+    if period == "day":
+        day = _parse_sql_date(data.get("date")) or today
+        return day, day + timedelta(days=1), day.strftime("%d.%m.%Y")
+
+    if period == "week":
+        start = today - timedelta(days=today.weekday())
+        return start, today + timedelta(days=1), "эту неделю"
+
+    if period == "prev_week":
+        end = today - timedelta(days=today.weekday())
+        start = end - timedelta(days=7)
+        return start, end, "прошлую неделю"
+
+    if period == "prev_month":
+        first_this_month = today.replace(day=1)
+        last_day_prev = first_this_month - timedelta(days=1)
+        start = last_day_prev.replace(day=1)
+        return start, first_this_month, "прошлый месяц"
+
+    if period == "year":
+        start = today.replace(month=1, day=1)
+        return start, today + timedelta(days=1), "этот год"
+
+    if period == "custom":
+        date_from = _parse_sql_date(data.get("date_from"))
+        date_to = _parse_sql_date(data.get("date_to"))
+        if date_from and date_to:
+            label = f"{date_from.strftime('%d.%m')} – {date_to.strftime('%d.%m.%Y')}"
+            return date_from, date_to + timedelta(days=1), label
+        if date_from:
+            return date_from, today + timedelta(days=1), f"с {date_from.strftime('%d.%m.%Y')}"
+
+    start = today.replace(day=1)
+    return start, today + timedelta(days=1), "этот месяц"
+
+
+def _previous_sql_period(
+    start: date,
+    end: date,
+    intent: str,
+    intent_data: dict[str, Any] | None,
+) -> tuple[date, date, str]:
+    """Build a comparison period aligned to the current analytics window."""
+    data = intent_data or {}
+    period = (data.get("period") or "month").lower()
+
+    if intent == "query_report":
+        if start.day == 1 and end.day == 1:
+            last_day_prev = start - timedelta(days=1)
+            prev_start = last_day_prev.replace(day=1)
+            return prev_start, start, prev_start.strftime("%Y-%m")
+        delta = end - start
+        prev_start = start - delta
+        return prev_start, start, prev_start.strftime("%Y-%m")
+
+    if period in {"today", "day"}:
+        return start - timedelta(days=1), start, "предыдущий день"
+    if period in {"week", "prev_week"}:
+        return start - timedelta(days=7), start, "предыдущую неделю"
+    if period == "year":
+        return start.replace(year=start.year - 1), end.replace(year=end.year - 1), "предыдущий год"
+    if period == "custom":
+        delta = end - start
+        prev_start = start - delta
+        return prev_start, start, "предыдущий период"
+
+    last_day_prev = start - timedelta(days=1)
+    prev_start = last_day_prev.replace(day=1)
+    return prev_start, start, "предыдущий месяц"
+
+
+async def _load_sql_stats(
+    family_id: str,
+    *,
+    role: str = "owner",
+    user_id: str = "",
+    intent: str = "",
+    intent_data: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Layer 4: Load visibility-aware SQL aggregates for the relevant period."""
     from sqlalchemy import func, select
 
+    from src.core.access import apply_visibility_filter
     from src.core.db import async_session
     from src.core.models.category import Category
     from src.core.models.enums import TransactionType
     from src.core.models.transaction import Transaction
 
-    today = date.today()
-    month_start = today.replace(day=1)
-    prev_month_start = (month_start - timedelta(days=1)).replace(day=1)
+    start_date, end_date, period_label = _resolve_sql_period(intent, intent_data)
+    prev_start, prev_end, previous_label = _previous_sql_period(
+        start_date, end_date, intent, intent_data
+    )
     fid = uuid.UUID(family_id)
 
+    period_name = (intent_data or {}).get("period") or (
+        "month" if intent != "query_report" else "report"
+    )
     stats: dict[str, Any] = {
-        "period": "current_month",
-        "month_start": month_start.isoformat(),
-        "total_expense": 0,
-        "total_income": 0,
+        "period": period_name,
+        "period_label": period_label,
+        "period_start": start_date.isoformat(),
+        "period_end": (end_date - timedelta(days=1)).isoformat(),
+        "total_expense": 0.0,
+        "total_income": 0.0,
         "by_category": [],
-        "prev_month_expense": 0,
+        "previous_expense": 0.0,
+        "previous_label": previous_label,
+        "month_start": start_date.isoformat(),
+        "prev_month_expense": 0.0,
     }
 
     try:
         async with async_session() as session:
-            # Current month expenses by category
-            result = await session.execute(
+            expense_stmt = (
                 select(
                     Category.name,
                     func.sum(Transaction.amount).label("total"),
                     func.count(Transaction.id).label("cnt"),
                 )
-                .join(Category, Transaction.category_id == Category.id)
+                .outerjoin(Category, Transaction.category_id == Category.id)
                 .where(
                     Transaction.family_id == fid,
-                    Transaction.date >= month_start,
+                    Transaction.date >= start_date,
+                    Transaction.date < end_date,
                     Transaction.type == TransactionType.expense,
                 )
                 .group_by(Category.name)
                 .order_by(func.sum(Transaction.amount).desc())
             )
+            result = await session.execute(
+                apply_visibility_filter(expense_stmt, Transaction, role, user_id)
+            )
+
             categories = []
             total_expense = Decimal("0")
             for name, total, cnt in result.all():
-                categories.append({"name": name, "total": float(total), "count": cnt})
-                total_expense += total
+                amount = total or Decimal("0")
+                categories.append(
+                    {
+                        "name": name or "Без категории",
+                        "total": float(amount),
+                        "count": cnt,
+                    }
+                )
+                total_expense += amount
             stats["by_category"] = categories
             stats["total_expense"] = float(total_expense)
 
-            # Current month income
+            income_stmt = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == fid,
+                Transaction.date >= start_date,
+                Transaction.date < end_date,
+                Transaction.type == TransactionType.income,
+            )
             income_result = await session.execute(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == fid,
-                    Transaction.date >= month_start,
-                    Transaction.type == TransactionType.income,
-                )
+                apply_visibility_filter(income_stmt, Transaction, role, user_id)
             )
             stats["total_income"] = float(income_result.scalar() or 0)
 
-            # Previous month total expense (for comparison)
-            prev_result = await session.execute(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == fid,
-                    Transaction.date >= prev_month_start,
-                    Transaction.date < month_start,
-                    Transaction.type == TransactionType.expense,
-                )
+            prev_stmt = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == fid,
+                Transaction.date >= prev_start,
+                Transaction.date < prev_end,
+                Transaction.type == TransactionType.expense,
             )
-            stats["prev_month_expense"] = float(prev_result.scalar() or 0)
+            prev_result = await session.execute(
+                apply_visibility_filter(prev_stmt, Transaction, role, user_id)
+            )
+            previous_expense = float(prev_result.scalar() or 0)
+            stats["previous_expense"] = previous_expense
+            stats["prev_month_expense"] = previous_expense
 
     except Exception as e:
         logger.warning("Failed to load SQL stats: %s", e)
@@ -372,16 +517,18 @@ async def _load_sql_stats(family_id: str) -> dict[str, Any]:
 
 def _format_sql_block(stats: dict[str, Any]) -> str:
     """Format SQL stats as a text block for system prompt injection."""
-    lines = [f"Текущий месяц (с {stats['month_start']}):"]
+    period_label = stats.get("period_label") or "текущий месяц"
+    lines = [f"{period_label.capitalize()}:"]
     lines.append(f"- Расходы: ${stats['total_expense']:.2f}")
     lines.append(f"- Доходы: ${stats['total_income']:.2f}")
     net = stats["total_income"] - stats["total_expense"]
     lines.append(f"- Баланс: ${net:.2f}")
 
-    if stats["prev_month_expense"]:
-        prev = stats["prev_month_expense"]
+    prev = stats.get("previous_expense", stats.get("prev_month_expense", 0))
+    if prev:
         diff_pct = ((stats["total_expense"] - prev) / prev * 100) if prev else 0
-        lines.append(f"- Прошлый месяц расходы: ${prev:.2f} ({diff_pct:+.0f}%)")
+        prev_label = stats.get("previous_label") or "предыдущий период"
+        lines.append(f"- {prev_label.capitalize()} расходы: ${prev:.2f} ({diff_pct:+.0f}%)")
 
     if stats["by_category"]:
         lines.append("\nТоп категории:")
@@ -658,6 +805,8 @@ async def assemble_context(
     intent: str,
     system_prompt: str,
     max_tokens: int = MAX_CONTEXT_TOKENS,
+    role: str = "owner",
+    intent_data: dict[str, Any] | None = None,
 ) -> AssembledContext:
     """Assemble full context for LLM call from all memory layers.
 
@@ -872,7 +1021,13 @@ async def assemble_context(
     sql_block = ""
     if ctx_config["sql"]:
         try:
-            sql_stats = await _load_sql_stats(family_id)
+            sql_stats = await _load_sql_stats(
+                family_id,
+                role=role,
+                user_id=user_id,
+                intent=intent,
+                intent_data=intent_data,
+            )
             sql_block = "\n\n## Финансовая сводка:\n" + _format_sql_block(sql_stats)
             if count_tokens(sql_block) > budget_sql:
                 sql_block = _truncate_to_budget(sql_block, budget_sql)
