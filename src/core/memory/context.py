@@ -95,6 +95,10 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "list_scheduled_actions": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "manage_scheduled_action": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "complete_task": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    # Team management intents
+    "invite_member": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "list_members": {"mem": False, "hist": 2, "sql": False, "sum": False},
+    "manage_member": {"mem": False, "hist": 3, "sql": False, "sum": False},
     # Research intents
     "quick_answer": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "web_search": {"mem": False, "hist": 3, "sql": False, "sum": False},

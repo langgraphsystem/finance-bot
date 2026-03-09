@@ -306,6 +306,17 @@ class TaskUpdateRequest(BaseModel):
     due_at: str | None = None
 
 
+class MemberItem(BaseModel):
+    id: str
+    user_id: str
+    user_name: str | None
+    membership_type: str
+    role: str
+    permissions: list[str]
+    status: str
+    joined_at: str | None
+
+
 # ---------------------------------------------------------------------------
 # Auth helper
 # ---------------------------------------------------------------------------
@@ -1401,6 +1412,218 @@ async def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Members
+# ---------------------------------------------------------------------------
+
+
+@router.get("/family/members", response_model=list[MemberItem])
+async def list_members(user: User = Depends(get_current_user)):
+    """List all family members with their roles."""
+    from src.core.models.workspace_membership import WorkspaceMembership
+
+    async with async_session() as session:
+        stmt = (
+            select(WorkspaceMembership, User.name)
+            .join(User, WorkspaceMembership.user_id == User.id)
+            .where(
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status.in_(["active", "invited"]),
+            )
+            .order_by(WorkspaceMembership.role)
+        )
+        rows = (await session.execute(stmt)).all()
+
+    return [
+        MemberItem(
+            id=str(m.id),
+            user_id=str(m.user_id),
+            user_name=name,
+            membership_type=m.membership_type.value if m.membership_type else "family",
+            role=m.role.value if m.role else "member",
+            permissions=m.permissions or [],
+            status=m.status.value if m.status else "active",
+            joined_at=m.joined_at.isoformat() if m.joined_at else None,
+        )
+        for m, name in rows
+    ]
+
+
+@router.put("/family/members/{member_id}/role")
+async def update_member_role(
+    member_id: uuid.UUID,
+    data: dict,
+    user: User = Depends(get_current_user),
+):
+    """Update a member's role. Owner or manage_members permission required."""
+    from src.core.models.workspace_membership import ROLE_PRESETS, WorkspaceMembership
+
+    async with async_session() as session:
+        await _check_permission(user, "manage_members", session)
+
+        membership = await session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.id == member_id,
+                WorkspaceMembership.family_id == user.family_id,
+            )
+        )
+        if not membership:
+            raise HTTPException(status_code=404, detail="Member not found")
+
+        # Cannot change owner's role
+        if membership.role and membership.role.value == "owner":
+            raise HTTPException(status_code=403, detail="Cannot change owner role")
+
+        new_role = data.get("role")
+        if not new_role or new_role not in ROLE_PRESETS:
+            raise HTTPException(status_code=400, detail=f"Invalid role: {new_role}")
+
+        from src.core.models.enums import MembershipRole
+
+        membership.role = MembershipRole(new_role)
+        membership.permissions = ROLE_PRESETS[new_role]
+
+        # Audit log
+        from src.core.audit import log_action
+
+        await log_action(
+            session=session,
+            family_id=str(user.family_id),
+            user_id=str(user.id),
+            action="update",
+            entity_type="workspace_membership",
+            entity_id=str(membership.id),
+            new_data={"role": new_role, "permissions": ROLE_PRESETS[new_role]},
+        )
+
+        await session.commit()
+        return {"ok": True, "role": new_role, "permissions": ROLE_PRESETS[new_role]}
+
+
+@router.put("/family/members/{member_id}/suspend")
+async def suspend_member(
+    member_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Suspend a member's access."""
+    from src.core.models.workspace_membership import WorkspaceMembership
+
+    async with async_session() as session:
+        await _check_permission(user, "manage_members", session)
+
+        membership = await session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.id == member_id,
+                WorkspaceMembership.family_id == user.family_id,
+            )
+        )
+        if not membership:
+            raise HTTPException(status_code=404, detail="Member not found")
+        if membership.role and membership.role.value == "owner":
+            raise HTTPException(status_code=403, detail="Cannot suspend owner")
+
+        from src.core.models.enums import MembershipStatus
+
+        membership.status = MembershipStatus.suspended
+
+        from src.core.audit import log_action
+
+        await log_action(
+            session=session,
+            family_id=str(user.family_id),
+            user_id=str(user.id),
+            action="update",
+            entity_type="workspace_membership",
+            entity_id=str(membership.id),
+            new_data={"status": "suspended"},
+        )
+
+        await session.commit()
+        return {"ok": True}
+
+
+@router.put("/family/members/{member_id}/activate")
+async def activate_member(
+    member_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Reactivate a suspended member."""
+    from src.core.models.workspace_membership import WorkspaceMembership
+
+    async with async_session() as session:
+        await _check_permission(user, "manage_members", session)
+
+        membership = await session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.id == member_id,
+                WorkspaceMembership.family_id == user.family_id,
+            )
+        )
+        if not membership:
+            raise HTTPException(status_code=404, detail="Member not found")
+
+        from src.core.models.enums import MembershipStatus
+
+        membership.status = MembershipStatus.active
+
+        from src.core.audit import log_action
+
+        await log_action(
+            session=session,
+            family_id=str(user.family_id),
+            user_id=str(user.id),
+            action="update",
+            entity_type="workspace_membership",
+            entity_id=str(membership.id),
+            new_data={"status": "active"},
+        )
+
+        await session.commit()
+        return {"ok": True}
+
+
+@router.delete("/family/members/{member_id}")
+async def remove_member(
+    member_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+):
+    """Remove a member from the family."""
+    from src.core.models.workspace_membership import WorkspaceMembership
+
+    async with async_session() as session:
+        await _check_permission(user, "manage_members", session)
+
+        membership = await session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.id == member_id,
+                WorkspaceMembership.family_id == user.family_id,
+            )
+        )
+        if not membership:
+            raise HTTPException(status_code=404, detail="Member not found")
+        if membership.role and membership.role.value == "owner":
+            raise HTTPException(status_code=403, detail="Cannot remove owner")
+
+        from src.core.models.enums import MembershipStatus
+
+        membership.status = MembershipStatus.revoked
+
+        from src.core.audit import log_action
+
+        await log_action(
+            session=session,
+            family_id=str(user.family_id),
+            user_id=str(user.id),
+            action="delete",
+            entity_type="workspace_membership",
+            entity_id=str(membership.id),
+            new_data={"status": "revoked"},
+        )
+
+        await session.commit()
+        return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

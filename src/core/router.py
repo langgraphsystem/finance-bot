@@ -1991,6 +1991,97 @@ async def _handle_callback(
             return OutgoingMessage(text="All memories cleared.", chat_id=message.chat_id)
         return OutgoingMessage(text="Memory action handled.", chat_id=message.chat_id)
 
+    # ── Invite wizard callbacks ──
+
+    elif action == "invite":
+        sub = parts[1] if len(parts) > 1 else ""
+        rest = parts[2:] if len(parts) > 2 else []
+
+        if sub == "type":
+            membership_type = rest[0] if rest else "family"
+            if membership_type == "family":
+                roles = [
+                    ("\U0001f491 Partner", "invite:role:partner"),
+                    (
+                        "\U0001f468\u200d\U0001f469\u200d\U0001f467 Family member",
+                        "invite:role:family_member",
+                    ),
+                    ("\U0001f441 Read only", "invite:role:viewer"),
+                ]
+            else:
+                roles = [
+                    ("\U0001f4bc Worker", "invite:role:worker"),
+                    ("\U0001f4cb Assistant", "invite:role:assistant"),
+                    ("\U0001f4ca Accountant", "invite:role:accountant"),
+                    ("\U0001f441 Read only", "invite:role:viewer"),
+                ]
+            return OutgoingMessage(
+                text=f"<b>Choose role for {membership_type}:</b>",
+                chat_id=message.chat_id,
+                buttons=[{"text": t, "callback": cb} for t, cb in roles],
+            )
+
+        if sub == "role":
+            role = rest[0] if rest else "viewer"
+            from src.core.family import get_invite_code
+            from src.core.models.workspace_membership import ROLE_PRESETS
+
+            async with async_session() as session:
+                invite_code = await get_invite_code(session, context.family_id)
+
+            perms = ROLE_PRESETS.get(role, [])
+            perm_text = ", ".join(p.replace("_", " ") for p in perms[:5])
+            if len(perms) > 5:
+                perm_text += f" +{len(perms) - 5} more"
+
+            return OutgoingMessage(
+                text=(
+                    f"<b>Invite ready!</b>\n\n"
+                    f"Role: <b>{role.replace('_', ' ').title()}</b>\n"
+                    f"Permissions: {perm_text}\n\n"
+                    f"Share this invite code:\n"
+                    f"<code>{invite_code}</code>\n\n"
+                    f"The new member should send:\n"
+                    f"<code>/invite {invite_code}</code>"
+                ),
+                chat_id=message.chat_id,
+            )
+
+        return OutgoingMessage(text="Unknown invite action.", chat_id=message.chat_id)
+
+    elif action == "members":
+        sub = parts[1] if len(parts) > 1 else ""
+
+        if sub == "invite":
+            # Re-trigger the invite skill
+            registry = get_registry()
+            skill = registry.get("invite_member")
+            if skill:
+                skill_result = await skill.execute(message, context, {})
+                return OutgoingMessage(
+                    text=skill_result.response_text,
+                    chat_id=message.chat_id,
+                    buttons=skill_result.buttons,
+                )
+            return OutgoingMessage(text="Invite skill not available.", chat_id=message.chat_id)
+
+        if sub == "list" or sub == "manage":
+            # Re-trigger the list members skill
+            registry = get_registry()
+            skill = registry.get("list_members")
+            if skill:
+                skill_result = await skill.execute(message, context, {})
+                return OutgoingMessage(
+                    text=skill_result.response_text,
+                    chat_id=message.chat_id,
+                    buttons=skill_result.buttons,
+                )
+            return OutgoingMessage(
+                text="List members skill not available.", chat_id=message.chat_id
+            )
+
+        return OutgoingMessage(text="Unknown members action.", chat_id=message.chat_id)
+
     elif action == "suggest":
         # Smart suggestions — re-route as new intent
         suggested_intent = parts[1] if len(parts) > 1 else ""

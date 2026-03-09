@@ -282,6 +282,12 @@ hotel_budget (число без валюты), hotel_platform (если указ
 "are you open on Saturday?", "часы работы", "what are your hours?", \
 "do you have X service?", "есть ли у вас доставка?", "price list", "прайс"). \
 Извлеки receptionist_topic: services / hours / faq / general
+- invite_member: пригласить участника, добавить члена команды, поделиться доступом \
+("invite my wife", "добавь участника", "share access with John", "пригласи в бота")
+- list_members: посмотреть список участников, кто имеет доступ \
+("who has access?", "мои участники", "member list", "кто подключён?")
+- manage_member: изменить роль, удалить участника, приостановить доступ \
+("remove John", "change role to admin", "удали участника", "suspend access")
 - delete_data: удаление данных за период или по типу ("удали расходы за январь", \
 "очисти записи о еде за неделю", "delete my expenses for last month", \
 "удали все данные за прошлый месяц", "сотри историю сообщений", \
@@ -1780,6 +1786,9 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "shopping_list_view": 'показать список покупок ("мой список")',
         "shopping_list_remove": 'отметить купленное ("купил молоко")',
         "shopping_list_clear": 'очистить список ("очисти список")',
+        "invite_member": 'пригласить участника ("invite my wife", "добавь участника")',
+        "list_members": 'список участников ("who has access?", "мои участники")',
+        "manage_member": 'изменить/удалить участника ("remove John", "change role")',
     },
     "life": {
         "quick_capture": 'заметка, идея ("идея: ...", "запомни: ...")',

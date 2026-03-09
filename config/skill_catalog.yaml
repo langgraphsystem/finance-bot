@@ -198,6 +198,14 @@ domains:
       - remind
       - schedule
       - automate
+      - invite
+      - member
+      - team
+      - access
+      - role
+      - участник
+      - доступ
+      - команд
       - recurring
       - scheduled
       - todo
@@ -224,6 +232,9 @@ domains:
       - shopping_list_view
       - shopping_list_remove
       - shopping_list_clear
+      - invite_member
+      - list_members
+      - manage_member
 
   life:
     description: "Track food, drinks, mood; day planning and reflection; life journal"

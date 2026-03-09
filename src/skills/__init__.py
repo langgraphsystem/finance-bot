@@ -41,13 +41,16 @@ from src.skills.generate_invoice.handler import skill as generate_invoice_skill
 from src.skills.generate_presentation.handler import skill as generate_presentation_skill
 from src.skills.generate_program.handler import skill as generate_program_skill
 from src.skills.generate_spreadsheet.handler import skill as generate_spreadsheet_skill
+from src.skills.invite_member.handler import skill as invite_member_skill
 from src.skills.life_search.handler import skill as life_search_skill
 from src.skills.list_bookings.handler import skill as list_bookings_skill
 from src.skills.list_contacts.handler import skill as list_contacts_skill
 from src.skills.list_documents.handler import skill as list_documents_skill
 from src.skills.list_events.handler import skill as list_events_skill
+from src.skills.list_members.handler import skill as list_members_skill
 from src.skills.list_scheduled_actions.handler import skill as list_scheduled_actions_skill
 from src.skills.list_tasks.handler import skill as list_tasks_skill
+from src.skills.manage_member.handler import skill as manage_member_skill
 from src.skills.manage_scheduled_action.handler import skill as manage_scheduled_action_skill
 from src.skills.maps_search.handler import skill as maps_search_skill
 from src.skills.mark_paid.handler import skill as mark_paid_skill
@@ -216,4 +219,8 @@ def create_registry() -> SkillRegistry:
     registry.register(generate_invoice_skill)
     registry.register(tax_estimate_skill)
     registry.register(cash_flow_forecast_skill)
+    # Workspace members
+    registry.register(invite_member_skill)
+    registry.register(list_members_skill)
+    registry.register(manage_member_skill)
     return registry
