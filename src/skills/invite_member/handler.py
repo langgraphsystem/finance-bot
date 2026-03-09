@@ -23,7 +23,7 @@ _ROLE_DESCRIPTIONS = {
 class InviteMemberSkill:
     name = "invite_member"
     intents = ["invite_member"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,

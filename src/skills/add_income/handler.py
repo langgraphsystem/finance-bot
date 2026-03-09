@@ -31,7 +31,7 @@ register_strings("add_income", {"en": {}, "ru": {}, "es": {}})
 class AddIncomeSkill:
     name = "add_income"
     intents = ["add_income"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,
