@@ -982,6 +982,7 @@ async def create_recurring(
     freq = _parse_enum(PaymentFrequency, data.frequency, "frequency")
 
     async with async_session() as session:
+        await _check_permission(user, "create_finance", session)
         cat_stmt = select(Category).where(
                 Category.id == cat_id,
                 Category.family_id == user.family_id,
@@ -1026,6 +1027,7 @@ async def mark_recurring_paid(
 ):
     """Record payment for this cycle and advance next_date."""
     async with async_session() as session:
+        await _check_permission(user, "create_finance", session)
         row = (
             await session.execute(
                 apply_scope_filter(
@@ -1090,6 +1092,7 @@ async def list_life_events(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
+        # Life events are strictly private — filtered by user_id
         filters = [
             LifeEvent.family_id == user.family_id,
             LifeEvent.user_id == user.id,
@@ -1180,6 +1183,7 @@ async def list_tasks(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
+        # Tasks filtered by user_id — private by default, visibility filter not needed
         filters = [
             Task.family_id == user.family_id,
             Task.user_id == user.id,
@@ -1436,6 +1440,7 @@ async def list_members(user: User = Depends(get_current_user)):
         )
         rows = (await session.execute(stmt)).all()
 
+    is_owner = user.role and user.role.value == "owner"
     return [
         MemberItem(
             id=str(m.id),
@@ -1443,7 +1448,7 @@ async def list_members(user: User = Depends(get_current_user)):
             user_name=name,
             membership_type=m.membership_type.value if m.membership_type else "family",
             role=m.role.value if m.role else "member",
-            permissions=m.permissions or [],
+            permissions=(m.permissions or []) if is_owner else [],
             status=m.status.value if m.status else "active",
             joined_at=m.joined_at.isoformat() if m.joined_at else None,
         )

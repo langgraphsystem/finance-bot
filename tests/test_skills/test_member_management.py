@@ -156,5 +156,22 @@ async def test_manage_member_denied_without_permission(member_context, text_mess
 async def test_manage_member_shows_options_for_owner(owner_context, text_message):
     from src.skills.manage_member.handler import skill
 
-    result = await skill.execute(text_message, owner_context, {})
-    assert "management" in result.response_text.lower() or "manage" in result.response_text.lower()
+    mock_membership = MagicMock()
+    mock_membership.id = uuid.uuid4()
+    mock_membership.role = MagicMock()
+    mock_membership.role.value = "partner"
+    mock_membership.membership_type = MagicMock()
+    mock_membership.membership_type.value = "family"
+
+    mock_result = MagicMock()
+    mock_result.all.return_value = [(mock_membership, "Partner User")]
+
+    with patch("src.skills.manage_member.handler.async_session") as mock_session_maker:
+        mock_session = AsyncMock()
+        mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        result = await skill.execute(text_message, owner_context, {})
+
+    assert "manage" in result.response_text.lower() or "Partner User" in result.response_text

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime  # noqa: TC003 — used in Mapped type annotations
 
 from sqlalchemy import DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import ENUM, JSONB, UUID
@@ -7,7 +7,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.core.models.base import Base, TimestampMixin
 from src.core.models.enums import MembershipRole, MembershipStatus, MembershipType
-
 
 ROLE_PRESETS: dict[str, list[str]] = {
     "owner": [
@@ -81,7 +80,7 @@ class WorkspaceMembership(Base, TimestampMixin):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default="now()",
-        onupdate=datetime.utcnow,
+        onupdate=func.now(),
     )
 
     user = relationship("User", foreign_keys=[user_id])

@@ -62,6 +62,7 @@ _ROLE_VISIBLE_VISIBILITY: dict[str, set[str]] = {
     "accountant": {"work_shared"},
     "viewer": {"family_shared", "work_shared"},
     "member": {"family_shared"},
+    "custom": set(),
 }
 
 
