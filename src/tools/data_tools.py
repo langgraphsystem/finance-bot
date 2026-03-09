@@ -11,8 +11,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import Date, func, select
 from sqlalchemy import desc as sa_desc
-from sqlalchemy import func, select
 
 from src.core.access import apply_scope_filter
 from src.core.audit import log_action
@@ -142,6 +142,26 @@ def _coerce_uuids(model: type, data: dict[str, Any]) -> None:
                 pass
 
 
+def _coerce_dates(model: type, data: dict[str, Any]) -> None:
+    """Convert ISO date strings to date objects for DATE columns."""
+    for col_name, value in list(data.items()):
+        if not isinstance(value, str):
+            continue
+        col = model.__table__.columns.get(col_name)
+        if col is None or not isinstance(col.type, Date):
+            continue
+        try:
+            data[col_name] = date.fromisoformat(value)
+        except ValueError:
+            continue
+
+
+def _apply_create_defaults(table: str, data: dict[str, Any]) -> None:
+    """Inject conservative defaults for tool-created records."""
+    if "scope" in _get_allowed_columns(table) and "scope" not in data:
+        data["scope"] = "family"
+
+
 def _apply_filters(
     stmt: Any,
     model: type,
@@ -260,7 +280,10 @@ async def create_record(
     model = _validate_table(table)
     if table in READ_ONLY_TABLES:
         raise ValueError(f"Table '{table}' is read-only")
+    data = dict(data)
     _validate_columns(table, list(data.keys()))
+
+    _apply_create_defaults(table, data)
 
     # Inject security fields — LLM cannot control these
     data["family_id"] = uuid.UUID(family_id)
@@ -288,6 +311,7 @@ async def create_record(
     for k, v in list(data.items()):
         data[k] = _coerce_enum(model, k, v)
     _coerce_uuids(model, data)
+    _coerce_dates(model, data)
 
     async with async_session() as session:
         record = model(**data)

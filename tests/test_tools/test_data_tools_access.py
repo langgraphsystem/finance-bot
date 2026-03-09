@@ -1,11 +1,17 @@
 import uuid
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
 from src.core.models.budget import Budget
 from src.core.models.transaction import Transaction
-from src.tools.data_tools import _apply_access_filter, _apply_filters
+from src.tools.data_tools import (
+    _apply_access_filter,
+    _apply_create_defaults,
+    _apply_filters,
+    _coerce_dates,
+)
 
 
 def _compile_sql(stmt) -> str:
@@ -42,3 +48,19 @@ def test_apply_access_filter_uses_visibility_for_visibility_models():
     assert "transactions.visibility" in sql
     assert "work_shared" in sql
     assert "private_user" in sql
+
+
+def test_apply_create_defaults_sets_family_scope_for_scope_models():
+    data = {"amount": 100}
+
+    _apply_create_defaults("transactions", data)
+
+    assert data["scope"] == "family"
+
+
+def test_coerce_dates_parses_iso_strings_for_date_columns():
+    data = {"date": "2026-03-09", "merchant": "coffee"}
+
+    _coerce_dates(Transaction, data)
+
+    assert data["date"] == date(2026, 3, 9)
