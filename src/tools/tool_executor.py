@@ -86,6 +86,31 @@ def _normalize_column_name(table: str, value: Any) -> str | None:
     return None
 
 
+def _merge_flat_fields_into_data(
+    normalized: dict[str, Any],
+    *,
+    table: str | None,
+    reserved_keys: set[str],
+) -> dict[str, Any]:
+    if not table:
+        return normalized
+
+    data = normalized.get("data")
+    if not isinstance(data, dict):
+        data = {}
+        normalized["data"] = data
+
+    for key in list(normalized.keys()):
+        if key in reserved_keys:
+            continue
+        normalized_key = _normalize_column_name(table, key)
+        if not normalized_key:
+            continue
+        data.setdefault(normalized_key, normalized.pop(key))
+
+    return normalized
+
+
 def _normalize_create_record_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(arguments)
 
@@ -114,7 +139,34 @@ def _normalize_create_record_arguments(arguments: dict[str, Any]) -> dict[str, A
             normalized.setdefault("table", "life_events")
             data.setdefault("type", legacy_type)
 
-    return normalized
+    return _merge_flat_fields_into_data(
+        normalized,
+        table=normalized.get("table"),
+        reserved_keys={"table", "data", "record", "type"},
+    )
+
+
+def _normalize_update_record_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(arguments)
+
+    table = _normalize_table_name(normalized.get("table"))
+    if table:
+        normalized["table"] = table
+
+    legacy_record = normalized.pop("record", None)
+    if "data" not in normalized and isinstance(legacy_record, dict):
+        normalized["data"] = legacy_record
+
+    if "record_id" not in normalized and isinstance(normalized.get("id"), str):
+        normalized["record_id"] = normalized.pop("id")
+    else:
+        normalized.pop("id", None)
+
+    return _merge_flat_fields_into_data(
+        normalized,
+        table=normalized.get("table"),
+        reserved_keys={"table", "record_id", "data", "record"},
+    )
 
 
 def _normalize_query_data_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -162,6 +214,8 @@ def _normalize_query_data_arguments(arguments: dict[str, Any]) -> dict[str, Any]
 def _normalize_tool_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if tool_name == "create_record":
         return _normalize_create_record_arguments(arguments)
+    if tool_name == "update_record":
+        return _normalize_update_record_arguments(arguments)
     if tool_name == "query_data":
         return _normalize_query_data_arguments(arguments)
     return dict(arguments)

@@ -60,6 +60,31 @@ async def test_execute_tool_call_normalizes_legacy_create_record_table_alias():
     assert kwargs["data"] == {"amount": 1000, "period": "monthly"}
 
 
+async def test_execute_tool_call_collects_flat_create_record_fields_into_data():
+    context = _sample_context()
+    mock = AsyncMock(return_value={"ok": True})
+
+    with patch.dict("src.tools.tool_executor.TOOL_FUNCTIONS", {"create_record": mock}, clear=False):
+        await execute_tool_call(
+            "create_record",
+            {
+                "table": "transactions",
+                "amount": 100,
+                "merchant": "кофе",
+                "date": "2026-03-09",
+                "category_id": "33333333-3333-3333-3333-333333333333",
+            },
+            context,
+        )
+
+    kwargs = mock.await_args.kwargs
+    assert kwargs["table"] == "transactions"
+    assert kwargs["data"]["amount"] == 100
+    assert kwargs["data"]["merchant"] == "кофе"
+    assert kwargs["data"]["date"] == "2026-03-09"
+    assert kwargs["data"]["category_id"] == "33333333-3333-3333-3333-333333333333"
+
+
 async def test_execute_tool_call_normalizes_query_data_legacy_columns():
     context = _sample_context()
     mock = AsyncMock(return_value={"records": [], "count": 0, "table": "budgets"})
@@ -105,3 +130,25 @@ async def test_execute_tool_call_drops_invalid_category_columns():
     kwargs = mock.await_args.kwargs
     assert kwargs["columns"] == ["name"]
     assert "order_by" not in kwargs
+
+
+async def test_execute_tool_call_collects_flat_update_record_fields_into_data():
+    context = _sample_context()
+    mock = AsyncMock(return_value={"ok": True})
+
+    with patch.dict("src.tools.tool_executor.TOOL_FUNCTIONS", {"update_record": mock}, clear=False):
+        await execute_tool_call(
+            "update_record",
+            {
+                "table": "budget",
+                "id": "44444444-4444-4444-4444-444444444444",
+                "amount": 1200,
+                "active": False,
+            },
+            context,
+        )
+
+    kwargs = mock.await_args.kwargs
+    assert kwargs["table"] == "budgets"
+    assert kwargs["record_id"] == "44444444-4444-4444-4444-444444444444"
+    assert kwargs["data"] == {"amount": 1200, "is_active": False}
