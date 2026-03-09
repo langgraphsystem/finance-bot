@@ -39,6 +39,9 @@ class AddIncomeSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("create_finance"):
+            return SkillResult(response_text="У вас нет прав для добавления доходов.")
+
         amount = intent_data.get("amount")
         description = intent_data.get("description") or intent_data.get("merchant")
         scope = intent_data.get("scope", "business" if context.business_type else "family")

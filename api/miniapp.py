@@ -15,7 +15,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import asc, desc, func, select
 
 from api.webapp_auth import validate_webapp_data
-from src.core.access import apply_scope_filter, can_access_scope
+from src.core.access import (
+    apply_scope_filter,
+    apply_visibility_filter,
+    can_access_scope,
+    get_default_visibility,
+)
 from src.core.config import settings
 from src.core.db import async_session
 from src.core.models.budget import Budget
@@ -63,6 +68,35 @@ def _require_owner(user: User):
         raise HTTPException(status_code=403, detail="Owner access required")
 
 
+async def _check_permission(user: User, permission: str, session=None):
+    """Check if user has a specific permission. Owner always passes."""
+    if user.role.value == "owner":
+        return
+    # For non-owner, load membership permissions
+    from src.core.models.workspace_membership import WorkspaceMembership
+
+    if session is None:
+        async with async_session() as s:
+            membership = await s.scalar(
+                select(WorkspaceMembership).where(
+                    WorkspaceMembership.user_id == user.id,
+                    WorkspaceMembership.family_id == user.family_id,
+                    WorkspaceMembership.status == "active",
+                )
+            )
+    else:
+        membership = await session.scalar(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id,
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status == "active",
+            )
+        )
+    if membership and permission in (membership.permissions or []):
+        return
+    raise HTTPException(status_code=403, detail=f"Permission denied: {permission}")
+
+
 def _ensure_scope_allowed(user: User, scope: Scope) -> None:
     if not can_access_scope(user.role.value, scope):
         raise HTTPException(status_code=403, detail="Scope access denied")
@@ -90,6 +124,11 @@ def _parse_uuid(value: str, field_name: str) -> uuid.UUID:
         raise HTTPException(
             status_code=400, detail=f"Invalid UUID for {field_name}: {value}"
         )
+
+
+def _apply_tx_filter(stmt, user: User):
+    """Apply visibility filter for Transaction queries in miniapp."""
+    return apply_visibility_filter(stmt, Transaction, user.role.value, str(user.id))
 
 
 # ---------------------------------------------------------------------------
@@ -393,7 +432,7 @@ async def get_stats(
             .order_by(desc("total"))
         )
         exp_result = await session.execute(
-            apply_scope_filter(exp_stmt, Transaction, user.role.value)
+            _apply_tx_filter(exp_stmt, user)
         )
         expense_rows = exp_result.all()
         total_expense = sum(float(r[3]) for r in expense_rows)
@@ -416,7 +455,7 @@ async def get_stats(
             .order_by(desc("total"))
         )
         inc_result = await session.execute(
-            apply_scope_filter(inc_stmt, Transaction, user.role.value)
+            _apply_tx_filter(inc_stmt, user)
         )
         income_rows = inc_result.all()
         total_income = sum(float(r[3]) for r in income_rows)
@@ -470,14 +509,14 @@ async def get_monthly_trend(
                 Transaction.date < end,
                 Transaction.type == TransactionType.expense,
             )
-            exp = await session.scalar(apply_scope_filter(exp_stmt, Transaction, user.role.value))
+            exp = await session.scalar(_apply_tx_filter(exp_stmt, user))
             inc_stmt = select(func.sum(Transaction.amount)).where(
                 Transaction.family_id == user.family_id,
                 Transaction.date >= month_date,
                 Transaction.date < end,
                 Transaction.type == TransactionType.income,
             )
-            inc = await session.scalar(apply_scope_filter(inc_stmt, Transaction, user.role.value))
+            inc = await session.scalar(_apply_tx_filter(inc_stmt, user))
             result.append(
                 {
                     "month": month_date.strftime("%b %Y"),
@@ -554,20 +593,17 @@ async def list_transactions(
 
         total_stmt = select(func.count(Transaction.id)).where(*base_filter)
         total = (
-            await session.scalar(apply_scope_filter(total_stmt, Transaction, user.role.value))
+            await session.scalar(_apply_tx_filter(total_stmt, user))
         ) or 0
 
-        query = apply_scope_filter(
-            (
+        query = _apply_tx_filter(
             select(Transaction, Category.name.label("cat_name"), Category.id.label("cat_id"))
             .join(Category, Transaction.category_id == Category.id)
             .where(*base_filter)
             .order_by(desc(Transaction.date), desc(Transaction.created_at))
             .offset((page - 1) * per_page)
-            .limit(per_page)
-            ),
-            Transaction,
-            user.role.value,
+            .limit(per_page),
+            user,
         )
         rows = (await session.execute(query)).all()
 
@@ -594,7 +630,7 @@ async def get_transaction(
             )
         )
         row = (
-            await session.execute(apply_scope_filter(stmt, Transaction, user.role.value))
+            await session.execute(_apply_tx_filter(stmt, user))
         ).first()
         if not row:
             raise HTTPException(
@@ -614,6 +650,7 @@ async def create_transaction(
     cat_id = _parse_uuid(data.category_id, "category_id")
 
     async with async_session() as session:
+        await _check_permission(user, "create_finance", session)
         cat_stmt = select(Category).where(
                 Category.id == cat_id,
                 Category.family_id == user.family_id,
@@ -634,6 +671,7 @@ async def create_transaction(
             description=data.description,
             date=tx_date,
             scope=cat.scope,
+            visibility=get_default_visibility(cat.scope).value,
             ai_confidence=Decimal("1.0"),
             meta={"source": "miniapp"},
         )
@@ -650,11 +688,12 @@ async def update_transaction(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
+        await _check_permission(user, "edit_finance", session)
         tx_stmt = select(Transaction).where(
                 Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
-        tx = await session.scalar(apply_scope_filter(tx_stmt, Transaction, user.role.value))
+        tx = await session.scalar(_apply_tx_filter(tx_stmt, user))
         if not tx:
             raise HTTPException(
                 status_code=404, detail="Transaction not found"
@@ -706,11 +745,12 @@ async def delete_transaction(
     user: User = Depends(get_current_user),
 ):
     async with async_session() as session:
+        await _check_permission(user, "delete_finance", session)
         stmt = select(Transaction).where(
                 Transaction.id == tx_id,
                 Transaction.family_id == user.family_id,
             )
-        tx = await session.scalar(apply_scope_filter(stmt, Transaction, user.role.value))
+        tx = await session.scalar(_apply_tx_filter(stmt, user))
         if not tx:
             raise HTTPException(
                 status_code=404, detail="Transaction not found"
@@ -765,7 +805,7 @@ async def list_budgets(user: User = Depends(get_current_user)):
             spent_stmt = select(func.sum(Transaction.amount)).where(*spent_filter)
             spent = float(
                 await session.scalar(
-                    apply_scope_filter(spent_stmt, Transaction, user.role.value)
+                    _apply_tx_filter(spent_stmt, user)
                 )
                 or 0
             )
@@ -810,6 +850,7 @@ async def create_budget(
     )
 
     async with async_session() as session:
+        await _check_permission(user, "manage_budgets", session)
         if cat_id:
             cat_stmt = select(Category).where(
                 Category.id == cat_id,
@@ -855,8 +896,8 @@ async def delete_budget(
     budget_id: uuid.UUID,
     user: User = Depends(get_current_user),
 ):
-    _require_owner(user)
     async with async_session() as session:
+        await _check_permission(user, "manage_budgets", session)
         b = await session.scalar(
             apply_scope_filter(
                 select(Budget).where(
@@ -1004,6 +1045,7 @@ async def mark_recurring_paid(
             description=f"Recurring: {r.name}",
             date=date.today(),
             scope=recurring_scope,
+            visibility=get_default_visibility(recurring_scope).value,
             ai_confidence=Decimal("1.0"),
             meta={"source": "recurring", "recurring_id": str(r.id)},
         )
@@ -1313,6 +1355,7 @@ async def export_csv(
 ):
     """Export all transactions as CSV."""
     async with async_session() as session:
+        await _check_permission(user, "view_reports", session)
         filters = [Transaction.family_id == user.family_id]
         if date_from:
             filters.append(Transaction.date >= date.fromisoformat(date_from))
@@ -1332,7 +1375,7 @@ async def export_csv(
                 .limit(10000)
             )
         rows = (
-            await session.execute(apply_scope_filter(stmt, Transaction, user.role.value))
+            await session.execute(_apply_tx_filter(stmt, user))
         ).all()
 
         output = io.StringIO()

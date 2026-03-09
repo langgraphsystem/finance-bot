@@ -8,7 +8,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
-from src.core.access import apply_scope_filter
+from src.core.access import apply_visibility_filter
 from src.core.charts import create_pie_chart
 from src.core.config import settings
 from src.core.context import SessionContext
@@ -146,6 +146,7 @@ class QueryStatsSkill:
         prev_start: date,
         prev_end: date,
         role: str = "owner",
+        user_id: str = "",
     ) -> dict:
         """Get spending comparison between two periods."""
         async with async_session() as session:
@@ -165,7 +166,7 @@ class QueryStatsSkill:
                 .group_by(Category.name)
             )
             current_result = await session.execute(
-                apply_scope_filter(current_stmt, Transaction, role)
+                apply_visibility_filter(current_stmt, Transaction, role, user_id)
             )
             current_data = {r[0]: float(r[1]) for r in current_result.all()}
 
@@ -184,7 +185,9 @@ class QueryStatsSkill:
                 )
                 .group_by(Category.name)
             )
-            prev_result = await session.execute(apply_scope_filter(prev_stmt, Transaction, role))
+            prev_result = await session.execute(
+                apply_visibility_filter(prev_stmt, Transaction, role, user_id)
+            )
             prev_data = {r[0]: float(r[1]) for r in prev_result.all()}
 
         # Calculate changes
@@ -268,7 +271,9 @@ class QueryStatsSkill:
                         .order_by(func.sum(Transaction.amount).desc())
                     )
                     result = await session.execute(
-                        apply_scope_filter(stats_stmt, Transaction, context.role)
+                        apply_visibility_filter(
+                            stats_stmt, Transaction, context.role, context.user_id
+                        )
                     )
                     stats = result.all()
 
@@ -279,7 +284,9 @@ class QueryStatsSkill:
                         Transaction.type == TransactionType.expense,
                     )
                     total_result = await session.execute(
-                        apply_scope_filter(total_stmt, Transaction, context.role)
+                        apply_visibility_filter(
+                            total_stmt, Transaction, context.role, context.user_id
+                        )
                     )
                     total = total_result.scalar() or Decimal("0")
 
@@ -291,7 +298,9 @@ class QueryStatsSkill:
                         Transaction.type == TransactionType.income,
                     )
                     income_result = await session.execute(
-                        apply_scope_filter(income_stmt, Transaction, context.role)
+                        apply_visibility_filter(
+                            income_stmt, Transaction, context.role, context.user_id
+                        )
                     )
                     total_income = income_result.scalar() or Decimal("0")
         except Exception as e:
@@ -323,6 +332,7 @@ class QueryStatsSkill:
             comparison = await self._get_comparison_data(
                 family_id=context.family_id,
                 role=context.role,
+                user_id=context.user_id,
                 current_start=start_date,
                 current_end=end_date,
                 prev_start=prev_start,

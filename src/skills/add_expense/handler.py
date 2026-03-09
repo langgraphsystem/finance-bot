@@ -49,6 +49,9 @@ class AddExpenseSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("create_finance"):
+            return SkillResult(response_text="У вас нет прав для добавления расходов.")
+
         amount = intent_data.get("amount")
         merchant = intent_data.get("merchant")
         category_name = intent_data.get("category")

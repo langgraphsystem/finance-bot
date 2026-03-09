@@ -1606,6 +1606,7 @@ async def _execute_pending_action(
                 user_id=context.user_id,
                 table=action_data["table"],
                 record_id=action_data["record_id"],
+                role=context.role,
             )
 
         elif intent == "delete_all":

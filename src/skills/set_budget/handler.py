@@ -38,6 +38,9 @@ class SetBudgetSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("manage_budgets"):
+            return SkillResult(response_text="У вас нет прав для управления бюджетами.")
+
         # Extract budget parameters from intent_data
         amount = intent_data.get("amount")
         category_name = intent_data.get("category")

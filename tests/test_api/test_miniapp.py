@@ -644,11 +644,14 @@ class TestMiniappScopeFilters:
         mock_user.role.value = "member"
         hidden_cat_id = uuid.uuid4()
 
+        mock_membership = MagicMock()
+        mock_membership.permissions = ["view_finance", "create_finance"]
+
         with patch("api.miniapp.async_session") as mock_session_maker:
             mock_session = AsyncMock()
             mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
-            mock_session.scalar = AsyncMock(return_value=None)
+            mock_session.scalar = AsyncMock(side_effect=[mock_membership, None])
 
             app = _create_test_app(auth_user_override=mock_user)
             client = TestClient(app)

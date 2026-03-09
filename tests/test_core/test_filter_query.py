@@ -15,14 +15,20 @@ def test_member_filter_query_callable(member_context):
     assert callable(member_context.filter_query)
 
 
+def _scope_only_model():
+    """Create a mock model with scope but no visibility (like Category)."""
+    model = MagicMock(spec=["family_id", "scope"])
+    model.family_id = MagicMock()
+    model.scope = MagicMock()
+    return model
+
+
 def test_owner_filter_query_adds_family_filter(sample_context):
     """Owner filter_query should add family_id WHERE clause."""
     mock_stmt = MagicMock()
     mock_stmt.where.return_value = mock_stmt
 
-    mock_model = MagicMock()
-    mock_model.family_id = MagicMock()
-    mock_model.scope = MagicMock()
+    mock_model = _scope_only_model()
 
     sample_context.filter_query(mock_stmt, mock_model)
     # Owner: only one .where() call (family_id), no scope restriction
@@ -34,9 +40,7 @@ def test_member_filter_query_adds_scope_filter(member_context):
     mock_stmt = MagicMock()
     mock_stmt.where.return_value = mock_stmt
 
-    mock_model = MagicMock()
-    mock_model.family_id = MagicMock()
-    mock_model.scope = MagicMock()
+    mock_model = _scope_only_model()
 
     member_context.filter_query(mock_stmt, mock_model)
     # Member: two .where() calls (family_id + scope restriction)
@@ -48,7 +52,7 @@ def test_filter_query_returns_statement(sample_context):
     mock_stmt = MagicMock()
     mock_stmt.where.return_value = mock_stmt
 
-    mock_model = MagicMock()
+    mock_model = _scope_only_model()
 
     result = sample_context.filter_query(mock_stmt, mock_model)
     assert result is mock_stmt

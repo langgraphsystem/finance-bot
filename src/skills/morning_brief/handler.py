@@ -18,6 +18,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from src.core.access import apply_visibility_filter
 from src.core.connectors import connector_registry
 from src.core.context import SessionContext
 from src.core.db import async_session
@@ -148,7 +149,7 @@ class MorningBriefSkill:
 
     async def _collect_tasks(self, ctx: SessionContext) -> str:
         async with async_session() as session:
-            result = await session.execute(
+            stmt = (
                 select(Task)
                 .where(
                     Task.family_id == uuid.UUID(ctx.family_id),
@@ -158,6 +159,8 @@ class MorningBriefSkill:
                 .order_by(Task.due_at.asc().nulls_last())
                 .limit(6)
             )
+            stmt = apply_visibility_filter(stmt, Task, ctx.role, ctx.user_id)
+            result = await session.execute(stmt)
             tasks = list(result.scalars().all())
 
         if not tasks:
@@ -179,23 +182,23 @@ class MorningBriefSkill:
         yesterday = today - timedelta(days=1)
 
         async with async_session() as session:
-            result = await session.execute(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == uuid.UUID(ctx.family_id),
-                    Transaction.date >= yesterday,
-                    Transaction.date < today,
-                    Transaction.type == TransactionType.expense,
-                )
+            stmt1 = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == uuid.UUID(ctx.family_id),
+                Transaction.date >= yesterday,
+                Transaction.date < today,
+                Transaction.type == TransactionType.expense,
             )
+            stmt1 = apply_visibility_filter(stmt1, Transaction, ctx.role, ctx.user_id)
+            result = await session.execute(stmt1)
             yesterday_expense = float(result.scalar() or 0)
 
-            result2 = await session.execute(
-                select(func.sum(Transaction.amount)).where(
-                    Transaction.family_id == uuid.UUID(ctx.family_id),
-                    Transaction.date >= today.replace(day=1),
-                    Transaction.type == TransactionType.expense,
-                )
+            stmt2 = select(func.sum(Transaction.amount)).where(
+                Transaction.family_id == uuid.UUID(ctx.family_id),
+                Transaction.date >= today.replace(day=1),
+                Transaction.type == TransactionType.expense,
             )
+            stmt2 = apply_visibility_filter(stmt2, Transaction, ctx.role, ctx.user_id)
+            result2 = await session.execute(stmt2)
             month_expense = float(result2.scalar() or 0)
 
         if yesterday_expense == 0 and month_expense == 0:

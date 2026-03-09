@@ -15,6 +15,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from src.core.access import apply_visibility_filter
 from src.core.connectors import connector_registry
 from src.core.db import async_session
 from src.core.google_auth import parse_email_headers
@@ -92,9 +93,11 @@ async def collect_tasks(state: BriefState) -> dict[str, Any]:
         return {"tasks_data": ""}
 
 
-async def _collect_open_tasks(user_id: str, family_id: str) -> dict[str, Any]:
+async def _collect_open_tasks(
+    user_id: str, family_id: str, role: str = "owner"
+) -> dict[str, Any]:
     async with async_session() as session:
-        result = await session.execute(
+        stmt = (
             select(Task)
             .where(
                 Task.family_id == uuid.UUID(family_id),
@@ -104,6 +107,8 @@ async def _collect_open_tasks(user_id: str, family_id: str) -> dict[str, Any]:
             .order_by(Task.due_at.asc().nulls_last())
             .limit(6)
         )
+        stmt = apply_visibility_filter(stmt, Task, role, user_id)
+        result = await session.execute(stmt)
         tasks = list(result.scalars().all())
 
     if not tasks:
@@ -121,10 +126,12 @@ async def _collect_open_tasks(user_id: str, family_id: str) -> dict[str, Any]:
     return {"tasks_data": f"Open tasks ({len(tasks)}):\n" + "\n".join(lines)}
 
 
-async def _collect_completed_tasks(user_id: str, family_id: str) -> dict[str, Any]:
+async def _collect_completed_tasks(
+    user_id: str, family_id: str, role: str = "owner"
+) -> dict[str, Any]:
     today = date.today()
     async with async_session() as session:
-        result = await session.execute(
+        stmt = (
             select(Task)
             .where(
                 Task.family_id == uuid.UUID(family_id),
@@ -134,6 +141,8 @@ async def _collect_completed_tasks(user_id: str, family_id: str) -> dict[str, An
             )
             .limit(10)
         )
+        stmt = apply_visibility_filter(stmt, Task, role, user_id)
+        result = await session.execute(stmt)
         tasks = list(result.scalars().all())
 
     if not tasks:
@@ -148,42 +157,46 @@ async def _collect_completed_tasks(user_id: str, family_id: str) -> dict[str, An
 async def collect_finance(state: BriefState) -> dict[str, Any]:
     """Fetch spending data from DB."""
     family_id = state.get("family_id", "")
+    user_id = state.get("user_id", "")
     intent = state.get("intent", "morning_brief")
 
     try:
         if intent == "evening_recap":
-            return await _collect_today_spending(family_id)
-        return await _collect_finance_summary(family_id)
+            return await _collect_today_spending(family_id, user_id=user_id)
+        return await _collect_finance_summary(family_id, user_id=user_id)
     except Exception as e:
         logger.warning("collect_finance failed: %s", e)
         return {"finance_data": ""}
 
 
-async def _collect_finance_summary(family_id: str) -> dict[str, Any]:
+async def _collect_finance_summary(
+    family_id: str, user_id: str, role: str = "owner"
+) -> dict[str, Any]:
     today = date.today()
     yesterday = today - timedelta(days=1)
 
     async with async_session() as session:
-        result = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= yesterday,
-                Transaction.date < today,
-                Transaction.type == TransactionType.expense,
-            )
+        stmt1 = select(func.sum(Transaction.amount)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= yesterday,
+            Transaction.date < today,
+            Transaction.type == TransactionType.expense,
         )
+        stmt1 = apply_visibility_filter(stmt1, Transaction, role, user_id)
+        result = await session.execute(stmt1)
         yesterday_expense = float(result.scalar() or 0)
 
-        result2 = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= today.replace(day=1),
-                Transaction.type == TransactionType.expense,
-            )
+        stmt2 = select(func.sum(Transaction.amount)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= today.replace(day=1),
+            Transaction.type == TransactionType.expense,
         )
+        stmt2 = apply_visibility_filter(stmt2, Transaction, role, user_id)
+        result2 = await session.execute(stmt2)
         month_expense = float(result2.scalar() or 0)
 
         # Epic G2: Fetch total monthly budget (where category_id is null)
+        # Budget does NOT have visibility column — no filter needed
         budget_result = await session.execute(
             select(Budget.amount).where(
                 Budget.family_id == uuid.UUID(family_id),
@@ -207,16 +220,18 @@ async def _collect_finance_summary(family_id: str) -> dict[str, Any]:
     return {"finance_data": "Money:\n" + "\n".join(f"- {p}" for p in parts)}
 
 
-async def _collect_today_spending(family_id: str) -> dict[str, Any]:
+async def _collect_today_spending(
+    family_id: str, user_id: str, role: str = "owner"
+) -> dict[str, Any]:
     today = date.today()
     async with async_session() as session:
-        result = await session.execute(
-            select(func.sum(Transaction.amount), func.count(Transaction.id)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= today,
-                Transaction.type == TransactionType.expense,
-            )
+        stmt = select(func.sum(Transaction.amount), func.count(Transaction.id)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= today,
+            Transaction.type == TransactionType.expense,
         )
+        stmt = apply_visibility_filter(stmt, Transaction, role, user_id)
+        result = await session.execute(stmt)
         row = result.one_or_none()
 
     if not row or not row[0]:

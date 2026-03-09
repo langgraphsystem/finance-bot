@@ -9,7 +9,7 @@ from datetime import date
 from jinja2 import BaseLoader, Environment
 from sqlalchemy import func, select
 
-from src.core.access import apply_scope_filter
+from src.core.access import apply_scope_filter, apply_visibility_filter
 from src.core.db import async_session
 from src.core.models.category import Category
 from src.core.models.enums import LifeEventType, TransactionType
@@ -781,7 +781,7 @@ def render_report_html(
 
 
 async def has_transactions_for_period(
-    family_id: str, year: int, month: int, role: str = "owner",
+    family_id: str, year: int, month: int, role: str = "owner", user_id: str = "",
 ) -> bool:
     """Check if any transactions exist for the given year/month."""
     start_date = date(year, month, 1)
@@ -793,7 +793,9 @@ async def has_transactions_for_period(
             Transaction.date < end_date,
         )
         result = await session.execute(
-            apply_scope_filter(stmt, Transaction, role)
+            apply_visibility_filter(stmt, Transaction, role, user_id)
+            if user_id
+            else apply_scope_filter(stmt, Transaction, role)
         )
         return (result.scalar() or 0) > 0
 
@@ -842,7 +844,11 @@ async def generate_monthly_report(
             .group_by(Category.name, Category.icon)
             .order_by(func.sum(Transaction.amount).desc())
         )
-        expense_result = await session.execute(apply_scope_filter(expense_stmt, Transaction, role))
+        expense_result = await session.execute(
+            apply_visibility_filter(expense_stmt, Transaction, role, user_id)
+            if user_id
+            else apply_scope_filter(expense_stmt, Transaction, role)
+        )
         expense_rows = expense_result.all()
 
         # Get total expense
@@ -853,7 +859,9 @@ async def generate_monthly_report(
             Transaction.type == TransactionType.expense,
         )
         total_exp_result = await session.execute(
-            apply_scope_filter(total_exp_stmt, Transaction, role)
+            apply_visibility_filter(total_exp_stmt, Transaction, role, user_id)
+            if user_id
+            else apply_scope_filter(total_exp_stmt, Transaction, role)
         )
         total_expense = float(total_exp_result.scalar() or 0)
 
@@ -874,7 +882,11 @@ async def generate_monthly_report(
             .group_by(Category.name, Category.icon)
             .order_by(func.sum(Transaction.amount).desc())
         )
-        income_result = await session.execute(apply_scope_filter(income_stmt, Transaction, role))
+        income_result = await session.execute(
+            apply_visibility_filter(income_stmt, Transaction, role, user_id)
+            if user_id
+            else apply_scope_filter(income_stmt, Transaction, role)
+        )
         income_rows = income_result.all()
 
         # Get total income
@@ -885,7 +897,9 @@ async def generate_monthly_report(
             Transaction.type == TransactionType.income,
         )
         total_inc_result = await session.execute(
-            apply_scope_filter(total_inc_stmt, Transaction, role)
+            apply_visibility_filter(total_inc_stmt, Transaction, role, user_id)
+            if user_id
+            else apply_scope_filter(total_inc_stmt, Transaction, role)
         )
         total_income = float(total_inc_result.scalar() or 0)
 

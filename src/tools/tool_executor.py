@@ -43,6 +43,7 @@ async def execute_tool_call(
     # Inject security context — LLM cannot override
     arguments["family_id"] = context.family_id
     arguments["user_id"] = context.user_id
+    arguments["role"] = context.role
 
     try:
         return await func(**arguments)

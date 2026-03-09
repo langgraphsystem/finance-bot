@@ -1,3 +1,5 @@
+import uuid
+
 from src.core.context import SessionContext
 
 
@@ -41,3 +43,48 @@ def test_default_permissions_empty():
     )
     assert ctx.permissions == []
     assert ctx.membership_type is None
+
+
+def test_filter_query_uses_visibility_for_transaction():
+    """filter_query should use visibility filter for models with visibility column."""
+    from sqlalchemy import select
+
+    from src.core.models.transaction import Transaction
+
+    ctx = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="member",
+        language="en",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+    )
+    stmt = select(Transaction)
+    result = ctx.filter_query(stmt, Transaction)
+    sql_str = str(result)
+    assert "visibility" in sql_str
+
+
+def test_filter_query_uses_scope_for_category():
+    """filter_query should use scope filter for models without visibility column."""
+    from sqlalchemy import select
+
+    from src.core.models.category import Category
+
+    ctx = SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="member",
+        language="en",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+    )
+    stmt = select(Category)
+    result = ctx.filter_query(stmt, Category)
+    sql_str = str(result)
+    assert "scope" in sql_str
+    assert "visibility" not in sql_str

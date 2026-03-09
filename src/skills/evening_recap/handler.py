@@ -14,6 +14,7 @@ from typing import Any
 
 from sqlalchemy import func, select
 
+from src.core.access import apply_visibility_filter
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.llm.clients import generate_text
@@ -111,7 +112,7 @@ class EveningRecapSkill:
     async def _collect_completed_tasks(self, ctx: SessionContext) -> str:
         today = date.today()
         async with async_session() as session:
-            result = await session.execute(
+            stmt = (
                 select(Task)
                 .where(
                     Task.family_id == uuid.UUID(ctx.family_id),
@@ -121,6 +122,8 @@ class EveningRecapSkill:
                 )
                 .limit(10)
             )
+            stmt = apply_visibility_filter(stmt, Task, ctx.role, ctx.user_id)
+            result = await session.execute(stmt)
             tasks = list(result.scalars().all())
 
         if not tasks:
@@ -132,13 +135,13 @@ class EveningRecapSkill:
     async def _collect_spending(self, ctx: SessionContext) -> str:
         today = date.today()
         async with async_session() as session:
-            result = await session.execute(
-                select(func.sum(Transaction.amount), func.count(Transaction.id)).where(
-                    Transaction.family_id == uuid.UUID(ctx.family_id),
-                    Transaction.date >= today,
-                    Transaction.type == TransactionType.expense,
-                )
+            stmt = select(func.sum(Transaction.amount), func.count(Transaction.id)).where(
+                Transaction.family_id == uuid.UUID(ctx.family_id),
+                Transaction.date >= today,
+                Transaction.type == TransactionType.expense,
             )
+            stmt = apply_visibility_filter(stmt, Transaction, ctx.role, ctx.user_id)
+            result = await session.execute(stmt)
             row = result.one_or_none()
 
         if not row or not row[0]:
