@@ -41,6 +41,30 @@ class TestGetSessionBuffer:
             result = await get_session_buffer("user-1")
         assert result == []
 
+    async def test_skips_malformed_entries(self):
+        mock_redis = AsyncMock()
+        mock_redis.lrange.return_value = [
+            "not-json",
+            json.dumps({"fact": "salary 6000", "category": "income"}),
+        ]
+        with patch("src.core.memory.session_buffer.redis", mock_redis):
+            result = await get_session_buffer("user-1")
+        assert result == [{"fact": "salary 6000", "category": "income", "ts": None}]
+
+    async def test_keeps_latest_fact_per_category(self):
+        mock_redis = AsyncMock()
+        mock_redis.lrange.return_value = [
+            json.dumps({"fact": "amount: 5000", "category": "income", "ts": 1}),
+            json.dumps({"fact": "merchant: ACME", "category": "merchant_mapping", "ts": 2}),
+            json.dumps({"fact": "amount: 6000", "category": "income", "ts": 3}),
+        ]
+        with patch("src.core.memory.session_buffer.redis", mock_redis):
+            result = await get_session_buffer("user-1")
+        assert result == [
+            {"fact": "merchant: ACME", "category": "merchant_mapping", "ts": 2},
+            {"fact": "amount: 6000", "category": "income", "ts": 3},
+        ]
+
 
 class TestUpdateSessionBuffer:
     async def test_pushes_and_sets_ttl(self):
@@ -54,6 +78,7 @@ class TestUpdateSessionBuffer:
         entry = json.loads(push_args[0][1])
         assert entry["fact"] == "salary 6000"
         assert entry["category"] == "income"
+        assert "ts" in entry
         mock_redis.ltrim.assert_called_once_with(key, -MAX_BUFFER_ITEMS, -1)
         mock_redis.expire.assert_called_once_with(key, SESSION_BUFFER_TTL)
 

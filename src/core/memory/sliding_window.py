@@ -19,6 +19,29 @@ DEFAULT_WINDOW_SIZE = 10
 TTL_SECONDS = 86400  # 24 hours — rolling, reset on each message
 
 
+def _parse_message(item: str | bytes | dict) -> dict | None:
+    """Parse a single window entry without failing the whole history."""
+    try:
+        if isinstance(item, dict):
+            parsed = item
+        else:
+            parsed = json.loads(item)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    role = str(parsed.get("role", "")).strip()
+    content = str(parsed.get("content", "")).strip()
+    if not role or not content:
+        return None
+    intent = parsed.get("intent")
+    return {
+        "role": role,
+        "content": content,
+        "intent": intent,
+    }
+
+
 async def add_message(
     user_id: str,
     role: str,
@@ -36,10 +59,13 @@ async def add_message(
         ensure_ascii=False,
     )
 
-    await redis.rpush(key, message)
-    await redis.ltrim(key, -DEFAULT_WINDOW_SIZE, -1)
-    # Rolling TTL — reset on every message so active conversations persist
-    await redis.expire(key, TTL_SECONDS)
+    try:
+        await redis.rpush(key, message)
+        await redis.ltrim(key, -DEFAULT_WINDOW_SIZE, -1)
+        # Rolling TTL — reset on every message so active conversations persist
+        await redis.expire(key, TTL_SECONDS)
+    except Exception as e:
+        logger.warning("Redis sliding window write failed: %s", e)
 
 
 async def _fallback_from_postgres(user_id: str, limit: int) -> list[dict]:
@@ -95,7 +121,9 @@ async def get_recent_messages(
         key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"
         raw_messages = await redis.lrange(key, -limit, -1)
         if raw_messages:
-            return [json.loads(m) for m in raw_messages]
+            parsed = [msg for msg in (_parse_message(m) for m in raw_messages) if msg]
+            if parsed:
+                return parsed
     except Exception as e:
         logger.warning("Redis sliding window read failed: %s", e)
 
@@ -109,11 +137,16 @@ async def count_recent_intents(
     last_n: int = 6,
 ) -> int:
     """Count how many of the last N user messages had the given intent."""
-    messages = await get_recent_messages(user_id, limit=last_n)
-    return sum(1 for m in messages if m.get("intent") == intent)
+    window_limit = max(last_n * 3, DEFAULT_WINDOW_SIZE)
+    messages = await get_recent_messages(user_id, limit=window_limit)
+    user_messages = [m for m in messages if m.get("role") == "user"]
+    return sum(1 for m in user_messages[-last_n:] if m.get("intent") == intent)
 
 
 async def clear_messages(user_id: str) -> None:
     """Clear all messages for a user."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"
-    await redis.delete(key)
+    try:
+        await redis.delete(key)
+    except Exception as e:
+        logger.warning("Redis sliding window clear failed: %s", e)

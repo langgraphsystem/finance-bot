@@ -13,6 +13,7 @@ Buffer is cleared after successful async_mem0_update confirms persistence.
 
 import json
 import logging
+import time
 
 from src.core.db import redis
 
@@ -23,12 +24,51 @@ REDIS_KEY_PREFIX = "session_facts"
 MAX_BUFFER_ITEMS = 20
 
 
+def _parse_buffer_entry(item: str | bytes | dict) -> dict | None:
+    """Parse a single Redis entry without failing the whole buffer."""
+    try:
+        if isinstance(item, dict):
+            parsed = item
+        else:
+            parsed = json.loads(item)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    fact = str(parsed.get("fact", "")).strip()
+    if not fact:
+        return None
+    category = str(parsed.get("category", "")).strip()
+    return {
+        "fact": fact,
+        "category": category,
+        "ts": parsed.get("ts"),
+    }
+
+
+def _dedupe_buffer_entries(items: list[str | bytes | dict]) -> list[dict]:
+    """Keep only the latest fact per category/fact so fresh values win."""
+    deduped: list[dict] = []
+    seen: set[str] = set()
+    for item in reversed(items):
+        parsed = _parse_buffer_entry(item)
+        if not parsed:
+            continue
+        dedupe_key = parsed["category"] or parsed["fact"]
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        deduped.append(parsed)
+    deduped.reverse()
+    return deduped
+
+
 async def get_session_buffer(user_id: str) -> list[dict]:
     """Get all session buffer facts for a user."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}"
     try:
         raw = await redis.lrange(key, 0, -1)
-        return [json.loads(item) for item in raw]
+        return _dedupe_buffer_entries(raw)
     except Exception as e:
         logger.debug("Session buffer read failed: %s", e)
         return []
@@ -37,7 +77,10 @@ async def get_session_buffer(user_id: str) -> list[dict]:
 async def update_session_buffer(user_id: str, fact: str, category: str = "") -> None:
     """Add a fact to the session buffer. Resets rolling TTL."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}"
-    entry = json.dumps({"fact": fact, "category": category}, ensure_ascii=False)
+    entry = json.dumps(
+        {"fact": fact, "category": category, "ts": time.time()},
+        ensure_ascii=False,
+    )
     try:
         await redis.rpush(key, entry)
         await redis.ltrim(key, -MAX_BUFFER_ITEMS, -1)
