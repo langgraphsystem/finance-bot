@@ -185,7 +185,9 @@ class TelegramGateway:
     async def stop(self) -> None:
         if self.bot is None:
             _require_aiogram("stop")
-        await self.bot.delete_webhook()
+        # Don't delete webhook on stop — next deploy's start() will re-set it.
+        # Deleting here causes a race condition during Railway redeployments
+        # where the old container clears the webhook before the new one starts.
         await self.bot.session.close()
 
     async def feed_update(self, data: dict) -> None:
