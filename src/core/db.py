@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.core.config import settings
-from src.core.request_context import get_current_family_id
+from src.core.request_context import get_current_family_id, get_current_user_id
 
 engine = create_async_engine(
     settings.async_database_url,
@@ -39,11 +39,19 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
                 text("SELECT set_config('app.current_family_id', :fid, true)"),
                 {"fid": family_id},
             )
+        user_id = get_current_user_id()
+        if user_id:
+            await session.execute(
+                text("SELECT set_config('app.current_user_id', :uid, true)"),
+                {"uid": user_id},
+            )
         yield session
 
 
 @asynccontextmanager
-async def rls_session(family_id: str) -> AsyncGenerator[AsyncSession, None]:
+async def rls_session(
+    family_id: str, user_id: str | None = None
+) -> AsyncGenerator[AsyncSession, None]:
     """Create a database session with RLS context set for family isolation.
 
     Use this when you need to explicitly bind a session to a specific family
@@ -52,7 +60,7 @@ async def rls_session(family_id: str) -> AsyncGenerator[AsyncSession, None]:
 
     Usage::
 
-        async with rls_session(family_id) as session:
+        async with rls_session(family_id, user_id) as session:
             result = await session.execute(select(Transaction))
     """
     async with async_session() as session:
@@ -60,4 +68,9 @@ async def rls_session(family_id: str) -> AsyncGenerator[AsyncSession, None]:
             text("SELECT set_config('app.current_family_id', :fid, true)"),
             {"fid": family_id},
         )
+        if user_id:
+            await session.execute(
+                text("SELECT set_config('app.current_user_id', :uid, true)"),
+                {"uid": user_id},
+            )
         yield session

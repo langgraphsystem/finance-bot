@@ -259,7 +259,11 @@ async def handle_message(
     # Set RLS family context so that any DB session opened downstream
     # (inside skills, agents, etc.) automatically applies the correct
     # ``app.current_family_id`` PostgreSQL setting.
-    token = set_family_context(context.family_id) if context.family_id else None
+    token = (
+        set_family_context(context.family_id, context.user_id)
+        if context.family_id
+        else None
+    )
     try:
         return await _dispatch_message(message, context, registry)
     finally:

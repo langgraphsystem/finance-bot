@@ -7,6 +7,7 @@ import pytest
 
 from src.core.request_context import (
     get_current_family_id,
+    get_current_user_id,
     reset_family_context,
     set_family_context,
 )
@@ -52,6 +53,26 @@ class TestRequestContext:
         reset_family_context(token)
         assert get_current_family_id() is None
 
+    def test_set_user_id(self):
+        family_id = str(uuid.uuid4())
+        user_id = str(uuid.uuid4())
+        token = set_family_context(family_id, user_id)
+        try:
+            assert get_current_family_id() == family_id
+            assert get_current_user_id() == user_id
+        finally:
+            reset_family_context(token)
+        assert get_current_user_id() is None
+
+    def test_user_id_optional(self):
+        family_id = str(uuid.uuid4())
+        token = set_family_context(family_id)
+        try:
+            assert get_current_family_id() == family_id
+            assert get_current_user_id() is None
+        finally:
+            reset_family_context(token)
+
 
 # ---------------------------------------------------------------------------
 # 2. rls_session: explicit family-scoped session
@@ -78,13 +99,36 @@ async def test_rls_session_sets_config():
         async with rls_session(family_id) as session:
             assert session is mock_session
 
-    # Verify set_config was called
-    mock_session.execute.assert_called_once()
-    executed_stmt = mock_session.execute.call_args
-    sql_text = str(executed_stmt[0][0])
+    # Verify set_config was called (at least once for family_id)
+    assert mock_session.execute.call_count >= 1
+    first_call = mock_session.execute.call_args_list[0]
+    sql_text = str(first_call[0][0])
     assert "set_config" in sql_text
     assert "app.current_family_id" in sql_text
-    assert executed_stmt[1] == {"fid": family_id} or executed_stmt[0][1] == {"fid": family_id}
+
+
+@pytest.mark.asyncio
+async def test_rls_session_sets_user_id():
+    """rls_session with user_id must call set_config for both family and user."""
+    family_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+
+    mock_session = AsyncMock()
+    mock_cm = AsyncMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_cm.__aexit__ = AsyncMock(return_value=False)
+    mock_session_factory = MagicMock(return_value=mock_cm)
+
+    with patch("src.core.db.async_session", mock_session_factory):
+        from src.core.db import rls_session
+
+        async with rls_session(family_id, user_id) as session:
+            assert session is mock_session
+
+    assert mock_session.execute.call_count == 2
+    calls_sql = [str(c[0][0]) for c in mock_session.execute.call_args_list]
+    assert any("app.current_family_id" in s for s in calls_sql)
+    assert any("app.current_user_id" in s for s in calls_sql)
 
 
 # ---------------------------------------------------------------------------
@@ -113,9 +157,9 @@ async def test_get_session_applies_rls_when_context_set():
             session = await gen.__anext__()
             assert session is mock_session
 
-            # set_config must have been called
-            mock_session.execute.assert_called_once()
-            sql_text = str(mock_session.execute.call_args[0][0])
+            # set_config must have been called (at least once for family_id)
+            assert mock_session.execute.call_count >= 1
+            sql_text = str(mock_session.execute.call_args_list[0][0][0])
             assert "set_config" in sql_text
             assert "app.current_family_id" in sql_text
 

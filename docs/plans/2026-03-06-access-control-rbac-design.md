@@ -1,7 +1,7 @@
 ﻿# Production Access Control Design
 
 **Date:** 2026-03-06
-**Status:** Phase 0 done, Phase 1 done (2026-03-08)
+**Status:** Phase 0 done, Phase 1 done (2026-03-08), Phase 2 done (2026-03-09)
 **Scope:** Family / worker access, privacy boundaries, RBAC, RLS
 
 ---
@@ -566,11 +566,16 @@ Immediate high-risk gaps:
 - ✅ Set visibility on record creation (expense, income, task, data_tools)
 - ✅ 10 member isolation regression tests
 
-### Phase 2: App-Level Access Layer
+### Phase 2: App-Level Access Layer — DONE (2026-03-09)
 
-- introduce `access.py`
-- replace manual `.where(model.family_id == ...)` with access-aware filtering
-- update session context builders
+- ✅ `SessionContext.filter_query()` auto-detects visibility column
+- ✅ miniapp: all Transaction queries use `apply_visibility_filter`
+- ✅ skills: query_stats, financial_summary, morning_brief, evening_recap migrated
+- ✅ data_tools: visibility filtering in query/update/delete + role injection
+- ✅ orchestrators/brief: Task/Transaction visibility filtering
+- ✅ reports.py: visibility-aware Transaction queries
+- ✅ Permission checks: create_finance, edit_finance, delete_finance, manage_budgets, view_reports
+- ✅ 17 Phase 2 regression tests
 
 ### Phase 3: RLS Hardening
 
