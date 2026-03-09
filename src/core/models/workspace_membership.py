@@ -67,7 +67,7 @@ class WorkspaceMembership(Base, TimestampMixin):
     role: Mapped[MembershipRole] = mapped_column(
         ENUM(MembershipRole, name="membership_role", create_type=False),
     )
-    permissions: Mapped[dict] = mapped_column(JSONB, default=list)
+    permissions: Mapped[list] = mapped_column(JSONB, default=list)
     status: Mapped[MembershipStatus] = mapped_column(
         ENUM(MembershipStatus, name="membership_status", create_type=False),
         default=MembershipStatus.active,

@@ -106,7 +106,7 @@ def apply_visibility_filter(stmt: Any, model: Any, role: str, user_id: str) -> A
     if user_id:
         try:
             user_uuid = _uuid.UUID(user_id)
-        except (TypeError, ValueError):
+        except (ValueError, AttributeError):
             user_uuid = None
 
     conditions = []
@@ -122,9 +122,13 @@ def apply_visibility_filter(stmt: Any, model: Any, role: str, user_id: str) -> A
         conditions.append(
             (model.visibility.is_(None)) & (model.scope.in_(visible_scopes))
         )
-    else:
+    elif user_uuid is not None:
         conditions.append(
-            (model.visibility.is_(None)) & (model.user_id == _uuid.UUID(user_id))
+            (model.visibility.is_(None)) & (model.user_id == user_uuid)
         )
+
+    if not conditions:
+        # No valid conditions means no access at all
+        conditions.append(model.visibility == "__impossible__")
 
     return stmt.where(or_(*conditions))

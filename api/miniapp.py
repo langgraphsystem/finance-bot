@@ -1451,10 +1451,14 @@ async def list_members(user: User = Depends(get_current_user)):
     ]
 
 
+class MemberRoleUpdateRequest(BaseModel):
+    role: str
+
+
 @router.put("/family/members/{member_id}/role")
 async def update_member_role(
     member_id: uuid.UUID,
-    data: dict,
+    data: MemberRoleUpdateRequest,
     user: User = Depends(get_current_user),
 ):
     """Update a member's role. Owner or manage_members permission required."""
@@ -1476,9 +1480,12 @@ async def update_member_role(
         if membership.role and membership.role.value == "owner":
             raise HTTPException(status_code=403, detail="Cannot change owner role")
 
-        new_role = data.get("role")
+        new_role = data.role
         if not new_role or new_role not in ROLE_PRESETS:
             raise HTTPException(status_code=400, detail=f"Invalid role: {new_role}")
+
+        if new_role == "owner":
+            raise HTTPException(status_code=403, detail="Cannot assign owner role")
 
         from src.core.models.enums import MembershipRole
 

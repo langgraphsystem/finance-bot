@@ -1994,6 +1994,9 @@ async def _handle_callback(
     # ── Invite wizard callbacks ──
 
     elif action == "invite":
+        if not context.has_permission("invite_members"):
+            return OutgoingMessage(text="Permission denied.", chat_id=message.chat_id)
+
         sub = parts[1] if len(parts) > 1 else ""
         rest = parts[2:] if len(parts) > 2 else []
 
@@ -2023,11 +2026,20 @@ async def _handle_callback(
 
         if sub == "role":
             role = rest[0] if rest else "viewer"
-            from src.core.family import get_invite_code
             from src.core.models.workspace_membership import ROLE_PRESETS
+
+            if role in ("owner", "custom") or role not in ROLE_PRESETS:
+                return OutgoingMessage(text="Invalid role.", chat_id=message.chat_id)
+
+            from src.core.family import get_invite_code
 
             async with async_session() as session:
                 invite_code = await get_invite_code(session, context.family_id)
+
+            # Store chosen role in Redis so join_family can apply it
+            from src.core.db import redis
+
+            await redis.set(f"invite_role:{invite_code}", role, ex=86400 * 7)
 
             perms = ROLE_PRESETS.get(role, [])
             perm_text = ", ".join(p.replace("_", " ") for p in perms[:5])

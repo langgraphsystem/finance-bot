@@ -358,13 +358,27 @@ async def join_family(
     session.add(user)
     await session.flush()
 
+    # Check Redis for a role stored by the invite wizard
+    from src.core.db import redis
+
+    try:
+        stored_role = await redis.get(f"invite_role:{invite_code}")
+    except Exception:
+        stored_role = None
+    if stored_role and stored_role in ROLE_PRESETS and stored_role != "owner":
+        member_role = MembershipRole(stored_role)
+        member_perms = ROLE_PRESETS[stored_role]
+    else:
+        member_role = MembershipRole.family_member
+        member_perms = ROLE_PRESETS["family_member"]
+
     # Create workspace membership
     wm = WorkspaceMembership(
         family_id=family.id,
         user_id=user.id,
         membership_type=MembershipType.family,
-        role=MembershipRole.family_member,
-        permissions=ROLE_PRESETS["family_member"],
+        role=member_role,
+        permissions=member_perms,
         status=MembershipStatus.active,
     )
     session.add(wm)
