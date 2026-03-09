@@ -176,7 +176,9 @@ async def execute_send(action_data: dict, user_id: str) -> str:
         return "Не удалось отправить email. Попробуйте позже."
 
     attachment_note = (
-        f"\n📎 {action_data['attachment_filename']}" if action_data.get("attachment_filename") else ""
+        f"\n📎 {action_data['attachment_filename']}"
+        if action_data.get("attachment_filename")
+        else ""
     )
     return (
         f"✅ Email отправлен!\n\n"

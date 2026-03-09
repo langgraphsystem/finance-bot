@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import json
 import logging
 import uuid
 from datetime import date
@@ -14,10 +15,13 @@ from src.agents import AGENTS, AgentRouter
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.db import async_session
+from src.core.db import redis as redis_client
 from src.core.domain_router import DomainRouter
 from src.core.family import create_family
+from src.core.google_auth import get_google_client
 from src.core.guardrails import check_input
 from src.core.intent import detect_intent, detect_intent_v2
+from src.core.llm.clients import generate_text
 from src.core.memory import sliding_window
 from src.core.memory.summarization import summarize_dialog
 from src.core.models.conversation import ConversationMessage
@@ -33,6 +37,7 @@ from src.core.models.enums import (
 from src.core.models.load import Load
 from src.core.models.transaction import Transaction
 from src.core.models.user_context import UserContext
+from src.core.pending_actions import store_pending_action
 from src.core.rate_limit import check_rate_limit
 from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
@@ -2841,27 +2846,43 @@ async def _handle_callback(
         return OutgoingMessage(text=text, chat_id=message.chat_id)
 
     elif action == "email_reply":
-        import json as _json
-        from src.core.db import redis as _redis_email
         reply_key = parts[1] if len(parts) > 1 else ""
-        raw = await _redis_email.get(f"email_reply:{reply_key}") if reply_key else None
+        raw = await redis_client.get(f"email_reply:{reply_key}") if reply_key else None
         if not raw:
-            return OutgoingMessage(text="Ссылка устарела. Откройте письмо заново.", chat_id=message.chat_id)
-        reply_data = _json.loads(raw)
-        from src.core.google_auth import get_google_client as _get_gc
-        from src.core.llm.clients import generate_text as _gen
-        google = await _get_gc(context.user_id)
+            return OutgoingMessage(
+                text="Ссылка устарела. Откройте письмо заново.",
+                chat_id=message.chat_id,
+            )
+        reply_data = json.loads(raw)
+        google = await get_google_client(context.user_id)
         if not google:
-            return OutgoingMessage(text="Нет подключения к Gmail. Попробуйте /connect", chat_id=message.chat_id)
+            return OutgoingMessage(
+                text="Нет подключения к Gmail. Попробуйте /connect",
+                chat_id=message.chat_id,
+            )
         thread_msgs = await google.get_thread(reply_data["thread_id"])
+        thread_items = [
+            {
+                "from": item.get("payload", {}).get("headers", [{}])[0].get("value", ""),
+                "snippet": item.get("snippet", ""),
+            }
+            for item in thread_msgs
+        ]
         thread_text = "\n---\n".join(
             f"From: {m.get('from','')}\n{m.get('snippet','')}"
-            for m in [{"from": t.get("payload",{}).get("headers",[{}])[0].get("value",""), "snippet": t.get("snippet","")} for t in thread_msgs]
+            for m in thread_items
         )
-        system = f"Draft a reply to this email thread. Be concise, professional. Language: {context.language or 'ru'}."
-        reply_body = await _gen("claude-sonnet-4-6", system, [{"role": "user", "content": thread_text}], max_tokens=512)
-        from src.core.pending_actions import store_pending_action as _spa
-        pending_id = await _spa(
+        system = (
+            "Draft a reply to this email thread. Be concise, professional. "
+            f"Language: {context.language or 'ru'}."
+        )
+        reply_body = await generate_text(
+            "claude-sonnet-4-6",
+            system,
+            [{"role": "user", "content": thread_text}],
+            max_tokens=512,
+        )
+        pending_id = await store_pending_action(
             intent="send_email",
             user_id=context.user_id,
             family_id=context.family_id,
@@ -2891,8 +2912,7 @@ async def _handle_callback(
         message_id = parts[1] if len(parts) > 1 else ""
         if not message_id:
             return OutgoingMessage(text="Ошибка: ID письма не найден.", chat_id=message.chat_id)
-        from src.core.google_auth import get_google_client as _get_gc2
-        google = await _get_gc2(context.user_id)
+        google = await get_google_client(context.user_id)
         if not google:
             return OutgoingMessage(text="Нет подключения к Gmail.", chat_id=message.chat_id)
         try:
@@ -2900,22 +2920,28 @@ async def _handle_callback(
             return OutgoingMessage(text="🗑 Письмо перемещено в корзину.", chat_id=message.chat_id)
         except Exception as _e:
             logger.warning("Email trash failed: %s", _e)
-            return OutgoingMessage(text="Не удалось переместить письмо. Попробуйте позже.", chat_id=message.chat_id)
+            return OutgoingMessage(
+                text="Не удалось переместить письмо. Попробуйте позже.",
+                chat_id=message.chat_id,
+            )
 
     elif action == "email_download":
-        import json as _json2
-        from src.core.db import redis as _redis_att
         att_key = parts[1] if len(parts) > 1 else ""
-        raw = await _redis_att.get(f"email_att:{att_key}") if att_key else None
+        raw = await redis_client.get(f"email_att:{att_key}") if att_key else None
         if not raw:
-            return OutgoingMessage(text="Ссылка устарела. Откройте письмо заново.", chat_id=message.chat_id)
-        att_data = _json2.loads(raw)
-        from src.core.google_auth import get_google_client as _get_gc3
-        google = await _get_gc3(context.user_id)
+            return OutgoingMessage(
+                text="Ссылка устарела. Откройте письмо заново.",
+                chat_id=message.chat_id,
+            )
+        att_data = json.loads(raw)
+        google = await get_google_client(context.user_id)
         if not google:
             return OutgoingMessage(text="Нет подключения к Gmail.", chat_id=message.chat_id)
         try:
-            file_bytes = await google.get_attachment(att_data["message_id"], att_data["attachment_id"])
+            file_bytes = await google.get_attachment(
+                att_data["message_id"],
+                att_data["attachment_id"],
+            )
             if not file_bytes:
                 return OutgoingMessage(text="Не удалось скачать вложение.", chat_id=message.chat_id)
             return OutgoingMessage(

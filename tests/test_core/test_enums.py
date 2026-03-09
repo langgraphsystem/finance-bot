@@ -1,4 +1,9 @@
-from src.core.models.enums import MembershipType, MembershipRole, MembershipStatus, ResourceVisibility
+from src.core.models.enums import (
+    MembershipRole,
+    MembershipStatus,
+    MembershipType,
+    ResourceVisibility,
+)
 
 
 def test_membership_type_values():

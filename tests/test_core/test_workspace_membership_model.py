@@ -1,4 +1,4 @@
-from src.core.models.workspace_membership import WorkspaceMembership, ROLE_PRESETS
+from src.core.models.workspace_membership import ROLE_PRESETS, WorkspaceMembership
 
 
 def test_model_tablename():

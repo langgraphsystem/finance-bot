@@ -90,6 +90,21 @@ async def test_browser_connect_state_returns_telegram_deep_link(client):
     assert data["return_url"] == "https://t.me/HurremBot?start=browser_connect_test-token"
 
 
+async def test_browser_connect_state_returns_expired_payload_without_404(client):
+    with patch(
+        "api.browser_connect.remote_browser_connect.get_session_state",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Connect token expired"),
+    ):
+        resp = await client.get("/api/browser-connect/test-token/state")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is False
+    assert data["status"] == "expired"
+    assert "expired" in data["error"].lower()
+
+
 async def test_browser_connect_action_proxies_to_manager(client):
     with (
         patch(

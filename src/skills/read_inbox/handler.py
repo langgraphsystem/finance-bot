@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import secrets
 from typing import Any
 
 from src.core.context import SessionContext
@@ -147,7 +148,11 @@ class ReadInboxSkill:
             return " 📎" if e.get("attachments") else ""
 
         email_text = "\n".join(
-            f"{i}. From: {e['from']}\n   Subject: {e['subject']}{_att_icon(e)}\n   {e['snippet'][:100]}"
+            (
+                f"{i}. From: {e['from']}\n"
+                f"   Subject: {e['subject']}{_att_icon(e)}\n"
+                f"   {e['snippet'][:100]}"
+            )
             for i, e in enumerate(parsed, 1)
         )
 
@@ -204,17 +209,17 @@ class ReadInboxSkill:
             buttons = []
             if thread_id and message_id:
                 # Store reply context in Redis
-                import secrets
-                from src.core.db import redis as _redis
                 reply_key = secrets.token_urlsafe(8)
-                await _redis.set(
+                await redis.set(
                     f"email_reply:{reply_key}",
-                    json.dumps({
-                        "thread_id": thread_id,
-                        "to": email_info.get("from", ""),
-                        "subject": email_info.get("subject", ""),
-                        "user_id": context.user_id,
-                    }),
+                    json.dumps(
+                        {
+                            "thread_id": thread_id,
+                            "to": email_info.get("from", ""),
+                            "subject": email_info.get("subject", ""),
+                            "user_id": context.user_id,
+                        }
+                    ),
                     ex=1800,
                 )
                 buttons.append({"text": "↩️ Ответить", "callback": f"email_reply:{reply_key}"})
@@ -229,21 +234,29 @@ class ReadInboxSkill:
                 filename = att.get("filename", "file")
                 att_id = att.get("attachment_id", "")
                 if att_id and message_id:
-                    import secrets as _sec
-                    att_key = _sec.token_urlsafe(8)
-                    from src.core.db import redis as _redis2
-                    await _redis2.set(
+                    att_key = secrets.token_urlsafe(8)
+                    await redis.set(
                         f"email_att:{att_key}",
-                        json.dumps({
-                            "message_id": message_id,
-                            "attachment_id": att_id,
-                            "filename": filename,
-                            "mime_type": att.get("mime_type", "application/octet-stream"),
-                            "user_id": context.user_id,
-                        }),
+                        json.dumps(
+                            {
+                                "message_id": message_id,
+                                "attachment_id": att_id,
+                                "filename": filename,
+                                "mime_type": att.get(
+                                    "mime_type",
+                                    "application/octet-stream",
+                                ),
+                                "user_id": context.user_id,
+                            }
+                        ),
                         ex=1800,
                     )
-                    buttons.append({"text": f"📥 {filename[:20]}", "callback": f"email_download:{att_key}"})
+                    buttons.append(
+                        {
+                            "text": f"📥 {filename[:20]}",
+                            "callback": f"email_download:{att_key}",
+                        }
+                    )
 
             return SkillResult(response_text=result, buttons=buttons or None)
 
@@ -281,7 +294,8 @@ async def _detail_with_llm(email_data: str, language: str) -> str:
     system = DETAIL_SYSTEM_PROMPT.format(language=language)
     try:
         return await generate_text(
-            "gpt-5.2", system,
+            "gpt-5.2",
+            system,
             [{"role": "user", "content": f"Email details:\n{email_data}"}],
             max_tokens=1024,
         )

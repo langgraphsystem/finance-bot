@@ -330,7 +330,11 @@ class SlackGateway:
             logger.exception("Slack file upload failed, sending fallback")
             await self.send(OutgoingMessage(text=fallback_text, chat_id=chat_id))
 
-    def _build_blocks(self, message: OutgoingMessage, clean_text: str | None = None) -> list[dict] | None:
+    def _build_blocks(
+        self,
+        message: OutgoingMessage,
+        clean_text: str | None = None,
+    ) -> list[dict] | None:
         """Convert OutgoingMessage to Slack Block Kit blocks."""
         if not message.buttons:
             return None

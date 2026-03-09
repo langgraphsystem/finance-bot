@@ -197,7 +197,7 @@ async def _action_post(
         await update_video_session_last_text(user_id, text)
     return SkillResult(
         response_text=text or t("err_post", language),
-        buttons=[_save_btn(language)] + get_writing_buttons(language),
+        buttons=[_save_content_btn(language)] + get_writing_buttons(language),
     )
 
 

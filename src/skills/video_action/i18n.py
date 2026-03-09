@@ -181,7 +181,10 @@ _STRINGS: dict[str, dict[str, str]] = {
         "btn_quotes": "💬 Schlüsselzitate",
         "btn_script": "📝 Skript",
         "btn_save_content": "💾 Das speichern",
-        "no_video": "Kein aktuelles Video gefunden. Senden Sie zuerst einen YouTube- oder TikTok-Link.",
+        "no_video": (
+            "Kein aktuelles Video gefunden. "
+            "Senden Sie zuerst einen YouTube- oder TikTok-Link."
+        ),
         "err_analysis": "Analyse konnte nicht generiert werden.",
         "err_steps": "Keine Schritte gefunden.",
         "err_quotes": "Keine Zitate extrahiert.",

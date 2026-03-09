@@ -49,7 +49,8 @@ def upgrade() -> None:
     # 2. Enhanced RLS for visibility tables:
     #    - family_id isolation stays (tenant boundary)
     #    - private_user rows: only visible when user_id matches current_user_id
-    #    - family_shared / work_shared / NULL: visible to all family members (app layer handles role)
+    #    - family_shared / work_shared / NULL: visible to all family members
+    #      (app layer handles role)
     for table in _VISIBILITY_TABLES:
         # Drop old family-only policy
         op.execute(f"""

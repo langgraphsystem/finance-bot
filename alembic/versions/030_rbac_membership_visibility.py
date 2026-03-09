@@ -69,10 +69,12 @@ def upgrade() -> None:
         "ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility VARCHAR(20)"
     )
     op.execute(
-        "ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private_user'"
+        "ALTER TABLE conversation_messages "
+        "ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private_user'"
     )
     op.execute(
-        "ALTER TABLE session_summaries ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private_user'"
+        "ALTER TABLE session_summaries "
+        "ADD COLUMN IF NOT EXISTS visibility VARCHAR(20) DEFAULT 'private_user'"
     )
 
     # --- Backfill transactions visibility from scope ---
@@ -96,7 +98,16 @@ def upgrade() -> None:
 
     # --- Backfill existing users into workspace_memberships ---
     op.execute("""
-        INSERT INTO workspace_memberships (id, family_id, user_id, membership_type, role, permissions, status, joined_at)
+        INSERT INTO workspace_memberships (
+            id,
+            family_id,
+            user_id,
+            membership_type,
+            role,
+            permissions,
+            status,
+            joined_at
+        )
         SELECT
             gen_random_uuid(),
             u.family_id,
@@ -107,14 +118,24 @@ def upgrade() -> None:
                 ELSE 'family_member'::membership_role
             END,
             CASE
-                WHEN u.role = 'owner' THEN '["view_finance","create_finance","edit_finance","delete_finance","view_reports","export_reports","view_budgets","manage_budgets","view_work_tasks","manage_work_tasks","view_work_documents","manage_work_documents","view_contacts","manage_contacts","invite_members","manage_members"]'::jsonb
+                WHEN u.role = 'owner' THEN
+                    '[
+                        "view_finance","create_finance","edit_finance","delete_finance",
+                        "view_reports","export_reports","view_budgets","manage_budgets",
+                        "view_work_tasks","manage_work_tasks","view_work_documents",
+                        "manage_work_documents","view_contacts","manage_contacts",
+                        "invite_members","manage_members"
+                    ]'::jsonb
                 ELSE '["create_finance","view_budgets"]'::jsonb
             END,
             'active'::membership_status,
             u.created_at
         FROM users u
         WHERE NOT EXISTS (
-            SELECT 1 FROM workspace_memberships wm WHERE wm.user_id = u.id AND wm.family_id = u.family_id
+            SELECT 1
+            FROM workspace_memberships wm
+            WHERE wm.user_id = u.id
+              AND wm.family_id = u.family_id
         )
     """)
 

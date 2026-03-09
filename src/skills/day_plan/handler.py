@@ -37,7 +37,10 @@ _STRINGS = {
         "tip_fallback": "💡 Фокус на первой задаче — остальное подождёт.",
     },
     "es": {
-        "ask_tasks": "¿Qué tareas tienes para hoy? Enuméralas separadas por comas o línea por línea.",
+        "ask_tasks": (
+            "¿Qué tareas tienes para hoy? "
+            "Enuméralas separadas por comas o línea por línea."
+        ),
         "plan_title": "Plan del día:",
         "tip_fallback": "💡 Enfócate en la primera tarea — el resto puede esperar.",
     },
@@ -47,7 +50,10 @@ _STRINGS = {
         "tip_fallback": "💡 Фокус на першому завданні — решта почекає.",
     },
     "fr": {
-        "ask_tasks": "Quelles sont vos tâches pour aujourd'hui ? Listez-les séparées par des virgules ou ligne par ligne.",
+        "ask_tasks": (
+            "Quelles sont vos tâches pour aujourd'hui ? "
+            "Listez-les séparées par des virgules ou ligne par ligne."
+        ),
         "plan_title": "Plan de la journée :",
         "tip_fallback": "💡 Concentrez-vous sur la première tâche — le reste peut attendre.",
     },
@@ -57,7 +63,10 @@ _STRINGS = {
         "tip_fallback": "💡 Fokus auf die erste Aufgabe — der Rest kann warten.",
     },
     "pt": {
-        "ask_tasks": "Quais são suas tarefas de hoje? Liste-as separadas por vírgulas ou linha por linha.",
+        "ask_tasks": (
+            "Quais são suas tarefas de hoje? "
+            "Liste-as separadas por vírgulas ou linha por linha."
+        ),
         "plan_title": "Plano do dia:",
         "tip_fallback": "💡 Foque na primeira tarefa — o resto pode esperar.",
     },
@@ -82,7 +91,10 @@ _STRINGS = {
         "tip_fallback": "💡 Бірінші тапсырмаға назар аударыңыз — қалғаны күте алады.",
     },
     "it": {
-        "ask_tasks": "Quali sono le tue attività per oggi? Elencale separate da virgole o riga per riga.",
+        "ask_tasks": (
+            "Quali sono le tue attività per oggi? "
+            "Elencale separate da virgole o riga per riga."
+        ),
         "plan_title": "Piano giornaliero:",
         "tip_fallback": "💡 Concentrati sul primo compito — il resto può aspettare.",
     },
@@ -109,7 +121,15 @@ def _is_help_query(text: str) -> bool:
     if any(kw in lower for kw in _HELP_KEYWORDS):
         return True
     # Bare single-word commands like "день" / "plan" / "день план"
-    if lower in {"day plan", "план дня", "план на день", "day", "plan", "күндүк план", "күндік жоспар"}:
+    if lower in {
+        "day plan",
+        "план дня",
+        "план на день",
+        "day",
+        "plan",
+        "күндүк план",
+        "күндік жоспар",
+    }:
         return True
     return False
 

@@ -3,7 +3,6 @@
 import uuid
 from unittest.mock import AsyncMock, patch
 
-import pytest
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 
@@ -13,7 +12,6 @@ from src.core.models.category import Category
 from src.core.models.task import Task
 from src.core.models.transaction import Transaction
 from src.gateway.types import IncomingMessage, MessageType
-
 
 # --- Fixtures ---
 

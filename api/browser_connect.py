@@ -351,10 +351,18 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     let touchStart = null;
     let touchLast = null;
     let wheelLock = false;
+    let pollHandle = null;
 
     function setComposerOpen(open) {{
       composerEl.classList.toggle('visible', open);
       composerEl.setAttribute('aria-hidden', open ? 'false' : 'true');
+    }}
+
+    function stopPolling() {{
+      if (pollHandle !== null) {{
+        window.clearInterval(pollHandle);
+        pollHandle = null;
+      }}
     }}
 
     async function fetchState() {{
@@ -386,14 +394,22 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     function updateStatus(state) {{
       if (state.error) {{
         statusEl.classList.add('visible');
-        statusEl.textContent = 'Connection issue. Refresh this page and try again.';
+        statusEl.textContent = state.error;
       }} else {{
         statusEl.classList.remove('visible');
         statusEl.textContent = '';
       }}
       lastReturnUrl = state.return_url || '';
       continueTelegramEl.classList.toggle('hidden', !lastReturnUrl);
+      if (state.status === 'expired') {{
+        stopPolling();
+        statusEl.classList.add('visible');
+        statusEl.textContent = 'This sign-in session expired. Return to Telegram and start again.';
+        continueTelegramEl.classList.remove('hidden');
+        return;
+      }}
       if (state.status === 'completed' && lastReturnUrl) {{
+        stopPolling();
         window.location.replace(lastReturnUrl);
       }}
     }}
@@ -495,12 +511,15 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     {debug_js}
 
     reloadAll();
-    setInterval(async () => {{
+    pollHandle = setInterval(async () => {{
       try {{
         const state = await fetchState();
         updateStatus(state);
-        refreshImage();
+        if (state.status === 'active') {{
+          refreshImage();
+        }}
       }} catch (error) {{
+        stopPolling();
         statusEl.classList.add('visible');
         statusEl.textContent = 'Connection issue. Pull to refresh the page and try again.';
       }}
@@ -515,6 +534,17 @@ async def _build_return_url(token: str) -> str:
     if not bot_username:
         return ""
     return f"https://t.me/{bot_username}?start=browser_connect_{token}"
+
+
+def _expired_state_response() -> BrowserConnectStateResponse:
+    return BrowserConnectStateResponse(
+        ok=False,
+        status="expired",
+        provider="",
+        current_url="",
+        error="This sign-in session expired. Return to Telegram and start again.",
+        return_url="",
+    )
 
 
 @router.get("/{token}", response_class=HTMLResponse)
@@ -544,6 +574,8 @@ async def browser_connect_state(request: Request, token: str) -> BrowserConnectS
             user_agent=request.headers.get("user-agent"),
         )
     except ValueError as exc:
+        if "expired" in str(exc).lower():
+            return _expired_state_response()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
