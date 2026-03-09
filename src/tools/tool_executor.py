@@ -61,7 +61,15 @@ _TABLE_ALIASES = {
 }
 
 _TABLE_COLUMN_ALIASES = {
-    "budgets": {"active": "is_active"},
+    "budgets": {
+        "active": "is_active",
+        "budget_amount": "amount",
+        "limit": "amount",
+        "monthly_limit": "amount",
+        "weekly_limit": "amount",
+        "frequency": "period",
+        "interval": "period",
+    },
     "recurring_payments": {"active": "is_active"},
 }
 

@@ -11,6 +11,7 @@ from src.tools.data_tools import (
     _apply_create_defaults,
     _apply_filters,
     _coerce_dates,
+    _validate_required_create_fields,
 )
 
 
@@ -58,9 +59,28 @@ def test_apply_create_defaults_sets_family_scope_for_scope_models():
     assert data["scope"] == "family"
 
 
+def test_apply_create_defaults_sets_budget_period():
+    data = {"amount": 1000}
+
+    _apply_create_defaults("budgets", data)
+
+    assert data["period"] == "monthly"
+
+
 def test_coerce_dates_parses_iso_strings_for_date_columns():
     data = {"date": "2026-03-09", "merchant": "coffee"}
 
     _coerce_dates(Transaction, data)
 
     assert data["date"] == date(2026, 3, 9)
+
+
+def test_validate_required_create_fields_for_budgets():
+    data = {"period": "monthly"}
+
+    try:
+        _validate_required_create_fields("budgets", data)
+    except ValueError as exc:
+        assert "amount" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for missing budget amount")

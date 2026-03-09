@@ -152,3 +152,23 @@ async def test_execute_tool_call_collects_flat_update_record_fields_into_data():
     assert kwargs["table"] == "budgets"
     assert kwargs["record_id"] == "44444444-4444-4444-4444-444444444444"
     assert kwargs["data"] == {"amount": 1200, "is_active": False}
+
+
+async def test_execute_tool_call_normalizes_budget_alias_fields():
+    context = _sample_context()
+    mock = AsyncMock(return_value={"ok": True})
+
+    with patch.dict("src.tools.tool_executor.TOOL_FUNCTIONS", {"create_record": mock}, clear=False):
+        await execute_tool_call(
+            "create_record",
+            {
+                "table": "budgets",
+                "monthly_limit": 1000,
+                "frequency": "monthly",
+                "active": True,
+            },
+            context,
+        )
+
+    kwargs = mock.await_args.kwargs
+    assert kwargs["data"] == {"amount": 1000, "period": "monthly", "is_active": True}

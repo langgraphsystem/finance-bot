@@ -160,6 +160,20 @@ def _apply_create_defaults(table: str, data: dict[str, Any]) -> None:
     """Inject conservative defaults for tool-created records."""
     if "scope" in _get_allowed_columns(table) and "scope" not in data:
         data["scope"] = "family"
+    if table == "budgets" and "period" not in data:
+        data["period"] = "monthly"
+
+
+def _validate_required_create_fields(table: str, data: dict[str, Any]) -> None:
+    """Fail early on missing required business fields before DB flush."""
+    required_by_table = {
+        "budgets": ("amount", "period"),
+    }
+    required_fields = required_by_table.get(table, ())
+    missing = [field for field in required_fields if data.get(field) in (None, "")]
+    if missing:
+        joined = ", ".join(missing)
+        raise ValueError(f"Missing required fields for '{table}': {joined}")
 
 
 def _apply_filters(
@@ -284,6 +298,7 @@ async def create_record(
     _validate_columns(table, list(data.keys()))
 
     _apply_create_defaults(table, data)
+    _validate_required_create_fields(table, data)
 
     # Inject security fields — LLM cannot control these
     data["family_id"] = uuid.UUID(family_id)
