@@ -1051,6 +1051,9 @@ class DeleteDataSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("delete_finance"):
+            return SkillResult(response_text="You don't have permission to delete data.")
+
         raw_text = message.text or ""
 
         # Fast-path 1: user pasted a specific life event from timeline

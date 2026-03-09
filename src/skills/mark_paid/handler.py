@@ -41,6 +41,9 @@ class MarkPaidSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         """Mark the latest unpaid/delivered load as paid."""
+        if not context.has_permission("edit_finance"):
+            return SkillResult(response_text="You don't have permission to edit financial records.")
+
         async with async_session() as session:
             # Find the latest delivered but unpaid load
             result = await session.execute(

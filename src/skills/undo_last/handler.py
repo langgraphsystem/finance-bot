@@ -37,6 +37,9 @@ class UndoLastSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         """Find last transaction and ask for confirmation before deleting."""
+        if not context.has_permission("delete_finance"):
+            return SkillResult(response_text="You don't have permission to delete transactions.")
+
         async with async_session() as session:
             result = await session.execute(
                 select(Transaction)

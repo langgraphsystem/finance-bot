@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from src.core.access import apply_visibility_filter
 from src.core.db import async_session
 from src.core.models.budget import Budget
 from src.core.models.category import Category
@@ -32,7 +33,14 @@ class FinancialInsight(BaseModel):
 # --- Tool functions the agent can call ---
 
 
-async def get_monthly_spending(family_id: str, year: int, month: int) -> dict:
+async def get_monthly_spending(
+    family_id: str,
+    year: int,
+    month: int,
+    *,
+    role: str = "owner",
+    user_id: str | None = None,
+) -> dict:
     """Get total spending by category for a specific month."""
     from sqlalchemy import func, select
 
@@ -40,7 +48,7 @@ async def get_monthly_spending(family_id: str, year: int, month: int) -> dict:
     end = date(year + (1 if month == 12 else 0), 1 if month == 12 else month + 1, 1)
 
     async with async_session() as session:
-        result = await session.execute(
+        stmt = (
             select(Category.name, func.sum(Transaction.amount).label("total"))
             .join(Category, Transaction.category_id == Category.id)
             .where(
@@ -49,20 +57,23 @@ async def get_monthly_spending(family_id: str, year: int, month: int) -> dict:
                 Transaction.date < end,
                 Transaction.type == TransactionType.expense,
             )
-            .group_by(Category.name)
-            .order_by(func.sum(Transaction.amount).desc())
         )
+        if role and user_id:
+            stmt = apply_visibility_filter(stmt, Transaction, role, user_id)
+        stmt = stmt.group_by(Category.name).order_by(func.sum(Transaction.amount).desc())
+        result = await session.execute(stmt)
         categories = {r[0]: float(r[1]) for r in result.all()}
 
         # Total income
-        inc = await session.execute(
-            select(func.sum(Transaction.amount)).where(
-                Transaction.family_id == uuid.UUID(family_id),
-                Transaction.date >= start,
-                Transaction.date < end,
-                Transaction.type == TransactionType.income,
-            )
+        inc_stmt = select(func.sum(Transaction.amount)).where(
+            Transaction.family_id == uuid.UUID(family_id),
+            Transaction.date >= start,
+            Transaction.date < end,
+            Transaction.type == TransactionType.income,
         )
+        if role and user_id:
+            inc_stmt = apply_visibility_filter(inc_stmt, Transaction, role, user_id)
+        inc = await session.execute(inc_stmt)
         total_income = float(inc.scalar() or 0)
 
     return {
@@ -74,7 +85,12 @@ async def get_monthly_spending(family_id: str, year: int, month: int) -> dict:
     }
 
 
-async def get_budget_status(family_id: str) -> list[dict]:
+async def get_budget_status(
+    family_id: str,
+    *,
+    role: str = "owner",
+    user_id: str | None = None,
+) -> list[dict]:
     """Get all active budgets with current spending."""
     from sqlalchemy import func, select
 
@@ -104,6 +120,8 @@ async def get_budget_status(family_id: str) -> list[dict]:
             )
             if b.category_id:
                 query = query.where(Transaction.category_id == b.category_id)
+            if role and user_id:
+                query = apply_visibility_filter(query, Transaction, role, user_id)
 
             spent = (await session.execute(query)).scalar() or Decimal("0")
 
@@ -128,7 +146,13 @@ async def get_budget_status(family_id: str) -> list[dict]:
     return results
 
 
-async def get_spending_trend(family_id: str, months: int = 3) -> list[dict]:
+async def get_spending_trend(
+    family_id: str,
+    months: int = 3,
+    *,
+    role: str = "owner",
+    user_id: str | None = None,
+) -> list[dict]:
     """Get spending totals for the last N months."""
     today = date.today()
     results = []
@@ -140,7 +164,7 @@ async def get_spending_trend(family_id: str, months: int = 3) -> list[dict]:
             month += 12
             year -= 1
 
-        data = await get_monthly_spending(family_id, year, month)
+        data = await get_monthly_spending(family_id, year, month, role=role, user_id=user_id)
         results.append(data)
 
     return list(reversed(results))
@@ -150,6 +174,9 @@ async def get_spending_trend(family_id: str, months: int = 3) -> list[dict]:
 async def run_complex_query(
     query: str,
     family_id: str,
+    *,
+    role: str = "owner",
+    user_id: str | None = None,
 ) -> FinancialInsight:
     """Run a complex financial query using Pydantic AI agent with tools.
 
@@ -172,36 +199,44 @@ async def run_complex_query(
         @agent.tool
         async def monthly_spending(ctx, year: int, month: int) -> dict:
             """Get spending by category for a specific month."""
-            return await get_monthly_spending(family_id, year, month)
+            return await get_monthly_spending(family_id, year, month, role=role, user_id=user_id)
 
         @agent.tool
         async def budget_status(ctx) -> list[dict]:
             """Get current budget utilization."""
-            return await get_budget_status(family_id)
+            return await get_budget_status(family_id, role=role, user_id=user_id)
 
         @agent.tool
         async def spending_trend(ctx, months: int = 3) -> list[dict]:
             """Get spending trend for last N months."""
-            return await get_spending_trend(family_id, months)
+            return await get_spending_trend(family_id, months, role=role, user_id=user_id)
 
         result = await agent.run(query)
         return result.data
 
     except ImportError:
         logger.warning("pydantic-ai not available, using fallback analysis")
-        return await _fallback_analysis(query, family_id)
+        return await _fallback_analysis(query, family_id, role=role, user_id=user_id)
     except Exception as e:
         logger.error("Graph agent failed: %s", e)
-        return await _fallback_analysis(query, family_id)
+        return await _fallback_analysis(query, family_id, role=role, user_id=user_id)
 
 
-async def _fallback_analysis(query: str, family_id: str) -> FinancialInsight:
+async def _fallback_analysis(
+    query: str,
+    family_id: str,
+    *,
+    role: str = "owner",
+    user_id: str | None = None,
+) -> FinancialInsight:
     """Fallback analysis without Pydantic AI — direct tool calls."""
     today = date.today()
 
-    spending = await get_monthly_spending(family_id, today.year, today.month)
-    budgets = await get_budget_status(family_id)
-    trend = await get_spending_trend(family_id, 3)
+    spending = await get_monthly_spending(
+        family_id, today.year, today.month, role=role, user_id=user_id
+    )
+    budgets = await get_budget_status(family_id, role=role, user_id=user_id)
+    trend = await get_spending_trend(family_id, 3, role=role, user_id=user_id)
 
     total = spending["total_expense"]
     income = spending["total_income"]

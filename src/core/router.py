@@ -2094,6 +2094,169 @@ async def _handle_callback(
 
         return OutgoingMessage(text="Unknown members action.", chat_id=message.chat_id)
 
+    elif action == "member":
+        if not context.has_permission("manage_members"):
+            return OutgoingMessage(text="Permission denied.", chat_id=message.chat_id)
+
+        sub = parts[1] if len(parts) > 1 else ""
+        member_id = parts[2] if len(parts) > 2 else ""
+
+        if not member_id:
+            return OutgoingMessage(text="Invalid member.", chat_id=message.chat_id)
+
+        if sub == "role":
+            # Show role selection buttons for this member
+            from src.core.models.workspace_membership import ROLE_PRESETS
+
+            role_buttons = []
+            for role_name in (
+                "partner",
+                "family_member",
+                "worker",
+                "assistant",
+                "accountant",
+                "viewer",
+            ):
+                if role_name in ROLE_PRESETS:
+                    label = role_name.replace("_", " ").title()
+                    role_buttons.append(
+                        {"text": label, "callback": f"member:setrole:{member_id}:{role_name}"}
+                    )
+            return OutgoingMessage(
+                text="<b>Choose new role:</b>",
+                chat_id=message.chat_id,
+                buttons=role_buttons,
+            )
+
+        if sub == "setrole":
+            # Actually change role: member:setrole:{mid}:{role}
+            new_role = parts[3] if len(parts) > 3 else ""
+            from src.core.models.workspace_membership import (
+                ROLE_PRESETS,
+                WorkspaceMembership,
+            )
+
+            if new_role in ("owner", "custom") or new_role not in ROLE_PRESETS:
+                return OutgoingMessage(text="Invalid role.", chat_id=message.chat_id)
+
+            async with async_session() as session:
+                result = await session.execute(
+                    select(WorkspaceMembership).where(
+                        WorkspaceMembership.id == uuid.UUID(member_id),
+                        WorkspaceMembership.family_id == uuid.UUID(context.family_id),
+                    )
+                )
+                membership = result.scalar_one_or_none()
+                if not membership:
+                    return OutgoingMessage(text="Member not found.", chat_id=message.chat_id)
+                if membership.role.value == "owner":
+                    return OutgoingMessage(
+                        text="Cannot change owner role.", chat_id=message.chat_id
+                    )
+
+                from src.core.models.enums import MembershipRole
+
+                membership.role = MembershipRole(new_role)
+                membership.permissions = ROLE_PRESETS[new_role]
+
+                from src.core.audit import log_action
+
+                await log_action(
+                    session=session,
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    action="change_role",
+                    entity_type="membership",
+                    entity_id=member_id,
+                    old_data=None,
+                    new_data={"role": new_role},
+                )
+                await session.commit()
+
+            label = new_role.replace("_", " ").title()
+            return OutgoingMessage(
+                text=f"Role updated to <b>{label}</b>.",
+                chat_id=message.chat_id,
+            )
+
+        if sub == "suspend":
+            from src.core.models.workspace_membership import WorkspaceMembership
+
+            async with async_session() as session:
+                result = await session.execute(
+                    select(WorkspaceMembership).where(
+                        WorkspaceMembership.id == uuid.UUID(member_id),
+                        WorkspaceMembership.family_id == uuid.UUID(context.family_id),
+                    )
+                )
+                membership = result.scalar_one_or_none()
+                if not membership:
+                    return OutgoingMessage(text="Member not found.", chat_id=message.chat_id)
+                if membership.role.value == "owner":
+                    return OutgoingMessage(
+                        text="Cannot suspend owner.", chat_id=message.chat_id
+                    )
+
+                from src.core.models.enums import MembershipStatus
+
+                membership.status = MembershipStatus.suspended
+
+                from src.core.audit import log_action
+
+                await log_action(
+                    session=session,
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    action="suspend_member",
+                    entity_type="membership",
+                    entity_id=member_id,
+                    old_data=None,
+                    new_data={"status": "suspended"},
+                )
+                await session.commit()
+
+            return OutgoingMessage(text="Member suspended.", chat_id=message.chat_id)
+
+        if sub == "remove":
+            from src.core.models.workspace_membership import WorkspaceMembership
+
+            async with async_session() as session:
+                result = await session.execute(
+                    select(WorkspaceMembership).where(
+                        WorkspaceMembership.id == uuid.UUID(member_id),
+                        WorkspaceMembership.family_id == uuid.UUID(context.family_id),
+                    )
+                )
+                membership = result.scalar_one_or_none()
+                if not membership:
+                    return OutgoingMessage(text="Member not found.", chat_id=message.chat_id)
+                if membership.role.value == "owner":
+                    return OutgoingMessage(
+                        text="Cannot remove owner.", chat_id=message.chat_id
+                    )
+
+                from src.core.models.enums import MembershipStatus
+
+                membership.status = MembershipStatus.revoked
+
+                from src.core.audit import log_action
+
+                await log_action(
+                    session=session,
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    action="remove_member",
+                    entity_type="membership",
+                    entity_id=member_id,
+                    old_data=None,
+                    new_data={"status": "revoked"},
+                )
+                await session.commit()
+
+            return OutgoingMessage(text="Member removed.", chat_id=message.chat_id)
+
+        return OutgoingMessage(text="Unknown member action.", chat_id=message.chat_id)
+
     elif action == "suggest":
         # Smart suggestions — re-route as new intent
         suggested_intent = parts[1] if len(parts) > 1 else ""

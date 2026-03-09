@@ -1,7 +1,7 @@
 ﻿# Production Access Control Design
 
 **Date:** 2026-03-06
-**Status:** Phase 0 done, Phase 1 done (2026-03-08), Phase 2 done (2026-03-09)
+**Status:** Phase 0-3 done, Phase 4 partial (2026-03-09)
 **Scope:** Family / worker access, privacy boundaries, RBAC, RLS
 
 ---
@@ -577,17 +577,29 @@ Immediate high-risk gaps:
 - ✅ Permission checks: create_finance, edit_finance, delete_finance, manage_budgets, view_reports
 - ✅ 17 Phase 2 regression tests
 
-### Phase 3: RLS Hardening
+### Phase 3: RLS Hardening — DONE (2026-03-09)
 
-- add new RLS policies for critical tables
-- private resources must validate both `user_id` and visibility
+- ✅ Migration 031: `app_current_user_id()` PL/pgSQL helper function
+- ✅ Enhanced RLS policies for 5 visibility tables (private_user → user_id check)
+- ✅ RLS policy for `workspace_memberships` table
+- ✅ RLS policy for `life_events` (strictly private — user_id isolation)
+- ✅ `_RLSToken` pattern in `request_context.py` for user_id context propagation
+- ✅ `db.py`: `get_session()` and `rls_session()` set both `app.current_family_id` and `app.current_user_id`
+- ✅ Migration 032: drop duplicate `ix_wm_family_user` index
+- ✅ 12 RLS context unit tests, 15 RBAC integration tests
 
-### Phase 4: UX Rollout
+### Phase 4: UX Rollout — PARTIAL (2026-03-09)
 
-- invite wizard
-- role + access template
-- summary screen
-- audit trail for permission changes
+- ✅ Invite wizard: 3-step callback flow (type → role → show code + Redis role storage)
+- ✅ List members skill with manage button for owners
+- ✅ Manage member skill with per-member action buttons
+- ✅ `member:` callback handlers in router.py (role change, suspend, remove)
+- ✅ 5 miniapp API endpoints: GET /family/members, PUT role, PUT suspend, PUT activate, DELETE
+- ✅ Permission checks on critical mutating skills (edit_finance, delete_finance, create_finance)
+- ✅ Audit trail for permission/role changes (log_action on all member operations)
+- ⬜ Miniapp frontend: no "Team Members" UI screen yet (API exists, UI pending)
+- ⬜ Access Screen with permission toggles (only preset roles, no per-permission UI)
+- ⬜ Confirmation modals in miniapp (API changes immediately)
 
 ---
 

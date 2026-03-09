@@ -246,7 +246,7 @@ class TestGetSpendingTrend:
         """Results should be in chronological order (oldest first)."""
         call_order = []
 
-        async def mock_spending(fid, year, month):
+        async def mock_spending(fid, year, month, **kwargs):
             call_order.append((year, month))
             return {
                 "year": year,

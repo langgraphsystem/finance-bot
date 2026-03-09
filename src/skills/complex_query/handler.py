@@ -35,6 +35,8 @@ class ComplexQuerySkill:
             insight = await run_complex_query(
                 query=message.text or "",
                 family_id=context.family_id,
+                role=context.role,
+                user_id=context.user_id,
             )
 
             # Build response

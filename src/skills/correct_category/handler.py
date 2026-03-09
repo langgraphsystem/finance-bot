@@ -34,6 +34,9 @@ class CorrectCategorySkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("edit_finance"):
+            return SkillResult(response_text="You don't have permission to edit transactions.")
+
         new_category_name = intent_data.get("category")
         if not new_category_name:
             return SkillResult(

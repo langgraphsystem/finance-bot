@@ -111,6 +111,11 @@ class AddRecurringSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        if not context.has_permission("create_finance"):
+            return SkillResult(
+                response_text="You don't have permission to create financial records."
+            )
+
         amount = intent_data.get("amount")
         name = intent_data.get("description") or intent_data.get("merchant") or ""
         category_name = intent_data.get("category")
