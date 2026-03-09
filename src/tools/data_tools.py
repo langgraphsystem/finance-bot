@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import desc as sa_desc
 from sqlalchemy import func, select
 
+from src.core.access import apply_scope_filter
 from src.core.audit import log_action
 from src.core.db import async_session
 from src.core.models import (
@@ -141,9 +142,17 @@ def _coerce_uuids(model: type, data: dict[str, Any]) -> None:
                 pass
 
 
-def _apply_filters(stmt: Any, model: type, filters: dict[str, Any], family_id: str) -> Any:
-    """Apply family_id + user filters to a select statement."""
+def _apply_filters(
+    stmt: Any,
+    model: type,
+    filters: dict[str, Any],
+    family_id: str,
+    role: str | None = None,
+    user_id: str | None = None,
+) -> Any:
+    """Apply family_id + visibility + user filters to a select statement."""
     stmt = stmt.where(model.family_id == uuid.UUID(family_id))
+    stmt = _apply_access_filter(stmt, model, role=role, user_id=user_id)
 
     for col_name, value in filters.items():
         if col_name in ("family_id", "user_id"):
@@ -177,6 +186,24 @@ def _apply_filters(stmt: Any, model: type, filters: dict[str, Any], family_id: s
     return stmt
 
 
+def _apply_access_filter(
+    stmt: Any,
+    model: type,
+    role: str | None = None,
+    user_id: str | None = None,
+) -> Any:
+    """Apply visibility-aware access control for the current actor."""
+    if hasattr(model, "visibility") and role and user_id:
+        from src.core.access import apply_visibility_filter
+
+        return apply_visibility_filter(stmt, model, role, user_id)
+
+    if hasattr(model, "scope") and role:
+        return apply_scope_filter(stmt, model, role)
+
+    return stmt
+
+
 # ── Tool Functions ───────────────────────────────────────────────────────────
 
 
@@ -190,6 +217,7 @@ async def query_data(
     order_dir: str = "desc",
     limit: int = 20,
     columns: list[str] | None = None,
+    role: str = "owner",
 ) -> dict[str, Any]:
     """Query records from a table with filters."""
     model = _validate_table(table)
@@ -201,7 +229,7 @@ async def query_data(
 
     async with async_session() as session:
         stmt = select(model)
-        stmt = _apply_filters(stmt, model, filters or {}, family_id)
+        stmt = _apply_filters(stmt, model, filters or {}, family_id, role=role, user_id=user_id)
 
         if order_by:
             _validate_columns(table, [order_by])
@@ -226,6 +254,7 @@ async def create_record(
     user_id: str,
     table: str,
     data: dict[str, Any],
+    role: str = "owner",
 ) -> dict[str, Any]:
     """Create a new record in a table."""
     model = _validate_table(table)
@@ -286,6 +315,7 @@ async def update_record(
     table: str,
     record_id: str,
     data: dict[str, Any],
+    role: str = "owner",
 ) -> dict[str, Any]:
     """Update an existing record by ID."""
     model = _validate_table(table)
@@ -303,12 +333,12 @@ async def update_record(
     _coerce_uuids(model, data)
 
     async with async_session() as session:
-        record = await session.scalar(
-            select(model).where(
-                model.id == uuid.UUID(record_id),
-                model.family_id == uuid.UUID(family_id),
-            )
+        stmt = select(model).where(
+            model.id == uuid.UUID(record_id),
+            model.family_id == uuid.UUID(family_id),
         )
+        stmt = _apply_access_filter(stmt, model, role=role, user_id=user_id)
+        record = await session.scalar(stmt)
         if not record:
             return {"error": "Record not found", "table": table}
 
@@ -338,6 +368,7 @@ async def delete_record(
     user_id: str,
     table: str,
     record_id: str,
+    role: str = "owner",
 ) -> dict[str, Any]:
     """Delete a record by ID. Destructive tables require confirmation."""
     model = _validate_table(table)
@@ -345,12 +376,12 @@ async def delete_record(
         raise ValueError(f"Table '{table}' is read-only")
 
     async with async_session() as session:
-        record = await session.scalar(
-            select(model).where(
-                model.id == uuid.UUID(record_id),
-                model.family_id == uuid.UUID(family_id),
-            )
+        stmt = select(model).where(
+            model.id == uuid.UUID(record_id),
+            model.family_id == uuid.UUID(family_id),
         )
+        stmt = _apply_access_filter(stmt, model, role=role, user_id=user_id)
+        record = await session.scalar(stmt)
         if not record:
             return {"error": "Record not found", "table": table}
 
@@ -391,17 +422,18 @@ async def delete_record_confirmed(
     user_id: str,
     table: str,
     record_id: str,
+    role: str = "owner",
 ) -> str:
     """Execute a confirmed deletion (called from pending action handler)."""
     model = _validate_table(table)
 
     async with async_session() as session:
-        record = await session.scalar(
-            select(model).where(
-                model.id == uuid.UUID(record_id),
-                model.family_id == uuid.UUID(family_id),
-            )
+        stmt = select(model).where(
+            model.id == uuid.UUID(record_id),
+            model.family_id == uuid.UUID(family_id),
         )
+        stmt = _apply_access_filter(stmt, model, role=role, user_id=user_id)
+        record = await session.scalar(stmt)
         if not record:
             return "Record not found or already deleted."
 
@@ -430,6 +462,7 @@ async def aggregate_data(
     column: str | None = None,
     group_by: str | None = None,
     filters: dict[str, Any] | None = None,
+    role: str = "owner",
 ) -> dict[str, Any]:
     """Run aggregate stats (count, sum, avg, min, max) on a table."""
     model = _validate_table(table)
@@ -463,7 +496,7 @@ async def aggregate_data(
         else:
             stmt = select(agg_col.label("value"))
 
-        stmt = _apply_filters(stmt, model, filters or {}, family_id)
+        stmt = _apply_filters(stmt, model, filters or {}, family_id, role=role, user_id=user_id)
         result = await session.execute(stmt)
 
         if group_by:

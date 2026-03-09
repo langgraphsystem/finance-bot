@@ -9,6 +9,19 @@ if TYPE_CHECKING:
     from src.core.profiles import ProfileConfig
 
 
+ContextRole = Literal[
+    "owner",
+    "member",
+    "partner",
+    "family_member",
+    "worker",
+    "assistant",
+    "accountant",
+    "viewer",
+    "custom",
+]
+
+
 @dataclass
 class SessionContext:
     """Isolated context for each request.
@@ -17,7 +30,7 @@ class SessionContext:
 
     user_id: str
     family_id: str
-    role: Literal["owner", "member"]
+    role: ContextRole
     language: str
     currency: str
     business_type: str | None
@@ -46,9 +59,10 @@ class SessionContext:
         """Check access to a transaction."""
         if str(transaction.family_id) != self.family_id:
             return False
-        if self.role == "owner":
-            return True
-        return transaction.scope in ("family",)
+        scope = getattr(transaction, "scope", None)
+        if scope is None:
+            return False
+        return self.can_access_scope(str(scope))
 
     def can_access_scope(self, scope: str) -> bool:
         """Check if user can see data of this scope."""
@@ -59,8 +73,13 @@ class SessionContext:
         return [scope.value for scope in get_visible_scopes(self.role)]
 
     def filter_query(self, stmt, model):
-        """Add family_id and scope filters to a SQLAlchemy select."""
+        """Add family_id and access filters to a SQLAlchemy select."""
         import uuid
 
+        from src.core.access import apply_visibility_filter
+
         stmt = stmt.where(model.family_id == uuid.UUID(self.family_id))
+
+        if hasattr(model, "visibility"):
+            return apply_visibility_filter(stmt, model, self.role, self.user_id)
         return apply_scope_filter(stmt, model, self.role)

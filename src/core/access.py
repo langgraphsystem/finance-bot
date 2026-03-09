@@ -7,7 +7,14 @@ from src.core.models.enums import ResourceVisibility, Scope
 
 _ROLE_VISIBLE_SCOPES: dict[str, tuple[Scope, ...]] = {
     "owner": (Scope.business, Scope.family, Scope.personal),
+    "partner": (Scope.business, Scope.family),
+    "viewer": (Scope.business, Scope.family),
+    "worker": (Scope.business,),
+    "assistant": (Scope.business,),
+    "accountant": (Scope.business,),
+    "family_member": (Scope.family,),
     "member": (Scope.family,),
+    "custom": (Scope.family,),
 }
 
 
@@ -95,10 +102,16 @@ def apply_visibility_filter(stmt: Any, model: Any, role: str, user_id: str) -> A
     from sqlalchemy import or_
 
     allowed_vis = _ROLE_VISIBLE_VISIBILITY.get(role, set())
+    user_uuid = None
+    if user_id:
+        try:
+            user_uuid = _uuid.UUID(user_id)
+        except (TypeError, ValueError):
+            user_uuid = None
 
-    conditions = [
-        (model.visibility == "private_user") & (model.user_id == _uuid.UUID(user_id)),
-    ]
+    conditions = []
+    if user_uuid is not None:
+        conditions.append((model.visibility == "private_user") & (model.user_id == user_uuid))
 
     for vis in allowed_vis:
         if vis != "private_user":

@@ -15,6 +15,27 @@ def test_member_can_only_access_family(member_context):
     assert not member_context.can_access_scope("personal")
 
 
+def test_worker_can_only_access_business_scope():
+    from src.core.context import SessionContext
+
+    ctx = SessionContext(
+        user_id="u1",
+        family_id="f1",
+        role="worker",
+        language="en",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+        membership_type="worker",
+        permissions=["view_work_tasks"],
+    )
+
+    assert ctx.can_access_scope("business")
+    assert not ctx.can_access_scope("family")
+    assert not ctx.can_access_scope("personal")
+
+
 def test_owner_visible_scopes(sample_context):
     scopes = sample_context.get_visible_scopes()
     assert "business" in scopes

@@ -80,6 +80,7 @@ async def test_build_session_context_filters_non_family_items_for_member():
             side_effect=[
                 _scalar_one_or_none_result(user),
                 _scalar_one_result(family),
+                _scalar_one_or_none_result(None),  # workspace membership
                 _scalars_result([category_family, category_business]),
                 _scalars_result([mapping_family, mapping_business]),
                 _profile_result(None),
@@ -91,3 +92,75 @@ async def test_build_session_context_filters_non_family_items_for_member():
     assert context is not None
     assert [item["scope"] for item in context.categories] == ["family"]
     assert [item["scope"] for item in context.merchant_mappings] == ["family"]
+
+
+async def test_build_session_context_prefers_workspace_membership_role():
+    user = MagicMock()
+    user.id = uuid.uuid4()
+    user.family_id = uuid.uuid4()
+    user.telegram_id = 654321
+    user.role = MagicMock()
+    user.role.value = "member"
+    user.language = "ru"
+    user.business_type = "trucker"
+
+    family = MagicMock()
+    family.currency = "USD"
+
+    membership = MagicMock()
+    membership.role.value = "worker"
+    membership.membership_type.value = "worker"
+    membership.permissions = ["view_work_tasks"]
+
+    category_family = MagicMock()
+    category_family.id = uuid.uuid4()
+    category_family.name = "Продукты"
+    category_family.icon = "🛒"
+    category_family.scope = MagicMock()
+    category_family.scope.value = "family"
+
+    category_business = MagicMock()
+    category_business.id = uuid.uuid4()
+    category_business.name = "Дизель"
+    category_business.icon = "⛽"
+    category_business.scope = MagicMock()
+    category_business.scope.value = "business"
+
+    mapping_family = MagicMock()
+    mapping_family.merchant_pattern = "Walmart"
+    mapping_family.category_id = uuid.uuid4()
+    mapping_family.scope = MagicMock()
+    mapping_family.scope.value = "family"
+
+    mapping_business = MagicMock()
+    mapping_business.merchant_pattern = "Shell"
+    mapping_business.category_id = uuid.uuid4()
+    mapping_business.scope = MagicMock()
+    mapping_business.scope.value = "business"
+
+    with (
+        patch("api.main.async_session") as mock_session_maker,
+        patch("api.main.profile_loader.get", return_value=None),
+    ):
+        mock_session = AsyncMock()
+        mock_session_maker.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session_maker.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_session.execute = AsyncMock(
+            side_effect=[
+                _scalar_one_or_none_result(user),
+                _scalar_one_result(family),
+                _scalar_one_or_none_result(membership),
+                _scalars_result([category_family, category_business]),
+                _scalars_result([mapping_family, mapping_business]),
+                _profile_result(None),
+            ]
+        )
+
+        context = await build_session_context(str(user.telegram_id))
+
+    assert context is not None
+    assert context.role == "worker"
+    assert context.membership_type == "worker"
+    assert context.permissions == ["view_work_tasks"]
+    assert [item["scope"] for item in context.categories] == ["business"]
+    assert [item["scope"] for item in context.merchant_mappings] == ["business"]

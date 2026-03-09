@@ -155,6 +155,20 @@ def _build_user_profile(prof_row) -> dict:
     return profile
 
 
+def _resolve_membership_access(
+    user_role: str,
+    membership: WorkspaceMembership | None,
+) -> tuple[str, str | None, list[str]]:
+    """Resolve the effective role/permissions from membership with legacy fallback."""
+    if membership:
+        return (
+            membership.role.value,
+            membership.membership_type.value,
+            membership.permissions or [],
+        )
+    return user_role, None, []
+
+
 async def build_session_context(telegram_id: str) -> SessionContext | None:
     """Build SessionContext from database for a telegram user."""
     async with async_session() as session:
@@ -167,6 +181,16 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
         fam_result = await session.execute(select(Family).where(Family.id == user.family_id))
         family = fam_result.scalar_one()
 
+        membership_result = await session.execute(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id,
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status == "active",
+            )
+        )
+        membership = membership_result.scalar_one_or_none()
+        role, membership_type, permissions = _resolve_membership_access(user.role.value, membership)
+
         # Load categories
         cat_result = await session.execute(
             select(Category).where(Category.family_id == user.family_id)
@@ -175,7 +199,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             {"id": str(c.id), "name": c.name, "scope": c.scope.value, "icon": c.icon}
             for c in cat_result.scalars()
         ]
-        categories = filter_scope_items(categories, user.role.value)
+        categories = filter_scope_items(categories, role)
 
         # Load merchant mappings
         map_result = await session.execute(
@@ -189,7 +213,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             }
             for m in map_result.scalars()
         ]
-        mappings = filter_scope_items(mappings, user.role.value)
+        mappings = filter_scope_items(mappings, role)
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
@@ -209,20 +233,10 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
 
-        # Load membership
-        membership_result = await session.execute(
-            select(WorkspaceMembership).where(
-                WorkspaceMembership.user_id == user.id,
-                WorkspaceMembership.family_id == user.family_id,
-                WorkspaceMembership.status == "active",
-            )
-        )
-        membership = membership_result.scalar_one_or_none()
-
         return SessionContext(
             user_id=str(user.id),
             family_id=str(user.family_id),
-            role=user.role.value,
+            role=role,
             language=user.language,
             currency=family.currency,
             business_type=user.business_type,
@@ -231,8 +245,8 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             profile_config=profile,
             timezone=user_timezone,
             user_profile=_build_user_profile(prof_row),
-            membership_type=membership.membership_type.value if membership else None,
-            permissions=membership.permissions if membership else [],
+            membership_type=membership_type,
+            permissions=permissions,
         )
 
 
@@ -253,6 +267,16 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         fam_result = await session.execute(select(Family).where(Family.id == user.family_id))
         family = fam_result.scalar_one()
 
+        membership_result = await session.execute(
+            select(WorkspaceMembership).where(
+                WorkspaceMembership.user_id == user.id,
+                WorkspaceMembership.family_id == user.family_id,
+                WorkspaceMembership.status == "active",
+            )
+        )
+        membership = membership_result.scalar_one_or_none()
+        role, membership_type, permissions = _resolve_membership_access(user.role.value, membership)
+
         cat_result = await session.execute(
             select(Category).where(Category.family_id == user.family_id)
         )
@@ -260,7 +284,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             {"id": str(c.id), "name": c.name, "scope": c.scope.value, "icon": c.icon}
             for c in cat_result.scalars()
         ]
-        categories = filter_scope_items(categories, user.role.value)
+        categories = filter_scope_items(categories, role)
 
         map_result = await session.execute(
             select(MerchantMapping).where(MerchantMapping.family_id == user.family_id)
@@ -273,7 +297,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             }
             for m in map_result.scalars()
         ]
-        mappings = filter_scope_items(mappings, user.role.value)
+        mappings = filter_scope_items(mappings, role)
 
         profile = profile_loader.get(user.business_type) or profile_loader.get("household")
 
@@ -292,20 +316,10 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
         prof_row = prof_result.one_or_none()
         user_timezone = prof_row[0] if prof_row else "America/New_York"
 
-        # Load membership
-        membership_result = await session.execute(
-            select(WorkspaceMembership).where(
-                WorkspaceMembership.user_id == user.id,
-                WorkspaceMembership.family_id == user.family_id,
-                WorkspaceMembership.status == "active",
-            )
-        )
-        membership = membership_result.scalar_one_or_none()
-
         return SessionContext(
             user_id=str(user.id),
             family_id=str(user.family_id),
-            role=user.role.value,
+            role=role,
             language=user.language,
             currency=family.currency,
             business_type=user.business_type,
@@ -314,8 +328,8 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             profile_config=profile,
             timezone=user_timezone,
             user_profile=_build_user_profile(prof_row),
-            membership_type=membership.membership_type.value if membership else None,
-            permissions=membership.permissions if membership else [],
+            membership_type=membership_type,
+            permissions=permissions,
         )
 
 
