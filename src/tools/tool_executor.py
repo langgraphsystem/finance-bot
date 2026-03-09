@@ -11,6 +11,7 @@ from typing import Any
 from src.core.context import SessionContext
 from src.core.observability import observe
 from src.tools.data_tools import (
+    _get_allowed_columns,
     aggregate_data,
     create_record,
     delete_record,
@@ -28,6 +29,143 @@ TOOL_FUNCTIONS = {
     "aggregate_data": aggregate_data,
 }
 
+_TABLE_ALIASES = {
+    "transaction": "transactions",
+    "transactions": "transactions",
+    "category": "categories",
+    "categories": "categories",
+    "budget": "budgets",
+    "budgets": "budgets",
+    "recurring_payment": "recurring_payments",
+    "recurring payments": "recurring_payments",
+    "recurring_payments": "recurring_payments",
+    "task": "tasks",
+    "tasks": "tasks",
+    "life_event": "life_events",
+    "life event": "life_events",
+    "life_events": "life_events",
+    "booking": "bookings",
+    "bookings": "bookings",
+    "contact": "contacts",
+    "contacts": "contacts",
+    "monitor": "monitors",
+    "monitors": "monitors",
+    "shopping_list": "shopping_lists",
+    "shopping list": "shopping_lists",
+    "shopping_lists": "shopping_lists",
+    "shopping_list_item": "shopping_list_items",
+    "shopping list item": "shopping_list_items",
+    "shopping_list_items": "shopping_list_items",
+    "document": "documents",
+    "documents": "documents",
+}
+
+_TABLE_COLUMN_ALIASES = {
+    "budgets": {"active": "is_active"},
+    "recurring_payments": {"active": "is_active"},
+}
+
+_TRANSACTION_TYPES = {"income", "expense"}
+_LIFE_EVENT_TYPES = {"note", "food", "drink", "mood", "task", "reflection"}
+
+
+def _normalize_table_name(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    key = value.strip().lower()
+    return _TABLE_ALIASES.get(key)
+
+
+def _normalize_column_name(table: str, value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    alias_map = _TABLE_COLUMN_ALIASES.get(table, {})
+    normalized = alias_map.get(value, value)
+    if normalized in _get_allowed_columns(table):
+        return normalized
+    return None
+
+
+def _normalize_create_record_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(arguments)
+
+    table = _normalize_table_name(normalized.get("table"))
+    if table:
+        normalized["table"] = table
+
+    legacy_record = normalized.pop("record", None)
+    if "data" not in normalized and isinstance(legacy_record, dict):
+        normalized["data"] = legacy_record
+
+    data = normalized.get("data")
+    if not isinstance(data, dict):
+        data = {}
+        normalized["data"] = data
+
+    legacy_type = normalized.pop("type", None)
+    if isinstance(legacy_type, str):
+        normalized_table = _normalize_table_name(legacy_type)
+        if normalized_table and "table" not in normalized:
+            normalized["table"] = normalized_table
+        elif legacy_type in _TRANSACTION_TYPES:
+            normalized.setdefault("table", "transactions")
+            data.setdefault("type", legacy_type)
+        elif legacy_type in _LIFE_EVENT_TYPES:
+            normalized.setdefault("table", "life_events")
+            data.setdefault("type", legacy_type)
+
+    return normalized
+
+
+def _normalize_query_data_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(arguments)
+
+    table = _normalize_table_name(normalized.get("table"))
+    if not table:
+        return normalized
+    normalized["table"] = table
+
+    filters = normalized.get("filters")
+    if isinstance(filters, dict):
+        cleaned_filters = {}
+        for key, value in filters.items():
+            if key in {"family_id", "user_id", "id"}:
+                cleaned_filters[key] = value
+                continue
+            normalized_key = _normalize_column_name(table, key)
+            if normalized_key:
+                cleaned_filters[normalized_key] = value
+        normalized["filters"] = cleaned_filters
+
+    columns = normalized.get("columns")
+    if isinstance(columns, list):
+        cleaned_columns = []
+        for column in columns:
+            normalized_column = _normalize_column_name(table, column)
+            if normalized_column and normalized_column not in cleaned_columns:
+                cleaned_columns.append(normalized_column)
+        if cleaned_columns:
+            normalized["columns"] = cleaned_columns
+        else:
+            normalized.pop("columns", None)
+
+    order_by = normalized.get("order_by")
+    normalized_order_by = _normalize_column_name(table, order_by)
+    if normalized_order_by:
+        normalized["order_by"] = normalized_order_by
+    else:
+        normalized.pop("order_by", None)
+
+    return normalized
+
+
+def _normalize_tool_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    if tool_name == "create_record":
+        return _normalize_create_record_arguments(arguments)
+    if tool_name == "query_data":
+        return _normalize_query_data_arguments(arguments)
+    return dict(arguments)
+
 
 @observe(name="tool_execute")
 async def execute_tool_call(
@@ -39,6 +177,8 @@ async def execute_tool_call(
     func = TOOL_FUNCTIONS.get(tool_name)
     if not func:
         return {"error": f"Unknown tool: {tool_name}"}
+
+    arguments = _normalize_tool_arguments(tool_name, arguments)
 
     # Inject security context — LLM cannot override
     arguments["family_id"] = context.family_id
