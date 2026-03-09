@@ -7,6 +7,7 @@ to `{user_id}:{domain}` for namespace isolation.
 from __future__ import annotations
 
 import logging
+import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -69,6 +70,43 @@ try:
 except ImportError:
     pass
 # ------------------------------------------------------------------
+
+
+def _read_only_mem0_user_id(setup_module: Any) -> str:
+    """Return the local Mem0 telemetry user id without writing to pgvector."""
+    get_user_id = getattr(setup_module, "get_user_id", None)
+    if callable(get_user_id):
+        try:
+            return str(get_user_id())
+        except Exception:
+            return "anonymous_user"
+    return "anonymous_user"
+
+
+def _disable_mem0_telemetry() -> None:
+    """Disable Mem0 telemetry writes that populate the mem0migrations collection."""
+    os.environ.setdefault("MEM0_TELEMETRY", "False")
+
+    try:
+        import mem0.memory.main as _mem0_main
+        import mem0.memory.setup as _mem0_setup
+        import mem0.memory.telemetry as _mem0_telemetry
+    except Exception:
+        return
+
+    def _patched_get_or_create_user_id(vector_store: Any) -> str:  # noqa: ARG001
+        return _read_only_mem0_user_id(_mem0_setup)
+
+    def _noop_capture_event(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    _mem0_setup.get_or_create_user_id = _patched_get_or_create_user_id
+    _mem0_telemetry.get_or_create_user_id = _patched_get_or_create_user_id
+    _mem0_telemetry.capture_event = _noop_capture_event
+    _mem0_main.capture_event = _noop_capture_event
+
+
+_disable_mem0_telemetry()
 
 from mem0 import Memory  # noqa: E402
 

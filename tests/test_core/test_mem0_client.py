@@ -119,3 +119,19 @@ def test_all_namespace_user_ids_include_legacy_and_scoped_namespaces():
     assert len(namespaces) == len(MemoryDomain) + 1
     assert "u1:core" in namespaces
     assert "u1:life" in namespaces
+
+
+def test_read_only_mem0_user_id_does_not_write():
+    from src.core.memory.mem0_client import _read_only_mem0_user_id
+
+    setup = types.SimpleNamespace(get_user_id=lambda: "mem0-user")
+
+    assert _read_only_mem0_user_id(setup) == "mem0-user"
+
+
+def test_read_only_mem0_user_id_falls_back_to_anonymous():
+    from src.core.memory.mem0_client import _read_only_mem0_user_id
+
+    setup = types.SimpleNamespace(get_user_id=lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+
+    assert _read_only_mem0_user_id(setup) == "anonymous_user"
