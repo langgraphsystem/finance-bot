@@ -6,6 +6,14 @@ and has relevant context for that project.
 """
 
 import logging
+import uuid
+
+from sqlalchemy import select
+
+from src.core.db import async_session
+from src.core.models.enums import ProjectStatus
+from src.core.models.user_context import UserContext
+from src.core.models.user_project import UserProject
 
 logger = logging.getLogger(__name__)
 
@@ -16,30 +24,38 @@ async def get_active_project_block(user_id: str) -> str:
     Includes project metadata + project-specific Mem0 facts (up to 5).
     Returns empty string if no active project.
     """
-    from sqlalchemy import select
-
-    from src.core.db import async_session
-    from src.core.models.user_context import UserContext
-    from src.core.models.user_project import UserProject
-
     try:
+        user_uuid = uuid.UUID(str(user_id))
         async with async_session() as session:
             # Get active project id from user context
             ctx_result = await session.execute(
                 select(UserContext.active_project_id).where(
-                    UserContext.user_id == user_id
+                    UserContext.user_id == user_uuid
                 )
             )
             active_project_id = ctx_result.scalar_one_or_none()
 
-            if not active_project_id:
-                return ""
+            project = None
+            if active_project_id:
+                proj_result = await session.execute(
+                    select(UserProject).where(
+                        UserProject.id == active_project_id,
+                        UserProject.user_id == user_uuid,
+                    )
+                )
+                project = proj_result.scalar_one_or_none()
 
-            # Load project details
-            proj_result = await session.execute(
-                select(UserProject).where(UserProject.id == active_project_id)
-            )
-            project = proj_result.scalar_one_or_none()
+            if not project:
+                fallback_result = await session.execute(
+                    select(UserProject)
+                    .where(
+                        UserProject.user_id == user_uuid,
+                        UserProject.status.in_([ProjectStatus.active, ProjectStatus.paused]),
+                    )
+                    .order_by(UserProject.updated_at.desc())
+                    .limit(1)
+                )
+                project = fallback_result.scalar_one_or_none()
 
             if not project:
                 return ""
@@ -80,11 +96,12 @@ async def _load_project_facts(user_id: str, project_name: str) -> list[str]:
 def _format_project_block(
     name: str,
     description: str | None,
-    status: str,
+    status: str | object,
     facts: list[str] | None = None,
 ) -> str:
     """Format project info + facts as an XML-tagged context block."""
-    lines = [f"Active project: {name} (status: {status})"]
+    status_text = getattr(status, "value", status)
+    lines = [f"Active project: {name} (status: {status_text})"]
     if description:
         lines.append(f"Description: {description}")
     if facts:

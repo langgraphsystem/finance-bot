@@ -294,6 +294,53 @@ def _parse_procedures(text: str) -> list[str]:
     return rules[:MAX_PROCEDURES_PER_DOMAIN]
 
 
+def _dedupe_rules(rules: list[str]) -> list[str]:
+    """Normalize and deduplicate procedure rules while preserving order."""
+    deduped: list[str] = []
+    seen: set[str] = set()
+
+    for raw_rule in rules:
+        rule = " ".join(str(raw_rule).split()).strip()
+        if not rule:
+            continue
+        key = rule.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(rule)
+
+    return deduped
+
+
+async def _load_mem0_procedures(
+    user_id: str,
+    domain: str | None = None,
+) -> list[str]:
+    """Load procedure rules persisted in the Mem0 procedures domain."""
+    try:
+        from src.core.memory.mem0_client import get_all_memories
+        from src.core.memory.mem0_domains import MemoryDomain
+
+        memories = await get_all_memories(user_id, domain=MemoryDomain.procedures)
+        rules: list[str] = []
+
+        for memory in memories:
+            metadata = memory.get("metadata") or {}
+            memory_domain = metadata.get("domain")
+            if domain and memory_domain not in {None, domain}:
+                continue
+
+            rule = metadata.get("rule") or memory.get("memory") or memory.get("text") or ""
+            if isinstance(rule, str) and rule.strip():
+                rules.append(rule.strip())
+
+        limit = MAX_PROCEDURES_PER_DOMAIN if domain else MAX_TOTAL_PROCEDURES
+        return _dedupe_rules(rules)[:limit]
+    except Exception as e:
+        logger.debug("Mem0 procedures load failed: %s", e)
+        return []
+
+
 async def get_procedures(
     user_id: str,
     domain: str | None = None,
@@ -325,17 +372,49 @@ async def get_procedures(
                 return []
 
             if domain:
-                return procedures.get(domain, [])[:MAX_PROCEDURES_PER_DOMAIN]
+                stored = procedures.get(domain, [])
+                if isinstance(stored, list) and stored:
+                    return _dedupe_rules(stored)[:MAX_PROCEDURES_PER_DOMAIN]
+                return await _load_mem0_procedures(user_id, domain=domain)
 
             # All domains
             all_rules: list[str] = []
             for d_rules in procedures.values():
                 if isinstance(d_rules, list):
                     all_rules.extend(d_rules)
-            return all_rules[:MAX_TOTAL_PROCEDURES]
+            if all_rules:
+                return _dedupe_rules(all_rules)[:MAX_TOTAL_PROCEDURES]
+            return await _load_mem0_procedures(user_id)
     except Exception as e:
         logger.debug("Procedures load failed: %s", e)
-        return []
+        return await _load_mem0_procedures(user_id, domain=domain)
+
+
+async def _sync_procedures_to_mem0(
+    user_id: str,
+    domain: str,
+    rules: list[str],
+) -> None:
+    """Persist canonical procedure rules in Mem0 for semantic retrieval/fallback."""
+    try:
+        from src.core.memory.mem0_client import add_memory
+
+        existing_rules = await _load_mem0_procedures(user_id, domain=domain)
+        existing_keys = {rule.casefold() for rule in existing_rules}
+        for rule in _dedupe_rules(rules):
+            if rule.casefold() in existing_keys:
+                continue
+            await add_memory(
+                rule,
+                user_id=user_id,
+                metadata={
+                    "category": "procedure",
+                    "domain": domain,
+                    "rule": rule,
+                },
+            )
+    except Exception as e:
+        logger.debug("Mem0 procedure sync failed: %s", e)
 
 
 async def save_procedures(
@@ -366,14 +445,16 @@ async def save_procedures(
             procedures = patterns.get("procedures", {})
             if not isinstance(procedures, dict):
                 procedures = {}
-            procedures[domain] = rules[:MAX_PROCEDURES_PER_DOMAIN]
+            canonical_rules = _dedupe_rules(rules)[:MAX_PROCEDURES_PER_DOMAIN]
+            procedures[domain] = canonical_rules
             patterns["procedures"] = procedures
             profile.learned_patterns = patterns
             await session.commit()
             logger.debug(
                 "Saved %d procedures for user %s domain %s",
-                len(rules), user_id, domain,
+                len(canonical_rules), user_id, domain,
             )
+        await _sync_procedures_to_mem0(user_id, domain, canonical_rules)
     except Exception as e:
         logger.debug("Procedures save failed: %s", e)
 

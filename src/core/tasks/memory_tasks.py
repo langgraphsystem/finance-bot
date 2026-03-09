@@ -7,6 +7,38 @@ from src.core.tasks.broker import broker
 logger = logging.getLogger(__name__)
 
 
+def _procedure_patterns_from_profile(patterns: dict) -> list[str]:
+    """Convert learned profile signals into short strings for procedure extraction."""
+    observations = patterns.get("observations", [])
+    if isinstance(observations, list) and observations:
+        return [str(item) for item in observations if str(item).strip()]
+
+    derived: list[str] = []
+    active_topics = patterns.get("active_topics", [])
+    if isinstance(active_topics, list) and active_topics:
+        derived.append(f"Active topics: {', '.join(str(topic) for topic in active_topics)}")
+
+    observation_patterns = patterns.get("observation_patterns", {})
+    if isinstance(observation_patterns, dict):
+        peak_hours = observation_patterns.get("peak_hours", [])
+        peak_days = observation_patterns.get("peak_days", [])
+        if peak_hours:
+            derived.append(f"Peak hours: {', '.join(str(hour) for hour in peak_hours)}")
+        if peak_days:
+            derived.append(f"Peak days: {', '.join(str(day) for day in peak_days)}")
+
+    personality = patterns.get("personality", {})
+    if isinstance(personality, dict):
+        verbosity = personality.get("verbosity")
+        formality = personality.get("formality")
+        if verbosity:
+            derived.append(f"Verbosity: {verbosity}")
+        if formality:
+            derived.append(f"Formality: {formality}")
+
+    return derived
+
+
 @broker.task
 async def async_mem0_update(user_id: str, message: str, metadata: dict | None = None) -> None:
     """Background: extract and store facts in Mem0.
@@ -144,7 +176,7 @@ async def async_procedural_update() -> None:
             if not corrections:
                 continue
 
-            observations = patterns.get("observations", [])
+            observations = _procedure_patterns_from_profile(patterns)
             uid = str(user_id)
 
             # Group corrections by domain

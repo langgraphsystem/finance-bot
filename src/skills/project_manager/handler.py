@@ -235,17 +235,38 @@ class ProjectManagerSkill(BaseSkill):
 
 async def _set_active_project(user_id: uuid.UUID, project_id: uuid.UUID) -> None:
     """Update UserContext to set the active project."""
-    from sqlalchemy import update
+    from sqlalchemy import select
 
     from src.core.db import async_session
     from src.core.models.user_context import UserContext
+    from src.core.models.user_project import UserProject
 
     async with async_session() as session:
-        await session.execute(
-            update(UserContext)
-            .where(UserContext.user_id == user_id)
-            .values(active_project_id=project_id)
+        project_result = await session.execute(
+            select(UserProject.family_id).where(
+                UserProject.id == project_id,
+                UserProject.user_id == user_id,
+            )
         )
+        family_id = project_result.scalar_one_or_none()
+        if not family_id:
+            return
+
+        ctx_result = await session.execute(
+            select(UserContext).where(UserContext.user_id == user_id)
+        )
+        user_context = ctx_result.scalar_one_or_none()
+
+        if user_context:
+            user_context.active_project_id = project_id
+        else:
+            session.add(
+                UserContext(
+                    user_id=user_id,
+                    family_id=family_id,
+                    active_project_id=project_id,
+                )
+            )
         await session.commit()
 
 
@@ -330,6 +351,7 @@ async def handle_project_callback(callback_data: str, user_id: uuid.UUID, langua
             await session.commit()
 
         await _set_active_project(user_id, project_id)
+        await _mem0_save_project(str(user_id), project_name)
         return _msg("created", language, name=project_name)
 
     return _msg("error", language)

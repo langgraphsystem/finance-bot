@@ -323,10 +323,35 @@ class TestGetSaveProcedures:
         mock_ctx, _ = _mock_db_session({"personality": {}})
 
         uid = "00000000-0000-0000-0000-000000000001"
-        with patch("src.core.db.async_session", return_value=mock_ctx):
+        with (
+            patch("src.core.db.async_session", return_value=mock_ctx),
+            patch(
+                "src.core.memory.procedural._load_mem0_procedures",
+                new_callable=AsyncMock,
+                return_value=[],
+            ) as mock_mem0,
+        ):
             result = await get_procedures(uid)
 
         assert result == []
+        mock_mem0.assert_called_once_with(uid)
+
+    async def test_get_falls_back_to_mem0(self):
+        mock_ctx, _ = _mock_db_session({"personality": {}})
+
+        uid = "00000000-0000-0000-0000-000000000001"
+        with (
+            patch("src.core.db.async_session", return_value=mock_ctx),
+            patch(
+                "src.core.memory.procedural._load_mem0_procedures",
+                new_callable=AsyncMock,
+                return_value=["mem0 rule"],
+            ) as mock_mem0,
+        ):
+            result = await get_procedures(uid, domain="finance")
+
+        assert result == ["mem0 rule"]
+        mock_mem0.assert_called_once_with(uid, domain="finance")
 
     async def test_get_db_failure(self):
         mock_ctx = AsyncMock()
@@ -344,12 +369,19 @@ class TestGetSaveProcedures:
         mock_ctx, mock_session = _mock_db_session(mock_profile)
 
         uid = "00000000-0000-0000-0000-000000000001"
-        with patch("src.core.db.async_session", return_value=mock_ctx):
+        with (
+            patch("src.core.db.async_session", return_value=mock_ctx),
+            patch(
+                "src.core.memory.procedural._sync_procedures_to_mem0",
+                new_callable=AsyncMock,
+            ) as mock_sync,
+        ):
             await save_procedures(uid, "finance", ["rule1", "rule2"])
 
         procedures = mock_profile.learned_patterns["procedures"]
         assert procedures["finance"] == ["rule1", "rule2"]
         mock_session.commit.assert_called_once()
+        mock_sync.assert_called_once_with(uid, "finance", ["rule1", "rule2"])
 
     async def test_save_no_profile(self):
         mock_ctx, mock_session = _mock_db_session(None)
@@ -368,12 +400,44 @@ class TestGetSaveProcedures:
         mock_ctx, _ = _mock_db_session(mock_profile)
 
         uid = "00000000-0000-0000-0000-000000000001"
-        with patch("src.core.db.async_session", return_value=mock_ctx):
+        with (
+            patch("src.core.db.async_session", return_value=mock_ctx),
+            patch(
+                "src.core.memory.procedural._sync_procedures_to_mem0",
+                new_callable=AsyncMock,
+            ),
+        ):
             await save_procedures(uid, "finance", ["new_rule"])
 
         procedures = mock_profile.learned_patterns["procedures"]
         assert procedures["writing"] == ["old_rule"]
         assert procedures["finance"] == ["new_rule"]
+
+    async def test_sync_to_mem0_saves_only_missing_rules(self):
+        from src.core.memory.procedural import _sync_procedures_to_mem0
+
+        with (
+            patch(
+                "src.core.memory.procedural._load_mem0_procedures",
+                new_callable=AsyncMock,
+                return_value=["existing rule"],
+            ),
+            patch(
+                "src.core.memory.mem0_client.add_memory",
+                new_callable=AsyncMock,
+            ) as mock_add_memory,
+        ):
+            await _sync_procedures_to_mem0(
+                "uid",
+                "finance",
+                ["existing rule", "new rule", "new rule"],
+            )
+
+        mock_add_memory.assert_awaited_once()
+        _, kwargs = mock_add_memory.await_args
+        assert kwargs["user_id"] == "uid"
+        assert kwargs["metadata"]["category"] == "procedure"
+        assert kwargs["metadata"]["domain"] == "finance"
 
 
 # ---------------------------------------------------------------------------
@@ -514,3 +578,49 @@ class TestWeeklyCron:
             await async_procedural_update.original_func()
 
         mock_extract.assert_not_called()
+
+    async def test_cron_uses_profile_patterns_when_observations_missing(self):
+        from src.core.tasks.memory_tasks import async_procedural_update
+
+        mock_user_data = [
+            (
+                MagicMock(),
+                {
+                    "corrections": [
+                        {"intent": "i1", "domain": "finance", "original": "a", "corrected": "b"},
+                        {"intent": "i2", "domain": "finance", "original": "c", "corrected": "d"},
+                    ],
+                    "active_topics": ["finance"],
+                    "observation_patterns": {"peak_hours": [9, 10], "peak_days": ["Monday"]},
+                    "personality": {"verbosity": "concise"},
+                },
+            )
+        ]
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.all.return_value = mock_user_data
+        mock_session.execute.return_value = mock_result
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch("src.core.db.async_session", return_value=mock_ctx),
+            patch(
+                "src.core.memory.procedural.extract_procedures",
+                new_callable=AsyncMock,
+                return_value=["КОГДА X, ТОГДА Y"],
+            ) as mock_extract,
+            patch(
+                "src.core.memory.procedural.save_procedures",
+                new_callable=AsyncMock,
+            ),
+        ):
+            await async_procedural_update.original_func()
+
+        assert mock_extract.await_count == 1
+        _, args, kwargs = mock_extract.mock_calls[0]
+        assert args[0] == "finance"
+        assert "Active topics: finance" in args[2]
