@@ -40,9 +40,15 @@ async def test_add_contact_with_name():
     mock_session.commit = AsyncMock()
     mock_session.add = MagicMock()
 
-    with patch(
-        "src.skills.add_contact.handler.async_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "src.skills.add_contact.handler.async_session",
+            return_value=mock_session,
+        ),
+        patch(
+            "src.core.memory.graph_memory.add_relationship",
+            new_callable=AsyncMock,
+        ) as mock_graph,
     ):
         result = await skill.execute(
             msg, ctx, {"contact_name": "John Smith", "contact_phone": "917-555-1234"}
@@ -50,6 +56,41 @@ async def test_add_contact_with_name():
 
     assert "John Smith" in result.response_text
     mock_session.add.assert_called_once()
+    assert mock_graph.await_count == 1
+
+
+async def test_add_contact_with_company_writes_two_edges():
+    skill = AddContactSkill()
+    ctx = _make_context()
+    msg = _make_message()
+
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_session.commit = AsyncMock()
+    mock_session.add = MagicMock()
+
+    with (
+        patch(
+            "src.skills.add_contact.handler.async_session",
+            return_value=mock_session,
+        ),
+        patch(
+            "src.core.memory.graph_memory.add_relationship",
+            new_callable=AsyncMock,
+        ) as mock_graph,
+    ):
+        await skill.execute(
+            msg,
+            ctx,
+            {
+                "contact_name": "John Smith",
+                "contact_phone": "917-555-1234",
+                "contact_company": "Acme",
+            },
+        )
+
+    assert mock_graph.await_count == 2
 
 
 async def test_add_contact_no_name():

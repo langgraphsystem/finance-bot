@@ -42,15 +42,67 @@ async def test_create_booking_with_title():
     mock_session.commit = AsyncMock()
     mock_session.add = MagicMock()
 
-    with patch(
-        "src.skills.create_booking.handler.async_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "src.skills.create_booking.handler.async_session",
+            return_value=mock_session,
+        ),
+        patch(
+            "src.core.memory.graph_memory.add_relationship",
+            new_callable=AsyncMock,
+        ) as mock_graph,
     ):
         result = await skill.execute(
             msg, ctx, {"booking_title": "faucet repair", "contact_name": ""}
         )
 
     assert "faucet repair" in result.response_text.lower()
+    mock_graph.assert_not_called()
+
+
+async def test_create_booking_with_contact_writes_graph_edges():
+    skill = CreateBookingSkill()
+    ctx = _make_context()
+    msg = _make_message("haircut for John")
+
+    mock_contact = MagicMock()
+    mock_contact.id = uuid.uuid4()
+
+    lookup_session = AsyncMock()
+    lookup_session.__aenter__ = AsyncMock(return_value=lookup_session)
+    lookup_session.__aexit__ = AsyncMock(return_value=False)
+    lookup_result = MagicMock()
+    lookup_result.scalar_one_or_none.return_value = mock_contact
+    lookup_session.execute = AsyncMock(return_value=lookup_result)
+
+    write_session = AsyncMock()
+    write_session.__aenter__ = AsyncMock(return_value=write_session)
+    write_session.__aexit__ = AsyncMock(return_value=False)
+    write_session.commit = AsyncMock()
+    write_session.add = MagicMock()
+
+    with (
+        patch(
+            "src.skills.create_booking.handler.async_session",
+            side_effect=[lookup_session, write_session],
+        ),
+        patch(
+            "src.core.memory.graph_memory.add_relationship",
+            new_callable=AsyncMock,
+        ) as mock_graph,
+    ):
+        result = await skill.execute(
+            msg,
+            ctx,
+            {
+                "booking_title": "haircut",
+                "contact_name": "John",
+                "booking_service_type": "Haircut",
+            },
+        )
+
+    assert "haircut" in result.response_text.lower()
+    assert mock_graph.await_count == 2
 
 
 async def test_create_booking_no_title():

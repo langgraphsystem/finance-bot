@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.core.memory.graph_memory import (
+    CONTACT_ROLE_RELATION_MAP,
     ENTITY_TYPES,
     GRAPH_INTENTS,
     MAX_RELATIONSHIPS,
@@ -11,6 +12,7 @@ from src.core.memory.graph_memory import (
     format_graph_block,
     get_entity_network,
     get_relationships,
+    relation_for_contact_role,
     strengthen_relationship,
 )
 
@@ -20,6 +22,7 @@ _SENTINEL = object()
 def _mock_db_session(scalars_result=None, scalar_one=_SENTINEL):
     """Helper: build async context manager mock for DB session."""
     mock_session = AsyncMock()
+    mock_session.add = MagicMock()
     mock_result = MagicMock()
 
     if scalars_result is not None:
@@ -55,10 +58,17 @@ class TestConstants:
         assert "send_email" in GRAPH_INTENTS
         assert "create_booking" in GRAPH_INTENTS
         assert "find_contact" in GRAPH_INTENTS
+        assert "list_contacts" in GRAPH_INTENTS
         assert "morning_brief" in GRAPH_INTENTS
 
     def test_max_relationships(self):
         assert MAX_RELATIONSHIPS == 20
+
+    def test_contact_role_relation_map(self):
+        assert CONTACT_ROLE_RELATION_MAP["family"] == "family_member"
+        assert relation_for_contact_role("partner") == "colleague"
+        assert relation_for_contact_role("client") == "related_to"
+        assert relation_for_contact_role(None) == "related_to"
 
 
 # ---------------------------------------------------------------------------

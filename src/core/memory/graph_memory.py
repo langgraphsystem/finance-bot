@@ -49,6 +49,16 @@ ENTITY_TYPES: frozenset[str] = frozenset({
     "contact",
 })
 
+CONTACT_ROLE_RELATION_MAP: dict[str, str] = {
+    "family": "family_member",
+    "partner": "colleague",
+    "friend": "related_to",
+    "client": "related_to",
+    "vendor": "related_to",
+    "doctor": "related_to",
+    "other": "related_to",
+}
+
 # Intents that benefit from graph context
 GRAPH_INTENTS: frozenset[str] = frozenset({
     "send_email",
@@ -57,12 +67,20 @@ GRAPH_INTENTS: frozenset[str] = frozenset({
     "create_booking",
     "list_bookings",
     "add_contact",
+    "list_contacts",
     "find_contact",
     "send_to_client",
     "receptionist",
     "create_event",
     "morning_brief",
 })
+
+
+def relation_for_contact_role(role: str | None) -> str:
+    """Map a contact role to the graph relation used from the user node."""
+    if not role:
+        return "related_to"
+    return CONTACT_ROLE_RELATION_MAP.get(str(role), "related_to")
 
 
 @observe(name="add_relationship")

@@ -147,6 +147,32 @@ class CreateBookingSkill:
             session.add(booking)
             await session.commit()
 
+        if contact_id:
+            try:
+                from src.core.memory.graph_memory import add_relationship
+
+                booking_title = service_type or title
+                await add_relationship(
+                    context.family_id,
+                    subject_type="person",
+                    subject_id=context.user_id,
+                    relation="related_to",
+                    object_type="contact",
+                    object_id=str(contact_id),
+                    metadata={"name": contact_name, "source": "booking"},
+                )
+                await add_relationship(
+                    context.family_id,
+                    subject_type="contact",
+                    subject_id=str(contact_id),
+                    relation="prefers",
+                    object_type="service",
+                    object_id=booking_title,
+                    metadata={"source": "booking"},
+                )
+            except Exception as e:
+                logger.debug("Booking graph write failed: %s", e)
+
         time_str = fmt_date(start, lang)
         parts = [
             t(_STRINGS, "booked", lang, title=title),

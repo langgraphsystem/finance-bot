@@ -84,6 +84,25 @@ class SendToClientSkill:
         if not contact.phone:
             return SkillResult(response_text=f"{contact.name} has no phone number on file.")
 
+        try:
+            from src.core.memory.graph_memory import add_relationship, relation_for_contact_role
+
+            await add_relationship(
+                context.family_id,
+                subject_type="person",
+                subject_id=context.user_id,
+                relation=relation_for_contact_role(getattr(contact.role, "value", contact.role)),
+                object_type="contact",
+                object_id=str(contact.id),
+                metadata={
+                    "role": getattr(contact.role, "value", contact.role) or "other",
+                    "name": contact.name,
+                    "channel": "phone",
+                },
+            )
+        except Exception as e:
+            logger.debug("Send-to-client graph write failed: %s", e)
+
         # Present confirmation with send button
         preview = (
             f"<b>Send to {contact.name}:</b>\n"

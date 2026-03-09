@@ -68,6 +68,7 @@ async def test_send_to_client_with_contact():
     mock_contact.id = uuid.uuid4()
     mock_contact.name = "John Smith"
     mock_contact.phone = "917-555-1234"
+    mock_contact.role = MagicMock(value="client")
 
     mock_session = AsyncMock()
     mock_session.__aenter__ = AsyncMock(return_value=mock_session)
@@ -78,9 +79,15 @@ async def test_send_to_client_with_contact():
     mock_result.scalars.return_value = mock_scalars
     mock_session.execute = AsyncMock(return_value=mock_result)
 
-    with patch(
-        "src.skills.send_to_client.handler.async_session",
-        return_value=mock_session,
+    with (
+        patch(
+            "src.skills.send_to_client.handler.async_session",
+            return_value=mock_session,
+        ),
+        patch(
+            "src.core.memory.graph_memory.add_relationship",
+            new_callable=AsyncMock,
+        ) as mock_graph,
     ):
         result = await skill.execute(
             msg, ctx, {"contact_name": "John", "description": "I'm running late"}
@@ -89,6 +96,7 @@ async def test_send_to_client_with_contact():
     assert "John Smith" in result.response_text
     assert result.buttons is not None
     assert len(result.buttons) == 3  # SMS, Call, Cancel
+    mock_graph.assert_awaited_once()
 
 
 async def test_send_to_client_system_prompt():

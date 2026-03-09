@@ -63,6 +63,41 @@ class AddContactSkill:
             session.add(contact)
             await session.commit()
 
+        try:
+            from src.core.memory.graph_memory import add_relationship, relation_for_contact_role
+
+            contact_id = str(contact.id)
+            role_value = role.value
+
+            await add_relationship(
+                context.family_id,
+                subject_type="person",
+                subject_id=context.user_id,
+                relation=relation_for_contact_role(role_value),
+                object_type="contact",
+                object_id=contact_id,
+                metadata={"role": role_value, "name": name},
+            )
+        except Exception as e:
+            logger.debug("Primary contact graph write failed: %s", e)
+
+        company = intent_data.get("contact_company")
+        if company:
+            try:
+                from src.core.memory.graph_memory import add_relationship
+
+                await add_relationship(
+                    context.family_id,
+                    subject_type="contact",
+                    subject_id=str(contact.id),
+                    relation="works_at",
+                    object_type="company",
+                    object_id=str(company).strip(),
+                    metadata={"name": name},
+                )
+            except Exception as e:
+                logger.debug("Contact company graph write failed: %s", e)
+
         parts = [f"Added contact: <b>{name}</b>"]
         if phone:
             parts.append(f"Phone: {phone}")
