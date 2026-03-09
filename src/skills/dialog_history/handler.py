@@ -5,6 +5,7 @@ Handles: "о чём мы говорили вчера?", "what did we discuss las
 """
 
 import logging
+import uuid
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -25,6 +26,7 @@ class DialogHistorySkill(BaseSkill):
         from sqlalchemy import select
 
         from src.core.db import async_session
+        from src.core.models.conversation import ConversationMessage
         from src.core.models.session_summary import SessionSummary
 
         text = message.text or ""
@@ -32,35 +34,47 @@ class DialogHistorySkill(BaseSkill):
 
         period = _detect_period(text)
         start_at, end_at = _period_bounds(period, getattr(context, "timezone", None))
+        user_id = uuid.UUID(str(context.user_id))
 
         try:
             async with async_session() as session:
                 query = (
                     select(SessionSummary)
                     .where(
-                        SessionSummary.user_id == context.user_id,
-                        SessionSummary.created_at >= start_at,
+                        SessionSummary.user_id == user_id,
+                        SessionSummary.updated_at >= start_at,
                     )
-                    .order_by(SessionSummary.created_at.desc())
+                    .order_by(SessionSummary.updated_at.desc())
                     .limit(10)
                 )
                 if end_at is not None:
-                    query = query.where(SessionSummary.created_at < end_at)
-                result = await session.execute(query)
-                summaries = result.scalars().all()
+                    query = query.where(SessionSummary.updated_at < end_at)
+                summary_result = await session.execute(query)
+                summaries = summary_result.scalars().all()
 
-            if not summaries:
+                if summaries:
+                    return SkillResult(
+                        response_text=_format_summaries(period, language, summaries)
+                    )
+
+                message_query = (
+                    select(ConversationMessage)
+                    .where(
+                        ConversationMessage.user_id == user_id,
+                        ConversationMessage.created_at >= start_at,
+                    )
+                    .order_by(ConversationMessage.created_at.asc())
+                    .limit(24)
+                )
+                if end_at is not None:
+                    message_query = message_query.where(ConversationMessage.created_at < end_at)
+                msg_result = await session.execute(message_query)
+                messages = msg_result.scalars().all()
+
+            if not messages:
                 return SkillResult(response_text=_no_history_msg(period, language))
 
-            lines: list[str] = []
-            for summary in summaries:
-                dt = summary.created_at.strftime("%d.%m %H:%M") if summary.created_at else "?"
-                summary_text = (summary.summary or "")[:200]
-                lines.append(f"<b>{dt}</b>: {summary_text}")
-
-            header = _header_msg(period, language)
-            body = "\n\n".join(lines)
-            return SkillResult(response_text=f"{header}\n\n{body}")
+            return SkillResult(response_text=_format_messages(period, language, messages))
 
         except Exception as exc:
             logger.error("Dialog history search failed: %s", exc)
@@ -71,6 +85,37 @@ class DialogHistorySkill(BaseSkill):
                     else "Не удалось найти историю диалогов."
                 ),
             )
+
+
+def _format_summaries(period: str, language: str, summaries) -> str:  # noqa: ANN001
+    header = _header_msg(period, language)
+    lines: list[str] = []
+    for summary in summaries:
+        dt_value = summary.updated_at or summary.created_at
+        dt = dt_value.strftime("%d.%m %H:%M") if dt_value else "?"
+        summary_text = (summary.summary or "")[:200]
+        lines.append(f"<b>{dt}</b>: {summary_text}")
+    body = "\n\n".join(lines)
+    return f"{header}\n\n{body}"
+
+
+def _format_messages(period: str, language: str, messages) -> str:  # noqa: ANN001
+    header = _header_msg(period, language)
+    is_ru = language and language.startswith("ru")
+    user_label = "Вы" if is_ru else "You"
+    assistant_label = "Бот" if is_ru else "Bot"
+
+    lines: list[str] = []
+    for item in messages[-12:]:
+        dt = item.created_at.strftime("%d.%m %H:%M") if item.created_at else "?"
+        role_value = getattr(item.role, "value", str(item.role))
+        label = user_label if role_value == "user" else assistant_label
+        content = (item.content or "").strip().replace("\n", " ")
+        if len(content) > 140:
+            content = f"{content[:137]}..."
+        lines.append(f"<b>{dt}</b> {label}: {content}")
+
+    return f"{header}\n\n" + "\n".join(lines)
 
 
 

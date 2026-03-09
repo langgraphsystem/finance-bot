@@ -35,6 +35,15 @@ from src.skills.dialog_history.handler import (  # noqa: E402
 )
 
 
+def _make_message(role: str, content: str) -> MagicMock:
+    msg = MagicMock()
+    msg.role = MagicMock()
+    msg.role.value = role
+    msg.content = content
+    msg.created_at = datetime.now(UTC)
+    return msg
+
+
 @pytest.fixture
 def ctx():
     return SessionContext(
@@ -114,6 +123,7 @@ class TestDialogHistorySkill:
         mock_summary = MagicMock()
         mock_summary.summary = "Обсуждали бюджет на аренду и расходы на кофе"
         mock_summary.created_at = datetime.now(UTC)
+        mock_summary.updated_at = datetime.now(UTC)
 
         mock_session = AsyncMock()
         mock_result = MagicMock()
@@ -129,6 +139,32 @@ class TestDialogHistorySkill:
 
         assert result.response_text
         assert "Обсуждали бюджет" in result.response_text
+
+    async def test_uses_updated_at_for_summary_period_filter(self, ctx, message):
+        from unittest.mock import patch
+
+        mock_summary = MagicMock()
+        mock_summary.summary = "Свежая сводка за сегодня"
+        mock_summary.created_at = datetime.now(UTC) - timedelta(days=10)
+        mock_summary.updated_at = datetime.now(UTC)
+
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = [mock_summary]
+        mock_session.execute.return_value = mock_result
+
+        mock_ctx_mgr = AsyncMock()
+        mock_ctx_mgr.__aenter__.return_value = mock_session
+        mock_ctx_mgr.__aexit__.return_value = False
+
+        with patch("src.core.db.async_session", return_value=mock_ctx_mgr):
+            await skill.execute(message, ctx)
+
+        query = mock_session.execute.await_args.args[0]
+        compiled = str(query)
+
+        assert "updated_at >=" in compiled
+        assert "ORDER BY session_summaries.updated_at DESC" in compiled
 
     async def test_yesterday_uses_exclusive_upper_bound(self, ctx):
         from unittest.mock import patch
@@ -159,6 +195,33 @@ class TestDialogHistorySkill:
             or "yesterday" in result.response_text.lower()
         )
 
+    async def test_falls_back_to_conversation_messages(self, ctx):
+        from unittest.mock import patch
+
+        user_msg = _make_message("user", "Мы обсуждали бюджет на еду")
+        bot_msg = _make_message("assistant", "Я предложила лимит 400 долларов")
+
+        mock_summary_result = MagicMock()
+        mock_summary_result.scalars.return_value.all.return_value = []
+        mock_message_result = MagicMock()
+        mock_message_result.scalars.return_value.all.return_value = [user_msg, bot_msg]
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(side_effect=[mock_summary_result, mock_message_result])
+
+        mock_ctx_mgr = AsyncMock()
+        mock_ctx_mgr.__aenter__.return_value = mock_session
+        mock_ctx_mgr.__aexit__.return_value = False
+
+        msg = MagicMock()
+        msg.text = "о чём мы говорили сегодня?"
+
+        with patch("src.core.db.async_session", return_value=mock_ctx_mgr):
+            result = await skill.execute(msg, ctx)
+
+        assert "Мы обсуждали бюджет" in result.response_text
+        assert "Я предложила лимит" in result.response_text
+
     async def test_returns_error_on_db_failure(self, ctx, message):
         from unittest.mock import patch
 
@@ -177,6 +240,7 @@ class TestDialogHistorySkill:
         mock_summary = MagicMock()
         mock_summary.summary = "A" * 500
         mock_summary.created_at = datetime.now(UTC)
+        mock_summary.updated_at = datetime.now(UTC)
 
         mock_session = AsyncMock()
         mock_result = MagicMock()
