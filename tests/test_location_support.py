@@ -154,7 +154,14 @@ async def test_save_user_city_updates_profile():
     mock_session.execute = AsyncMock(return_value=mock_result)
     mock_session.commit = AsyncMock()
 
-    with patch("src.core.router.async_session", return_value=mock_session):
+    with (
+        patch("src.core.router.async_session", return_value=mock_session),
+        patch(
+            "src.core.router._timezone_from_city",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
+    ):
         await _save_user_city(user_id, "Brooklyn")
 
     mock_session.execute.assert_awaited_once()
@@ -177,6 +184,11 @@ async def test_save_user_city_no_profile_logs_warning():
 
     with (
         patch("src.core.router.async_session", return_value=mock_session),
+        patch(
+            "src.core.router._timezone_from_city",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
         patch("src.core.router.logger") as mock_logger,
     ):
         await _save_user_city(user_id, "Brooklyn")
@@ -192,6 +204,11 @@ async def test_save_user_city_handles_db_error():
 
     with (
         patch("src.core.router.async_session", return_value=mock_session),
+        patch(
+            "src.core.router._timezone_from_city",
+            new_callable=AsyncMock,
+            return_value=None,
+        ),
         patch("src.core.router.logger") as mock_logger,
     ):
         await _save_user_city(str(uuid.uuid4()), "Brooklyn")
