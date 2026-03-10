@@ -41,7 +41,11 @@ class SessionContext:
     # Multi-channel support (Phase 1+)
     channel: str = "telegram"
     channel_user_id: str | None = None
-    timezone: str = "America/New_York"
+    voice_auth_state: str = "none"
+    voice_contact_id: str | None = None
+    voice_contact_name: str | None = None
+    voice_phone_number: str | None = None
+    timezone: str = "UTC"
     active_domain: str | None = None
     user_profile: dict[str, Any] = field(default_factory=dict)
 

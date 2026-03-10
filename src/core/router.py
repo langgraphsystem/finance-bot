@@ -1673,6 +1673,11 @@ async def _execute_pending_action(
                 await gdpr.delete_user_data(session, context.user_id)
             result_text = "Все ваши данные удалены. Для нового старта отправьте /start"
 
+        elif intent == "voice_tool_execution":
+            from src.voice.tool_adapter import execute_pending_voice_tool
+
+            result_text = await execute_pending_voice_tool(action_data, context)
+
         else:
             result_text = "Неизвестное действие."
     except Exception as e:

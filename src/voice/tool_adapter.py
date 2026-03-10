@@ -12,22 +12,29 @@ from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
+from src.core.pending_actions import store_pending_action
 from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills.base import SkillResult
+from src.voice.policy import evaluate_voice_policy
 from src.voice.session_store import VoiceCallMetadata
 
 logger = logging.getLogger(__name__)
-
-ToolExecutor = Callable[[dict[str, str | bool | None]], Awaitable[dict[str, object]]]
 
 
 class VoiceToolAdapter:
     """Dispatch voice tool calls to the existing skill/backend layer."""
 
-    def __init__(self, context: SessionContext | None, metadata: VoiceCallMetadata) -> None:
+    def __init__(
+        self,
+        context: SessionContext | None,
+        metadata: VoiceCallMetadata,
+        *,
+        enforce_policy: bool = True,
+    ) -> None:
         self.context = context
         self.metadata = metadata
+        self.enforce_policy = enforce_policy
 
     async def handle_tool_call(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
         """Execute a tool call inside the existing bot runtime surface."""
@@ -40,6 +47,22 @@ class VoiceToolAdapter:
                 ),
             }
 
+        if self.enforce_policy:
+            decision = evaluate_voice_policy(self.context, self.metadata, name, arguments)
+            if decision.requires_approval:
+                return await self._request_owner_approval(
+                    tool_name=name,
+                    arguments=arguments,
+                    summary=decision.summary,
+                    fallback_message=decision.message,
+                )
+            if not decision.allow:
+                return {"ok": False, "message": decision.message}
+
+        return await self._execute_tool(name, arguments)
+
+    async def _execute_tool(self, name: str, arguments: dict[str, object]) -> dict[str, object]:
+        """Run a tool after policy checks have passed."""
         handlers: dict[str, Callable[[dict[str, object]], Awaitable[dict[str, object]]]] = {
             "receptionist": self._run_receptionist,
             "create_booking": self._run_create_booking,
@@ -60,6 +83,54 @@ class VoiceToolAdapter:
         if handler is None:
             return {"ok": False, "message": f"Unsupported voice tool: {name}"}
         return await handler(arguments)
+
+    async def _request_owner_approval(
+        self,
+        tool_name: str,
+        arguments: dict[str, object],
+        summary: str,
+        fallback_message: str,
+    ) -> dict[str, object]:
+        """Request approval in Telegram before executing a high-risk voice action."""
+        if self.context is None:
+            return {"ok": False, "message": fallback_message}
+
+        pending_id = await store_pending_action(
+            intent="voice_tool_execution",
+            user_id=self.context.user_id,
+            family_id=self.context.family_id,
+            action_data={
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "metadata": self.metadata.__dict__,
+            },
+        )
+
+        sent = await self._send_telegram_message(
+            text=summary,
+            buttons=[
+                {"text": "Confirm", "callback": f"confirm_action:{pending_id}"},
+                {"text": "Cancel", "callback": f"cancel_action:{pending_id}"},
+            ],
+        )
+
+        if not sent:
+            return {
+                "ok": False,
+                "message": (
+                    "This request needs owner approval, but Telegram delivery is not available "
+                    "right now."
+                ),
+            }
+
+        return {
+            "ok": True,
+            "approval_requested": True,
+            "message": (
+                f"{fallback_message}\n\n"
+                "I sent the approval request to Telegram."
+            ),
+        }
 
     async def _run_skill(
         self,
@@ -110,15 +181,6 @@ class VoiceToolAdapter:
         return payload
 
     async def _send_telegram_follow_up(self, result: SkillResult) -> bool:
-        owner_telegram_id = self.metadata.owner_telegram_id
-        if not owner_telegram_id:
-            return False
-
-        from api import main as api_main
-
-        if api_main.gateway is None:
-            return False
-
         buttons = []
         for button in result.buttons or []:
             callback = button.get("callback") or button.get("callback_data")
@@ -129,9 +191,29 @@ class VoiceToolAdapter:
         if not buttons:
             return False
 
+        return await self._send_telegram_message(
+            text=result.response_text,
+            buttons=buttons,
+        )
+
+    async def _send_telegram_message(
+        self,
+        text: str,
+        buttons: list[dict[str, str]],
+    ) -> bool:
+        """Send a follow-up or approval request to the owner in Telegram."""
+        owner_telegram_id = self.metadata.owner_telegram_id
+        if not owner_telegram_id:
+            return False
+
+        from api import main as api_main
+
+        if api_main.gateway is None:
+            return False
+
         await api_main.gateway.send(
             OutgoingMessage(
-                text=result.response_text,
+                text=text,
                 chat_id=owner_telegram_id,
                 buttons=buttons,
             )
@@ -408,3 +490,21 @@ class VoiceToolAdapter:
                 "event_datetime": new_start_iso,
             },
         )
+
+
+async def execute_pending_voice_tool(
+    action_data: dict[str, object],
+    context: SessionContext,
+) -> str:
+    """Execute a previously approved voice tool action from Telegram."""
+    metadata_payload = action_data.get("metadata")
+    tool_name = str(action_data.get("tool_name") or "")
+    arguments = action_data.get("arguments")
+
+    if not isinstance(metadata_payload, dict) or not isinstance(arguments, dict) or not tool_name:
+        return "Voice approval payload is invalid."
+
+    metadata = VoiceCallMetadata(**metadata_payload)
+    adapter = VoiceToolAdapter(context=context, metadata=metadata, enforce_policy=False)
+    result = await adapter.handle_tool_call(tool_name, arguments)
+    return str(result.get("message") or "Voice action completed.")

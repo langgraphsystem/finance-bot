@@ -41,42 +41,33 @@ def _build_metadata() -> VoiceCallMetadata:
 async def test_handle_tool_call_invokes_registered_skill():
     adapter = VoiceToolAdapter(context=_build_context(), metadata=_build_metadata())
     mock_skill = MagicMock()
-    mock_skill.execute = AsyncMock(return_value=SkillResult(response_text="Task created"))
+    mock_skill.execute = AsyncMock(
+        return_value=SkillResult(response_text="Business hours are 9 to 5")
+    )
     mock_registry = MagicMock()
     mock_registry.get.return_value = mock_skill
 
     with patch("src.core.router.get_registry", return_value=mock_registry):
         result = await adapter.handle_tool_call(
-            "create_task",
-            {"task_title": "Call back John", "description": "Call back John tomorrow"},
+            "receptionist",
+            {"question": "What are your business hours?", "receptionist_topic": "hours"},
         )
 
-    assert result == {"ok": True, "message": "Task created"}
+    assert result == {"ok": True, "message": "Business hours are 9 to 5"}
     message_arg = mock_skill.execute.await_args.args[0]
     assert message_arg.channel == "voice"
-    assert message_arg.text == "Call back John tomorrow"
+    assert message_arg.text == "What are your business hours?"
 
 
 async def test_handle_tool_call_sends_telegram_confirmation_for_pending_action():
     adapter = VoiceToolAdapter(context=_build_context(), metadata=_build_metadata())
-    mock_skill = MagicMock()
-    mock_skill.execute = AsyncMock(
-        return_value=SkillResult(
-            response_text="Preview event",
-            buttons=[
-                {"text": "Confirm", "callback": "confirm_action:abc123"},
-                {"text": "Cancel", "callback": "cancel_action:abc123"},
-            ],
-        )
-    )
-    mock_registry = MagicMock()
-    mock_registry.get.return_value = mock_skill
     mock_gateway = SimpleNamespace(send=AsyncMock())
 
     with (
-        patch("src.core.router.get_registry", return_value=mock_registry),
+        patch("src.voice.tool_adapter.store_pending_action", new_callable=AsyncMock) as mock_store,
         patch("api.main.gateway", mock_gateway),
     ):
+        mock_store.return_value = "abc123"
         result = await adapter.handle_tool_call(
             "create_event",
             {"event_title": "Team call", "date": "2026-03-11", "time": "10:00"},
@@ -85,6 +76,7 @@ async def test_handle_tool_call_sends_telegram_confirmation_for_pending_action()
     assert result["ok"] is True
     assert result["approval_requested"] is True
     assert "Telegram" in str(result["message"])
+    mock_store.assert_awaited_once()
     mock_gateway.send.assert_awaited_once()
     outgoing = mock_gateway.send.await_args.args[0]
     assert outgoing.chat_id == "123456"
@@ -98,3 +90,27 @@ async def test_handle_tool_call_without_bound_context_returns_error():
 
     assert result["ok"] is False
     assert "not linked" in str(result["message"])
+
+
+async def test_execute_pending_voice_tool_runs_without_policy():
+    from src.voice.tool_adapter import execute_pending_voice_tool
+
+    mock_skill = MagicMock()
+    mock_skill.execute = AsyncMock(return_value=SkillResult(response_text="Task created"))
+    mock_registry = MagicMock()
+    mock_registry.get.return_value = mock_skill
+
+    with patch("src.core.router.get_registry", return_value=mock_registry):
+        message = await execute_pending_voice_tool(
+            {
+                "tool_name": "create_task",
+                "arguments": {
+                    "task_title": "Call back John",
+                    "description": "Call back John tomorrow",
+                },
+                "metadata": _build_metadata().__dict__,
+            },
+            _build_context(),
+        )
+
+    assert message == "Task created"

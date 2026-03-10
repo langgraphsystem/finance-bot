@@ -1,5 +1,7 @@
 """Tests for binding voice calls to the existing bot context."""
 
+from types import SimpleNamespace
+
 from src.core.context import SessionContext
 from src.voice.channel_adapter import build_voice_context
 from src.voice.session_store import VoiceCallMetadata
@@ -29,11 +31,25 @@ async def test_build_voice_context_uses_owner_telegram_id():
 
     from unittest.mock import AsyncMock, patch
 
-    with patch("api.main.build_session_context", new_callable=AsyncMock) as mock_build:
+    with (
+        patch("api.main.build_session_context", new_callable=AsyncMock) as mock_build,
+        patch(
+            "src.voice.channel_adapter.resolve_caller_identity",
+            new_callable=AsyncMock,
+        ) as mock_identity,
+    ):
         mock_build.return_value = base_context
+        mock_identity.return_value = SimpleNamespace(
+            auth_state="matched_by_number",
+            contact_id="contact-1",
+            contact_name="John",
+            phone_number="+15551234567",
+        )
         context = await build_voice_context(metadata)
 
     assert context is not None
     assert context.channel == "voice"
     assert context.channel_user_id == "+15551234567"
+    assert context.voice_auth_state == "matched_by_number"
+    assert context.voice_contact_id == "contact-1"
     mock_build.assert_awaited_once_with("123456")
