@@ -1,6 +1,6 @@
 """Tests for dual-search executor (Gemini + Grok parallel search)."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -233,3 +233,59 @@ class TestDualSearchGuards:
             )
 
             assert result == "Gemini result about restaurants in Almaty"
+
+
+class TestGrokModelConfig:
+    async def test_grok_uses_configured_model(self):
+        """_grok_web_search passes model from settings to the API."""
+        mock_output_item = MagicMock()
+        mock_output_item.text = "search result"
+        mock_response = MagicMock()
+        mock_response.output = [mock_output_item]
+
+        mock_client = AsyncMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with (
+            patch("src.core.research.dual_search.settings") as mock_settings,
+            patch(
+                "src.core.llm.clients.xai_client",
+                return_value=mock_client,
+            ),
+        ):
+            mock_settings.grok_dual_search_model = (
+                "grok-4.20-experimental-beta-0304-reasoning"
+            )
+            from src.core.research.dual_search import _grok_web_search
+
+            result = await _grok_web_search("test query", "en")
+
+            call_kwargs = mock_client.responses.create.call_args
+            assert call_kwargs.kwargs["model"] == "grok-4.20-experimental-beta-0304-reasoning"
+            assert result == "search result"
+
+    async def test_grok_model_rollback(self):
+        """Rollback to old model via settings works correctly."""
+        mock_output_item = MagicMock()
+        mock_output_item.text = "rollback result"
+        mock_response = MagicMock()
+        mock_response.output = [mock_output_item]
+
+        mock_client = AsyncMock()
+        mock_client.responses.create = AsyncMock(return_value=mock_response)
+
+        with (
+            patch("src.core.research.dual_search.settings") as mock_settings,
+            patch(
+                "src.core.llm.clients.xai_client",
+                return_value=mock_client,
+            ),
+        ):
+            mock_settings.grok_dual_search_model = "grok-4-1-fast-reasoning"
+            from src.core.research.dual_search import _grok_web_search
+
+            result = await _grok_web_search("test query", "ru")
+
+            call_kwargs = mock_client.responses.create.call_args
+            assert call_kwargs.kwargs["model"] == "grok-4-1-fast-reasoning"
+            assert result == "rollback result"

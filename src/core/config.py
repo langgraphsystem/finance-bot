@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     openai_computer_use_model: str = "gpt-5.4"
     google_ai_api_key: str = ""
     xai_api_key: str = ""
+    grok_dual_search_model: str = "grok-4.20-experimental-beta-0304-reasoning"
 
     # Langfuse
     langfuse_secret_key: str = ""

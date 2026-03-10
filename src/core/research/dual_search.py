@@ -68,8 +68,11 @@ async def _grok_web_search(query: str, language: str) -> str:
     client = xai_client()
     lang_instruction = f" Respond in {language}." if language != "en" else ""
     system_msg = _GROK_SEARCH_SYSTEM + lang_instruction
+    logger.debug(
+        "grok_web_search: model=%s query_len=%d", settings.grok_dual_search_model, len(query),
+    )
     response = await client.responses.create(
-        model="grok-4-1-fast-reasoning",
+        model=settings.grok_dual_search_model,
         instructions=system_msg,
         input=[{"role": "user", "content": query}],
         tools=[{"type": "web_search"}],
@@ -79,7 +82,7 @@ async def _grok_web_search(query: str, language: str) -> str:
     for item in response.output:
         if hasattr(item, "text"):
             parts.append(item.text)
-        elif hasattr(item, "content"):
+        elif hasattr(item, "content") and item.content:
             for block in item.content:
                 if hasattr(block, "text"):
                     parts.append(block.text)
@@ -149,8 +152,8 @@ async def dual_search(
 
     elapsed = time.monotonic() - t0
     logger.info(
-        "dual_search: gemini_ok=%s grok_ok=%s elapsed=%.2fs user=%s",
-        gemini_ok, grok_ok, elapsed, trace_user_id,
+        "dual_search: gemini_ok=%s grok_ok=%s elapsed=%.2fs user=%s grok_model=%s",
+        gemini_ok, grok_ok, elapsed, trace_user_id, settings.grok_dual_search_model,
     )
 
     if gemini_ok and grok_ok:

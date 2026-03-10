@@ -83,7 +83,7 @@ Telegram/Slack/WhatsApp/SMS webhook
 - **AgentConfig** (`src/agents/config.py`): 13 agents, each with system prompt, model, skill list, and `context_config` dict (`mem`/`hist`/`sql`/`sum` — which memory layers to load).
 - **BaseSkill** protocol (`src/skills/base.py`): `name`, `intents[]`, `model`, `execute(message, context, intent_data) → SkillResult`, `get_system_prompt(context)`.
 - **SkillResult** (`src/skills/base.py`): `response_text` + optional `buttons`, `document`, `document_name`, `photo_url`, `photo_bytes`, `chart_url`, `reply_keyboard`, `background_tasks`.
-- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 93 skills registered.
+- **SkillRegistry** (`src/skills/__init__.py`): Maps intent strings to skill instances. `get(intent) → skill`. Currently 108 skills registered.
 - **DomainRouter** (`src/core/domain_router.py`): Routes intents to LangGraph orchestrators or AgentRouter. Orchestrators registered: email, brief, booking (if `ff_langgraph_booking`). Approval orchestrator invoked directly via `start_approval()`.
 
 ### Model Routing
@@ -93,11 +93,16 @@ Model assignments live in `src/core/llm/router.py` (TASK_MODEL_MAP) and `src/age
 | Model | ID | Role |
 |-------|-----|------|
 | Claude Opus 4.6 | `claude-opus-4-6` | Complex tasks |
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email, onboarding |
-| Claude Haiku 4.5 | `claude-haiku-4-5` | Guardrails, intent fallback |
+| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Analytics, reports, writing, email, onboarding, document, finance_specialist |
+| Claude Haiku 4.5 | `claude-haiku-4-5` | Guardrails, intent fallback, categorization |
 | GPT-5.2 | `gpt-5.2` | Chat, tasks, calendar, life, booking agents |
-| Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite-preview` | Intent detection (primary), OCR, research, summarization |
+| Gemini 3.1 Flash Lite | `gemini-3.1-flash-lite-preview` | Intent detection (primary), OCR, research, receipt agent |
 | Gemini 3 Pro | `gemini-3-pro-preview` | Deep reasoning, complex analysis |
+| Gemini 3.1 Flash Image | `gemini-3.1-flash-image-preview` | Image generation (primary) |
+| Gemini 3 Pro Image | `gemini-3-pro-image-preview` | Image generation (fallback) |
+| GPT-4o Mini Transcribe | `gpt-4o-mini-transcribe` | Speech-to-text (primary) |
+| Whisper 1 | `whisper-1` | Speech-to-text (fallback) |
+| Grok 4.20 Reasoning | `grok-4.20-experimental-beta-0304-reasoning` | Dual search (web search via xAI) |
 
 Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`gpt-4o`, `gemini-2.0-flash`).
 
@@ -105,18 +110,18 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 
 | Agent | Model | Skills |
 |-------|-------|--------|
-| receipt | gemini-3.1-flash-lite-preview | scan_receipt, scan_document |
-| analytics | claude-sonnet-4-6 | query_stats, complex_query, query_report |
+| receipt | gemini-3.1-flash-lite-preview | scan_receipt |
+| analytics | claude-sonnet-4-6 | query_stats, complex_query, query_report, export_excel |
 | chat | gpt-5.2 | add_expense, add_income, correct_category, undo_last, set_budget, mark_paid, add_recurring, delete_data |
 | onboarding | claude-sonnet-4-6 | onboarding, general_chat |
-| tasks | gpt-5.2 | create_task, list_tasks, set_reminder, complete_task, shopping_list_add, shopping_list_view, shopping_list_remove, shopping_list_clear |
-| research | gemini-3.1-flash-lite-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, price_check, web_action, browser_action |
+| tasks | gpt-5.2 | create_task, list_tasks, set_reminder, schedule_action, list_scheduled_actions, manage_scheduled_action, complete_task, shopping_list_add/view/remove/clear, invite_member, list_members, manage_member |
+| research | gemini-3.1-flash-lite-preview | quick_answer, web_search, compare_options, maps_search, youtube_search, video_action, price_check, web_action, browser_action |
 | writing | claude-sonnet-4-6 | draft_message, translate_text, write_post, proofread, generate_image, generate_card, generate_program, modify_program |
 | email | claude-sonnet-4-6 | read_inbox, send_email, draft_reply, follow_up_email, summarize_thread |
 | calendar | gpt-5.2 | list_events, create_event, find_free_slots, reschedule_event, morning_brief |
-| life | gpt-5.2 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor |
+| life | gpt-5.2 | quick_capture, track_food, track_drink, mood_checkin, day_plan, day_reflection, life_search, set_comm_mode, evening_recap, price_alert, news_monitor, memory_show/forget/save, set_user_rule, dialog_history, memory_update, set_project, create_project, list_projects |
 | booking | gpt-5.2 | create_booking, list_bookings, cancel_booking, reschedule_booking, add_contact, list_contacts, find_contact, send_to_client, receptionist |
-| document | claude-sonnet-4-6 | scan_document, convert_document, list_documents, search_documents, extract_table, generate_invoice_pdf, fill_template, fill_pdf_form, analyze_document, merge_documents, pdf_operations, generate_spreadsheet, compare_documents, summarize_document, generate_document, generate_presentation |
+| document | claude-sonnet-4-6 | scan_document, convert_document, list_documents, search_documents, extract_table, fill_template, fill_pdf_form, analyze_document, merge_documents, pdf_operations, generate_spreadsheet, compare_documents, summarize_document, generate_document, generate_presentation, read_sheets, write_sheets, append_sheets, create_sheets |
 | finance_specialist | claude-sonnet-4-6 | financial_summary, generate_invoice, tax_estimate, cash_flow_forecast |
 
 ### Context Assembly & Memory Layers
@@ -145,7 +150,7 @@ Never use dated suffixes (e.g., `claude-haiku-4-5-20251001`) or old model IDs (`
 
 ### Database
 
-SQLAlchemy 2.0 async with `asyncpg`. 35+ tables across 28 Alembic migrations. Models in `src/core/models/`. Sessions via `async_session()` or `rls_session(family_id)` from `src/core/db.py`. Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
+SQLAlchemy 2.0 async with `asyncpg`. 35+ tables across 28 Alembic migrations. Models in `src/core/models/`. Sessions from `src/core/db.py`: `get_session()` (sets RLS context via `set_config()` — use in skill handlers) or `async_session()` (no RLS — use for admin/system queries). Row-Level Security via PostgreSQL `set_config('app.current_family_id', ...)`. All tables have `family_id` FK for multi-tenant isolation. UUID primary keys. Run `alembic heads` before creating migrations to check for multiple heads.
 
 ### LangGraph Orchestrators
 
@@ -185,7 +190,7 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 ### Supervisor Routing & Skill Catalog
 
-`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 13 domains, 93 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
+`src/core/supervisor.py` — Hierarchical 2-level routing for scaling to 200+ skills. Level 1: keyword-based domain resolution (zero LLM cost). Level 2: scoped intent detection with only the domain's intents. Gated by `ff_supervisor_routing`. `src/core/skill_catalog.py` loads `config/skill_catalog.yaml` — 13 domains, 108 skills, with trigger keywords per domain. `detect_intent_v2()` in `src/core/intent.py` uses this for progressive skill loading (95% reduction in intent prompt size).
 
 ### Specialist Config Engine
 
@@ -193,7 +198,7 @@ Telegram is primary. Slack (`src/gateway/slack_gw.py`), WhatsApp (`src/gateway/w
 
 ### Document Agent
 
-13th agent (`src/agents/config.py`), model `claude-sonnet-4-6`, 16 skills spanning 4 phases. Skills: scan_document, convert_document (batch via Redis queue + zip), list_documents, search_documents (pg_trgm GIN indexes + pgvector hybrid via `src/core/memory/document_vectors.py`), extract_table, generate_invoice_pdf (WeasyPrint), fill_template (docxtpl/openpyxl + template library: save/list/delete), fill_pdf_form (pypdf), analyze_document (dual text/vision via Gemini), merge_documents (Redis multi-file queue), pdf_operations (split/rotate/encrypt/decrypt via pypdf), generate_spreadsheet (E2B + openpyxl fallback), compare_documents (text extraction + Claude diff), summarize_document, generate_document (contracts/NDAs via Claude + WeasyPrint), generate_presentation (E2B + python-pptx fallback). Document versioning via `version` + `parent_document_id` columns. Feature flag `ff_extended_context` gates 1M token context for heavy multi-doc analysis. Cron tasks: `cleanup_old_documents` (daily 03:00, 90-day retention, preserves templates/invoices), `generate_recurring_documents` (daily 09:00, metadata_extra scheduling).
+13th agent (`src/agents/config.py`), model `claude-sonnet-4-6`, 19 skills. Skills: scan_document, convert_document (batch via Redis queue + zip), list_documents, search_documents (pg_trgm GIN indexes + pgvector hybrid via `src/core/memory/document_vectors.py`), extract_table, fill_template (docxtpl/openpyxl + template library: save/list/delete), fill_pdf_form (pypdf), analyze_document (dual text/vision via Gemini), merge_documents (Redis multi-file queue), pdf_operations (split/rotate/encrypt/decrypt via pypdf), generate_spreadsheet (E2B + openpyxl fallback), compare_documents (text extraction + Claude diff), summarize_document, generate_document (contracts/NDAs via Claude + WeasyPrint), generate_presentation (E2B + python-pptx fallback), read_sheets, write_sheets, append_sheets, create_sheets. Document versioning via `version` + `parent_document_id` columns. Feature flag `ff_extended_context` gates 1M token context for heavy multi-doc analysis. Cron tasks: `cleanup_old_documents` (daily 03:00, 90-day retention, preserves templates/invoices), `generate_recurring_documents` (daily 09:00, metadata_extra scheduling).
 
 ### Browser Tools
 
@@ -230,6 +235,20 @@ Never use `sa.Enum(create_type=False)` in `op.create_table` — SQLAlchemy ignor
 
 ### `_SKILL_ONLY_INTENTS` — bypass data_tools
 Agents with `data_tools_enabled=True` (analytics, chat, tasks, life, booking, finance_specialist) route through LLM function calling by default. Intents listed in `_SKILL_ONLY_INTENTS` (`src/agents/base.py`) skip this and use their dedicated skill handler instead. Currently: `set_reminder`, `query_stats`, `query_report`. Add intents here when the dedicated handler has logic (period resolution, charts, PDF generation) that the generic data_tools path cannot replicate.
+
+### `get_session()` vs `async_session()` in skill handlers
+Skill handlers that INSERT/UPDATE data **must** use `get_session()` (not `async_session()`). `get_session()` is an `@asynccontextmanager` that sets PostgreSQL RLS context variables (`app.current_family_id`, `app.current_user_id`) before yielding the session. `async_session()` does NOT set RLS context — use only for admin/system queries. In tests, patch `"src.skills.<name>.handler.get_session"`.
+
+### Skill i18n pattern
+Skills with user-facing text should use a localization dict + helper:
+```python
+_STRINGS = {"en": {"key": "English text"}, "ru": {"key": "Русский текст"}, "es": {"key": "Texto"}}
+def _t(key, lang, **kwargs): return _STRINGS.get(lang, _STRINGS["en"])[key].format(**kwargs)
+```
+Currently implemented: `memory_vault` (27 strings), `track_drink` (`_DRINK_DISPLAY`), `shopping_list` (`_DEFAULT_LIST_NAMES`).
+
+### Category detection
+`src/core/categorization.py` — 3-step pipeline: rule-based → vector similarity → LLM (Claude Haiku with instructor). LLM prompt includes strict constraint: return ONLY exact category name from the list, never invent new ones. Default categories: 28 in `config/profiles/_family_defaults.yaml`.
 
 ### Lazy imports in orchestrator modules
 `src/orchestrators/resilience.py` and `src/orchestrators/recovery.py` use lazy imports inside functions (e.g., `from src.core.db import async_session` inside `save_to_dlq()`). When writing tests, patch at the **source** module (`src.core.db.async_session`), not at the consumer module.
