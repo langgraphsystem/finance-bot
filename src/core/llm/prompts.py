@@ -90,16 +90,10 @@ class PromptAdapter:
         system: str,
         messages: list[dict[str, str]],
     ) -> dict[str, Any]:
-        """Format for OpenAI Responses API (gpt-5.x).
-
-        Uses 'developer' role for the system prompt and 'input' instead of
-        'messages'. The Responses API caches prompt prefixes automatically.
-        """
+        """Format for the current OpenAI Responses API contract."""
         return {
-            "input": [
-                {"role": "developer", "content": system},
-                *messages,
-            ],
+            "instructions": system,
+            "input": messages,
         }
 
     @staticmethod

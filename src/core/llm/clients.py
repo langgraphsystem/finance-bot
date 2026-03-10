@@ -1,6 +1,7 @@
 import contextvars
 import json
 import logging
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -98,6 +99,46 @@ def get_last_usage() -> LLMUsage:
     return _last_usage.get()
 
 
+def _normalize_gemini_thinking_level(model: str, thinking_level: str):
+    """Validate Gemini 3 thinking levels against current model support.
+
+    Current Gemini docs support:
+    - Gemini 3 Pro: ``low`` / ``high``
+    - Gemini 3 Flash (+ Flash-Lite): ``minimal`` / ``low`` / ``medium`` / ``high``
+
+    The installed ``google-genai`` SDK may lag behind docs for ``minimal`` and
+    ``medium``; suppress that stale warning while preserving the documented wire value.
+    """
+    from google.genai import types
+
+    normalized = thinking_level.strip().lower()
+    flash_levels = {"minimal", "low", "medium", "high"}
+    shared_levels = {"low", "high"}
+
+    if model.startswith("gemini-3"):
+        allowed = flash_levels if "flash" in model else shared_levels
+    else:
+        raise ValueError(
+            f"thinking_level is only supported for Gemini 3 models; got {model!r}. "
+            "Use thinking budgets for Gemini 2.5 models."
+        )
+
+    if normalized not in allowed:
+        allowed_text = ", ".join(sorted(allowed))
+        raise ValueError(
+            f"thinking_level={thinking_level!r} is not supported for {model!r}. "
+            f"Allowed values: {allowed_text}."
+        )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r".*is not a valid ThinkingLevel",
+            category=UserWarning,
+        )
+        return types.ThinkingConfig(thinking_level=normalized)
+
+
 async def generate_text(
     model: str,
     system: str,
@@ -111,6 +152,8 @@ async def generate_text(
     prompt_version: str = "",
     reasoning_effort: str | None = None,
     verbosity: str | None = None,
+    thinking: dict | None = None,
+    thinking_level: str | None = None,
 ) -> str:
     """Unified LLM call — routes to the correct SDK based on model ID.
 
@@ -121,6 +164,11 @@ async def generate_text(
 
     ``reasoning_effort`` is passed through for providers that support it.
     ``verbosity`` is accepted for API compatibility and currently ignored.
+    ``thinking`` enables Anthropic Extended Thinking (e.g.
+    ``{"type": "enabled", "budget_tokens": 10000}``).
+    ``thinking_level`` sets Gemini 3 thinking depth. Gemini 3 Pro supports
+    ``"low"`` / ``"high"``; Gemini 3 Flash supports
+    ``"minimal"`` / ``"low"`` / ``"medium"`` / ``"high"``.
     """
     if prompt is not None and messages is None:
         messages = [{"role": "user", "content": prompt}]
@@ -183,10 +231,17 @@ async def generate_text(
                 intent=trace_intent,
                 prompt_version=prompt_version,
             ) as _span:
+                extra_claude: dict[str, Any] = {}
+                if thinking:
+                    extra_claude["thinking"] = thinking
+                    budget = thinking.get("budget_tokens", 0)
+                    if budget and max_tokens < budget + 1024:
+                        max_tokens = budget + 1024
                 resp = await client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
                     **PromptAdapter.for_claude(system, messages),
+                    **extra_claude,
                 )
                 _u = extract_usage_anthropic(resp)
                 _span.tokens_input = _u.tokens_input
@@ -196,6 +251,9 @@ async def generate_text(
             if cb:
                 cb.record_success()
             _last_usage.set(_u)
+            if thinking:
+                text_blocks = [b for b in resp.content if b.type == "text"]
+                return text_blocks[0].text if text_blocks else ""
             return resp.content[0].text
         except ConnectionError:
             raise
@@ -230,13 +288,19 @@ async def generate_text(
                 intent=trace_intent,
                 prompt_version=prompt_version,
             ) as _span:
+                gemini_config: dict[str, Any] = {
+                    "system_instruction": system,
+                    "max_output_tokens": max_tokens,
+                }
+                if thinking_level:
+                    gemini_config["thinking_config"] = _normalize_gemini_thinking_level(
+                        model,
+                        thinking_level,
+                    )
                 resp = await client.aio.models.generate_content(
                     model=model,
                     contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system,
-                        max_output_tokens=max_tokens,
-                    ),
+                    config=types.GenerateContentConfig(**gemini_config),
                 )
                 _u = extract_usage_gemini(resp)
                 _span.tokens_input = _u.tokens_input
@@ -488,3 +552,164 @@ async def generate_text_with_tools(
 
     logger.warning("generate_text_with_tools exhausted %d rounds", max_tool_rounds)
     return "I needed more steps to complete this request.", tool_call_log
+
+
+# ---------------------------------------------------------------------------
+# OpenAI Responses API
+# ---------------------------------------------------------------------------
+
+
+async def generate_text_responses(
+    model: str,
+    system: str,
+    messages: list[dict[str, str]] | None = None,
+    max_tokens: int = 1024,
+    *,
+    prompt: str | None = None,
+    reasoning_effort: str | None = None,
+    trace_name: str = "generate_text_responses",
+    trace_user_id: str = "",
+    trace_intent: str = "",
+    prompt_version: str = "",
+) -> str:
+    """OpenAI Responses API text generation.
+
+    Uses ``client.responses.create()`` with ``instructions`` for the system prompt.
+    Only for gpt-* models. Falls back to generate_text() for other providers.
+    """
+    if not model.startswith("gpt-"):
+        return await generate_text(
+            model=model, system=system, messages=messages, max_tokens=max_tokens,
+            prompt=prompt, trace_name=trace_name, trace_user_id=trace_user_id,
+            trace_intent=trace_intent, prompt_version=prompt_version,
+            reasoning_effort=reasoning_effort,
+        )
+
+    if prompt is not None and messages is None:
+        messages = [{"role": "user", "content": prompt}]
+    if not messages:
+        raise ValueError("Either messages or prompt is required")
+
+    from src.core.circuit_breaker import circuits
+
+    cb = circuits.get("openai")
+    if cb and not cb.can_execute():
+        raise ConnectionError("Circuit breaker openai is open")
+
+    try:
+        client = openai_client()
+        async with traced_llm_call(
+            trace_name, model=model, user_id=trace_user_id,
+            intent=trace_intent, prompt_version=prompt_version,
+        ) as _span:
+            extra: dict[str, Any] = {}
+            if reasoning_effort is not None:
+                extra["reasoning"] = {"effort": reasoning_effort}
+            resp = await client.responses.create(
+                model=model,
+                instructions=system,
+                input=messages,
+                max_output_tokens=max_tokens,
+                **extra,
+            )
+            _u = extract_usage_openai(resp)
+            _span.tokens_input = _u.tokens_input
+            _span.tokens_output = _u.tokens_output
+            _span.cache_read_tokens = _u.cache_read_tokens
+        if cb:
+            cb.record_success()
+        _last_usage.set(_u)
+        return resp.output_text or ""
+    except ConnectionError:
+        raise
+    except Exception as e:
+        if cb:
+            cb.record_failure()
+        raise e
+
+
+# ---------------------------------------------------------------------------
+# OpenAI Structured Outputs
+# ---------------------------------------------------------------------------
+
+
+async def generate_structured(
+    model: str,
+    system: str,
+    prompt: str,
+    response_format: type,
+    max_tokens: int = 1024,
+    *,
+    trace_name: str = "generate_structured",
+    trace_user_id: str = "",
+    trace_intent: str = "",
+    prompt_version: str = "",
+):
+    """Structured output via OpenAI ``client.responses.parse()``.
+
+    ``response_format`` is a Pydantic model class. Returns the parsed instance.
+    Only for gpt-* models.
+    """
+    if not model.startswith("gpt-"):
+        raise ValueError("generate_structured only supports gpt-* models")
+
+    from src.core.circuit_breaker import circuits
+
+    cb = circuits.get("openai")
+    if cb and not cb.can_execute():
+        raise ConnectionError("Circuit breaker openai is open")
+
+    try:
+        client = openai_client()
+        async with traced_llm_call(
+            trace_name, model=model, user_id=trace_user_id,
+            intent=trace_intent, prompt_version=prompt_version,
+        ) as _span:
+            resp = await client.responses.parse(
+                model=model,
+                instructions=system,
+                input=[{"role": "user", "content": prompt}],
+                max_output_tokens=max_tokens,
+                text_format=response_format,
+            )
+            _u = extract_usage_openai(resp)
+            _span.tokens_input = _u.tokens_input
+            _span.tokens_output = _u.tokens_output
+            _span.cache_read_tokens = _u.cache_read_tokens
+        if cb:
+            cb.record_success()
+        _last_usage.set(_u)
+        return resp.output_parsed
+    except ConnectionError:
+        raise
+    except Exception as e:
+        if cb:
+            cb.record_failure()
+        raise e
+
+
+# ---------------------------------------------------------------------------
+# Anthropic Token Counting
+# ---------------------------------------------------------------------------
+
+
+async def count_tokens_anthropic(
+    model: str,
+    system: str,
+    messages: list[dict[str, str]],
+    tools: list[dict] | None = None,
+) -> int:
+    """Count input tokens for an Anthropic Claude call (free API).
+
+    Returns the number of input tokens that would be consumed.
+    """
+    client = anthropic_client()
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "system": system,
+        "messages": messages,
+    }
+    if tools:
+        kwargs["tools"] = _convert_tools_to_anthropic(tools)
+    result = await client.messages.count_tokens(**kwargs)
+    return result.input_tokens
