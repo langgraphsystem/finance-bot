@@ -12,7 +12,7 @@ from src.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_GROK_TIMEOUT_SECONDS = 15
+_GROK_TIMEOUT_SECONDS = 25
 
 _GROK_SEARCH_SYSTEM = (
     "You are a web search assistant. Search the web and return factual, "
