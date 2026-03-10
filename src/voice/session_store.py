@@ -16,6 +16,7 @@ class VoiceCallMetadata:
     business_name: str
     services: str
     hours: str
+    owner_telegram_id: str = ""
     from_phone: str = ""
     to_phone: str = ""
     call_sid: str = ""

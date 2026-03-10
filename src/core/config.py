@@ -112,6 +112,7 @@ class Settings(BaseSettings):
     voice_openai_realtime_model: str = "gpt-realtime-1.5"
     voice_openai_realtime_fallback_model: str = "gpt-realtime-mini"
     voice_openai_realtime_voice: str = "marin"
+    voice_default_owner_telegram_id: str = ""
     voice_default_owner_name: str = "the owner"
     voice_default_business_name: str = "our business"
     voice_default_business_hours: str = "business hours unavailable"

@@ -7,9 +7,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 
+from src.voice.channel_adapter import build_voice_context
 from src.voice.config import voice_config
 from src.voice.realtime import RealtimeSession
 from src.voice.session_store import VoiceCallMetadata, voice_session_store
+from src.voice.tool_adapter import VoiceToolAdapter
 from src.voice.twilio_handler import (
     build_inbound_prompt,
     build_inbound_tools,
@@ -37,6 +39,9 @@ def _metadata_from_form(call_type: str, call_id: str, form: dict[str, Any]) -> V
         business_name=business_name,
         services=services,
         hours=hours,
+        owner_telegram_id=(
+            form.get("owner_telegram_id") or voice_config.default_owner_telegram_id
+        ),
         from_phone=form.get("From", ""),
         to_phone=form.get("To", ""),
         call_sid=form.get("CallSid", ""),
@@ -46,19 +51,6 @@ def _metadata_from_form(call_type: str, call_id: str, form: dict[str, Any]) -> V
         family_id=form.get("family_id", ""),
         status="initiated",
     )
-
-
-async def _handle_tool_call(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Temporary tool executor for Phase 1-2 route wiring."""
-    logger.info("Voice tool requested: %s %s", name, arguments)
-    return {
-        "ok": False,
-        "tool": name,
-        "message": (
-            "Voice tools are connected to the realtime bridge, "
-            "but backend execution is not wired yet."
-        ),
-    }
 
 
 @router.post("/webhook/voice/inbound")
@@ -113,13 +105,19 @@ async def voice_media_bridge(websocket: WebSocket, call_type: str, call_id: str)
         await websocket.close(code=1011, reason="Voice realtime is not configured")
         return
 
+    context = await build_voice_context(metadata)
+    tool_adapter = VoiceToolAdapter(context=context, metadata=metadata)
     prompt = (
         build_inbound_prompt(metadata)
         if call_type == "inbound"
         else build_outbound_prompt(metadata)
     )
     tools = build_inbound_tools() if call_type == "inbound" else build_outbound_tools()
-    session = RealtimeSession(system_prompt=prompt, tools=tools, on_tool_call=_handle_tool_call)
+    session = RealtimeSession(
+        system_prompt=prompt,
+        tools=tools,
+        on_tool_call=tool_adapter.handle_tool_call,
+    )
     await session.connect()
     await session.start_response()
 

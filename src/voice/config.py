@@ -30,6 +30,7 @@ class VoiceConfig:
     openai_realtime_model: str = settings.voice_openai_realtime_model
     openai_realtime_fallback_model: str = settings.voice_openai_realtime_fallback_model
     openai_realtime_voice: str = settings.voice_openai_realtime_voice
+    default_owner_telegram_id: str = settings.voice_default_owner_telegram_id
     public_base_url: str = ""
     ws_base_url: str = ""
     default_owner_name: str = settings.voice_default_owner_name

@@ -89,6 +89,7 @@ async def initiate_outbound_call(
     contact_name: str,
     call_purpose: str,
     family_id: str,
+    owner_telegram_id: str | None = None,
 ) -> dict[str, Any]:
     """Start an outbound call via Twilio REST API."""
     if not voice_config.twilio_configured:
@@ -105,6 +106,7 @@ async def initiate_outbound_call(
         business_name=voice_config.default_business_name,
         services=voice_config.default_services,
         hours=voice_config.default_business_hours,
+        owner_telegram_id=owner_telegram_id or voice_config.default_owner_telegram_id,
         to_phone=to_phone,
         contact_name=contact_name,
         call_purpose=call_purpose,
@@ -158,6 +160,21 @@ def build_inbound_tools() -> list[dict[str, Any]]:
     return [
         {
             "type": "function",
+            "name": "receptionist",
+            "description": "Answer business questions using the configured profile",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "Caller question"},
+                    "receptionist_topic": {
+                        "type": "string",
+                        "description": "Optional topic: services, hours, faq",
+                    },
+                },
+            },
+        },
+        {
+            "type": "function",
             "name": "create_booking",
             "description": "Book an appointment for the caller",
             "parameters": {
@@ -187,6 +204,18 @@ def build_inbound_tools() -> list[dict[str, Any]]:
         },
         {
             "type": "function",
+            "name": "find_contact",
+            "description": "Look up a contact in the CRM by name or phone",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "search_query": {"type": "string", "description": "Name or phone"},
+                },
+                "required": ["search_query"],
+            },
+        },
+        {
+            "type": "function",
             "name": "take_message",
             "description": "Record a callback message for the business owner",
             "parameters": {
@@ -197,6 +226,35 @@ def build_inbound_tools() -> list[dict[str, Any]]:
                     "callback_number": {"type": "string"},
                 },
                 "required": ["message"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "create_task",
+            "description": "Create a follow-up task for the owner",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_title": {"type": "string", "description": "Task title"},
+                    "description": {"type": "string", "description": "Task details"},
+                },
+                "required": ["task_title"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "set_reminder",
+            "description": "Set a reminder for the owner",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_title": {"type": "string", "description": "Reminder title"},
+                    "task_deadline": {
+                        "type": "string",
+                        "description": "Reminder datetime in ISO format",
+                    },
+                },
+                "required": ["task_title"],
             },
         },
     ]
@@ -230,6 +288,19 @@ def build_outbound_tools() -> list[dict[str, Any]]:
                     "new_time": {"type": "string"},
                 },
                 "required": ["new_date", "new_time"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "send_to_client",
+            "description": "Prepare a follow-up message for a client",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "contact_name": {"type": "string", "description": "Client name"},
+                    "description": {"type": "string", "description": "Message to send"},
+                },
+                "required": ["contact_name", "description"],
             },
         },
     ]
