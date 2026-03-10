@@ -3562,14 +3562,12 @@ async def _save_user_city(user_id: str, city: str) -> str | None:
 
         from src.core.models.user import User
         from src.core.models.user_profile import UserProfile
+        from src.core.timezone import maybe_update_timezone
 
         # Resolve timezone from city
         tz_name = await _timezone_from_city(city)
         values: dict[str, Any] = {"city": city}
         if tz_name:
-            values["timezone"] = tz_name
-            values["timezone_source"] = "city_geocode"
-            values["timezone_confidence"] = 80
             logger.info("Resolved timezone for '%s': %s", city, tz_name)
 
         async with async_session() as session:
@@ -3589,14 +3587,12 @@ async def _save_user_city(user_id: str, city: str) -> str | None:
                         city=city,
                         preferred_language=user.language,
                     )
-                    if tz_name:
-                        profile.timezone = tz_name
-                        profile.timezone_source = "city_geocode"
-                        profile.timezone_confidence = 80
                     session.add(profile)
                 else:
                     logger.warning("No user found for user_id %s to save city", user_id)
             await session.commit()
+        if tz_name:
+            await maybe_update_timezone(user_id, tz_name, "city_geocode", 80)
     except Exception as e:
         logger.error("Failed to save user city: %s", e)
     return tz_name

@@ -440,6 +440,76 @@ class TestUpdateSettingsEndpoint:
         assert data["categories"][0]["name"] == "Fuel"
         assert mock_profile.preferred_language == "en"
 
+
+class TestDetectTimezoneEndpoint:
+    """Tests for POST /api/tz/detect."""
+
+    def test_detect_timezone_success(self):
+        mock_user = _make_mock_user()
+
+        with patch(
+            "src.core.timezone.maybe_update_timezone",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_update:
+            app = _create_test_app(auth_user_override=mock_user)
+            client = TestClient(app)
+            response = client.post(
+                "/api/tz/detect",
+                json={"timezone": "Europe/Berlin"},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "ok": True,
+            "updated": True,
+            "timezone": "Europe/Berlin",
+        }
+        mock_update.assert_awaited_once_with(
+            user_id=str(mock_user.id),
+            timezone="Europe/Berlin",
+            source="mini_app_js",
+        )
+
+    def test_detect_timezone_rejects_invalid_iana(self):
+        mock_user = _make_mock_user()
+
+        app = _create_test_app(auth_user_override=mock_user)
+        client = TestClient(app)
+        response = client.post(
+            "/api/tz/detect",
+            json={"timezone": "Invalid/Zone"},
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid timezone"
+
+    def test_detect_timezone_rejects_non_string(self):
+        mock_user = _make_mock_user()
+
+        app = _create_test_app(auth_user_override=mock_user)
+        client = TestClient(app)
+        response = client.post(
+            "/api/tz/detect",
+            json={"timezone": 123},
+        )
+
+        assert response.status_code == 422
+
+    def test_detect_timezone_rejects_invalid_json(self):
+        mock_user = _make_mock_user()
+
+        app = _create_test_app(auth_user_override=mock_user)
+        client = TestClient(app)
+        response = client.post(
+            "/api/tz/detect",
+            data="not-json",
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 422
+
+
 class TestGetMeEndpoint:
     """Tests for GET /api/me access-sensitive fields."""
 

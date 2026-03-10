@@ -208,6 +208,10 @@ class SettingsUpdateRequest(BaseModel):
     currency: str | None = None
 
 
+class TimezoneDetectRequest(BaseModel):
+    timezone: str = Field(min_length=1, max_length=100)
+
+
 class UserProfile(BaseModel):
     id: str
     name: str
@@ -1747,6 +1751,31 @@ async def update_settings(
 
 
 # ---------------------------------------------------------------------------
+# Browser timezone detection (Intl.DateTimeFormat)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/tz/detect")
+async def detect_timezone_from_js(
+    data: TimezoneDetectRequest,
+    user: User = Depends(get_current_user),
+):
+    """Save timezone detected by the browser's Intl.DateTimeFormat API."""
+    from src.core.timezone import maybe_update_timezone, validate_timezone
+
+    tz = data.timezone
+    if not validate_timezone(tz):
+        raise HTTPException(status_code=400, detail="Invalid timezone")
+
+    updated = await maybe_update_timezone(
+        user_id=str(user.id),
+        timezone=tz,
+        source="mini_app_js",
+    )
+    return {"ok": True, "updated": updated, "timezone": tz}
+
+
+# ---------------------------------------------------------------------------
 # IP Geolocation
 # ---------------------------------------------------------------------------
 
@@ -1820,7 +1849,7 @@ async def detect_geo_from_ip(
                 user_id=user.id,
                 family_id=user.family_id,
                 display_name=user.name,
-                timezone=timezone or "America/New_York",
+                timezone=timezone or "UTC",
                 timezone_source="geo_ip" if timezone else "default",
                 timezone_confidence=70 if timezone else 0,
                 city=city,

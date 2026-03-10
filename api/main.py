@@ -3,9 +3,7 @@
 import asyncio
 import logging
 import os
-import uuid as _uuid
 from contextlib import asynccontextmanager
-from datetime import UTC
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -67,13 +65,20 @@ LANGUAGE_TIMEZONE_MAP = {
 
 
 async def _maybe_set_timezone_from_language(user_id: str, language_code: str) -> None:
-    """Update user timezone based on Telegram language_code (runs once per day).
+    """Low-confidence timezone hint from Telegram language_code (runs once per day).
 
-    When ``ff_locale_v2_write`` is enabled the function also records
-    ``timezone_source='channel_hint'`` and ``timezone_confidence=30`` and
-    refuses to overwrite timezones already set by a higher-confidence source.
+    Skips ambiguous codes like ``en`` (could be US, UK, Australia, India).
+    For non-ambiguous languages (ru, ky, etc.) sets timezone with confidence=30.
+    Uses the centralized ``maybe_update_timezone`` helper that respects
+    the confidence hierarchy and never overwrites higher-confidence sources.
     """
-    if not language_code or language_code == "en":
+    if not language_code:
+        return
+
+    # "en" is ambiguous — could be US, UK, Australia, India, etc.
+    # Don't guess timezone from it.
+    tz = LANGUAGE_TIMEZONE_MAP.get(language_code)
+    if not tz:
         return
 
     # Only run once per day per user
@@ -86,50 +91,68 @@ async def _maybe_set_timezone_from_language(user_id: str, language_code: str) ->
     except Exception:
         pass
 
-    tz = LANGUAGE_TIMEZONE_MAP.get(language_code)
-    if not tz:
+    from src.core.timezone import maybe_update_timezone
+
+    await maybe_update_timezone(user_id, tz, "channel_hint", 30)
+
+
+async def _maybe_set_timezone_from_phone(user_id: str, phone_e164: str) -> None:
+    """One-time phone-based timezone detection for WhatsApp users."""
+    cache_key = f"tz_phone:{user_id}"
+    try:
+        if await redis.get(cache_key):
+            return
+        await redis.set(cache_key, "1", ex=86400 * 30)
+    except Exception:
         return
 
+    from src.core.timezone import maybe_update_timezone, timezone_from_phone
+
+    tz, confidence = timezone_from_phone(phone_e164)
+    if tz:
+        source = "phone_number_single" if confidence >= 80 else "phone_number_multi"
+        await maybe_update_timezone(user_id, tz, source, confidence)
+
+
+async def _maybe_set_timezone_from_slack(user_id: str, slack_user_id: str) -> None:
+    """One-time Slack API timezone detection via users.info."""
+    cache_key = f"tz_slack:{user_id}"
+    retry_key = f"tz_slack_retry:{user_id}"
     try:
-        from datetime import datetime
+        if await redis.get(cache_key):
+            return
+    except Exception:
+        pass
 
-        from sqlalchemy import update
+    try:
+        if await redis.get(retry_key):
+            return
+    except Exception:
+        pass
 
-        async with async_session() as session:
-            if settings.ff_locale_v2_write:
-                # v2: only overwrite if timezone_source is 'default' (low confidence)
-                result = await session.execute(
-                    update(UserProfile)
-                    .where(UserProfile.user_id == _uuid.UUID(user_id))
-                    .where(UserProfile.timezone_source == "default")
-                    .values(
-                        timezone=tz,
-                        timezone_source="channel_hint",
-                        timezone_confidence=30,
-                        locale_updated_at=datetime.now(UTC),
-                    )
-                )
-            else:
-                # Legacy: only update if timezone is still the default value
-                result = await session.execute(
-                    update(UserProfile)
-                    .where(UserProfile.user_id == _uuid.UUID(user_id))
-                    .where(UserProfile.timezone == "America/New_York")
-                    .values(timezone=tz)
-                )
-            if result.rowcount > 0:
-                await session.commit()
-                logger.info(
-                    "Auto-set timezone %s for user %s (lang=%s, v2=%s)",
-                    tz,
-                    user_id,
-                    language_code,
-                    settings.ff_locale_v2_write,
-                )
-            else:
-                await session.rollback()
-    except Exception as e:
-        logger.debug("Failed to auto-set timezone: %s", e)
+    if not _slack_gw:
+        return
+
+    from src.gateway.slack_gw import SlackRetryableError
+
+    try:
+        tz, _locale, should_cache_result = await _slack_gw.get_user_timezone(slack_user_id)
+    except SlackRetryableError:
+        try:
+            await redis.set(retry_key, "1", ex=300)
+        except Exception:
+            pass
+        return
+
+    if tz:
+        from src.core.timezone import maybe_update_timezone
+
+        await maybe_update_timezone(user_id, tz, "slack_api", 85)
+    if should_cache_result:
+        try:
+            await redis.set(cache_key, "1", ex=86400 * 7)
+        except Exception:
+            pass
 
 
 def _build_user_profile(prof_row) -> dict:
@@ -231,7 +254,7 @@ async def build_session_context(telegram_id: str) -> SessionContext | None:
             .limit(1)
         )
         prof_row = prof_result.one_or_none()
-        user_timezone = prof_row[0] if prof_row else "America/New_York"
+        user_timezone = prof_row[0] if prof_row else "UTC"
 
         return SessionContext(
             user_id=str(user.id),
@@ -314,7 +337,7 @@ async def build_context_from_channel(channel: str, channel_user_id: str) -> Sess
             .limit(1)
         )
         prof_row = prof_result.one_or_none()
-        user_timezone = prof_row[0] if prof_row else "America/New_York"
+        user_timezone = prof_row[0] if prof_row else "UTC"
 
         return SessionContext(
             user_id=str(user.id),
@@ -538,6 +561,16 @@ async def _handle_channel_message(incoming, gw):
             # Unregistered channel user — run onboarding (same as Telegram)
             await _handle_channel_onboarding(incoming, gw)
             return
+
+        # Background: channel-specific timezone detection
+        if incoming.channel == "whatsapp" and incoming.channel_user_id:
+            asyncio.create_task(
+                _maybe_set_timezone_from_phone(context.user_id, incoming.channel_user_id)
+            )
+        elif incoming.channel == "slack" and incoming.channel_user_id:
+            asyncio.create_task(
+                _maybe_set_timezone_from_slack(context.user_id, incoming.channel_user_id)
+            )
 
         typing_task = asyncio.create_task(_typing_loop(gw, incoming.chat_id))
         response = await handle_message(incoming, context)

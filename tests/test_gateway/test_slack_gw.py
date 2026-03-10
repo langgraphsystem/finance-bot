@@ -3,10 +3,11 @@
 import hashlib
 import hmac
 import time
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.gateway.slack_gw import SlackGateway
+from src.gateway.slack_gw import SlackGateway, SlackRetryableError
 from src.gateway.types import MessageType, OutgoingMessage
 
 
@@ -186,3 +187,47 @@ async def test_start_stop(gw):
     """start() and stop() should not raise."""
     await gw.start()
     await gw.stop()
+
+
+async def test_get_user_timezone_success_caches_result_flag(gw):
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "ok": True,
+        "user": {"tz": "Europe/Berlin", "locale": "de-DE"},
+    }
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    with patch.object(gw, "_get_client", AsyncMock(return_value=mock_client)):
+        tz, locale, should_cache = await gw.get_user_timezone("U123")
+
+    assert tz == "Europe/Berlin"
+    assert locale == "de-DE"
+    assert should_cache is True
+
+
+async def test_get_user_timezone_rate_limited_is_retryable(gw):
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 429
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    with patch.object(gw, "_get_client", AsyncMock(return_value=mock_client)):
+        with pytest.raises(SlackRetryableError):
+            await gw.get_user_timezone("U123")
+
+
+async def test_get_user_timezone_user_not_found_is_non_retryable(gw):
+    mock_client = AsyncMock()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"ok": False, "error": "user_not_found"}
+    mock_client.get = AsyncMock(return_value=mock_response)
+
+    with patch.object(gw, "_get_client", AsyncMock(return_value=mock_client)):
+        tz, locale, should_cache = await gw.get_user_timezone("U404")
+
+    assert tz is None
+    assert locale is None
+    assert should_cache is True

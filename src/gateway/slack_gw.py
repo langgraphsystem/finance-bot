@@ -16,6 +16,10 @@ from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 logger = logging.getLogger(__name__)
 
 
+class SlackRetryableError(Exception):
+    """Transient Slack API failure that should be retried later."""
+
+
 class SlackGateway:
     """Gateway for Slack using the Events API and Web API (no slack-bolt dependency)."""
 
@@ -368,6 +372,40 @@ class SlackGateway:
             blocks.append({"type": "actions", "elements": actions})
 
         return blocks
+
+    async def get_user_timezone(
+        self, slack_user_id: str
+    ) -> tuple[str | None, str | None, bool]:
+        """Fetch timezone and locale from Slack users.info API.
+
+        Returns (tz_iana, locale, should_cache_result).
+        Retryable failures raise ``SlackRetryableError``.
+        Requires ``users:read`` scope on the bot token.
+        """
+        try:
+            client = await self._get_client()
+            resp = await client.get(
+                "/users.info",
+                params={"user": slack_user_id, "include_locale": "true"},
+            )
+            if resp.status_code == 429:
+                raise SlackRetryableError("Slack users.info rate limited")
+            if resp.status_code >= 500:
+                raise SlackRetryableError(f"Slack users.info HTTP {resp.status_code}")
+            data = resp.json()
+            if not data.get("ok"):
+                error = data.get("error")
+                if error in {"ratelimited", "internal_error"}:
+                    raise SlackRetryableError(f"Slack users.info retryable error: {error}")
+                logger.debug("Slack users.info failed: %s", error)
+                return None, None, True
+            user = data.get("user", {})
+            return user.get("tz"), user.get("locale"), True
+        except SlackRetryableError:
+            raise
+        except Exception:
+            logger.debug("Failed to fetch Slack user info for %s", slack_user_id)
+            raise SlackRetryableError("Slack users.info request failed")
 
     async def close(self) -> None:
         if self._client:
