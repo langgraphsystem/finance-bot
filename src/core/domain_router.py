@@ -22,11 +22,15 @@ class DomainRouter:
 
     Phase 1: thin wrapper around AgentRouter.
     Phase 2+: complex domains get LangGraph orchestrators.
+    Phase 3+: individual intents get intent-level orchestrators (deep agents).
     """
 
     def __init__(self, agent_router: AgentRouter):
         self._agent_router = agent_router
         self._orchestrators: dict[Domain, object] = {}
+        # Intent-level orchestrators take priority over domain-level ones.
+        # Used for selective deep-agent routing (e.g., generate_program, tax_report).
+        self._intent_orchestrators: dict[str, object] = {}
 
     @property
     def agent_router(self) -> AgentRouter:
@@ -37,6 +41,16 @@ class DomainRouter:
         """Register a LangGraph orchestrator for a complex domain."""
         self._orchestrators[domain] = orchestrator
         logger.info("Registered orchestrator for domain=%s", domain)
+
+    def register_intent_orchestrator(self, intent: str, orchestrator: object) -> None:
+        """Register a per-intent orchestrator (deep agents).
+
+        Intent-level orchestrators are checked BEFORE domain-level ones.
+        The orchestrator's invoke() method receives the full context and
+        is responsible for any internal complexity classification.
+        """
+        self._intent_orchestrators[intent] = orchestrator
+        logger.info("Registered intent orchestrator for intent=%s", intent)
 
     def get_domain(self, intent: str) -> Domain:
         """Resolve intent to its domain."""
@@ -50,9 +64,21 @@ class DomainRouter:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        """Route intent through domain → orchestrator or AgentRouter."""
+        """Route intent through domain → orchestrator or AgentRouter.
+
+        Priority order:
+        1. Intent-level orchestrators (deep agents, selective routing)
+        2. Domain-level orchestrators (email, brief, booking, document)
+        3. AgentRouter fallback
+        """
         domain = self.get_domain(intent)
         intent_data["_domain"] = domain.value
+
+        # Check intent-level orchestrators first (deep agents)
+        intent_orch = self._intent_orchestrators.get(intent)
+        if intent_orch:
+            logger.debug("Routing intent=%s to intent-level orchestrator", intent)
+            return await intent_orch.invoke(intent, message, context, intent_data)
 
         orchestrator = self._orchestrators.get(domain)
         if orchestrator:

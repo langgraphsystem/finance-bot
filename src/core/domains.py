@@ -101,6 +101,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "create_event": Domain.calendar,
     "find_free_slots": Domain.calendar,
     "reschedule_event": Domain.calendar,
+    "delete_event": Domain.calendar,
     "morning_brief": Domain.brief,
     # Browser + monitor (Phase 5)
     "browser_action": Domain.web,
@@ -142,4 +143,6 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "generate_invoice": Domain.finance_specialist,
     "tax_estimate": Domain.finance_specialist,
     "cash_flow_forecast": Domain.finance_specialist,
+    # Deep Agents (intent-level orchestrators)
+    "tax_report": Domain.finance_specialist,
 }

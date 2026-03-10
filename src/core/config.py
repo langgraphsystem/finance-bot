@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     ff_dual_search: bool = False
     ff_post_gen_check: bool = True
     ff_browser_computer_use: bool = True
+    ff_deep_agents: bool = False
 
     @property
     def is_production(self) -> bool:

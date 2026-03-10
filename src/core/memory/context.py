@@ -122,6 +122,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "create_event": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "find_free_slots": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "reschedule_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
+    "delete_event": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "morning_brief": {"mem": "life", "hist": 3, "sql": False, "sum": False},
     "evening_recap": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     # Shopping list intents
@@ -175,6 +176,8 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "generate_invoice": {"mem": "profile", "hist": 3, "sql": True, "sum": False},
     "tax_estimate": {"mem": "budgets", "hist": 3, "sql": True, "sum": False},
     "cash_flow_forecast": {"mem": "budgets", "hist": 3, "sql": True, "sum": True},
+    # Deep Agents (orchestrators collect their own data)
+    "tax_report": {"mem": "budgets", "hist": 2, "sql": False, "sum": False},
 }
 
 
@@ -227,6 +230,7 @@ ALWAYS_HEAVY_INTENTS: set[str] = {
     "financial_summary",
     "tax_estimate",
     "cash_flow_forecast",
+    "tax_report",
 }
 
 
@@ -662,6 +666,9 @@ def _trim_memories(memories: list[dict], max_tokens: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Overflow trimming — respects priority order
 # ---------------------------------------------------------------------------
+_PRIORITY_RANK: dict[str, int] = {"critical": 0, "important": 1, "normal": 2}
+
+
 def _split_memories_by_priority(
     memories: list[dict],
 ) -> tuple[list[dict], list[dict]]:
@@ -669,6 +676,10 @@ def _split_memories_by_priority(
 
     Core domains (finance, core, contacts) are kept longest during overflow.
     Non-core (life, tasks, research, etc.) are dropped first.
+
+    Within core_mems, memories are sorted by priority (critical first) so that
+    when Step 5 trims from the tail, normal/important facts are dropped before
+    critical ones (Phase 7 intra-domain priority).
     """
     from src.core.memory.mem0_domains import MemoryDomain
 
@@ -692,6 +703,13 @@ def _split_memories_by_priority(
             core_mems.append(m)
         else:
             noncore_mems.append(m)
+
+    # Phase 7: sort core memories by priority so critical facts come first.
+    # Step 5 trims from the back, so normal facts are dropped before critical ones.
+    core_mems.sort(key=lambda m: _PRIORITY_RANK.get(
+        m.get("metadata", {}).get("priority", "normal"), 2
+    ))
+
     return core_mems, noncore_mems
 
 

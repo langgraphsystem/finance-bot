@@ -20,11 +20,28 @@
 | Dead code cleanup (hooks.py removed) | 26 Feb | **DONE** — removed orphaned 178-line hooks module |
 | Multilingual booking parsing | 26 Feb | **DONE** — RU/ES error messages, improved parse prompt (`9e2cd96`) |
 
-**Current totals: 74 skills, 12 agents, 4 LangGraph orchestrators, 1516 tests**
+**Updated 2026-03-10: 108 skills, 13 agents, 4 LangGraph orchestrators, 2850 tests**
 
 ---
 
-## Near-Term (March 2026)
+## Completed (March 2026)
+
+| What | When | Status |
+|------|------|--------|
+| Document Agent (19 skills, versioning, pgvector hybrid search) | Mar 2026 | **DONE** |
+| Memory Improvement Plan (все 13 фаз + A–F, DLQ, immediate identity, user rules) | Mar 2026 | **DONE** |
+| OpenClaw features (adaptive personality, undo, suggestions, memory vault, reverse prompting) | Mar 2026 | **DONE** |
+| RBAC Phase 0-4 (workspace_memberships, visibility columns, apply_visibility_filter) | Mar 2026 | **DONE** |
+| RBAC Phase 1 (WorkspaceMembership model, Alembic 030, SessionContext permissions) | Mar 2026 | **DONE** |
+| RBAC Phase 2 (apply_visibility_filter в query paths, permission checks) | Mar 2026 | **DONE** |
+| SIA (scheduled_actions table, 3 skills, scheduled_action_tasks cron) | Mar 2026 | **DONE** |
+| Locale/Timezone vNext (timezone.py, locale_resolution.py, per-user dispatch) | Mar 2026 | **DONE** |
+| Regression test suite (test_memory_regression.py — 20 сценариев) | Mar 2026 | **DONE** |
+| E2E bugs fixed (i18n memory vault, drink display, shopping defaults, RLS context) | Mar 2026 | **DONE** |
+
+---
+
+## Near-Term (Q2 2026)
 
 ### 1. Deep Agents (selective integration)
 
@@ -32,7 +49,7 @@
 - Tax reports — data collection → analysis → PDF
 - Marketing campaigns — research → strategy → content
 - Complexity classifier: simple → current path (4K tokens), complex → Deep Agent (80-150K tokens)
-- DO NOT touch other 65+ skills — they remain Tier 1/2
+- DO NOT touch other 100+ skills — they remain Tier 1/2
 
 ---
 
@@ -100,21 +117,27 @@ Nutritionist, Fitness Trainer, Coach/Personal Growth, Tutor, Career Consultant, 
 - [ ] Fix node_modules in Gemini branch
 - [ ] Mini App frontend SPA (backend api/miniapp.py ready)
 - [ ] CI auto-deploy (`RAILWAY_TOKEN` secret in GitHub)
+- [ ] Wire `is_healthy()` into `/health` endpoint
+- [x] ~~Fact priority/contradiction handling~~ — DONE (Phase 7 complete, 2026-03-10)
 - [x] ~~Locale vNext Phase 3-5~~ — DONE (Feb 2026)
 - [x] ~~LangGraph integration~~ — DONE (4 orchestrators, Feb 2026)
 - [x] ~~Remove hooks.py dead code~~ — DONE (26 Feb)
+- [x] ~~Document Agent~~ — DONE (Mar 2026, 19 skills)
+- [x] ~~Memory Improvement Plan~~ — DONE (Mar 2026, все фазы)
+- [x] ~~RBAC + Visibility~~ — DONE (Mar 2026, Phase 0-4)
+- [x] ~~SIA Scheduled Actions~~ — DONE (Mar 2026)
 
 ---
 
 ## Architecture Evolution
 
 ```
-NOW:        Intent → Supervisor → 12 agents → 74 skills (2-level routing ready)
+NOW (Mar 2026):  Intent → Supervisor → 13 agents → 108 skills (2-level routing, RBAC, visibility)
 
-NEXT:       Intent → Supervisor → Domain Supervisors → 15+ agents → 80+ skills
+NEXT:            Intent → Supervisor → Domain Supervisors → 15+ agents → 120+ skills
 
-TARGET:     Intent → Top Supervisor → 3 Domain Supervisors → 40+ agents → 200+ skills
-                                       (Finance, Life, Business)
+TARGET:          Intent → Top Supervisor → 3 Domain Supervisors → 40+ agents → 200+ skills
+                                           (Finance, Life, Business)
 ```
 
 ## Agent Tier System

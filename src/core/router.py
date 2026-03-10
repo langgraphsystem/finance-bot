@@ -102,6 +102,18 @@ def get_domain_router() -> DomainRouter:
             _domain_router.register_orchestrator(
                 Domain.document, DocumentOrchestrator(agent_router=get_agent_router())
             )
+
+        # Deep Agent intent-level orchestrators
+        if _settings.ff_deep_agents:
+            from src.orchestrators.program.graph import ProgramOrchestrator
+            from src.orchestrators.tax_report.graph import TaxReportOrchestrator
+
+            _domain_router.register_intent_orchestrator(
+                "generate_program", ProgramOrchestrator()
+            )
+            _domain_router.register_intent_orchestrator(
+                "tax_report", TaxReportOrchestrator()
+            )
     return _domain_router
 
 
@@ -1605,6 +1617,11 @@ async def _execute_pending_action(
             )
 
             result_text = await execute_reschedule(action_data, context.user_id)
+
+        elif intent == "delete_event":
+            from src.skills.delete_event.handler import execute_delete_event
+
+            result_text = await execute_delete_event(action_data, context.user_id)
 
         elif intent == "undo_last":
             from src.skills.undo_last.handler import execute_undo

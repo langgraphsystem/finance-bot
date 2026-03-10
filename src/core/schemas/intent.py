@@ -183,6 +183,10 @@ class IntentData(BaseModel):
     buyer_postal_code: str | None = None
     buyer_country: str | None = None
 
+    # Tax report fields
+    tax_year: int | None = None    # specific year for tax_report (default: current year)
+    tax_quarter: int | None = None  # 1-4, None = full year
+
     # Memory Vault fields
     memory_query: str | None = None  # search/delete/save content for memory_vault
 
