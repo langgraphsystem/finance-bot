@@ -38,6 +38,7 @@ from src.core.memory.mem0_client import (  # noqa: E402
     _all_namespace_user_ids,
     _build_pgvector_url,
     _PatchedConnectionPool,
+    search_memories_multi_domain,
 )
 from src.core.memory.mem0_domains import MemoryDomain  # noqa: E402
 
@@ -135,3 +136,31 @@ def test_read_only_mem0_user_id_falls_back_to_anonymous():
     setup = types.SimpleNamespace(get_user_id=lambda: (_ for _ in ()).throw(RuntimeError("boom")))
 
     assert _read_only_mem0_user_id(setup) == "anonymous_user"
+
+
+async def test_multi_domain_timeout_returns_partial_results():
+    import asyncio
+
+    async def fake_search(query, user_id, limit=10, filters=None, domain=None):
+        if domain == MemoryDomain.core:
+            return [{"memory": "core result", "metadata": {}}]
+        await asyncio.sleep(0.05)
+        return [{"memory": "late result", "metadata": {}}]
+
+    async def fake_wait(tasks, timeout):
+        done = {tasks[0]}
+        pending = {tasks[1]}
+        await asyncio.sleep(0)
+        return done, pending
+
+    with (
+        patch("src.core.memory.mem0_client.search_memories", new=fake_search),
+        patch("asyncio.wait", new=fake_wait),
+    ):
+        results = await search_memories_multi_domain(
+            "salary",
+            "user-1",
+            [MemoryDomain.core, MemoryDomain.finance],
+        )
+
+    assert results == [{"memory": "core result", "metadata": {}}]

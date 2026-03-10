@@ -771,12 +771,18 @@ async def _dispatch_message(
 
     # C2: Write key facts to session buffer for immediate availability
     try:
+        from src.core.memory.mem0_domains import get_domain_for_category
         from src.core.memory.session_buffer import update_session_buffer
 
         _session_buffer_facts = _extract_session_facts(intent_name, intent_data)
         for fact, category in _session_buffer_facts:
             asyncio.create_task(
-                update_session_buffer(context.user_id, fact, category)
+                update_session_buffer(
+                    context.user_id,
+                    fact,
+                    category,
+                    get_domain_for_category(category).value if category else "",
+                )
             )
     except Exception as e:
         logger.debug("Session buffer write failed: %s", e)
@@ -797,6 +803,22 @@ async def _dispatch_message(
                 )
         except Exception as e:
             logger.error("Background task %s#%d dispatch failed: %s", intent_name, idx, e)
+
+    # Episodic memory: store episode metadata for generative/complex intents
+    try:
+        from src.core.memory.episodic import EPISODIC_INTENTS, store_episode
+
+        if intent_name in EPISODIC_INTENTS and skill_result.response_text:
+            asyncio.create_task(
+                store_episode(
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    intent=intent_name,
+                    result_metadata={"response_preview": skill_result.response_text[:200]},
+                )
+            )
+    except Exception as e:
+        logger.debug("Episodic store failed: %s", e)
 
     # Undo window: store undo payload and append button for quick-action skills
     try:
@@ -1276,11 +1298,19 @@ async def _run_post_skill_side_effects(
 
     # Session buffer facts
     try:
+        from src.core.memory.mem0_domains import get_domain_for_category
         from src.core.memory.session_buffer import update_session_buffer
 
         facts = _extract_session_facts(intent_name, intent_data)
         for fact, category in facts:
-            asyncio.create_task(update_session_buffer(context.user_id, fact, category))
+            asyncio.create_task(
+                update_session_buffer(
+                    context.user_id,
+                    fact,
+                    category,
+                    get_domain_for_category(category).value if category else "",
+                )
+            )
     except Exception:
         pass
 

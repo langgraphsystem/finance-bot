@@ -39,9 +39,11 @@ def _parse_buffer_entry(item: str | bytes | dict) -> dict | None:
     if not fact:
         return None
     category = str(parsed.get("category", "")).strip()
+    domain = str(parsed.get("domain", "")).strip()
     return {
         "fact": fact,
         "category": category,
+        "domain": domain,
         "ts": parsed.get("ts"),
     }
 
@@ -63,22 +65,32 @@ def _dedupe_buffer_entries(items: list[str | bytes | dict]) -> list[dict]:
     return deduped
 
 
-async def get_session_buffer(user_id: str) -> list[dict]:
+async def get_session_buffer(user_id: str, domains: set[str] | None = None) -> list[dict]:
     """Get all session buffer facts for a user."""
     key = f"{REDIS_KEY_PREFIX}:{user_id}"
     try:
         raw = await redis.lrange(key, 0, -1)
-        return _dedupe_buffer_entries(raw)
+        facts = _dedupe_buffer_entries(raw)
+        if not domains:
+            return facts
+        return [fact for fact in facts if not fact.get("domain") or fact.get("domain") in domains]
     except Exception as e:
         logger.debug("Session buffer read failed: %s", e)
         return []
 
 
-async def update_session_buffer(user_id: str, fact: str, category: str = "") -> None:
-    """Add a fact to the session buffer. Resets rolling TTL."""
+async def update_session_buffer(
+    user_id: str, fact: str, category: str = "", domain: str = ""
+) -> None:
+    """Add a fact to the session buffer. Resets rolling TTL.
+
+    Args:
+        domain: Mem0 domain tag for the fact (GAP-M4). Allows context assembly
+                to filter buffer facts by domain relevance.
+    """
     key = f"{REDIS_KEY_PREFIX}:{user_id}"
     entry = json.dumps(
-        {"fact": fact, "category": category, "ts": time.time()},
+        {"fact": fact, "category": category, "domain": domain, "ts": time.time()},
         ensure_ascii=False,
     )
     try:

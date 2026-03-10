@@ -49,7 +49,9 @@ class TestGetSessionBuffer:
         ]
         with patch("src.core.memory.session_buffer.redis", mock_redis):
             result = await get_session_buffer("user-1")
-        assert result == [{"fact": "salary 6000", "category": "income", "ts": None}]
+        assert result == [
+            {"fact": "salary 6000", "category": "income", "domain": "", "ts": None}
+        ]
 
     async def test_keeps_latest_fact_per_category(self):
         mock_redis = AsyncMock()
@@ -61,8 +63,22 @@ class TestGetSessionBuffer:
         with patch("src.core.memory.session_buffer.redis", mock_redis):
             result = await get_session_buffer("user-1")
         assert result == [
-            {"fact": "merchant: ACME", "category": "merchant_mapping", "ts": 2},
-            {"fact": "amount: 6000", "category": "income", "ts": 3},
+            {"fact": "merchant: ACME", "category": "merchant_mapping", "domain": "", "ts": 2},
+            {"fact": "amount: 6000", "category": "income", "domain": "", "ts": 3},
+        ]
+
+    async def test_filters_to_requested_domains(self):
+        mock_redis = AsyncMock()
+        mock_redis.lrange.return_value = [
+            json.dumps({"fact": "salary 6000", "category": "income", "domain": "finance"}),
+            json.dumps({"fact": "drink water", "category": "life_note", "domain": "life"}),
+            json.dumps({"fact": "my name is Manas", "category": "user_identity"}),
+        ]
+        with patch("src.core.memory.session_buffer.redis", mock_redis):
+            result = await get_session_buffer("user-1", domains={"finance", "core"})
+        assert result == [
+            {"fact": "salary 6000", "category": "income", "domain": "finance", "ts": None},
+            {"fact": "my name is Manas", "category": "user_identity", "domain": "", "ts": None},
         ]
 
 
@@ -70,7 +86,7 @@ class TestUpdateSessionBuffer:
     async def test_pushes_and_sets_ttl(self):
         mock_redis = AsyncMock()
         with patch("src.core.memory.session_buffer.redis", mock_redis):
-            await update_session_buffer("user-1", "salary 6000", "income")
+            await update_session_buffer("user-1", "salary 6000", "income", "finance")
         key = f"{REDIS_KEY_PREFIX}:user-1"
         mock_redis.rpush.assert_called_once()
         push_args = mock_redis.rpush.call_args
@@ -78,6 +94,7 @@ class TestUpdateSessionBuffer:
         entry = json.loads(push_args[0][1])
         assert entry["fact"] == "salary 6000"
         assert entry["category"] == "income"
+        assert entry["domain"] == "finance"
         assert "ts" in entry
         mock_redis.ltrim.assert_called_once_with(key, -MAX_BUFFER_ITEMS, -1)
         mock_redis.expire.assert_called_once_with(key, SESSION_BUFFER_TTL)

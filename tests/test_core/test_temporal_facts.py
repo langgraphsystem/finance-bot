@@ -173,3 +173,28 @@ class TestAddMemoryWithTemporal:
 
             await add_memory("just a note", "u1")
             mock_archive.assert_not_called()
+
+    async def test_updatable_category_uses_temporal_archive_without_contradiction_archive(self):
+        with (
+            patch("src.core.memory.mem0_client.get_circuit") as mock_gc,
+            patch(
+                "src.core.memory.mem0_client._archive_superseded_fact",
+                new_callable=AsyncMock,
+            ) as mock_archive,
+            patch(
+                "src.core.memory.mem0_client._detect_and_resolve_contradiction",
+                new_callable=AsyncMock,
+            ) as mock_contradiction,
+            patch("src.core.memory.mem0_client.get_memory") as mock_get_mem,
+        ):
+            mock_cb = MagicMock()
+            mock_cb.can_execute.return_value = True
+            mock_gc.return_value = mock_cb
+            mock_mem = MagicMock()
+            mock_mem.add.return_value = {"id": "123"}
+            mock_get_mem.return_value = mock_mem
+
+            await add_memory("salary 6000", "u1", metadata={"category": "income"})
+
+        mock_archive.assert_awaited_once()
+        mock_contradiction.assert_not_called()

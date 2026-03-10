@@ -55,6 +55,7 @@ async def async_mem0_update(user_id: str, message: str, metadata: dict | None = 
     from src.core.memory.mem0_dlq import enqueue_failed_memory
 
     category = (metadata or {}).get("category", "")
+    persisted_or_queued = False
 
     try:
         # Phase 3: Immediate identity update for critical categories
@@ -64,23 +65,35 @@ async def async_mem0_update(user_id: str, message: str, metadata: dict | None = 
             except Exception as e:
                 logger.warning("Immediate identity update failed: %s", e)
 
-        await add_memory(message, user_id=user_id, metadata=metadata)
-        logger.info("Mem0 updated for user %s (category=%s)", user_id, category)
-
-        # C3: Clear session buffer after successful Mem0 persistence
-        try:
-            from src.core.memory.session_buffer import clear_session_buffer
-
-            await clear_session_buffer(user_id)
-        except Exception as e:
-            logger.debug("Session buffer clear failed (non-critical): %s", e)
+        result = await add_memory(message, user_id=user_id, metadata=metadata)
+        persisted_or_queued = bool(result)
+        if result.get("queued"):
+            logger.info("Mem0 queued for retry for user %s (category=%s)", user_id, category)
+        elif result:
+            logger.info("Mem0 updated for user %s (category=%s)", user_id, category)
+        else:
+            logger.warning(
+                "Mem0 update produced no durable result for user %s (category=%s)",
+                user_id,
+                category,
+            )
     except Exception as e:
         logger.error("Mem0 update failed for user %s: %s", user_id, e)
         # Phase 8: DLQ — enqueue failed memory for retry
         try:
             await enqueue_failed_memory(user_id, message, metadata)
+            persisted_or_queued = True
         except Exception as dlq_err:
             logger.error("DLQ enqueue also failed: %s", dlq_err)
+    finally:
+        # Clear only after the fact is durably persisted or accepted by DLQ.
+        if persisted_or_queued:
+            try:
+                from src.core.memory.session_buffer import clear_session_buffer
+
+                await clear_session_buffer(user_id)
+            except Exception as e:
+                logger.debug("Session buffer clear failed (non-critical): %s", e)
 
 
 @broker.task
@@ -123,19 +136,31 @@ async def async_update_merchant_mapping(
             await session.commit()
             logger.info("Merchant mapping updated: %s → %s", merchant, category_id)
 
-        # Create graph relationship: merchant → category (frequent_merchant)
+        # Create or strengthen graph relationship: merchant → category
         try:
-            from src.core.memory.graph_memory import add_relationship
+            from src.core.memory.graph_memory import add_relationship, strengthen_relationship
 
-            await add_relationship(
+            # add_relationship already strengthens if edge exists, but
+            # strengthen_relationship is cheaper (single UPDATE, no SELECT+INSERT)
+            strengthened = await strengthen_relationship(
                 family_id,
                 subject_type="merchant",
                 subject_id=merchant.lower(),
                 relation="frequent_merchant",
                 object_type="category",
                 object_id=category_id,
-                metadata={"scope": scope},
             )
+            if not strengthened:
+                # Edge doesn't exist yet — create it
+                await add_relationship(
+                    family_id,
+                    subject_type="merchant",
+                    subject_id=merchant.lower(),
+                    relation="frequent_merchant",
+                    object_type="category",
+                    object_id=category_id,
+                    metadata={"scope": scope},
+                )
         except Exception as graph_err:
             logger.debug("Graph edge creation failed (non-critical): %s", graph_err)
     except Exception as e:
@@ -154,6 +179,7 @@ async def async_procedural_update() -> None:
     from src.core.db import async_session
     from src.core.memory.procedural import (
         PROCEDURAL_DOMAINS,
+        detect_workflow,
         extract_procedures,
         save_procedures,
     )
@@ -206,6 +232,20 @@ async def async_procedural_update() -> None:
                         "Procedure extraction failed for user %s domain %s: %s",
                         uid, domain, e,
                     )
+
+            # Detect workflow patterns from correction intent sequences
+            intent_sequence = [c.get("intent", "") for c in corrections if c.get("intent")]
+            if len(intent_sequence) >= 3:
+                try:
+                    workflows = await detect_workflow(uid, intent_sequence)
+                    if workflows:
+                        workflow_rules = [w["suggestion"] for w in workflows]
+                        await save_procedures(uid, "workflows", workflow_rules)
+                        logger.info(
+                            "Detected %d workflows for user %s", len(workflows), uid,
+                        )
+                except Exception as e:
+                    logger.debug("Workflow detection failed for user %s: %s", uid, e)
     except Exception as e:
         logger.error("Procedural update cron failed: %s", e)
 

@@ -695,38 +695,65 @@ def _split_memories_by_priority(
     return core_mems, noncore_mems
 
 
+def _buffer_domains_for_intent(intent: str, mem_type: str | bool) -> set[str] | None:
+    """Resolve relevant session-buffer domains for the current intent."""
+    if not mem_type:
+        return None
+    try:
+        from src.core.memory.mem0_domains import get_domains_for_intent
+
+        domains = {
+            domain.value if hasattr(domain, "value") else str(domain)
+            for domain in get_domains_for_intent(intent, str(mem_type))
+        }
+        domains.add("core")
+        return domains
+    except Exception:
+        return None
+
+
 def _apply_overflow_trimming(
     *,
     system_prompt_tokens: int,
     user_msg_tokens: int,
     session_buffer_tokens: int = 0,
     observations_tokens: int = 0,
+    procedures_tokens: int = 0,
+    episodes_tokens: int = 0,
+    graph_tokens: int = 0,
     mem_block: str,
     sql_block: str,
     summary_block: str,
     history_messages: list[dict[str, str]],
     memories: list[dict],
     total_budget: int,
-) -> tuple[str, str, str, list[dict[str, str]], list[dict]]:
+    observations_block: str = "",
+    procedures_block: str = "",
+    episodes_block: str = "",
+    graph_block: str = "",
+) -> tuple[str, str, str, list[dict[str, str]], list[dict], str, str, str, str]:
     """Trim layers following revised overflow priority until within budget.
 
-    Returns (mem_block, sql_block, summary_block, history_messages, memories).
+    Returns (mem_block, sql_block, summary_block, history_messages, memories,
+             observations_block, procedures_block, episodes_block, graph_block).
 
     Drop order (first to drop → last to drop):
+      0. Episodic context (lowest priority among auxiliary layers)
+      0.5 Graph context
       1. Mem0 non-core namespaces (life, tasks, research, etc.)
+      1.5 Observations (behavioral patterns)
       2. Session summary (compress/shorten)
       3. SQL analytics (compress before full drop)
       4. Old history messages (keep MIN_SLIDING_WINDOW)
       5. Mem0 core + finance + contacts (last Mem0 to drop)
       6. Remaining history (absolute last resort)
-      NEVER: System prompt + core_identity + session buffer + user message
+      NEVER: System prompt + core_identity + session buffer + procedures + user message
     """
-    # Tokens from layers that are never trimmed — must be counted in every check.
-    _fixed_tokens = (
-        system_prompt_tokens + user_msg_tokens + session_buffer_tokens + observations_tokens
-    )
+    # Tokens from layers that are never trimmed.
+    _fixed_tokens = system_prompt_tokens + user_msg_tokens + session_buffer_tokens
 
     def _current_total() -> int:
+        nonlocal observations_block, procedures_block, episodes_block, graph_block
         total = _fixed_tokens
         if mem_block:
             total += count_tokens(mem_block)
@@ -734,11 +761,27 @@ def _apply_overflow_trimming(
             total += count_tokens(sql_block)
         if summary_block:
             total += count_tokens(summary_block)
+        if observations_block:
+            total += count_tokens(observations_block)
+        if procedures_block:
+            total += count_tokens(procedures_block)
+        if episodes_block:
+            total += count_tokens(episodes_block)
+        if graph_block:
+            total += count_tokens(graph_block)
         total += sum(count_tokens(m["content"]) for m in history_messages)
         return total
 
     # Overflow priority — conversation history is the most important short-term
     # context. Drop background data first, then history as last resort.
+
+    # Step 0: Drop episodic context (lowest priority auxiliary layer)
+    if _current_total() > total_budget and episodes_block:
+        episodes_block = ""
+
+    # Step 0.5: Drop graph context
+    if _current_total() > total_budget and graph_block:
+        graph_block = ""
 
     # Step 1: Drop non-core Mem0 memories (life, tasks, research, etc.)
     if _current_total() > total_budget and mem_block and memories:
@@ -746,6 +789,10 @@ def _apply_overflow_trimming(
         if noncore_mems:
             memories = core_mems
             mem_block = _format_memories_block(memories)
+
+    # Step 1.5: Drop observations (behavioral patterns)
+    if _current_total() > total_budget and observations_block:
+        observations_block = ""
 
     # Step 2: Compress/drop summary
     if _current_total() > total_budget and summary_block:
@@ -791,7 +838,10 @@ def _apply_overflow_trimming(
     while _current_total() > total_budget and len(history_messages) > 0:
         history_messages = history_messages[1:]
 
-    return mem_block, sql_block, summary_block, history_messages, memories
+    return (
+        mem_block, sql_block, summary_block, history_messages, memories,
+        observations_block, procedures_block, episodes_block, graph_block,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -908,7 +958,8 @@ async def assemble_context(
     try:
         from src.core.memory.session_buffer import format_buffer_block, get_session_buffer
 
-        buffer_facts = await get_session_buffer(user_id)
+        buffer_domains = _buffer_domains_for_intent(intent, ctx_config["mem"])
+        buffer_facts = await get_session_buffer(user_id, domains=buffer_domains)
         buffer_block = format_buffer_block(buffer_facts)
     except Exception as e:
         logger.debug("Session buffer load failed: %s", e)
@@ -1093,26 +1144,37 @@ async def assemble_context(
     )
 
     if total_used > total_budget:
-        mem_block, sql_block, summary_block, history_messages, memories = _apply_overflow_trimming(
+        (
+            mem_block, sql_block, summary_block, history_messages, memories,
+            observations_block, procedures_block, episodes_block, graph_block,
+        ) = _apply_overflow_trimming(
             system_prompt_tokens=system_tokens,
             user_msg_tokens=user_msg_tokens,
             session_buffer_tokens=token_usage.get("session_buffer", 0),
-            observations_tokens=token_usage.get("observations", 0)
-            + token_usage.get("procedures", 0)
-            + token_usage.get("episodes", 0)
-            + token_usage.get("graph", 0),
+            observations_tokens=token_usage.get("observations", 0),
+            procedures_tokens=token_usage.get("procedures", 0),
+            episodes_tokens=token_usage.get("episodes", 0),
+            graph_tokens=token_usage.get("graph", 0),
             mem_block=mem_block,
             sql_block=sql_block,
             summary_block=summary_block,
             history_messages=history_messages,
             memories=memories,
             total_budget=total_budget,
+            observations_block=observations_block,
+            procedures_block=procedures_block,
+            episodes_block=episodes_block,
+            graph_block=graph_block,
         )
         # Recalculate usage after trimming
         token_usage["mem0"] = count_tokens(mem_block) if mem_block else 0
         token_usage["sql"] = count_tokens(sql_block) if sql_block else 0
         token_usage["summary"] = count_tokens(summary_block) if summary_block else 0
         token_usage["history"] = sum(count_tokens(m["content"]) for m in history_messages)
+        token_usage["observations"] = count_tokens(observations_block) if observations_block else 0
+        token_usage["procedures"] = count_tokens(procedures_block) if procedures_block else 0
+        token_usage["episodes"] = count_tokens(episodes_block) if episodes_block else 0
+        token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
 
     token_usage["total"] = (
         token_usage["system_prompt"]

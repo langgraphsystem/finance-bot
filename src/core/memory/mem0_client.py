@@ -382,10 +382,27 @@ async def search_memories_multi_domain(
     from src.core.text_utils import is_similar
 
     tasks = [
-        search_memories(query, user_id, limit=limit_per_domain, domain=d)
+        asyncio.create_task(
+            search_memories(query, user_id, limit=limit_per_domain, domain=d)
+        )
         for d in domains
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    done, pending = await asyncio.wait(tasks, timeout=8.0)
+    if pending:
+        logger.warning(
+            "Multi-domain search timed out after 8s, returning %d partial result set(s)",
+            len(done),
+        )
+        for task in pending:
+            task.cancel()
+    results: list[Any] = []
+    for task in tasks:
+        if task not in done:
+            continue
+        try:
+            results.append(task.result())
+        except Exception as exc:
+            results.append(exc)
     merged: list[dict] = []
     seen_texts: list[str] = []
     for r in results:
@@ -399,6 +416,86 @@ async def search_memories_multi_domain(
                     seen_texts.append(text)
                     merged.append(mem)
     return merged
+
+
+_CONTRADICTION_CATEGORIES: frozenset[str] = frozenset({
+    "user_identity",
+    "bot_identity",
+    "user_rule",
+    "user_preference",
+    "profile",
+    "user_project",
+    "income",
+    "recurring_expense",
+    "budget_limit",
+})
+
+
+async def _detect_and_resolve_contradiction(
+    content: str,
+    user_id: str,
+    domain: MemoryDomain | None,
+    category: str,
+) -> None:
+    """Detect contradicting facts in critical categories and archive the old one.
+
+    For example: "I'm a teacher" vs "I'm an engineer" — the new fact wins
+    (temporal priority), and the old fact is archived as fact_history.
+    """
+    if category not in _CONTRADICTION_CATEGORIES:
+        return
+
+    try:
+        existing = await search_memories(content, user_id, limit=3, domain=domain)
+        if not existing:
+            return
+
+        from datetime import date
+
+        for mem in existing:
+            score = mem.get("score", 0)
+            if score < 0.5:
+                continue
+            old_text = mem.get("memory", mem.get("text", ""))
+            if not old_text or old_text == content:
+                continue
+
+            old_meta = mem.get("metadata") or {}
+            old_category = old_meta.get("category", "")
+
+            # Same category, similar topic, but different content → contradiction
+            if old_category == category and score >= 0.6 and old_text != content:
+                logger.info(
+                    "Contradiction detected for user %s [%s]: '%s' → '%s'",
+                    user_id, category, old_text[:80], content[:80],
+                )
+                # Archive the old fact
+                archive_meta = {
+                    "category": "fact_history",
+                    "superseded_at": date.today().isoformat(),
+                    "old_value": old_text,
+                    "new_value": content,
+                    "original_category": category,
+                    "reason": "contradiction_resolved",
+                }
+                memory = get_memory()
+                scoped_uid = _resolve_user_id(user_id, domain)
+                memory.add(
+                    f"[Superseded] {old_text}",
+                    user_id=scoped_uid,
+                    metadata=archive_meta,
+                )
+
+                # Delete the old contradicting fact
+                old_id = mem.get("id")
+                if old_id:
+                    try:
+                        memory.delete(memory_id=str(old_id))
+                    except Exception:
+                        pass
+                break  # Resolve one contradiction per add
+    except Exception as e:
+        logger.debug("Contradiction detection failed (non-critical): %s", e)
 
 
 async def _archive_superseded_fact(
@@ -507,6 +604,7 @@ async def add_memory(
             from src.core.memory.mem0_dlq import enqueue_failed_memory
 
             await enqueue_failed_memory(user_id, content, metadata)
+            return {"queued": True, "reason": "circuit_open"}
         except Exception as dlq_err:
             logger.error("Mem0 DLQ enqueue failed (circuit open path): %s", dlq_err)
         return {}
@@ -520,7 +618,13 @@ async def add_memory(
         # Temporal tracking: archive old fact before overwrite
         category = (metadata or {}).get("category", "")
         if category and category != "fact_history":
-            await _archive_superseded_fact(content, user_id, domain, category)
+            from src.core.memory.mem0_domains import UPDATABLE_CATEGORIES
+
+            if category in UPDATABLE_CATEGORIES:
+                await _archive_superseded_fact(content, user_id, domain, category)
+            else:
+                # Phase 7: Detect and resolve contradictions for critical categories
+                await _detect_and_resolve_contradiction(content, user_id, domain, category)
 
         memory = get_memory()
         scoped_uid = _resolve_user_id(user_id, domain)
@@ -536,6 +640,7 @@ async def add_memory(
             from src.core.memory.mem0_dlq import enqueue_failed_memory
 
             await enqueue_failed_memory(user_id, content, metadata)
+            return {"queued": True, "reason": "retry_later"}
         except Exception as dlq_err:
             logger.error("Mem0 DLQ enqueue also failed: %s", dlq_err)
         return {}
