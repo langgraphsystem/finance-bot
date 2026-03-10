@@ -105,6 +105,19 @@ async def test_browser_connect_state_returns_expired_payload_without_404(client)
     assert "expired" in data["error"].lower()
 
 
+async def test_browser_connect_screenshot_returns_blank_png_when_expired(client):
+    with patch(
+        "api.browser_connect.remote_browser_connect.get_session_screenshot",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Connect token expired"),
+    ):
+        resp = await client.get("/api/browser-connect/test-token/screenshot")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert len(resp.content) > 0
+
+
 async def test_browser_connect_action_proxies_to_manager(client):
     with (
         patch(

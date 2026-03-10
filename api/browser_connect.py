@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import html
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -12,6 +13,9 @@ from api.schemas.browser_connect import BrowserConnectActionRequest, BrowserConn
 from src.tools import remote_browser_connect
 
 router = APIRouter(prefix="/api/browser-connect", tags=["browser-connect"])
+_BLANK_SCREENSHOT_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wn8k1EAAAAASUVORK5CYII="
+)
 
 
 def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> str:
@@ -547,6 +551,10 @@ def _expired_state_response() -> BrowserConnectStateResponse:
     )
 
 
+def _expired_screenshot_response() -> Response:
+    return Response(content=_BLANK_SCREENSHOT_PNG, media_type="image/png")
+
+
 @router.get("/{token}", response_class=HTMLResponse)
 async def browser_connect_page(
     request: Request,
@@ -599,6 +607,8 @@ async def browser_connect_screenshot(token: str) -> Response:
     try:
         image = await remote_browser_connect.get_session_screenshot(token)
     except ValueError as exc:
+        if "expired" in str(exc).lower():
+            return _expired_screenshot_response()
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
