@@ -89,6 +89,7 @@ async def initiate_outbound_call(
     contact_name: str,
     call_purpose: str,
     family_id: str,
+    contact_id: str = "",
     owner_telegram_id: str | None = None,
 ) -> dict[str, Any]:
     """Start an outbound call via Twilio REST API."""
@@ -108,6 +109,7 @@ async def initiate_outbound_call(
         hours=voice_config.default_business_hours,
         owner_telegram_id=owner_telegram_id or voice_config.default_owner_telegram_id,
         to_phone=to_phone,
+        contact_id=contact_id,
         contact_name=contact_name,
         call_purpose=call_purpose,
         call_purpose_short=call_purpose,

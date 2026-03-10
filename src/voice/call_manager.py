@@ -28,6 +28,7 @@ async def start_outbound_call(
         contact_name=contact_name,
         call_purpose=call_purpose,
         family_id=family_id,
+        contact_id=contact_id,
     )
 
     if "error" not in call_result:
@@ -72,6 +73,37 @@ async def record_inbound_call(
         call_duration_seconds=duration_seconds,
         call_recording_url=recording_url,
         meta={"caller_phone": caller_phone},
+    )
+    async with async_session() as session:
+        session.add(interaction)
+        await session.commit()
+
+
+async def record_call_summary(
+    family_id: str,
+    contact_id: str | None,
+    direction: InteractionDirection,
+    summary_text: str,
+    duration_seconds: int,
+    *,
+    caller_phone: str = "",
+    booking_id: str | None = None,
+    meta: dict[str, Any] | None = None,
+) -> None:
+    """Persist a call summary when the call is linked to a known contact."""
+    if not family_id or not contact_id:
+        return
+
+    interaction = ClientInteraction(
+        id=uuid.uuid4(),
+        family_id=uuid.UUID(family_id),
+        contact_id=uuid.UUID(contact_id),
+        channel=InteractionChannel.phone,
+        direction=direction,
+        content=summary_text,
+        booking_id=uuid.UUID(booking_id) if booking_id else None,
+        call_duration_seconds=duration_seconds,
+        meta={"caller_phone": caller_phone, **(meta or {})},
     )
     async with async_session() as session:
         session.add(interaction)

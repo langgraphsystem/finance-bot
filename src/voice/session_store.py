@@ -20,6 +20,7 @@ class VoiceCallMetadata:
     from_phone: str = ""
     to_phone: str = ""
     call_sid: str = ""
+    contact_id: str = ""
     contact_name: str = ""
     call_purpose: str = ""
     call_purpose_short: str = ""

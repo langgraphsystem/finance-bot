@@ -3,7 +3,8 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.voice.call_manager import record_inbound_call, start_outbound_call
+from src.core.models.enums import InteractionDirection
+from src.voice.call_manager import record_call_summary, record_inbound_call, start_outbound_call
 
 
 async def test_start_outbound_call_twilio_error():
@@ -75,6 +76,41 @@ async def test_record_inbound_call():
             transcript="Hi, I need a plumber for a leaky faucet.",
             duration_seconds=120,
             caller_phone="+1917555xxxx",
+        )
+
+    mock_session.add.assert_called_once()
+    mock_session.commit.assert_called_once()
+
+
+async def test_record_call_summary_skips_without_contact_id():
+    with patch("src.voice.call_manager.async_session") as mock_session_factory:
+        await record_call_summary(
+            family_id=str(uuid.uuid4()),
+            contact_id=None,
+            direction=InteractionDirection.inbound,
+            summary_text="Voice call summary",
+            duration_seconds=42,
+        )
+
+    mock_session_factory.assert_not_called()
+
+
+async def test_record_call_summary_persists_when_contact_is_known():
+    mock_session = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=False)
+    mock_session.commit = AsyncMock()
+    mock_session.add = MagicMock()
+
+    with patch("src.voice.call_manager.async_session", return_value=mock_session):
+        await record_call_summary(
+            family_id=str(uuid.uuid4()),
+            contact_id=str(uuid.uuid4()),
+            direction=InteractionDirection.outbound,
+            summary_text="Voice call summary",
+            duration_seconds=42,
+            caller_phone="+15551234567",
+            meta={"voice_disposition": "completed_with_tools"},
         )
 
     mock_session.add.assert_called_once()
