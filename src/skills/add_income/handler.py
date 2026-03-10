@@ -9,7 +9,7 @@ from typing import Any
 from src.core.access import get_default_visibility
 from src.core.audit import log_action
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import get_session
 from src.core.models.enums import Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.gateway.types import IncomingMessage
@@ -27,11 +27,31 @@ INCOME_SYSTEM_PROMPT = """Ты записываешь доход пользов�
 
 register_strings("add_income", {"en": {}, "ru": {}, "es": {}})
 
+_INCOME_CATEGORY_KEYWORDS = (
+    "доход",
+    "income",
+    "зарплата",
+    "salary",
+    "фриланс",
+    "freelance",
+    "бизнес",
+    "business",
+    "кэшбэк",
+    "cashback",
+    "бонус",
+    "bonus",
+    "инвести",
+    "investment",
+    "аренд",
+    "rental",
+    "подработ",
+)
+
 
 class AddIncomeSkill:
     name = "add_income"
     intents = ["add_income"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,
@@ -52,19 +72,23 @@ class AddIncomeSkill:
         if not amount:
             return SkillResult(response_text="Не удалось определить сумму дохода. Укажите сумму.")
 
-        # Find income category
-        category_id = None
-        for cat in context.categories:
-            if cat.get("name", "").lower() in ("доход", "income", "зарплата"):
-                category_id = cat.get("id")
-                break
-        if not category_id and context.categories:
-            category_id = context.categories[0].get("id")
+        category_name = intent_data.get("category")
+        category_id = self._resolve_income_category(
+            category_name=category_name,
+            description=description,
+            merchant=intent_data.get("merchant"),
+            context=context,
+        )
 
         if not category_id:
-            return SkillResult(response_text="Нет категорий для записи дохода.")
+            return SkillResult(
+                response_text=(
+                    "Не нашёл подходящую категорию дохода. "
+                    "Укажите категорию дохода точнее."
+                ),
+            )
 
-        async with async_session() as session:
+        async with get_session() as session:
             tx = Transaction(
                 family_id=uuid.UUID(context.family_id),
                 user_id=uuid.UUID(context.user_id),
@@ -115,6 +139,34 @@ class AddIncomeSkill:
     def get_system_prompt(self, context: SessionContext) -> str:
         categories = "\n".join(f"- {c['name']} ({c.get('scope', '')})" for c in context.categories)
         return INCOME_SYSTEM_PROMPT.format(categories=categories)
+
+    def _resolve_income_category(
+        self,
+        category_name: str | None,
+        description: str | None,
+        merchant: str | None,
+        context: SessionContext,
+    ) -> str | None:
+        requested = (category_name or "").strip().lower()
+        if requested:
+            for cat in context.categories:
+                if cat.get("name", "").lower() == requested:
+                    return cat.get("id")
+
+        for cat in context.categories:
+            cat_name = cat.get("name", "").lower()
+            if any(keyword in cat_name for keyword in _INCOME_CATEGORY_KEYWORDS):
+                return cat.get("id")
+
+        parts = (requested, description or "", merchant or "")
+        combined_hint = " ".join(p.lower() for p in parts if p)
+        if combined_hint:
+            for cat in context.categories:
+                cat_name = cat.get("name", "").lower()
+                if cat_name and cat_name in combined_hint:
+                    return cat.get("id")
+
+        return None
 
 
 skill = AddIncomeSkill()

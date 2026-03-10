@@ -153,8 +153,9 @@ invoice_due_days: число дней (net 15 → 15)
 "always respond in English", "no emoji", "keep it brief", "your name is X", "call yourself Y")
 - dialog_history: вспомнить прошлые разговоры ("о чём мы говорили вчера?", \
 "what did we discuss last week?", "какие идеи были?", "наша история разговоров")
-- memory_update: обновить факт в памяти ("обнови мою зарплату", "change my city to X", \
-"теперь мой город — Y", "update my occupation")
+- memory_update: ЯВНО обновить сохранённый факт в памяти. ТОЛЬКО если пользователь \
+ПРЯМО просит обновить запись ("обнови зарплату в памяти", "измени город"). \
+НЕ для обычных фраз "я работаю ...", "я живу в ..." — это general_chat
 - set_project: переключить контекст на проект ("это про Титан", "переключись на проект X", \
 "work on project Y", "switch to project Z", "про проект Stridos")
 - create_project: создать новый проект ("создай проект X", "новый проект для Y", \
@@ -1114,6 +1115,48 @@ _DIALOG_HISTORY_MARKERS = (
     "conversation history",
 )
 
+_MEMORY_UPDATE_PREFIXES = (
+    "обнови",
+    "измени",
+    "update",
+    "change",
+    "actualiza",
+    "cambia",
+)
+
+_MEMORY_UPDATE_CONTEXT_HINTS = (
+    "в памяти",
+    "в моих воспоминаниях",
+    "memory",
+    "saved fact",
+    "saved info",
+    "сохран",
+    "запомнен",
+)
+
+_MEMORY_UPDATE_TARGET_HINTS = (
+    "зарплат",
+    "salary",
+    "город",
+    "city",
+    "работ",
+    "work",
+    "occupation",
+    "профес",
+    "job",
+    "имя",
+    "name",
+)
+
+_SELF_DESCRIPTION_CHAT_PREFIXES = (
+    "я работаю",
+    "я живу",
+    "i work",
+    "i live",
+    "trabajo",
+    "vivo",
+)
+
 
 def _rule_based_bare_reminder(text: str) -> IntentDetectionResult | None:
     """Fast-path: bare 'напомни' / 'remind me' without details → set_reminder with no title."""
@@ -1410,6 +1453,63 @@ def _rule_based_name_question(text: str) -> IntentDetectionResult | None:
     )
 
 
+def _normalize_memory_update_query(text: str) -> str:
+    """Strip explicit update wrappers so memory_update receives the fact content."""
+    normalized = text.strip()
+    normalized = re.sub(
+        r"^(?:обнови|измени|update|change|actualiza|cambia)\s+",
+        "",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(
+        r"\b(?:в памяти|в моих воспоминаниях|in memory|my memory|en la memoria)\b",
+        "",
+        normalized,
+        flags=re.IGNORECASE,
+    )
+    normalized = re.sub(r"\s+", " ", normalized).strip(" :,-")
+    return normalized or text.strip()
+
+
+def _rule_based_self_description_chat(text: str) -> IntentDetectionResult | None:
+    """Keep plain self-descriptions out of memory_update routing."""
+    lower = text.lower().strip()
+    if not lower or any(lower.startswith(prefix) for prefix in _MEMORY_UPDATE_PREFIXES):
+        return None
+    if any(lower.startswith(prefix) for prefix in _SELF_DESCRIPTION_CHAT_PREFIXES):
+        return IntentDetectionResult(
+            intent="general_chat",
+            confidence=0.92,
+            intent_type="chat",
+            data=IntentData(),
+            response=None,
+        )
+    return None
+
+
+def _rule_based_memory_update(text: str) -> IntentDetectionResult | None:
+    """Fast-path only explicit memory update commands, not plain self-descriptions."""
+    stripped = text.strip()
+    lower = stripped.lower()
+    if not stripped or has_forget_command(stripped) or _is_name_question(stripped):
+        return None
+    if not any(lower.startswith(prefix) for prefix in _MEMORY_UPDATE_PREFIXES):
+        return None
+    if any(noun in lower for noun in (*_MODIFY_NOUNS_RU, *_MODIFY_NOUNS_EN)):
+        return None
+    update_hints = _MEMORY_UPDATE_CONTEXT_HINTS + _MEMORY_UPDATE_TARGET_HINTS
+    if not any(hint in lower for hint in update_hints):
+        return None
+
+    return IntentDetectionResult(
+        intent="memory_update",
+        confidence=0.96,
+        intent_type="action",
+        data=IntentData(memory_query=_normalize_memory_update_query(stripped)),
+        response=None,
+    )
+
 
 def _rule_based_memory_save(text: str) -> IntentDetectionResult | None:
     """Fast-path explicit remember/save commands before they fall into rule routing."""
@@ -1659,9 +1759,17 @@ async def detect_intent(
     if name_question_fast_path:
         return name_question_fast_path
 
+    self_description_fast_path = _rule_based_self_description_chat(text)
+    if self_description_fast_path:
+        return self_description_fast_path
+
     memory_save_fast_path = _rule_based_memory_save(text)
     if memory_save_fast_path:
         return memory_save_fast_path
+
+    memory_update_fast_path = _rule_based_memory_update(text)
+    if memory_update_fast_path:
+        return memory_update_fast_path
 
     rule_fast_path = _rule_based_set_user_rule(text, recent_context=recent_context)
     if rule_fast_path:
@@ -1804,7 +1912,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "memory_save": 'запомнить явно ("запомни что...", "remember that...")',
         "set_user_rule": 'правило для бота ("отвечай коротко", "зови себя X")',
         "dialog_history": 'прошлые разговоры ("о чём мы говорили?")',
-        "memory_update": 'обновить факт в памяти ("обнови зарплату", "change my city")',
+        "memory_update": 'ЯВНО обновить факт ("обнови в памяти зарплату")',
         "set_project": 'переключить на проект ("это про Титан", "work on project X")',
         "create_project": 'создать проект ("создай проект X", "start project called Y")',
         "list_projects": 'список проектов ("мои проекты", "what projects do I have")',
@@ -2029,9 +2137,17 @@ async def detect_intent_scoped(
     if name_question_fast_path:
         return name_question_fast_path
 
+    self_description_fast_path = _scoped_fast_path(_rule_based_self_description_chat(text))
+    if self_description_fast_path:
+        return self_description_fast_path
+
     memory_save_fast_path = _scoped_fast_path(_rule_based_memory_save(text))
     if memory_save_fast_path:
         return memory_save_fast_path
+
+    memory_update_fast_path = _scoped_fast_path(_rule_based_memory_update(text))
+    if memory_update_fast_path:
+        return memory_update_fast_path
 
     rule_fast_path = _scoped_fast_path(
         _rule_based_set_user_rule(text, recent_context=recent_context)

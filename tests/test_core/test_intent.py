@@ -420,6 +420,38 @@ async def test_detect_intent_fast_path_explicit_memory_save_without_rules():
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_fast_path_explicit_memory_update_without_llm():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("обнови зарплату в памяти на 5000")
+
+    assert result.intent == "memory_update"
+    assert result.data is not None
+    assert result.data.memory_query == "зарплату на 5000"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_plain_self_description_routes_to_general_chat():
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("я работаю учителем")
+
+    assert result.intent == "general_chat"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_name_question_routes_to_general_chat_without_llm():
     with (
         patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,

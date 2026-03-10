@@ -10,7 +10,7 @@ from src.core.access import get_default_visibility
 from src.core.audit import log_action
 from src.core.categorization import categorize_transaction
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import get_session
 from src.core.models.enums import Scope, TransactionType
 from src.core.models.transaction import Transaction
 from src.core.tasks.memory_tasks import (
@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 EXPENSE_SYSTEM_PROMPT = """Ты записываешь расход пользователя.
 Извлеки из сообщения: сумму, мерчант, категорию, дату.
 Если мерчант известен, используй маппинг из памяти.
+Выбирай категорию ТОЛЬКО из списка ниже.
+Не придумывай новые категории.
+Если подходящей категории нет или уверенность низкая — category=null.
 
 Категории пользователя:
 {categories}
@@ -41,7 +44,7 @@ register_strings("add_expense", {"en": {}, "ru": {}, "es": {}})
 class AddExpenseSkill:
     name = "add_expense"
     intents = ["add_expense"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,
@@ -79,7 +82,7 @@ class AddExpenseSkill:
 
         # High confidence: auto-record
         if confidence > 0.85:
-            async with async_session() as session:
+            async with get_session() as session:
                 tx = Transaction(
                     family_id=uuid.UUID(context.family_id),
                     user_id=uuid.UUID(context.user_id),

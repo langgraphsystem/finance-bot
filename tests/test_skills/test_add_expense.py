@@ -5,6 +5,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from src.skills.add_expense.handler import skill
 
 
+def test_skill_uses_allowed_model():
+    assert skill.model == "gpt-5.2"
+
+
 # ---------------------------------------------------------------------------
 # 1. No amount → error message
 # ---------------------------------------------------------------------------
@@ -57,7 +61,7 @@ async def test_high_confidence_saves_transaction(sample_context, text_message):
 
     with (
         patch(
-            "src.skills.add_expense.handler.async_session",
+            "src.skills.add_expense.handler.get_session",
             return_value=mock_session,
         ),
         patch("src.skills.add_expense.handler.log_action", new_callable=AsyncMock),
@@ -90,7 +94,7 @@ async def test_low_confidence_asks_confirmation(sample_context, text_message):
 
     with (
         patch(
-            "src.skills.add_expense.handler.async_session",
+            "src.skills.add_expense.handler.get_session",
             return_value=mock_session,
         ),
         patch("src.skills.add_expense.handler.log_action", new_callable=AsyncMock),
@@ -116,3 +120,9 @@ async def test_resolve_category_case_insensitive(sample_context):
     assert resolved_lower is not None
     assert resolved_upper == cat["id"]
     assert resolved_lower == cat["id"]
+
+
+def test_system_prompt_forbids_category_hallucination(sample_context):
+    prompt = skill.get_system_prompt(sample_context)
+    assert "ТОЛЬКО из списка" in prompt
+    assert "Не придумывай новые категории" in prompt
