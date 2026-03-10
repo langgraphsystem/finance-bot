@@ -217,3 +217,26 @@ async def test_detect_intent_scoped_fast_path_set_user_rule():
     assert result.data.rule_text == "меня зовут Манас"
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_detect_intent_scoped_fast_path_delete_event():
+    """Scoped calendar routing should short-circuit direct delete-event requests."""
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent_scoped
+
+        result = await detect_intent_scoped(
+            text="удали мероприятие из календаря Поход в Чикаго",
+            domain="calendar",
+            intents=["list_events", "create_event", "delete_event"],
+            recent_context=None,
+        )
+
+    assert result.intent == "delete_event"
+    assert result.data is not None
+    assert result.data.event_title == "мероприятие из календаря Поход в Чикаго"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()

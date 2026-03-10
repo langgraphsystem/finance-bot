@@ -7,6 +7,7 @@ from typing import Any
 from src.core.observability import observe
 from src.core.personalization import (
     has_all_marker,
+    has_forget_command,
     is_bot_name_forget_request,
     is_clear_all_rules_request,
     is_user_name_forget_request,
@@ -25,8 +26,130 @@ MEMORY_VAULT_SYSTEM_PROMPT = (
 
 MAX_DISPLAY_MEMORIES = 20
 
+# ── Localized strings ──
+_MV_STRINGS = {
+    "en": {
+        "identity": "Identity:",
+        "your_name": "Your name: <b>{name}</b>",
+        "my_name": "My name: <b>{name}</b>",
+        "your_rules": "Your rules:",
+        "memories_header": "Memories ({count}):",
+        "memories_more": "... and {count} more.",
+        "no_memories": "No stored memories yet.",
+        "clear_all_btn": "Clear all",
+        "forget_ask": "What should I forget?",
+        "rules_cleared": "All rules cleared.",
+        "rules_empty": "No saved rules to clear.",
+        "bot_name_forgot": "Forgot my saved name.",
+        "bot_name_empty": "I don't have a saved assistant name.",
+        "user_name_forgot": "Forgot your saved name.",
+        "user_name_empty": "I don't have your saved name yet.",
+        "rule_removed": "Removed rule: <b>{rule}</b>.",
+        "rule_remove_fail": "Couldn't remove rule '{rule}'.",
+        "all_cleared": "All memories cleared.",
+        "no_match": "No memories found matching '{query}'.",
+        "deleted": "Deleted {count} matching '{query}'.",
+        "delete_fail": "Couldn't delete memories for '{query}'.",
+        "calendar_delete_hint": (
+            "That looks like a calendar event deletion request, not a memory delete."
+        ),
+        "save_ask": "What should I remember?",
+        "saved": "Saved: <b>{text}</b>",
+        "update_ask": "What should I update?",
+        "updated": "Updated: <b>{old}</b> → <b>{new}</b>",
+        "saved_new": "No existing fact found. Saved as new: <b>{text}</b>",
+        "unknown": "Unknown memory action.",
+    },
+    "ru": {
+        "identity": "Идентичность:",
+        "your_name": "Твоё имя: <b>{name}</b>",
+        "my_name": "Моё имя: <b>{name}</b>",
+        "your_rules": "Твои правила:",
+        "memories_header": "Воспоминания ({count}):",
+        "memories_more": "... и ещё {count}.",
+        "no_memories": "Нет сохранённых воспоминаний.",
+        "clear_all_btn": "Очистить всё",
+        "forget_ask": "Что забыть? Скажи, что удалить.",
+        "rules_cleared": "Все правила удалены.",
+        "rules_empty": "Нет сохранённых правил.",
+        "bot_name_forgot": "Забыла своё имя.",
+        "bot_name_empty": "У меня нет сохранённого имени.",
+        "user_name_forgot": "Забыла твоё имя.",
+        "user_name_empty": "У меня нет твоего сохранённого имени.",
+        "rule_removed": "Удалено правило: <b>{rule}</b>.",
+        "rule_remove_fail": "Не удалось удалить правило '{rule}'.",
+        "all_cleared": "Все воспоминания удалены.",
+        "no_match": "Не нашла воспоминаний по запросу '{query}'.",
+        "deleted": "Удалено {count} по запросу '{query}'.",
+        "delete_fail": "Не удалось удалить по запросу '{query}'.",
+        "calendar_delete_hint": (
+            "Это похоже на удаление события из календаря, а не памяти."
+        ),
+        "save_ask": "Что запомнить?",
+        "saved": "Запомнила: <b>{text}</b>",
+        "update_ask": "Что обновить?",
+        "updated": "Обновлено: <b>{old}</b> → <b>{new}</b>",
+        "saved_new": "Похожий факт не найден. Сохранено как новый: <b>{text}</b>",
+        "unknown": "Неизвестное действие с памятью.",
+    },
+    "es": {
+        "identity": "Identidad:",
+        "your_name": "Tu nombre: <b>{name}</b>",
+        "my_name": "Mi nombre: <b>{name}</b>",
+        "your_rules": "Tus reglas:",
+        "memories_header": "Recuerdos ({count}):",
+        "memories_more": "... y {count} más.",
+        "no_memories": "No hay recuerdos guardados.",
+        "clear_all_btn": "Borrar todo",
+        "forget_ask": "¿Qué debo olvidar?",
+        "rules_cleared": "Todas las reglas eliminadas.",
+        "rules_empty": "No hay reglas guardadas.",
+        "bot_name_forgot": "Olvidé mi nombre.",
+        "bot_name_empty": "No tengo un nombre guardado.",
+        "user_name_forgot": "Olvidé tu nombre.",
+        "user_name_empty": "No tengo tu nombre guardado.",
+        "rule_removed": "Regla eliminada: <b>{rule}</b>.",
+        "rule_remove_fail": "No pude eliminar la regla '{rule}'.",
+        "all_cleared": "Todos los recuerdos eliminados.",
+        "no_match": "No encontré recuerdos para '{query}'.",
+        "deleted": "Eliminados {count} por '{query}'.",
+        "delete_fail": "No pude eliminar por '{query}'.",
+        "calendar_delete_hint": (
+            "Eso parece una solicitud para eliminar un evento del calendario, no un recuerdo."
+        ),
+        "save_ask": "¿Qué debo recordar?",
+        "saved": "Guardado: <b>{text}</b>",
+        "update_ask": "¿Qué debo actualizar?",
+        "updated": "Actualizado: <b>{old}</b> → <b>{new}</b>",
+        "saved_new": "No hay dato similar. Guardado como nuevo: <b>{text}</b>",
+        "unknown": "Acción de memoria desconocida.",
+    },
+}
+register_strings("memory_vault", _MV_STRINGS)
 
-register_strings("memory_vault", {"en": {}, "ru": {}, "es": {}})
+_CALENDAR_DELETE_HINTS = (
+    "календар",
+    "событ",
+    "мероприят",
+    "встреч",
+    "calendar",
+    "event",
+    "meeting",
+    "appointment",
+)
+
+
+def _mv(key: str, lang: str, **kwargs: str) -> str:
+    """Get localized memory vault string."""
+    strings = _MV_STRINGS.get(lang, _MV_STRINGS.get("ru", _MV_STRINGS["en"]))
+    template = strings.get(key, _MV_STRINGS["en"].get(key, key))
+    return template.format(**kwargs) if kwargs else template
+
+
+def _looks_like_calendar_delete_request(query: str) -> bool:
+    """Guard against misrouting calendar deletions into memory deletion."""
+    lower = query.lower().strip()
+    return has_forget_command(query) and any(hint in lower for hint in _CALENDAR_DELETE_HINTS)
 
 
 class MemoryVaultSkill:
@@ -49,10 +172,11 @@ class MemoryVaultSkill:
             search_memories_all_namespaces,
         )
 
+        lang = getattr(context, "language", None) or "ru"
         intent = intent_data.get("_intent") or "memory_show"
 
         if intent == "memory_show":
-            return await self._handle_show(context, get_all_memories)
+            return await self._handle_show(context, get_all_memories, lang)
 
         if intent == "memory_forget":
             query = intent_data.get("memory_query") or message.text or ""
@@ -63,11 +187,12 @@ class MemoryVaultSkill:
                 delete_memory,
                 delete_all_memories,
                 get_all_memories,
+                lang,
             )
 
         if intent == "memory_save":
             content = intent_data.get("memory_query") or message.text or ""
-            return await self._handle_save(context, content, add_memory)
+            return await self._handle_save(context, content, add_memory, lang)
 
         if intent == "memory_update":
             content = intent_data.get("memory_query") or message.text or ""
@@ -77,11 +202,12 @@ class MemoryVaultSkill:
                 search_memories_all_namespaces,
                 delete_memory,
                 add_memory,
+                lang,
             )
 
-        return SkillResult(response_text="Unknown memory action.")
+        return SkillResult(response_text=_mv("unknown", lang))
 
-    async def _handle_show(self, context, get_all_memories) -> SkillResult:
+    async def _handle_show(self, context, get_all_memories, lang: str) -> SkillResult:
         from src.core.identity import get_core_identity, get_user_rules
 
         memories = await get_all_memories(context.user_id)
@@ -92,16 +218,18 @@ class MemoryVaultSkill:
             if identity:
                 id_lines: list[str] = []
                 if identity.get("name"):
-                    id_lines.append(f"• Your name: <b>{identity['name']}</b>")
+                    id_lines.append("• " + _mv("your_name", lang, name=identity["name"]))
                 if identity.get("bot_name"):
-                    id_lines.append(f"• My name: <b>{identity['bot_name']}</b>")
+                    id_lines.append("• " + _mv("my_name", lang, name=identity["bot_name"]))
                 if id_lines:
-                    sections.append("<b>Identity:</b>\n" + "\n".join(id_lines))
+                    sections.append(
+                        f"<b>{_mv('identity', lang)}</b>\n" + "\n".join(id_lines)
+                    )
 
             rules = await get_user_rules(context.user_id)
             if rules:
                 rule_lines = "\n".join(f"• {rule}" for rule in rules)
-                sections.append(f"<b>Your rules:</b>\n{rule_lines}")
+                sections.append(f"<b>{_mv('your_rules', lang)}</b>\n{rule_lines}")
         except Exception:
             logger.warning("Failed to load core identity for memory_show", exc_info=True)
 
@@ -114,16 +242,18 @@ class MemoryVaultSkill:
         if mem_lines:
             extra = ""
             if len(memories) > MAX_DISPLAY_MEMORIES:
-                extra = f"\n... and {len(memories) - MAX_DISPLAY_MEMORIES} more."
-            sections.append(f"<b>Memories ({len(memories)}):</b>\n" + "\n".join(mem_lines) + extra)
+                remaining = len(memories) - MAX_DISPLAY_MEMORIES
+                extra = "\n" + _mv("memories_more", lang, count=str(remaining))
+            header = _mv("memories_header", lang, count=str(len(memories)))
+            sections.append(f"<b>{header}</b>\n" + "\n".join(mem_lines) + extra)
 
         if not sections:
-            return SkillResult(response_text="No stored memories yet.")
+            return SkillResult(response_text=_mv("no_memories", lang))
 
         return SkillResult(
             response_text="\n\n".join(sections),
             buttons=[
-                {"text": "Clear all", "callback": "memory:clear_all"},
+                {"text": _mv("clear_all_btn", lang), "callback": "memory:clear_all"},
             ],
         )
 
@@ -135,6 +265,7 @@ class MemoryVaultSkill:
         delete_memory,
         delete_all_memories,
         get_all_memories,
+        lang: str,
     ) -> SkillResult:
         from src.core.identity import (
             clear_identity_fields,
@@ -145,7 +276,9 @@ class MemoryVaultSkill:
 
         query = query.strip()
         if not query:
-            return SkillResult(response_text="What should I forget? Tell me what to remove.")
+            return SkillResult(response_text=_mv("forget_ask", lang))
+        if _looks_like_calendar_delete_request(query):
+            return SkillResult(response_text=_mv("calendar_delete_hint", lang))
 
         if is_clear_all_rules_request(query):
             deleted_rules = await clear_user_rules(context.user_id)
@@ -156,8 +289,8 @@ class MemoryVaultSkill:
                 categories={"user_rule"},
             )
             if deleted_rules:
-                return SkillResult(response_text="Cleared all saved rules.")
-            return SkillResult(response_text="I couldn't find any saved rules to clear.")
+                return SkillResult(response_text=_mv("rules_cleared", lang))
+            return SkillResult(response_text=_mv("rules_empty", lang))
 
         if is_bot_name_forget_request(query):
             deleted_fields = await clear_identity_fields(context.user_id, ["bot_name"])
@@ -168,8 +301,8 @@ class MemoryVaultSkill:
                 categories={"bot_identity"},
             )
             if deleted_fields:
-                return SkillResult(response_text="Forgot my saved name.")
-            return SkillResult(response_text="I don't have a saved assistant name.")
+                return SkillResult(response_text=_mv("bot_name_forgot", lang))
+            return SkillResult(response_text=_mv("bot_name_empty", lang))
 
         if is_user_name_forget_request(query):
             deleted_fields = await clear_identity_fields(context.user_id, ["name"])
@@ -180,8 +313,8 @@ class MemoryVaultSkill:
                 categories={"user_identity"},
             )
             if deleted_fields:
-                return SkillResult(response_text="Forgot your saved name.")
-            return SkillResult(response_text="I don't have your saved name yet.")
+                return SkillResult(response_text=_mv("user_name_forgot", lang))
+            return SkillResult(response_text=_mv("user_name_empty", lang))
 
         saved_rules = await get_user_rules(context.user_id)
         matched_rule = match_saved_rule(query, saved_rules)
@@ -195,16 +328,17 @@ class MemoryVaultSkill:
                     categories={"user_rule"},
                     exact_texts={matched_rule},
                 )
-                return SkillResult(response_text=f"Removed saved rule: <b>{matched_rule}</b>.")
-            return SkillResult(response_text=f"I couldn't remove the saved rule '{matched_rule}'.")
+                return SkillResult(response_text=_mv("rule_removed", lang, rule=matched_rule))
+            return SkillResult(response_text=_mv("rule_remove_fail", lang, rule=matched_rule))
 
         if _is_clear_all_memory_request(query):
             await delete_all_memories(context.user_id)
-            return SkillResult(response_text="All memories cleared.")
+            return SkillResult(response_text=_mv("all_cleared", lang))
 
-        matches = await search_memories(query, context.user_id, limit=5)
+        # Semantic search — limit to 3 to avoid over-deletion
+        matches = await search_memories(query, context.user_id, limit=3)
         if not matches:
-            return SkillResult(response_text=f"No memories found matching '{query}'.")
+            return SkillResult(response_text=_mv("no_match", lang, query=query))
 
         deleted = 0
         for mem in matches:
@@ -218,11 +352,10 @@ class MemoryVaultSkill:
                 logger.warning("Failed to delete memory %s", mem_id, exc_info=True)
 
         if deleted:
-            suffix = "s" if deleted > 1 else ""
             return SkillResult(
-                response_text=f"Deleted {deleted} memory{suffix} matching '{query}'."
+                response_text=_mv("deleted", lang, count=str(deleted), query=query)
             )
-        return SkillResult(response_text=f"Could not delete memories for '{query}'.")
+        return SkillResult(response_text=_mv("delete_fail", lang, query=query))
 
     async def _delete_personalization_memories(
         self,
@@ -261,17 +394,17 @@ class MemoryVaultSkill:
 
         return deleted
 
-    async def _handle_save(self, context, content, add_memory) -> SkillResult:
+    async def _handle_save(self, context, content, add_memory, lang: str) -> SkillResult:
         content = content.strip()
         if not content:
-            return SkillResult(response_text="What should I remember?")
+            return SkillResult(response_text=_mv("save_ask", lang))
 
         await add_memory(
             content=content,
             user_id=context.user_id,
             metadata={"type": "explicit", "source": "memory_vault"},
         )
-        return SkillResult(response_text=f"Saved: <b>{content[:100]}</b>")
+        return SkillResult(response_text=_mv("saved", lang, text=content[:100]))
 
     async def _handle_update(
         self,
@@ -280,11 +413,12 @@ class MemoryVaultSkill:
         search_memories,
         delete_memory,
         add_memory,
+        lang: str,
     ) -> SkillResult:
         """Update an existing memory fact."""
         content = content.strip()
         if not content:
-            return SkillResult(response_text="What should I update?")
+            return SkillResult(response_text=_mv("update_ask", lang))
 
         matches = await search_memories(content, context.user_id, limit=3)
         if matches:
@@ -303,7 +437,7 @@ class MemoryVaultSkill:
                 metadata={"type": "explicit", "source": "memory_update"},
             )
             return SkillResult(
-                response_text=f"Updated: <b>{old_text[:80]}</b> → <b>{content[:80]}</b>"
+                response_text=_mv("updated", lang, old=old_text[:80], new=content[:80])
             )
 
         await add_memory(
@@ -311,9 +445,7 @@ class MemoryVaultSkill:
             user_id=context.user_id,
             metadata={"type": "explicit", "source": "memory_update"},
         )
-        return SkillResult(
-            response_text=f"No existing fact found. Saved as new: <b>{content[:100]}</b>"
-        )
+        return SkillResult(response_text=_mv("saved_new", lang, text=content[:100]))
 
     def get_system_prompt(self, context) -> str:
         return MEMORY_VAULT_SYSTEM_PROMPT

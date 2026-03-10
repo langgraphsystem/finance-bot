@@ -203,7 +203,7 @@ async def test_memory_forget_with_matches():
             ctx,
             {"_intent": "memory_forget", "memory_query": "rain"},
         )
-    assert "deleted 1 memory" in result.response_text.lower()
+    assert "deleted 1" in result.response_text.lower()
     mock_del.assert_called_once()
 
 
@@ -254,6 +254,32 @@ async def test_memory_forget_all():
     mock_del_all.assert_called_once()
 
 
+async def test_memory_forget_ignores_misrouted_calendar_delete_request():
+    ctx = _MockContext()
+    with (
+        patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+        ) as mock_search,
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock) as mock_del,
+        patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+    ):
+        result = await skill.execute(
+            _MockMessage(text="удали мероприятие из календаря Поход в Чикаго"),
+            ctx,
+            {
+                "_intent": "memory_forget",
+                "memory_query": "удали мероприятие из календаря Поход в Чикаго",
+            },
+        )
+
+    assert "calendar event deletion request" in result.response_text.lower()
+    mock_search.assert_not_awaited()
+    mock_del.assert_not_awaited()
+
+
 async def test_memory_forget_all_rules_clears_rules_not_all_memories():
     ctx = _MockContext()
     with (
@@ -293,7 +319,7 @@ async def test_memory_forget_all_rules_clears_rules_not_all_memories():
             {"_intent": "memory_forget", "memory_query": "удали все правила"},
         )
 
-    assert "cleared all saved rules" in result.response_text.lower()
+    assert "all rules cleared" in result.response_text.lower()
     mock_clear_rules.assert_awaited_once_with("u1")
     mock_del.assert_awaited_once_with("m1", "u1")
     mock_del_all.assert_not_awaited()
@@ -342,7 +368,7 @@ async def test_memory_forget_specific_saved_rule():
             },
         )
 
-    assert "removed saved rule" in result.response_text.lower()
+    assert "removed rule" in result.response_text.lower()
     mock_remove_rule.assert_awaited_once_with("u1", "Мындан кийин сенин атын Хюррем болот")
     mock_del.assert_awaited_once_with("m1", "u1")
 

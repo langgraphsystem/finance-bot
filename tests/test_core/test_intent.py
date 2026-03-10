@@ -223,6 +223,24 @@ async def test_detect_intent_fast_path_delete_drink_specific_entry():
 
 
 @pytest.mark.asyncio
+async def test_detect_intent_fast_path_delete_calendar_event():
+    """Calendar delete requests should bypass LLM and route to delete_event."""
+    with (
+        patch("src.core.intent._detect_with_gemini", new_callable=AsyncMock) as mock_gemini,
+        patch("src.core.intent._detect_with_claude", new_callable=AsyncMock) as mock_claude,
+    ):
+        from src.core.intent import detect_intent
+
+        result = await detect_intent("удалить мероприятия из календаря Поход в Чикаго")
+
+    assert result.intent == "delete_event"
+    assert result.data is not None
+    assert result.data.event_title == "мероприятия из календаря Поход в Чикаго"
+    mock_gemini.assert_not_awaited()
+    mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_detect_intent_fast_path_set_user_rule_for_explicit_name():
     """'Запомни: меня зовут ...' should bypass LLM and route to set_user_rule."""
     with (
@@ -293,6 +311,24 @@ async def test_detect_intent_fast_path_forget_name_does_not_route_to_set_user_ru
     assert result.data.memory_query == "забудь как тебя зовут"
     mock_gemini.assert_not_awaited()
     mock_claude.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_forget_fast_path_skips_calendar_keywords():
+    """Calendar delete messages must NOT route to memory_forget."""
+    calendar_messages = [
+        "удалить мероприятие из календаря Поход в Чикаго",
+        "удали событие из календаря",
+        "удали встречу с врачом",
+        "delete event from calendar",
+        "remove the appointment",
+        "забудь про мероприятие в расписании",
+    ]
+    from src.core.intent import _rule_based_memory_forget
+
+    for msg in calendar_messages:
+        result = _rule_based_memory_forget(msg)
+        assert result is None, f"Should NOT route to memory_forget: {msg!r}"
 
 
 @pytest.mark.asyncio
