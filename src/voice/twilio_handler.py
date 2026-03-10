@@ -1,24 +1,22 @@
-"""Twilio Voice webhook handlers and WebSocket media stream bridge.
-
-Handles:
-- POST /webhook/voice/inbound — TwiML response to connect to media stream
-- POST /webhook/voice/outbound — initiate outbound call
-- WebSocket /ws/voice/{call_type}/{call_id} — bridge Twilio <-> OpenAI Realtime
-"""
+"""Twilio voice utilities for webhooks, call setup, and prompt generation."""
 
 import logging
 import uuid
 from typing import Any
 
+import httpx
+
 from src.voice.config import voice_config
+from src.voice.session_store import VoiceCallMetadata, voice_session_store
 
 logger = logging.getLogger(__name__)
 
-# System prompts for different call types
+TWILIO_API_BASE = "https://api.twilio.com/2010-04-01"
+
 INBOUND_SYSTEM_PROMPT = """\
 You are {owner_name}'s AI assistant answering a phone call.
-Be professional, friendly, and concise.
-Your job: answer questions, book appointments, take messages.
+Be professional, friendly, concise, and explicit that you are an AI assistant.
+Your job is to answer questions, help with appointment requests, and take clear messages.
 
 Business info:
 - Name: {business_name}
@@ -26,25 +24,27 @@ Business info:
 - Available hours: {hours}
 
 IMPORTANT:
-- Start with: "Hi, thanks for calling {business_name}. {owner_name} is \
-unavailable right now — I can help you schedule an appointment. How can I help?"
-- Always confirm booking details before finalizing.
-- If unsure, take a message and promise {owner_name} will call back.
-- Be clear that you are an AI assistant."""
+- Start with: "Hi, thanks for calling {business_name}. This is
+  {owner_name}'s AI assistant. How can I help?"
+- Always confirm key booking or callback details before finalizing.
+- If you cannot complete a request, take a message and explain that
+  {owner_name} will follow up.
+"""
 
 OUTBOUND_SYSTEM_PROMPT = """\
 You are calling {contact_name} on behalf of {owner_name}.
 Purpose: {call_purpose}
 
 IMPORTANT:
-- Start with: "Hi {contact_name}, this is {owner_name}'s assistant calling to \
-{call_purpose_short}."
+- Start with: "Hi {contact_name}, this is {owner_name}'s AI assistant
+  calling to {call_purpose_short}."
 - Be brief and professional.
-- Confirm any changes and say goodbye politely."""
+- Confirm any decisions before ending the call.
+"""
 
 
 def generate_inbound_twiml(ws_url: str) -> str:
-    """Generate TwiML to connect inbound call to WebSocket media stream."""
+    """Generate TwiML to connect an inbound call to the websocket bridge."""
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
@@ -54,12 +54,32 @@ def generate_inbound_twiml(ws_url: str) -> str:
 
 
 def generate_outbound_twiml(ws_url: str) -> str:
-    """Generate TwiML for outbound call with media stream."""
+    """Generate TwiML to connect an outbound call to the websocket bridge."""
     return (
         '<?xml version="1.0" encoding="UTF-8"?>'
         "<Response>"
         '<Connect><Stream url="' + ws_url + '" /></Connect>'
         "</Response>"
+    )
+
+
+def build_inbound_prompt(metadata: VoiceCallMetadata) -> str:
+    """Render the system prompt for inbound calls."""
+    return INBOUND_SYSTEM_PROMPT.format(
+        owner_name=metadata.owner_name,
+        business_name=metadata.business_name,
+        services=metadata.services,
+        hours=metadata.hours,
+    )
+
+
+def build_outbound_prompt(metadata: VoiceCallMetadata) -> str:
+    """Render the system prompt for outbound calls."""
+    return OUTBOUND_SYSTEM_PROMPT.format(
+        contact_name=metadata.contact_name or "there",
+        owner_name=metadata.owner_name,
+        call_purpose=metadata.call_purpose or "follow up",
+        call_purpose_short=metadata.call_purpose_short or "follow up",
     )
 
 
@@ -70,48 +90,71 @@ async def initiate_outbound_call(
     call_purpose: str,
     family_id: str,
 ) -> dict[str, Any]:
-    """Start an outbound call via Twilio REST API.
-
-    Returns call metadata (call_sid, status).
-    Requires twilio package installed.
-    """
+    """Start an outbound call via Twilio REST API."""
     if not voice_config.twilio_configured:
-        return {"error": "Twilio not configured. Set TWILIO_ACCOUNT_SID, AUTH_TOKEN, VOICE_NUMBER."}
+        return {
+            "error": "Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
+            "and TWILIO_PHONE_NUMBER."
+        }
 
-    try:
-        from twilio.rest import Client
+    call_id = str(uuid.uuid4())
+    metadata = VoiceCallMetadata(
+        call_id=call_id,
+        call_type="outbound",
+        owner_name=owner_name,
+        business_name=voice_config.default_business_name,
+        services=voice_config.default_services,
+        hours=voice_config.default_business_hours,
+        to_phone=to_phone,
+        contact_name=contact_name,
+        call_purpose=call_purpose,
+        call_purpose_short=call_purpose,
+        family_id=family_id,
+    )
+    await voice_session_store.save(metadata)
 
-        client = Client(voice_config.twilio_account_sid, voice_config.twilio_auth_token)
+    ws_url = voice_config.build_websocket_url("outbound", call_id)
+    payload: dict[str, str] = {
+        "To": to_phone,
+        "From": voice_config.twilio_voice_number,
+        "StatusCallback": voice_config.build_status_callback_url(call_id),
+        "StatusCallbackEvent": "initiated ringing answered completed failed no-answer busy",
+    }
+    if voice_config.public_base_url:
+        payload["Url"] = voice_config.build_outbound_webhook_url(call_id)
+    else:
+        payload["Twiml"] = generate_outbound_twiml(ws_url)
 
-        call_id = str(uuid.uuid4())
-        ws_url = f"{voice_config.ws_base_url}/ws/voice/outbound/{call_id}"
-        twiml = generate_outbound_twiml(ws_url)
-
-        call = client.calls.create(
-            to=to_phone,
-            from_=voice_config.twilio_voice_number,
-            twiml=twiml,
-            status_callback=f"{voice_config.ws_base_url}/webhook/voice/status",
-            status_callback_event=["completed", "failed", "no-answer"],
+    async with httpx.AsyncClient(
+        base_url=TWILIO_API_BASE,
+        auth=(voice_config.twilio_account_sid, voice_config.twilio_auth_token),
+        timeout=10.0,
+    ) as client:
+        response = await client.post(
+            f"/Accounts/{voice_config.twilio_account_sid}/Calls.json",
+            data=payload,
         )
 
-        return {
-            "call_sid": call.sid,
-            "call_id": call_id,
-            "status": call.status,
-            "to": to_phone,
-            "contact_name": contact_name,
-        }
-    except ImportError:
-        logger.warning("twilio package not installed")
-        return {"error": "twilio package not installed"}
-    except Exception as e:
-        logger.error("Failed to initiate outbound call: %s", e)
-        return {"error": str(e)}
+    if response.status_code not in (200, 201):
+        logger.error(
+            "Twilio outbound call failed: %s %s",
+            response.status_code,
+            response.text[:200],
+        )
+        return {"error": response.text}
+
+    data = response.json()
+    return {
+        "call_sid": data.get("sid", ""),
+        "call_id": call_id,
+        "status": data.get("status", ""),
+        "to": to_phone,
+        "contact_name": contact_name,
+    }
 
 
 def build_inbound_tools() -> list[dict[str, Any]]:
-    """Tools available to the AI during inbound calls."""
+    """Tools exposed to the realtime model during inbound calls."""
     return [
         {
             "type": "function",
@@ -121,9 +164,9 @@ def build_inbound_tools() -> list[dict[str, Any]]:
                 "type": "object",
                 "properties": {
                     "client_name": {"type": "string", "description": "Caller's name"},
-                    "service": {"type": "string", "description": "Service requested"},
-                    "date": {"type": "string", "description": "Date (YYYY-MM-DD)"},
-                    "time": {"type": "string", "description": "Time (HH:MM)"},
+                    "service": {"type": "string", "description": "Requested service"},
+                    "date": {"type": "string", "description": "Date in YYYY-MM-DD"},
+                    "time": {"type": "string", "description": "Time in HH:MM"},
                     "phone": {"type": "string", "description": "Caller's phone"},
                     "address": {"type": "string", "description": "Service address"},
                 },
@@ -137,7 +180,7 @@ def build_inbound_tools() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "date": {"type": "string", "description": "Date to check (YYYY-MM-DD)"},
+                    "date": {"type": "string", "description": "Date to check in YYYY-MM-DD"},
                 },
                 "required": ["date"],
             },
@@ -145,7 +188,7 @@ def build_inbound_tools() -> list[dict[str, Any]]:
         {
             "type": "function",
             "name": "take_message",
-            "description": "Record a message for the business owner",
+            "description": "Record a callback message for the business owner",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -160,12 +203,12 @@ def build_inbound_tools() -> list[dict[str, Any]]:
 
 
 def build_outbound_tools() -> list[dict[str, Any]]:
-    """Tools available to the AI during outbound calls."""
+    """Tools exposed to the realtime model during outbound calls."""
     return [
         {
             "type": "function",
             "name": "confirm_booking",
-            "description": "Confirm that the client will attend their appointment",
+            "description": "Confirm whether the client will attend the appointment",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -178,7 +221,7 @@ def build_outbound_tools() -> list[dict[str, Any]]:
         {
             "type": "function",
             "name": "reschedule_booking",
-            "description": "Reschedule the appointment to a new time",
+            "description": "Reschedule an appointment to a new date and time",
             "parameters": {
                 "type": "object",
                 "properties": {

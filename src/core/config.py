@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
 
+    # Voice / telephony
+    voice_public_base_url: str = ""
+    voice_ws_base_url: str = ""
+    voice_openai_realtime_model: str = "gpt-realtime-1.5"
+    voice_openai_realtime_fallback_model: str = "gpt-realtime-mini"
+    voice_openai_realtime_voice: str = "marin"
+    voice_default_owner_name: str = "the owner"
+    voice_default_business_name: str = "our business"
+    voice_default_business_hours: str = "business hours unavailable"
+    voice_default_services: str = "general assistance"
+
     # Stripe (Phase 4)
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

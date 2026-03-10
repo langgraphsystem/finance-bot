@@ -3,21 +3,28 @@
 from src.voice.config import VoiceConfig
 
 
-def test_default_config():
+def test_default_config_uses_ga_realtime_defaults():
     config = VoiceConfig()
-    assert config.openai_realtime_model == "gpt-4o-realtime-preview"
-    assert config.openai_realtime_voice == "alloy"
+    assert config.openai_realtime_model == "gpt-realtime-1.5"
+    assert config.openai_realtime_fallback_model == "gpt-realtime-mini"
+    assert config.openai_realtime_voice == "marin"
+
+
+def test_ws_base_url_is_derived_from_public_base_url():
+    config = VoiceConfig(public_base_url="https://example.com")
+    assert config.ws_base_url == "wss://example.com"
+    assert config.build_websocket_url("inbound", "call-123") == "wss://example.com/ws/voice/inbound/call-123"
 
 
 def test_twilio_not_configured_by_default():
     config = VoiceConfig()
-    # Without env vars, twilio should not be configured
     assert not config.twilio_configured
 
 
 def test_twilio_configured_with_values():
-    config = VoiceConfig()
-    config.twilio_account_sid = "AC123"
-    config.twilio_auth_token = "token"
-    config.twilio_voice_number = "+1234567890"
+    config = VoiceConfig(
+        twilio_account_sid="AC123",
+        twilio_auth_token="token",
+        twilio_voice_number="+1234567890",
+    )
     assert config.twilio_configured

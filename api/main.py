@@ -30,6 +30,7 @@ from src.core.profiles import ProfileLoader
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
+from src.voice.routes import router as voice_router
 
 logging.basicConfig(level=getattr(logging, settings.log_level))
 logger = logging.getLogger(__name__)
@@ -789,6 +790,7 @@ app.include_router(miniapp_router)
 app.include_router(oauth_router)
 app.include_router(extension_router)
 app.include_router(browser_connect_router)
+app.include_router(voice_router)
 
 
 @app.get("/", include_in_schema=False)
