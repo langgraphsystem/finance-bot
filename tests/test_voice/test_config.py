@@ -28,3 +28,21 @@ def test_twilio_configured_with_values():
         twilio_voice_number="+1234567890",
     )
     assert config.twilio_configured
+
+
+def test_rollout_state_exposes_switches():
+    config = VoiceConfig(
+        enabled=False,
+        allow_outbound=False,
+        allow_write_tools=False,
+        receptionist_only=True,
+        force_callback_mode=True,
+    )
+
+    assert config.rollout_state() == {
+        "enabled": False,
+        "allow_outbound": False,
+        "allow_write_tools": False,
+        "receptionist_only": True,
+        "force_callback_mode": True,
+    }

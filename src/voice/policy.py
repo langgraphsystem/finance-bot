@@ -10,6 +10,7 @@ from sqlalchemy import select
 from src.core.context import SessionContext
 from src.core.db import async_session
 from src.core.models.contact import Contact
+from src.voice.config import voice_config
 from src.voice.session_store import VoiceCallMetadata
 
 _LOW_RISK_TOOLS = {"receptionist", "find_available_slots", "take_message"}
@@ -20,6 +21,16 @@ _VERIFICATION_TOOLS = {
     "handoff_to_owner",
     "schedule_callback",
 }
+_RECEPTIONIST_ONLY_TOOLS = {
+    "receptionist",
+    "find_available_slots",
+    "take_message",
+    "request_verification",
+    "verify_caller",
+    "handoff_to_owner",
+    "schedule_callback",
+}
+_CALLBACK_MODE_TOOLS = {"receptionist", "take_message", "handoff_to_owner", "schedule_callback"}
 _VERIFIED_CALLER_TOOLS = {"confirm_booking", "reschedule_booking", "cancel_booking"}
 _OWNER_APPROVAL_TOOLS = {
     "find_contact",
@@ -99,6 +110,47 @@ def evaluate_voice_policy(
     """Evaluate whether a voice tool call can execute immediately."""
     caller = context.voice_contact_name or context.voice_phone_number or "the caller"
     auth_state = context.voice_auth_state
+
+    if not voice_config.enabled:
+        return VoicePolicyDecision(
+            allow=False,
+            message="Voice is temporarily disabled.",
+            risk_tier="disabled",
+        )
+
+    if voice_config.force_callback_mode and tool_name not in _CALLBACK_MODE_TOOLS:
+        return VoicePolicyDecision(
+            allow=False,
+            message=(
+                "We are in callback mode right now. I can take a message, schedule a callback, "
+                "or notify the owner."
+            ),
+            risk_tier="callback_mode",
+        )
+
+    if voice_config.receptionist_only and tool_name not in _RECEPTIONIST_ONLY_TOOLS:
+        return VoicePolicyDecision(
+            allow=False,
+            message=(
+                "I am in receptionist-only mode right now. I can answer questions, "
+                "take a message, or schedule a callback."
+            ),
+            risk_tier="receptionist_only",
+        )
+
+    if (
+        not voice_config.allow_write_tools
+        and tool_name
+        in _MATCHED_CALLER_TOOLS | _VERIFIED_CALLER_TOOLS | _OWNER_APPROVAL_TOOLS
+    ):
+        return VoicePolicyDecision(
+            allow=False,
+            message=(
+                "Changes are temporarily disabled. I can still answer questions or arrange "
+                "a callback."
+            ),
+            risk_tier="write_disabled",
+        )
 
     if context.role != "owner" and tool_name in _OWNER_APPROVAL_TOOLS | _VERIFIED_CALLER_TOOLS:
         return VoicePolicyDecision(

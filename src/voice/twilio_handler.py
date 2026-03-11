@@ -43,6 +43,28 @@ IMPORTANT:
 """
 
 
+def _operator_prompt_suffix() -> str:
+    lines: list[str] = []
+    if voice_config.receptionist_only:
+        lines.append(
+            "- Operator mode: receptionist-only. Answer questions, take messages, "
+            "or schedule a callback. Do not finalize bookings or internal actions."
+        )
+    if voice_config.force_callback_mode:
+        lines.append(
+            "- Operator mode: callback-only. Do not complete changes. Collect details "
+            "and use schedule_callback or handoff_to_owner."
+        )
+    if not voice_config.allow_write_tools:
+        lines.append(
+            "- Write actions are disabled right now. Do not modify bookings, tasks, "
+            "or client records."
+        )
+    if not lines:
+        return ""
+    return "\n\nOperator controls:\n" + "\n".join(lines)
+
+
 def generate_inbound_twiml(ws_url: str) -> str:
     """Generate TwiML to connect an inbound call to the websocket bridge."""
     return (
@@ -63,6 +85,17 @@ def generate_outbound_twiml(ws_url: str) -> str:
     )
 
 
+def generate_voice_unavailable_twiml(message: str) -> str:
+    """Generate a simple spoken fallback when voice is disabled."""
+    safe_message = message.replace("&", "and").replace("<", "").replace(">", "")
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        "<Response>"
+        f"<Say>{safe_message}</Say>"
+        "</Response>"
+    )
+
+
 def build_inbound_prompt(metadata: VoiceCallMetadata) -> str:
     """Render the system prompt for inbound calls."""
     return INBOUND_SYSTEM_PROMPT.format(
@@ -70,7 +103,7 @@ def build_inbound_prompt(metadata: VoiceCallMetadata) -> str:
         business_name=metadata.business_name,
         services=metadata.services,
         hours=metadata.hours,
-    )
+    ) + _operator_prompt_suffix()
 
 
 def build_outbound_prompt(metadata: VoiceCallMetadata) -> str:
@@ -80,7 +113,7 @@ def build_outbound_prompt(metadata: VoiceCallMetadata) -> str:
         owner_name=metadata.owner_name,
         call_purpose=metadata.call_purpose or "follow up",
         call_purpose_short=metadata.call_purpose_short or "follow up",
-    )
+    ) + _operator_prompt_suffix()
 
 
 async def initiate_outbound_call(

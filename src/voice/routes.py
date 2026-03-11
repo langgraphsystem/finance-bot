@@ -16,6 +16,7 @@ from src.voice.call_manager import record_call_summary
 from src.voice.channel_adapter import build_voice_context
 from src.voice.config import voice_config
 from src.voice.evals import evaluate_voice_call
+from src.voice.ops import build_voice_ops_overview
 from src.voice.realtime import RealtimeSession
 from src.voice.review_store import VoiceCallReview, voice_review_store
 from src.voice.session_store import VoiceCallMetadata, voice_session_store
@@ -30,6 +31,7 @@ from src.voice.twilio_handler import (
     build_outbound_tools,
     generate_inbound_twiml,
     generate_outbound_twiml,
+    generate_voice_unavailable_twiml,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,6 +70,13 @@ def _metadata_from_form(call_type: str, call_id: str, form: dict[str, Any]) -> V
 @router.post("/webhook/voice/inbound")
 async def inbound_voice_webhook(request: Request) -> Response:
     """Return TwiML that connects an inbound call to the websocket media bridge."""
+    if not voice_config.enabled:
+        return Response(
+            content=generate_voice_unavailable_twiml(
+                "Voice assistant is temporarily unavailable. Please try again later."
+            ),
+            media_type="application/xml",
+        )
     form = dict(await request.form())
     call_id = form.get("CallSid") or form.get("call_id") or "inbound-call"
     metadata = _metadata_from_form("inbound", call_id, form)
@@ -79,6 +88,13 @@ async def inbound_voice_webhook(request: Request) -> Response:
 @router.post("/webhook/voice/outbound/{call_id}")
 async def outbound_voice_webhook(call_id: str) -> Response:
     """Return TwiML for an outbound call created through Twilio REST API."""
+    if not voice_config.enabled or not voice_config.allow_outbound:
+        return Response(
+            content=generate_voice_unavailable_twiml(
+                "Outbound voice is temporarily unavailable."
+            ),
+            media_type="application/xml",
+        )
     metadata = await voice_session_store.get(call_id)
     if not metadata:
         raise HTTPException(status_code=404, detail="Unknown voice call session")
@@ -102,6 +118,20 @@ async def recent_voice_reviews(limit: int = 20) -> dict[str, Any]:
     """Return recent QA review snapshots for dashboard-style inspection."""
     reviews = await voice_review_store.recent(limit=max(1, min(limit, 50)))
     return {"items": [asdict(review) for review in reviews]}
+
+
+@router.get("/voice/ops/switches")
+async def voice_ops_switches() -> dict[str, bool]:
+    """Return active rollout switches for voice operations."""
+    return voice_config.rollout_state()
+
+
+@router.get("/voice/ops/overview")
+async def voice_ops_overview(limit: int = 20) -> dict[str, Any]:
+    """Return aggregated voice metrics for operator review."""
+    reviews = await voice_review_store.recent(limit=max(1, min(limit, 100)))
+    overview = build_voice_ops_overview(reviews, voice_config)
+    return asdict(overview)
 
 
 @router.get("/voice/review/{call_id}")
@@ -170,6 +200,13 @@ async def run_voice_simulation_route(scenario_id: str) -> dict[str, Any]:
 async def voice_media_bridge(websocket: WebSocket, call_type: str, call_id: str) -> None:
     """Bridge a Twilio media stream websocket to OpenAI Realtime."""
     await websocket.accept()
+
+    if not voice_config.enabled:
+        await websocket.close(code=1011, reason="Voice is disabled")
+        return
+    if call_type == "outbound" and not voice_config.allow_outbound:
+        await websocket.close(code=1011, reason="Outbound voice is disabled")
+        return
 
     metadata = await voice_session_store.get(call_id)
     if metadata is None:

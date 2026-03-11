@@ -119,6 +119,11 @@ class Settings(BaseSettings):
     voice_default_services: str = "general assistance"
     voice_verification_ttl_seconds: int = 300
     voice_verification_code_length: int = 6
+    voice_enabled: bool = True
+    voice_allow_outbound: bool = True
+    voice_allow_write_tools: bool = True
+    voice_receptionist_only: bool = False
+    voice_force_callback_mode: bool = False
 
     # Stripe (Phase 4)
     stripe_secret_key: str = ""

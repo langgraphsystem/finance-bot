@@ -37,6 +37,11 @@ class VoiceConfig:
     default_business_name: str = settings.voice_default_business_name
     default_business_hours: str = settings.voice_default_business_hours
     default_services: str = settings.voice_default_services
+    enabled: bool = settings.voice_enabled
+    allow_outbound: bool = settings.voice_allow_outbound
+    allow_write_tools: bool = settings.voice_allow_write_tools
+    receptionist_only: bool = settings.voice_receptionist_only
+    force_callback_mode: bool = settings.voice_force_callback_mode
 
     def __post_init__(self) -> None:
         if not self.public_base_url:
@@ -69,6 +74,16 @@ class VoiceConfig:
         if call_id:
             return f"{url}?call_id={call_id}"
         return url
+
+    def rollout_state(self) -> dict[str, bool]:
+        """Expose the active voice rollout switches for operators."""
+        return {
+            "enabled": self.enabled,
+            "allow_outbound": self.allow_outbound,
+            "allow_write_tools": self.allow_write_tools,
+            "receptionist_only": self.receptionist_only,
+            "force_callback_mode": self.force_callback_mode,
+        }
 
 
 voice_config = VoiceConfig()
