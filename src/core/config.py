@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_computer_use_model: str = "gpt-5.4"
+    gemini_computer_use_model: str = "gemini-3.1-pro-preview"
+    computer_use_engine: str = "gemini"  # "openai" | "gemini"
     google_ai_api_key: str = ""
     xai_api_key: str = ""
     grok_dual_search_model: str = "grok-4.20-experimental-beta-0304-reasoning"
