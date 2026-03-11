@@ -42,9 +42,12 @@ async def test_browser_action_empty_message(sample_context):
     msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
     with _no_booking, _no_taxi, _no_login:
         result = await skill.execute(msg, sample_context, {})
+    text = result.response_text.lower()
     assert (
-        "what" in result.response_text.lower()
-        or "website" in result.response_text.lower()
+        "what" in text
+        or "website" in text
+        or "сайт" in text
+        or "сделать" in text
     )
 
 

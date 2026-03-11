@@ -1,7 +1,7 @@
 """Input guardrails — lightweight safety check via direct LLM call.
 
 Replaces the heavy NeMo Guardrails `generate_async()` (4-5 LLM calls, 6-9s)
-with a single Anthropic Haiku call (~1s) using the same safety prompt.
+with a single OpenAI GPT-5.4 call (~0.5s) using the same safety prompt.
 """
 
 import logging
@@ -96,7 +96,7 @@ def _is_personalization(text: str) -> bool:
 async def check_input(text: str) -> tuple[bool, str | None]:
     """Check if input passes safety guardrails.
 
-    Uses a single direct Anthropic Haiku call instead of NeMo's full pipeline.
+    Uses a single OpenAI GPT-5.4 call instead of NeMo's full pipeline.
     Personalization messages are fast-tracked (never sent to LLM) to avoid
     false positives like "тебя зовут Хюррем" being blocked as impersonation.
 
@@ -109,20 +109,16 @@ async def check_input(text: str) -> tuple[bool, str | None]:
         return True, None
 
     try:
-        from src.core.llm.clients import anthropic_client
+        from src.core.llm.clients import get_openai_client
 
-        client = anthropic_client()
-        response = await client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=10,
-            messages=[
-                {
-                    "role": "user",
-                    "content": SAFETY_CHECK_PROMPT.format(user_input=text),
-                }
-            ],
+        client = get_openai_client()
+        response = await client.responses.create(
+            model="gpt-5.4",
+            input=SAFETY_CHECK_PROMPT.format(user_input=text),
+            max_output_tokens=10,
+            reasoning={"effort": "none"},
         )
-        answer = response.content[0].text.strip().lower() if response.content else ""
+        answer = (response.output_text or "").strip().lower()
 
         if answer.startswith("yes"):
             logger.info("Guardrails blocked input: %r", text[:100])

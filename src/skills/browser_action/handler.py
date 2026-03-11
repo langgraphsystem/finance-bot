@@ -93,6 +93,15 @@ class BrowserActionSkill:
         site = intent_data.get("browser_target_site") or ""
 
         if not task:
+            lang = context.language or "en"
+            if lang == "ru":
+                return SkillResult(
+                    response_text="Что нужно сделать? Укажите сайт и задачу."
+                )
+            elif lang == "es":
+                return SkillResult(
+                    response_text="¿Qué necesitas? Indica el sitio web y la tarea."
+                )
             return SkillResult(
                 response_text="What would you like me to do? "
                 "Tell me the website and the task."
@@ -139,6 +148,10 @@ class BrowserActionSkill:
         if not site:
             site = self._extract_site_from_task(task)
 
+        # If intent detection returned a brand name without TLD, guess .com
+        if site and "." not in site:
+            site = f"{site.lower().strip()}.com"
+
         domain = browser_service.extract_domain(site) if site else ""
 
         # 5. Hotel search / booking request → multi-step flow
@@ -172,6 +185,17 @@ class BrowserActionSkill:
 
         # Need a domain for non-flow tasks
         if not domain:
+            lang = context.language or "en"
+            if lang == "ru":
+                return SkillResult(
+                    response_text="Какой сайт использовать? "
+                    "Укажите название (например, booking.com)."
+                )
+            elif lang == "es":
+                return SkillResult(
+                    response_text="¿Qué sitio web debo usar? "
+                    "Incluye el nombre (por ejemplo, booking.com)."
+                )
             return SkillResult(
                 response_text="Which website should I use? "
                 "Please include the site name (e.g., booking.com)."
