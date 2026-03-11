@@ -17,6 +17,7 @@ from src.voice.channel_adapter import build_voice_context
 from src.voice.config import voice_config
 from src.voice.evals import evaluate_voice_call
 from src.voice.ops import build_voice_ops_overview
+from src.voice.pilot import build_voice_pilot_readiness
 from src.voice.realtime import RealtimeSession
 from src.voice.review_store import VoiceCallReview, voice_review_store
 from src.voice.session_store import VoiceCallMetadata, voice_session_store
@@ -132,6 +133,13 @@ async def voice_ops_overview(limit: int = 20) -> dict[str, Any]:
     reviews = await voice_review_store.recent(limit=max(1, min(limit, 100)))
     overview = build_voice_ops_overview(reviews, voice_config)
     return asdict(overview)
+
+
+@router.get("/voice/ops/readiness")
+async def voice_ops_readiness() -> dict[str, Any]:
+    """Return pilot readiness status for the current voice environment."""
+    report = build_voice_pilot_readiness(voice_config)
+    return asdict(report)
 
 
 @router.get("/voice/review/{call_id}")

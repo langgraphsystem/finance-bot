@@ -229,6 +229,19 @@ async def test_voice_ops_switches_endpoint_returns_config_state():
     assert response.json()["force_callback_mode"] is True
 
 
+async def test_voice_ops_readiness_endpoint_returns_report():
+    app = _build_app()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/voice/ops/readiness")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "ready" in payload
+    assert "checks" in payload
+
+
 async def test_inbound_voice_webhook_returns_unavailable_when_voice_disabled():
     app = _build_app()
     transport = ASGITransport(app=app)
