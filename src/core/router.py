@@ -2032,6 +2032,28 @@ async def _handle_callback(
             remove_reply_keyboard=True,
         )
 
+    elif action == "tz":
+        # User selected timezone from inline buttons after a set_reminder response
+        tz_name = parts[1] if len(parts) > 1 else ""
+        from src.core.timezone import maybe_update_timezone, validate_timezone
+        from src.skills.set_reminder.handler import _reschedule_pending_reminders
+
+        lang = context.language or "en"
+        if not tz_name or not validate_timezone(tz_name):
+            _TZ_INVALID = {
+                "en": "Unknown timezone.", "ru": "Неверный часовой пояс.", "es": "Zona horaria inválida.",
+            }
+            return OutgoingMessage(text=_TZ_INVALID.get(lang, _TZ_INVALID["en"]), chat_id=message.chat_id)
+
+        await maybe_update_timezone(context.user_id, tz_name, source="user_set")
+        count = await _reschedule_pending_reminders(context.user_id, context.family_id, tz_name)
+        _TZ_OK = {
+            "en": f"✅ Timezone: {tz_name}. {count} reminder(s) rescheduled.",
+            "ru": f"✅ Часовой пояс: {tz_name}. Напоминания пересчитаны ({count} шт.).",
+            "es": f"✅ Zona: {tz_name}. {count} recordatorio(s) reajustado(s).",
+        }
+        return OutgoingMessage(text=_TZ_OK.get(lang, _TZ_OK["en"]), chat_id=message.chat_id)
+
     elif action == "undo":
         from src.core.undo import execute_undo
 

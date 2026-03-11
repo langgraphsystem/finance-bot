@@ -47,6 +47,23 @@ def ctx():
         business_type=None,
         categories=[],
         merchant_mappings=[],
+        timezone="America/New_York",  # non-UTC: tz_prompt not appended
+    )
+
+
+@pytest.fixture
+def ctx_utc():
+    """Context with UTC timezone — triggers timezone prompt."""
+    return SessionContext(
+        user_id=str(uuid.uuid4()),
+        family_id=str(uuid.uuid4()),
+        role="owner",
+        language="ru",
+        currency="USD",
+        business_type=None,
+        categories=[],
+        merchant_mappings=[],
+        timezone="UTC",
     )
 
 
@@ -413,3 +430,119 @@ def test_build_scheduled_confirmation_with_recurrence():
     lines = text.splitlines()
     assert len(lines) == 5
     assert lines[4] == "🔄 Repeats daily"
+
+
+# ---------------------------------------------------------------------------
+# Timezone prompt (UTC users)
+# ---------------------------------------------------------------------------
+
+
+async def test_tz_prompt_appended_for_utc_user(skill, message, ctx_utc):
+    """When user timezone is UTC, tz prompt + buttons are appended to the response."""
+    with patch(
+        "src.skills.set_reminder.handler.save_reminder",
+        new_callable=AsyncMock,
+    ):
+        result = await skill.execute(
+            message,
+            ctx_utc,
+            {"task_title": "pick up Emma", "task_deadline": "2026-02-17T15:15:00"},
+        )
+
+    assert "UTC" in result.response_text or "часовой пояс" in result.response_text.lower()
+    assert result.buttons is not None
+    assert any("tz:America/" in b["callback"] for b in result.buttons)
+
+
+async def test_tz_prompt_not_appended_for_known_tz(skill, message, ctx):
+    """When user has a known timezone, no tz prompt is shown."""
+    with patch(
+        "src.skills.set_reminder.handler.save_reminder",
+        new_callable=AsyncMock,
+    ):
+        result = await skill.execute(
+            message,
+            ctx,
+            {"task_title": "pick up Emma", "task_deadline": "2026-02-17T15:15:00"},
+        )
+
+    assert result.buttons is None
+    assert "UTC" not in result.response_text
+
+
+# ---------------------------------------------------------------------------
+# Timezone correction
+# ---------------------------------------------------------------------------
+
+
+async def test_timezone_correction_by_city_name(skill, ctx_utc):
+    """Replying 'Chicago' when UTC is set updates timezone and reschedules."""
+    msg = IncomingMessage(
+        id="msg-tz-1",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="Чикаго",
+    )
+    with (
+        patch(
+            "src.skills.set_reminder.handler.maybe_update_timezone",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_tz,
+        patch(
+            "src.skills.set_reminder.handler._reschedule_pending_reminders",
+            new_callable=AsyncMock,
+            return_value=2,
+        ) as mock_resched,
+    ):
+        result = await skill.execute(msg, ctx_utc, {})
+
+    mock_tz.assert_awaited_once_with(ctx_utc.user_id, "America/Chicago", source="user_set")
+    mock_resched.assert_awaited_once()
+    assert "America/Chicago" in result.response_text
+
+
+async def test_timezone_correction_by_iana_string(skill, ctx_utc):
+    """Replying with direct IANA zone updates timezone."""
+    msg = IncomingMessage(
+        id="msg-tz-2",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="America/Los_Angeles",
+    )
+    with (
+        patch(
+            "src.skills.set_reminder.handler.maybe_update_timezone",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.skills.set_reminder.handler._reschedule_pending_reminders",
+            new_callable=AsyncMock,
+            return_value=0,
+        ),
+    ):
+        result = await skill.execute(msg, ctx_utc, {})
+
+    assert "America/Los_Angeles" in result.response_text
+
+
+async def test_timezone_correction_not_triggered_for_reminder(skill, ctx_utc):
+    """Message with reminder verb + city is NOT treated as timezone correction."""
+    msg = IncomingMessage(
+        id="msg-tz-3",
+        user_id="tg_1",
+        chat_id="chat_1",
+        type=MessageType.text,
+        text="напомни про встречу в Чикаго",
+    )
+    with patch(
+        "src.skills.set_reminder.handler.maybe_update_timezone",
+        new_callable=AsyncMock,
+    ) as mock_tz:
+        # Should fall through to normal reminder flow (no time → ask_time)
+        await skill.execute(msg, ctx_utc, {"task_title": "встреча в Чикаго"})
+
+    mock_tz.assert_not_awaited()

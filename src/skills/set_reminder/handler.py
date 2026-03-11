@@ -17,6 +17,7 @@ from src.core.models.enums import ReminderRecurrence, TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
+from src.core.timezone import maybe_update_timezone, validate_timezone
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
@@ -28,6 +29,52 @@ _REMINDER_TRIGGERS = {
     "remind", "remind me", "reminder", "set reminder", "set a reminder",
     "recuérdame", "recordatorio",
 }
+
+# City/alias → IANA timezone map (common for US truckers + CIS users)
+_TZ_CITY_MAP: dict[str, str] = {
+    "new york": "America/New_York", "нью-йорк": "America/New_York", "нью йорк": "America/New_York",
+    "chicago": "America/Chicago", "чикаго": "America/Chicago",
+    "los angeles": "America/Los_Angeles", "лос-анджелес": "America/Los_Angeles",
+    "denver": "America/Denver", "денвер": "America/Denver",
+    "phoenix": "America/Phoenix", "феникс": "America/Phoenix",
+    "houston": "America/Chicago", "хьюстон": "America/Chicago",
+    "dallas": "America/Chicago", "даллас": "America/Chicago",
+    "miami": "America/New_York", "майами": "America/New_York",
+    "seattle": "America/Los_Angeles", "сиэтл": "America/Los_Angeles",
+    "las vegas": "America/Los_Angeles", "лас-вегас": "America/Los_Angeles",
+    "atlanta": "America/New_York", "атланта": "America/New_York",
+    "boston": "America/New_York", "бостон": "America/New_York",
+    "detroit": "America/Detroit", "детройт": "America/Detroit",
+    "san francisco": "America/Los_Angeles", "сан-франциско": "America/Los_Angeles",
+    "portland": "America/Los_Angeles", "портленд": "America/Los_Angeles",
+    "minneapolis": "America/Chicago", "миннеаполис": "America/Chicago",
+    "kansas city": "America/Chicago", "канзас-сити": "America/Chicago",
+    "eastern": "America/New_York", "central": "America/Chicago",
+    "mountain": "America/Denver", "pacific": "America/Los_Angeles",
+    "est": "America/New_York", "cst": "America/Chicago",
+    "mst": "America/Denver", "pst": "America/Los_Angeles",
+    "москва": "Europe/Moscow", "moscow": "Europe/Moscow",
+    "алматы": "Asia/Almaty", "almaty": "Asia/Almaty",
+    "астана": "Asia/Almaty", "нур-султан": "Asia/Almaty",
+    "ташкент": "Asia/Tashkent", "tashkent": "Asia/Tashkent",
+    "бишкек": "Asia/Bishkek", "bishkek": "Asia/Bishkek",
+    "london": "Europe/London", "лондон": "Europe/London",
+    "dubai": "Asia/Dubai", "дубай": "Asia/Dubai",
+    "toronto": "America/Toronto", "торонто": "America/Toronto",
+}
+
+# Detects complaints about wrong time ("неправильно", "другой день", etc.)
+_TZ_CORRECTION_RE = re.compile(
+    r"(непра|неверн|wrong|incorrect|другой день|ошибк|не то время|not right|"
+    r"пересчитай|поправь|исправь|fix the time)",
+    re.IGNORECASE,
+)
+
+# Detects reminder-creation verbs (used to avoid treating reminder messages as tz corrections)
+_REMINDER_VERBS_RE = re.compile(
+    r"(напомни|remind\s*me|recuérdame|поставь напомин|set\s+reminder)",
+    re.IGNORECASE,
+)
 
 # Regex patterns for relative time expressions (RU/EN/ES)
 _RELATIVE_TIME_RE = re.compile(
@@ -84,6 +131,21 @@ def _clean_reminder_title(text: str) -> str:
     return text
 
 
+def _extract_timezone_from_text(text: str) -> str | None:
+    """Try to extract an IANA timezone from free text (city name or IANA zone string)."""
+    # Direct IANA match (e.g., "America/Chicago")
+    for word in text.split():
+        candidate = word.strip(".,!?;:")
+        if "/" in candidate and validate_timezone(candidate):
+            return candidate
+    # City/alias lookup — longest match first to avoid partial hits
+    normalized = text.strip().lower()
+    for alias, tz in sorted(_TZ_CITY_MAP.items(), key=lambda x: -len(x[0])):
+        if alias in normalized:
+            return tz
+    return None
+
+
 SET_REMINDER_SYSTEM_PROMPT = """\
 You help users set reminders. Extract the reminder text, time, and recurrence.
 ALWAYS respond in the same language as the user's message/query.
@@ -133,6 +195,11 @@ _STRINGS = {
         "no_time": "\U0001f514 Reminder saved: {title} (no specific time)",
         "with_time_recurring": "\U0001f514 {recurrence} reminder set for {time}: {title}",
         "multi_set": "\U0001f514 Reminders set",
+        "tz_prompt": (
+            "\n\n⚠️ I'm using UTC. Tell me your timezone for accurate times.\n"
+            "(e.g. Chicago, New York, America/Chicago)"
+        ),
+        "tz_updated": "✅ Timezone set to {tz}. Reminders rescheduled.",
     },
     "ru": {
         "empty": "О чём вам напомнить?",
@@ -149,6 +216,11 @@ _STRINGS = {
         "no_time": "\U0001f514 Напоминание сохранено: {title} (без времени)",
         "with_time_recurring": "\U0001f514 {recurrence} напоминание на {time}: {title}",
         "multi_set": "\U0001f514 Напоминания установлены",
+        "tz_prompt": (
+            "\n\n⚠️ Использую UTC. Укажите ваш часовой пояс — пересчитаю время.\n"
+            "(Например: Чикаго, Нью-Йорк, America/Chicago)"
+        ),
+        "tz_updated": "✅ Часовой пояс: {tz}. Напоминания пересчитаны.",
     },
     "es": {
         "empty": "¿De qué quieres que te recuerde?",
@@ -165,6 +237,11 @@ _STRINGS = {
         "no_time": "\U0001f514 Recordatorio guardado: {title} (sin hora)",
         "with_time_recurring": "\U0001f514 Recordatorio {recurrence} a las {time}: {title}",
         "multi_set": "\U0001f514 Recordatorios configurados",
+        "tz_prompt": (
+            "\n\n⚠️ Uso UTC. Dime tu zona horaria para horarios correctos.\n"
+            "(Ej: Chicago, Nueva York, America/Chicago)"
+        ),
+        "tz_updated": "✅ Zona horaria: {tz}. Recordatorios actualizados.",
     },
 }
 register_strings("set_reminder", _STRINGS)
@@ -172,6 +249,28 @@ register_strings("set_reminder", _STRINGS)
 _RECURRENCE_LABELS = {
     "en": {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly"},
     "ru": {"daily": "Ежедневное", "weekly": "Еженедельное", "monthly": "Ежемесячное"},
+}
+
+# Inline buttons for timezone selection (shown when user has UTC)
+_TZ_BUTTONS: dict[str, list[dict]] = {
+    "en": [
+        {"text": "🕐 Eastern (NY)", "callback": "tz:America/New_York"},
+        {"text": "🕐 Central (CHI)", "callback": "tz:America/Chicago"},
+        {"text": "🕐 Mountain (DEN)", "callback": "tz:America/Denver"},
+        {"text": "🕐 Pacific (LA)", "callback": "tz:America/Los_Angeles"},
+    ],
+    "ru": [
+        {"text": "🕐 Восточное (NY)", "callback": "tz:America/New_York"},
+        {"text": "🕐 Центральное (CHI)", "callback": "tz:America/Chicago"},
+        {"text": "🕐 Горное (DEN)", "callback": "tz:America/Denver"},
+        {"text": "🕐 Тихоокеанское (LA)", "callback": "tz:America/Los_Angeles"},
+    ],
+    "es": [
+        {"text": "🕐 Este (NY)", "callback": "tz:America/New_York"},
+        {"text": "🕐 Central (CHI)", "callback": "tz:America/Chicago"},
+        {"text": "🕐 Montaña (DEN)", "callback": "tz:America/Denver"},
+        {"text": "🕐 Pacífico (LA)", "callback": "tz:America/Los_Angeles"},
+    ],
 }
 
 
@@ -387,6 +486,61 @@ async def _extract_from_context(
     return _json.loads(response.choices[0].message.content)
 
 
+async def _reschedule_pending_reminders(user_id: str, family_id: str, new_tz: str) -> int:
+    """Recompute reminder_at/due_at for pending tasks using the corrected timezone."""
+    from sqlalchemy import select as _sa_select
+
+    user_uuid = uuid.UUID(user_id)
+    family_uuid = uuid.UUID(family_id)
+    count = 0
+    async with async_session() as session:
+        result = await session.execute(
+            _sa_select(Task).where(
+                Task.user_id == user_uuid,
+                Task.family_id == family_uuid,
+                Task.status == TaskStatus.pending,
+                Task.original_reminder_time.isnot(None),
+            )
+        )
+        tasks = result.scalars().all()
+        for task in tasks:
+            new_dt = _parse_time_str(task.original_reminder_time, new_tz)
+            if new_dt:
+                task.reminder_at = new_dt
+                task.due_at = new_dt
+                count += 1
+        if count:
+            await session.commit()
+    return count
+
+
+async def _maybe_handle_timezone_correction(
+    message: IncomingMessage,
+    context: SessionContext,
+) -> SkillResult | None:
+    """Return a SkillResult if the message is a timezone correction/reply, else None."""
+    text = (message.text or "").strip()
+    if not text:
+        return None
+
+    tz = _extract_timezone_from_text(text)
+    if not tz:
+        return None
+
+    has_correction = bool(_TZ_CORRECTION_RE.search(text))
+    is_pure_tz = not _REMINDER_VERBS_RE.search(text)
+
+    # Trigger only if: complaint keywords present, OR pure tz-name message while user has UTC
+    if not has_correction and not (is_pure_tz and context.timezone in ("UTC", "Etc/UTC")):
+        return None
+
+    lang = context.language or "en"
+    await maybe_update_timezone(context.user_id, tz, source="user_set")
+    count = await _reschedule_pending_reminders(context.user_id, context.family_id, tz)
+    logger.info("Timezone corrected to %s for user %s; %d reminders rescheduled", tz, context.user_id, count)
+    return SkillResult(response_text=_t("tz_updated", lang, tz=tz))
+
+
 class SetReminderSkill:
     name = "set_reminder"
     intents = ["set_reminder"]
@@ -399,6 +553,11 @@ class SetReminderSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
+        # Check if user is correcting a previously wrong timezone
+        tz_fix = await _maybe_handle_timezone_correction(message, context)
+        if tz_fix:
+            return tz_fix
+
         lang = context.language or "en"
         title = intent_data.get("task_title") or intent_data.get("description") or ""
         if not title:
@@ -483,7 +642,14 @@ class SetReminderSkill:
         )
 
         await save_reminder(task)
-        return _build_response(task, lang, recurrence, context.timezone)
+        result = _build_response(task, lang, recurrence, context.timezone)
+        if context.timezone in ("UTC", "Etc/UTC"):
+            buttons = _TZ_BUTTONS.get(lang, _TZ_BUTTONS["en"])
+            return SkillResult(
+                response_text=result.response_text + _t("tz_prompt", lang),
+                buttons=buttons,
+            )
+        return result
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return SET_REMINDER_SYSTEM_PROMPT.format(language=context.language or "en")
@@ -491,7 +657,7 @@ class SetReminderSkill:
 
 def _build_response(
     task: Task, lang: str, recurrence: ReminderRecurrence,
-    timezone: str = "America/New_York",
+    timezone: str = "UTC",
 ) -> SkillResult:
     """Build response text for a single reminder."""
     if task.reminder_at:
@@ -559,7 +725,14 @@ async def _create_multiple_reminders(
         if rec_line:
             lines.append(rec_line)
 
-    return SkillResult(response_text="\n".join(lines))
+    resp_text = "\n".join(lines)
+    if context.timezone in ("UTC", "Etc/UTC"):
+        buttons = _TZ_BUTTONS.get(lang, _TZ_BUTTONS["en"])
+        return SkillResult(
+            response_text=resp_text + _t("tz_prompt", lang),
+            buttons=buttons,
+        )
+    return SkillResult(response_text=resp_text)
 
 
 async def save_reminder(task: Task) -> None:
