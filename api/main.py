@@ -32,9 +32,9 @@ from src.core.release import (
     get_release_flag_snapshot,
     get_release_health_snapshot,
     get_release_ops_overview,
+    get_release_request_plan,
     log_runtime_event,
     record_release_event,
-    resolve_release_cohort,
 )
 from src.core.request_context import (
     reset_request_context,
@@ -397,8 +397,13 @@ async def on_message(incoming):
     )
     try:
         context = await build_session_context(incoming.user_id)
+        release_plan = await get_release_request_plan(context, subject_id=incoming.user_id)
         update_request_context(
-            rollout_cohort=resolve_release_cohort(context),
+            rollout_cohort=release_plan["cohort"],
+            rollout_bucket=release_plan["bucket"],
+            release_mode=release_plan["mode"],
+            release_enabled=release_plan["release_enabled"],
+            shadow_enabled=release_plan["shadow_enabled"],
             release_flags=get_release_flag_snapshot(),
         )
         log_runtime_event(
@@ -410,9 +415,15 @@ async def on_message(incoming):
             user_id=incoming.user_id,
             message_id=incoming.id,
             message_type=incoming.type,
+            release_mode=release_plan["mode"],
+            release_enabled=release_plan["release_enabled"],
+            shadow_enabled=release_plan["shadow_enabled"],
+            rollout_bucket=release_plan["bucket"],
+            health_status=release_plan["health_status"],
+            recommended_action=release_plan["recommended_action"],
         )
         await record_release_event("requests_total")
-        if settings.release_shadow_mode:
+        if release_plan["shadow_enabled"]:
             await record_release_event("shadow_requests_total")
 
         if not context:
@@ -629,8 +640,16 @@ async def _handle_channel_message(incoming, gw):
     )
     try:
         context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
+        release_plan = await get_release_request_plan(
+            context,
+            subject_id=incoming.channel_user_id or incoming.user_id,
+        )
         update_request_context(
-            rollout_cohort=resolve_release_cohort(context),
+            rollout_cohort=release_plan["cohort"],
+            rollout_bucket=release_plan["bucket"],
+            release_mode=release_plan["mode"],
+            release_enabled=release_plan["release_enabled"],
+            shadow_enabled=release_plan["shadow_enabled"],
             release_flags=get_release_flag_snapshot(),
         )
         log_runtime_event(
@@ -642,9 +661,15 @@ async def _handle_channel_message(incoming, gw):
             user_id=incoming.user_id,
             message_id=incoming.id,
             message_type=incoming.type,
+            release_mode=release_plan["mode"],
+            release_enabled=release_plan["release_enabled"],
+            shadow_enabled=release_plan["shadow_enabled"],
+            rollout_bucket=release_plan["bucket"],
+            health_status=release_plan["health_status"],
+            recommended_action=release_plan["recommended_action"],
         )
         await record_release_event("requests_total")
-        if settings.release_shadow_mode:
+        if release_plan["shadow_enabled"]:
             await record_release_event("shadow_requests_total")
 
         if not context:

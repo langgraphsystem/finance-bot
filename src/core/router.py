@@ -40,7 +40,11 @@ from src.core.models.user_context import UserContext
 from src.core.pending_actions import store_pending_action
 from src.core.rate_limit import check_rate_limit
 from src.core.release import log_runtime_event, record_release_event
-from src.core.request_context import reset_family_context, set_family_context
+from src.core.request_context import (
+    get_current_shadow_enabled,
+    reset_family_context,
+    set_family_context,
+)
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills import create_registry
 from src.skills.base import SkillRegistry, SkillResult
@@ -130,6 +134,83 @@ def _get_intent_detector():
     if _settings.ff_supervisor_routing:
         return detect_intent_v2
     return detect_intent
+
+
+async def _run_intent_shadow_compare(
+    *,
+    primary_detector_name: str,
+    detect_text: str,
+    categories: list[dict] | None,
+    language: str,
+    recent_context: str | None,
+    primary_result,
+) -> None:
+    """Run shadow intent detection and log routing divergence."""
+    if not get_current_shadow_enabled():
+        return
+
+    shadow_detector = (
+        detect_intent_v2 if primary_detector_name == "detect_intent" else detect_intent
+    )
+    shadow_detector_name = shadow_detector.__name__
+
+    try:
+        shadow_result = await shadow_detector(
+            text=detect_text,
+            categories=categories,
+            language=language,
+            recent_context=recent_context,
+        )
+        intents_match = primary_result.intent == shadow_result.intent
+        shadow_event = "shadow_match_total" if intents_match else "shadow_mismatch_total"
+        await record_release_event(shadow_event)
+        log_runtime_event(
+            logger,
+            "info",
+            "intent_shadow_compared",
+            primary_detector=primary_detector_name,
+            shadow_detector=shadow_detector_name,
+            primary_intent=primary_result.intent,
+            shadow_intent=shadow_result.intent,
+            primary_intent_type=primary_result.intent_type,
+            shadow_intent_type=shadow_result.intent_type,
+            primary_confidence=primary_result.confidence,
+            shadow_confidence=shadow_result.confidence,
+            intents_match=intents_match,
+        )
+    except Exception:
+        await record_release_event("shadow_compare_failed_total")
+        log_runtime_event(
+            logger,
+            "warning",
+            "intent_shadow_compare_failed",
+            primary_detector=primary_detector_name,
+            shadow_detector=shadow_detector_name,
+        )
+
+
+def _schedule_intent_shadow_compare(
+    *,
+    primary_detector_name: str,
+    detect_text: str,
+    categories: list[dict] | None,
+    language: str,
+    recent_context: str | None,
+    primary_result,
+) -> None:
+    """Schedule shadow intent comparison without delaying the user response."""
+    if not get_current_shadow_enabled():
+        return
+    asyncio.create_task(
+        _run_intent_shadow_compare(
+            primary_detector_name=primary_detector_name,
+            detect_text=detect_text,
+            categories=categories,
+            language=language,
+            recent_context=recent_context,
+            primary_result=primary_result,
+        )
+    )
 
 
 async def _persist_message(
@@ -431,6 +512,14 @@ async def _dispatch_message(
                 categories=context.categories,
                 language=context.language,
             )
+            _schedule_intent_shadow_compare(
+                primary_detector_name=_detect.__name__,
+                detect_text=detect_text,
+                categories=context.categories,
+                language=context.language,
+                recent_context=None,
+                primary_result=result,
+            )
             intent_name = result.intent
             intent_data = result.data.model_dump() if result.data else {}
             intent_data["confidence"] = result.confidence
@@ -494,6 +583,14 @@ async def _dispatch_message(
             categories=context.categories,
             language=context.language,
             recent_context=recent_context,
+        )
+        _schedule_intent_shadow_compare(
+            primary_detector_name=_detect.__name__,
+            detect_text=message.text or "",
+            categories=context.categories,
+            language=context.language,
+            recent_context=recent_context,
+            primary_result=result,
         )
         intent_name = result.intent
         intent_data = result.data.model_dump() if result.data else {}

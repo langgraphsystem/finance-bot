@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from typing import Any
@@ -11,12 +12,18 @@ from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.request_context import (
     get_current_correlation_id,
+    get_current_release_enabled,
     get_current_release_flags,
+    get_current_release_mode,
     get_current_request_id,
+    get_current_rollout_bucket,
     get_current_rollout_cohort,
+    get_current_shadow_enabled,
 )
 
 _RELEASE_HEALTH_TTL_SECONDS = 86400
+_ALWAYS_ON_COHORTS = {"internal", "trusted", "beta"}
+_PROTECTED_COHORTS = {"sensitive", "vip", "new_user"}
 logger = logging.getLogger(__name__)
 
 
@@ -87,6 +94,10 @@ def build_log_context(**fields: Any) -> dict[str, Any]:
         "request_id": get_current_request_id(),
         "correlation_id": get_current_correlation_id(),
         "rollout_cohort": get_current_rollout_cohort(),
+        "rollout_bucket": get_current_rollout_bucket(),
+        "release_mode": get_current_release_mode(),
+        "release_enabled": get_current_release_enabled(),
+        "shadow_enabled": get_current_shadow_enabled(),
         "release_flags": get_current_release_flags(),
         **get_release_runtime_state(),
     }
@@ -138,6 +149,13 @@ def _parse_int(metrics: dict[str, str], key: str) -> int:
         return int(metrics.get(key, "0"))
     except (TypeError, ValueError):
         return 0
+
+
+def _stable_rollout_bucket(subject_id: str) -> int:
+    """Assign a deterministic rollout bucket in the range [0, 99]."""
+    rollout_name = settings.release_rollout_name or "default"
+    digest = hashlib.sha256(f"{rollout_name}:{subject_id}".encode()).hexdigest()
+    return int(digest[:8], 16) % 100
 
 
 async def get_release_health_snapshot() -> dict[str, Any]:
@@ -208,6 +226,51 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "no_reply_rate": settings.release_health_no_reply_rate_threshold,
             "rate_limited_rate": settings.release_health_rate_limited_threshold,
         },
+    }
+
+
+async def get_release_request_plan(
+    context: SessionContext | None,
+    *,
+    subject_id: str | None = None,
+) -> dict[str, Any]:
+    """Return the rollout decision for a specific request."""
+    cohort = resolve_release_cohort(context)
+    stable_subject = (
+        subject_id
+        or (str(context.user_id) if context else None)
+        or get_current_correlation_id()
+        or "anonymous"
+    )
+    bucket = _stable_rollout_bucket(stable_subject)
+    health = await get_release_health_snapshot()
+
+    release_enabled = False
+    mode = "control"
+    if health.get("recommended_action") == "rollback":
+        mode = "rollback_hold"
+    elif cohort in _ALWAYS_ON_COHORTS:
+        release_enabled = True
+        mode = cohort
+    elif cohort in _PROTECTED_COHORTS and settings.release_rollout_percent < 100:
+        mode = "protected"
+    elif bucket < settings.release_rollout_percent:
+        release_enabled = True
+        mode = "canary"
+
+    shadow_enabled = bool(
+        settings.release_shadow_mode and health.get("recommended_action") != "rollback"
+    )
+
+    return {
+        "cohort": cohort,
+        "bucket": bucket,
+        "mode": mode,
+        "release_enabled": release_enabled,
+        "shadow_enabled": shadow_enabled,
+        "rollout_percent": settings.release_rollout_percent,
+        "health_status": health.get("status", "unavailable"),
+        "recommended_action": health.get("recommended_action", "ignore"),
     }
 
 

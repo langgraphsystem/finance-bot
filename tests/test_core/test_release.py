@@ -5,6 +5,7 @@ from src.core.release import (
     get_release_flag_snapshot,
     get_release_health_snapshot,
     get_release_ops_overview,
+    get_release_request_plan,
     get_release_switches,
     record_release_event,
     resolve_release_cohort,
@@ -109,3 +110,51 @@ async def test_release_ops_overview_combines_switches_flags_and_health():
     assert "switches" in overview
     assert "flags" in overview
     assert overview["health"]["status"] == "healthy"
+
+
+async def test_release_request_plan_keeps_internal_users_enabled_during_canary_hold():
+    with (
+        patch("src.core.release.settings.release_rollout_percent", 0),
+        patch(
+            "src.core.release.get_release_health_snapshot",
+            AsyncMock(return_value={"status": "healthy", "recommended_action": "continue"}),
+        ),
+    ):
+        plan = await get_release_request_plan(_context(user_id="u-1", role="member"))
+
+    assert plan["mode"] == "control"
+    assert plan["release_enabled"] is False
+
+    with (
+        patch("src.core.release.settings.release_internal_user_ids", "u-1"),
+        patch("src.core.release.settings.release_rollout_percent", 0),
+        patch(
+            "src.core.release.get_release_health_snapshot",
+            AsyncMock(return_value={"status": "healthy", "recommended_action": "continue"}),
+        ),
+    ):
+        internal_plan = await get_release_request_plan(_context(user_id="u-1", role="member"))
+
+    assert internal_plan["mode"] == "internal"
+    assert internal_plan["release_enabled"] is True
+
+
+async def test_release_request_plan_protects_sensitive_and_stops_shadow_on_rollback():
+    with (
+        patch("src.core.release.settings.release_rollout_percent", 50),
+        patch("src.core.release.settings.release_shadow_mode", True),
+        patch(
+            "src.core.release.get_release_health_snapshot",
+            AsyncMock(
+                return_value={
+                    "status": "rollback_recommended",
+                    "recommended_action": "rollback",
+                }
+            ),
+        ),
+    ):
+        plan = await get_release_request_plan(_context(role="accountant"))
+
+    assert plan["mode"] == "rollback_hold"
+    assert plan["release_enabled"] is False
+    assert plan["shadow_enabled"] is False

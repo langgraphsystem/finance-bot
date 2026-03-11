@@ -23,6 +23,18 @@ _current_correlation_id: contextvars.ContextVar[str | None] = contextvars.Contex
 _current_rollout_cohort: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "_current_rollout_cohort", default=None
 )
+_current_rollout_bucket: contextvars.ContextVar[int | None] = contextvars.ContextVar(
+    "_current_rollout_bucket", default=None
+)
+_current_release_mode: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_release_mode", default=None
+)
+_current_release_enabled: contextvars.ContextVar[bool | None] = contextvars.ContextVar(
+    "_current_release_enabled", default=None
+)
+_current_shadow_enabled: contextvars.ContextVar[bool | None] = contextvars.ContextVar(
+    "_current_shadow_enabled", default=None
+)
 _current_release_flags: contextvars.ContextVar[dict[str, bool] | None] = contextvars.ContextVar(
     "_current_release_flags", default=None
 )
@@ -51,6 +63,26 @@ def get_current_correlation_id() -> str | None:
 def get_current_rollout_cohort() -> str | None:
     """Return the rollout cohort bound to the current async context, or *None*."""
     return _current_rollout_cohort.get()
+
+
+def get_current_rollout_bucket() -> int | None:
+    """Return the rollout bucket bound to the current async context, or *None*."""
+    return _current_rollout_bucket.get()
+
+
+def get_current_release_mode() -> str | None:
+    """Return the release mode bound to the current async context, or *None*."""
+    return _current_release_mode.get()
+
+
+def get_current_release_enabled() -> bool | None:
+    """Return whether the current request is rollout-enabled, or *None*."""
+    return _current_release_enabled.get()
+
+
+def get_current_shadow_enabled() -> bool | None:
+    """Return whether shadow evaluation is enabled for the current request."""
+    return _current_shadow_enabled.get()
 
 
 def get_current_release_flags() -> dict[str, bool] | None:
@@ -108,6 +140,10 @@ class _RequestToken:
         "request_token",
         "correlation_token",
         "cohort_token",
+        "bucket_token",
+        "mode_token",
+        "release_enabled_token",
+        "shadow_enabled_token",
         "release_flags_token",
     )
 
@@ -116,11 +152,19 @@ class _RequestToken:
         request_token: contextvars.Token[str | None],
         correlation_token: contextvars.Token[str | None],
         cohort_token: contextvars.Token[str | None],
+        bucket_token: contextvars.Token[int | None],
+        mode_token: contextvars.Token[str | None],
+        release_enabled_token: contextvars.Token[bool | None],
+        shadow_enabled_token: contextvars.Token[bool | None],
         release_flags_token: contextvars.Token[dict[str, bool] | None],
     ):
         self.request_token = request_token
         self.correlation_token = correlation_token
         self.cohort_token = cohort_token
+        self.bucket_token = bucket_token
+        self.mode_token = mode_token
+        self.release_enabled_token = release_enabled_token
+        self.shadow_enabled_token = shadow_enabled_token
         self.release_flags_token = release_flags_token
 
 
@@ -129,24 +173,53 @@ def set_request_context(
     request_id: str,
     correlation_id: str,
     rollout_cohort: str | None = None,
+    rollout_bucket: int | None = None,
+    release_mode: str | None = None,
+    release_enabled: bool | None = None,
+    shadow_enabled: bool | None = None,
     release_flags: dict[str, bool] | None = None,
 ) -> _RequestToken:
     """Bind request-scoped metadata for the current async context."""
     rt = _current_request_id.set(request_id)
     ct = _current_correlation_id.set(correlation_id)
     cohort_t = _current_rollout_cohort.set(rollout_cohort)
+    bucket_t = _current_rollout_bucket.set(rollout_bucket)
+    mode_t = _current_release_mode.set(release_mode)
+    release_enabled_t = _current_release_enabled.set(release_enabled)
+    shadow_enabled_t = _current_shadow_enabled.set(shadow_enabled)
     flags_t = _current_release_flags.set(release_flags)
-    return _RequestToken(rt, ct, cohort_t, flags_t)
+    return _RequestToken(
+        rt,
+        ct,
+        cohort_t,
+        bucket_t,
+        mode_t,
+        release_enabled_t,
+        shadow_enabled_t,
+        flags_t,
+    )
 
 
 def update_request_context(
     *,
     rollout_cohort: str | None = None,
+    rollout_bucket: int | None = None,
+    release_mode: str | None = None,
+    release_enabled: bool | None = None,
+    shadow_enabled: bool | None = None,
     release_flags: dict[str, bool] | None = None,
 ) -> None:
     """Update request-scoped rollout metadata for the current async context."""
     if rollout_cohort is not None:
         _current_rollout_cohort.set(rollout_cohort)
+    if rollout_bucket is not None:
+        _current_rollout_bucket.set(rollout_bucket)
+    if release_mode is not None:
+        _current_release_mode.set(release_mode)
+    if release_enabled is not None:
+        _current_release_enabled.set(release_enabled)
+    if shadow_enabled is not None:
+        _current_shadow_enabled.set(shadow_enabled)
     if release_flags is not None:
         _current_release_flags.set(release_flags)
 
@@ -156,4 +229,8 @@ def reset_request_context(token: _RequestToken) -> None:
     _current_request_id.reset(token.request_token)
     _current_correlation_id.reset(token.correlation_token)
     _current_rollout_cohort.reset(token.cohort_token)
+    _current_rollout_bucket.reset(token.bucket_token)
+    _current_release_mode.reset(token.mode_token)
+    _current_release_enabled.reset(token.release_enabled_token)
+    _current_shadow_enabled.reset(token.shadow_enabled_token)
     _current_release_flags.reset(token.release_flags_token)
