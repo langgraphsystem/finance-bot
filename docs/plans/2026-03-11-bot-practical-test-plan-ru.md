@@ -82,6 +82,8 @@
 3. Привязать каждый сценарий к `correlation_id`.
 4. Проверять side effects: память, напоминания, callbacks.
 5. Выделить минимальный golden set сценариев через Telegram.
+6. Собирать production traces и формировать из них datasets для регрессии.
+7. Добавить human review queue для лучших и худших реальных диалогов.
 
 ## 4. Основные риски и проблемы
 
@@ -100,6 +102,42 @@
 
 ## 5. План практических реальных взаимодействий с ботом
 
+### Общие правила оценки каждого сценария
+
+Каждый сценарий должен оцениваться не только по `pass/fail`, а по рубрике:
+- `intent correctness`
+- `response usefulness`
+- `safety correctness`
+- `side effect correctness`
+- `context continuity`
+- `formatting/channel correctness`
+- `latency acceptable`
+
+Итоговый статус сценария:
+- `success`
+- `soft failure`
+- `wrong route`
+- `unsafe block`
+- `unsafe allow`
+- `tool failure`
+- `memory failure`
+
+### User cohorts для реальных проверок
+
+Все изменения в routing, memory, guardrails, prompts и tool fallback сначала проверяются на когортах:
+- `internal admins / developers`
+- `trusted testers`
+- `beta users`
+- `normal users`
+- `high-risk / VIP / sensitive workflows`
+- `new users`
+- `returning users`
+
+Правило rollout:
+- risky changes сначала включаются только для `internal` и `trusted testers`;
+- memory/routing changes не включаются сразу на `VIP` и чувствительные workflow;
+- для каждой когорты должен быть явный feature flag и rollback-путь.
+
 ### Сценарий 1. Базовый smoke / onboarding
 
 - Цель: проверить входной Telegram-контур и стартовый ответ.
@@ -111,6 +149,8 @@
 - Логи: ingress webhook, update dedup, onboarding state transition.
 - Возможные ошибки: дубль обработки, цикл онбординга, пустой ответ.
 - Проверка успеха: бот переходит в ожидаемый стартовый state.
+- Дополнительно измерять: `task completion`, `latency`, `false clarification`.
+- LLM-риски: лишний отказ, неверный язык, неуверенный стартовый ответ.
 - Если неверно: bug / UX / config.
 - Действие: точечный фикс.
 
@@ -125,6 +165,8 @@
 - Логи: `guardrail=allow`, `intent=general_chat`, выбранная модель.
 - Возможные ошибки: ответ на другом языке, неправильный route, пустой ответ.
 - Проверка успеха: ответ релевантен и стабилен.
+- Дополнительно измерять: `clarification rate`, `user dissatisfaction signals`.
+- LLM-риски: overly generic answer, wrong confident answer, prompt drift.
 - Если неверно: prompt / routing / UX.
 - Действие: точечный фикс.
 
@@ -139,6 +181,8 @@
 - Логи: parsed datetime, created reminder id, outgoing confirmation.
 - Возможные ошибки: неверный timezone, отсутствие side effect, расплывчатое подтверждение.
 - Проверка успеха: напоминание реально создано и его можно найти в системе.
+- Дополнительно измерять: `reminder success rate`, `retry rate`, `abandonment rate`.
+- LLM-риски: tool hallucination, missed clarification, invented datetime.
 - Если неверно: bug / config / timezone.
 - Действие: сначала точечный фикс.
 
@@ -153,6 +197,8 @@
 - Логи: context hit, target entity, update result.
 - Возможные ошибки: создан дубль, потеря ссылки на `это`, выдуманная дата.
 - Проверка успеха: обновляется именно нужный объект.
+- Дополнительно измерять: `context continuity`, `false clarification rate`.
+- LLM-риски: retrieval miss, wrong entity binding, confident rewrite of wrong object.
 - Если неверно: memory / routing.
 - Действие: повторяемый сбой выносить в глобальный план памяти.
 
@@ -167,6 +213,8 @@
 - Логи: размер входа, token budget, модель, latency.
 - Возможные ошибки: игнор части текста, таймаут, галлюцинация сумм.
 - Проверка успеха: вывод опирается на реальные данные из сообщения.
+- Дополнительно измерять: `summary usefulness`, `latency`, `abandonment rate`.
+- LLM-риски: truncation loss, hallucinated totals, overconfident advice.
 - Если неверно: context-budget / prompt / LLM.
 - Действие: локальный рефакторинг.
 
@@ -181,6 +229,8 @@
 - Логи: candidate intents, confidences, final route.
 - Возможные ошибки: молча исполнена только одна половина.
 - Проверка успеха: бот не теряет вторую часть запроса.
+- Дополнительно измерять: `task completion rate`, `wrong-route rate`, `clarification rate`.
+- LLM-риски: route collapse to single intent, silent omission, fake completion.
 - Если неверно: routing / architecture.
 - Действие: глобальное изменение.
 
@@ -195,6 +245,8 @@
 - Логи: parse failure reason, clarification requested.
 - Возможные ошибки: невалидная запись в БД, raw traceback, ложное подтверждение.
 - Проверка успеха: нет создания сущности без валидной даты.
+- Дополнительно измерять: `false clarification rate`, `recovery success rate`.
+- LLM-риски: unsafe confident answer, missed clarification, fabricated parse.
 - Если неверно: validation / UX / bug.
 - Действие: точечный фикс.
 
@@ -212,6 +264,8 @@
 - Логи: memory write success, retrieval hit, applied preference.
 - Возможные ошибки: память сохраняется, но не влияет на ответ.
 - Проверка успеха: в последующих ответах preference реально применяется.
+- Дополнительно измерять: `memory utilization rate`, `task completion rate`, `retry rate`.
+- LLM-риски: memory miss, stale memory, unsafe personalization refusal.
 - Если неверно: memory / UX.
 - Действие: локальный рефакторинг или глобальный пересмотр memory contract.
 
@@ -228,6 +282,8 @@
 - Логи: decision, reason, provider/model, fail-open/fail-closed.
 - Возможные ошибки: блок легитимного запроса, пропуск вредоносного.
 - Проверка успеха: поведение соответствует policy и объяснимо в логах.
+- Дополнительно измерять: `unsafe block rate`, `unsafe allow rate`, `complaint rate`.
+- LLM-риски: unsafe-but-polite answer, overblocking legitimate request.
 - Если неверно: guardrails / prompt / test drift.
 - Действие: сначала точечный фикс и синхронизация тестов.
 
@@ -242,6 +298,8 @@
 - Логи: `tool_start`, `tool_error_normalized`, user-facing fallback.
 - Возможные ошибки: hung request, raw exception, частично записанное состояние.
 - Проверка успеха: пользователь получает понятный и безопасный ответ.
+- Дополнительно измерять: `tool success rate`, `fallback rate`, `handoff rate`.
+- LLM-риски: tool hallucination, fake success, unsafe hidden failure.
 - Если неверно: tooling / UX / config.
 - Действие: точечный фикс плюс локальный рефакторинг error contract.
 
@@ -256,6 +314,8 @@
 - Логи: callback data, idempotency result, target entity.
 - Возможные ошибки: повторный клик ломает состояние, тишина, двойной откат.
 - Проверка успеха: callback предсказуем и не разрушает состояние.
+- Дополнительно измерять: `callback success rate`, `duplicate action rate`.
+- LLM-риски: неверный UI текст, неправильное объяснение статуса.
 - Если неверно: bot UI / backend consistency.
 - Действие: точечный фикс.
 
@@ -270,6 +330,8 @@
 - Логи: file metadata, transcript text/length, final intent.
 - Возможные ошибки: пустая транскрипция, неверный route, потеря вложения.
 - Проверка успеха: создаётся то же напоминание, что и при текстовом вводе.
+- Дополнительно измерять: `voice-to-task success rate`, `retry rate`, `latency`.
+- LLM-риски: ASR drift, routing drift after transcript noise, missed clarification.
 - Если неверно: gateway / media / tooling.
 - Действие: локальный рефакторинг.
 
@@ -283,6 +345,8 @@
 - Логи: единая корреляция по каждому сценарию.
 - Возможные ошибки: живой прогон проходит, а side effects некорректны; либо наоборот.
 - Проверка успеха: совпадают ответ, side effect и логи.
+- Дополнительно измерять: `release health`, `wrong-route rate`, `user dissatisfaction`.
+- LLM-риски: nondeterminism, model drift, silent degradation.
 - Если неверно: test coverage / observability.
 - Действие: локальный рефакторинг harness и затем глобальная eval-стратегия.
 
@@ -298,6 +362,9 @@
 - единого lifecycle-события на каждый пользовательский запрос;
 - жёстко стандартизированных полей;
 - сквозной корреляции webhook -> router -> tool -> task -> reply.
+- release health метрик по реальному трафику;
+- sampling policy для trace review;
+- очереди human review для production диалогов.
 
 Минимальный обязательный набор полей:
 - `request_id`
@@ -330,6 +397,11 @@
 - `memory_reads`
 - `memory_writes`
 - `error_code`
+- `release_flag_state`
+- `rollout_cohort`
+- `shadow_result_available`
+- `user_feedback_label`
+- `review_queue_status`
 
 Как быстро локализовать проблему:
 1. Нет ingress-лога -> проблема webhook/gateway.
@@ -337,6 +409,74 @@
 3. Есть intent, но нет tool/skill start -> проблема routing.
 4. Есть tool start, но нет ответа пользователю -> проблема error handling/outbound path.
 5. Ответ есть, side effect отсутствует -> проблема persistence/background jobs.
+
+### 6.1. Release health gates
+
+Релиз считается плохим и rollout должен быть остановлен или откатан, если растут:
+- `error rate`
+- `fallback rate`
+- `no-reply / timeout rate`
+- `wrong-route rate`
+- `handoff-to-human rate`
+- `complaint / dissatisfaction rate`
+- `task success drop`
+
+Минимальные stop criteria:
+- резкий рост технических ошибок после включения feature flag;
+- рост пустых или прерванных ответов;
+- рост ложных блокировок guardrails;
+- рост tool failures на canary cohort;
+- падение completion rate по ключевым сценариям.
+
+### 6.2. Production sampling policy
+
+Для production review и trace-based evals собирать:
+- `100%` ошибок, tool failures, guardrail blocks, empty replies, retries;
+- `20-30%` multi-intent и memory-related conversations;
+- `5-10%` обычных успешных сценариев;
+- `1-2%` длинных диалогов целиком для full transcript audit.
+
+### 6.3. Human review queue
+
+В ежедневный или регулярный review отправлять:
+- top failed traces;
+- suspicious safe-looking traces;
+- escalations;
+- tool failures;
+- guardrail edge cases;
+- memory misses.
+
+Структурированные метки ревьюера:
+- `intent correct?`
+- `response useful?`
+- `action completed?`
+- `clarification appropriate?`
+- `memory applied?`
+- `safe?`
+- `language correct?`
+- `should become regression example?`
+
+### 6.4. Conversation analytics pipeline
+
+Нужен отдельный аналитический поток:
+- conversation events -> structured store / warehouse;
+- dashboards по `success by scenario`;
+- top failed intents;
+- top clarifications;
+- top blocked prompts;
+- top tool failures;
+- top abandoned tasks;
+- median latency by scenario.
+
+### 6.5. User feedback loop
+
+После части сценариев бот должен собирать простую обратную связь:
+- `помогло / не помогло`
+- `выполнил задачу / не выполнил`
+- `ответ был понятен / непонятен`
+- `нужно связаться с человеком / нет`
+
+Эта обратная связь должна привязываться к trace, сценарию, feature flag и когорте.
 
 ## 7. Стратегия исправлений
 
@@ -347,6 +487,7 @@
 - Ужесточить fail criteria в `scripts/test_bot_live.py` и `scripts/test_memory_gaps.py`.
 - Добавить Telegram webhook secret token validation.
 - Привести model IDs к внутренним правилам проекта.
+- Добавить release flags для risky changes в routing, memory, guardrails и prompts.
 
 ### 7.2. Что требует локального рефакторинга
 
@@ -354,6 +495,8 @@
 - Вынести route-decision logging в единый слой.
 - Отвязать live direct mode от рабочих данных.
 - Добавить проверку Telegram HTML/render path в live harness.
+- Добавить shadow mode для новых routing и prompt packs без показа результата пользователю.
+- Ввести rubric-based оценку сценариев вместо простого `pass/fail`.
 
 ### 7.3. Что требует глобального плана
 
@@ -362,8 +505,18 @@
 - Внедрить сквозную observability-схему.
 - Перейти от ad hoc prompt scoring к dataset/golden-dialogue evals.
 - Упростить и формализовать supervisor/catalog routing.
+- Построить trace-to-dataset pipeline из production разговоров.
+- Ввести formal release health и automated rollback criteria.
+- Построить human review / annotation loop поверх production traces.
 
 ## 8. План поэтапной реализации
+
+### Принципы rollout для всех фаз
+
+- любое изменение в routing, memory, guardrails, prompts и tool fallback включается только через `feature flag`;
+- для каждой фичи должен существовать `rollback plan`;
+- risky changes сначала проходят `shadow mode`, затем canary, затем progressive rollout;
+- решение о расширении rollout принимается только по release health метрикам.
 
 ### Фаза 1. Быстрое практическое тестирование через бота
 
@@ -393,6 +546,23 @@
 - Артефакты: расширенный набор сценариев и жёстких ожиданий.
 - Критерий завершения: harness ловит ошибки, которые раньше пропускал.
 
+### Фаза 4.5. Controlled Production Rollout
+
+- Цель: безопасно вывести изменения на реальных пользователей.
+- Шаги:
+  - `internal team only`;
+  - `trusted beta users`;
+  - `1-5%` реального трафика;
+  - `10-25%`;
+  - `100%` только после нормальных метрик.
+- Для каждого change set фиксировать:
+  - кому включено;
+  - какой feature flag;
+  - какой процент пользователей;
+  - какие stop criteria и rollback trigger.
+- Артефакты: rollout matrix, cohort map, release health dashboard.
+- Критерий завершения: rollout расширяется без деградации release health.
+
 ### Фаза 5. Архитектурные улучшения
 
 - Цель: убрать системные источники неверного routing и слабой памяти.
@@ -403,9 +573,23 @@
 ### Фаза 6. Регрессионный цикл
 
 - Цель: закрепить качество перед релизами.
-- Шаги: `ruff check`, `pytest`, live Telegram smoke, golden dialogue evals.
-- Артефакты: release checklist, baseline reports.
+- Шаги: `ruff check`, `pytest`, live Telegram smoke, golden dialogue evals, production trace evals, human review.
+- Артефакты: release checklist, baseline reports, review queue decisions.
 - Критерий завершения: релизный кандидат проходит все уровни проверки.
+
+### Фаза 7. Weekly review loop
+
+- Цель: превращать реальные продовые сбои в улучшение regression coverage.
+- Шаги:
+  - top 20 failed traces;
+  - top 10 ambiguous traces;
+  - top 10 user complaints;
+  - top 10 guardrail edge cases;
+  - top 10 memory misses;
+  - 5 новых golden dialogues;
+  - 5 новых сценариев в live harness на основе реальных фейлов.
+- Артефакты: weekly review notes, обновлённый dataset, новые regression cases.
+- Критерий завершения: реальные продовые проблемы системно попадают в тестовый контур.
 
 ## 9. Актуализация решений и best practices
 
@@ -415,10 +599,42 @@
 - Gemini provider path: убрать зависимость от deprecated `google.generativeai`.
 - Live eval strategy: перейти к golden dialogues и dataset-based evals вместо только prompt-based scoring.
 - Model governance: убрать IDs, которые выходят за рамки внутренних правил проекта.
+- Release strategy: перейти от ручного включения к progressive rollout через feature flags.
+- Evaluation strategy: добавить trace-based online evals и human annotation queues.
 
 Приоритет:
 - webhook secret token и model governance: сейчас;
+- release flags, shadow mode и rollout cohorts: сразу после стабилизации базовых логов;
 - live eval strategy и observability overhaul: после стабилизации harness и логов.
+
+### 9.1. Production Test Pyramid
+
+- Layer 1: static / lint / config validation
+- Layer 2: unit tests
+- Layer 3: integration tests
+- Layer 4: scripted live bot tests
+- Layer 5: canary on real users
+- Layer 6: production trace evals
+- Layer 7: human review / annotation
+- Layer 8: rollback / release health decision
+
+### 9.2. LLM-specific production risks
+
+Для этого проекта нужен отдельный контроль рисков, характерных именно для LLM-систем:
+- nondeterminism;
+- prompt drift;
+- model drift;
+- unsafe-but-polite answers;
+- wrong confident answers;
+- retrieval misses;
+- tool hallucination.
+
+Для каждого крупного сценария должны оцениваться:
+- `hallucination risk`
+- `overconfident wrong answer risk`
+- `unsafe refusal risk`
+- `missed clarification risk`
+- `retrieval miss risk`
 
 ## 10. Финальный вывод
 
@@ -428,8 +644,8 @@
 1. Починить guardrails и voice test drift.
 2. Ужесточить live harness.
 3. Добавить correlation IDs.
-4. Включить Telegram webhook secret token.
-5. Зафиксировать минимальный live regression set.
+4. Ввести feature flags, shadow mode и controlled rollout cohorts.
+5. Включить Telegram webhook secret token и release health gates.
 
 Минимальный боевой набор сценариев:
 - `/start` и базовый диалог;
@@ -438,6 +654,13 @@
 - memory write/read;
 - guardrail block на вредоносный запрос;
 - graceful recovery при недоступном tool.
+
+Дополнительный обязательный production-контур:
+- canary rollout по когортам;
+- production trace sampling;
+- human review queue;
+- feedback collection;
+- rollback plan на уровне каждой risky feature.
 
 ## Приложение: текущее состояние проверок на 2026-03-11
 
