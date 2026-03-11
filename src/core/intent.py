@@ -261,9 +261,11 @@ youtube.com/shorts/) или TikTok (tiktok.com/, vm.tiktok.com/, vt.tiktok.com/)
 - web_action: выполнить действие на сайте через браузер ("go to website and fill form", \
 "зайди на сайт и заполни форму", "зайди на сайт и посмотри")
 - browser_action: интерактивное действие на сайте, требующее авторизации — бронирование, \
-покупка, заказ, оформление ("забронируй отель на booking.com", "купи билеты на aviasales", \
-"закажи на Amazon", "book a flight on kayak.com", "order from Uber Eats", \
-"submit order on Amazon", "book appointment online"). \
+покупка, заказ, оформление, подключение к сервису ("забронируй отель на booking.com", \
+"купи билеты на aviasales", "закажи на Amazon", "book a flight on kayak.com", \
+"order from Uber Eats", "submit order on Amazon", "book appointment online", \
+"подключись к Amazon Relay", "connect to relay", "войди в Amazon Relay", \
+"log in to booking.com", "подключи relay"). \
 Извлеки browser_target_site: домен сайта, browser_task: что именно нужно сделать. \
 Для запросов на бронирование отелей также извлеки: hotel_city (город на английском), \
 hotel_check_in (YYYY-MM-DD), hotel_check_out (YYYY-MM-DD), hotel_guests (число, default 2), \

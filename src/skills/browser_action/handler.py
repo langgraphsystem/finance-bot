@@ -24,7 +24,13 @@ from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
-from src.tools import browser_booking, browser_login, browser_service, taxi_booking
+from src.tools import (
+    browser_booking,
+    browser_login,
+    browser_service,
+    remote_browser_connect,
+    taxi_booking,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -208,28 +214,57 @@ class BrowserActionSkill:
             error_text = result.get("result", "").lower()
             if "login" in error_text or "sign in" in error_text or "auth" in error_text:
                 await browser_service.delete_session(context.user_id, domain)
+                connect_url = await remote_browser_connect.create_connect_url(
+                    user_id=context.user_id,
+                    family_id=context.family_id,
+                    provider=domain,
+                )
+                provider_label = browser_service.get_provider_label(domain)
                 return SkillResult(
                     response_text=(
-                        f"Session expired for <b>{domain}</b>.\n\n"
-                        "Please log in again in your browser and use the "
-                        "Finance Bot extension to save the new session.\n\n"
-                        "Send /extension if you need to set it up."
+                        f"Session expired for <b>{provider_label}</b>.\n\n"
+                        "Tap the button to log in again."
                     ),
+                    buttons=[{"text": f"🔗 Log in to {provider_label}", "url": connect_url}],
                 )
 
             return SkillResult(
                 response_text=f"Browser task failed: {result['result']}"
             )
 
-        # 8. No saved session — suggest browser extension
+        # 8. No saved session — auto-generate connect URL for login
+        connect_url = await remote_browser_connect.create_connect_url(
+            user_id=context.user_id,
+            family_id=context.family_id,
+            provider=domain,
+        )
+        provider_label = browser_service.get_provider_label(domain)
+        lang = context.language or "en"
+        if lang == "ru":
+            text = (
+                f"Нет сохранённой сессии для <b>{provider_label}</b>.\n\n"
+                "Нажмите кнопку ниже, чтобы войти в аккаунт. "
+                "После входа я сохраню сессию и смогу работать автоматически."
+            )
+            btn_text = f"🔗 Войти в {provider_label}"
+        elif lang == "es":
+            text = (
+                f"No hay sesión guardada para <b>{provider_label}</b>.\n\n"
+                "Presiona el botón para iniciar sesión. "
+                "Después guardaré la sesión y podré trabajar automáticamente."
+            )
+            btn_text = f"🔗 Iniciar sesión en {provider_label}"
+        else:
+            text = (
+                f"No saved session for <b>{provider_label}</b>.\n\n"
+                "Tap the button below to log in. "
+                "Once done, I'll save the session and can work automatically."
+            )
+            btn_text = f"🔗 Log in to {provider_label}"
+
         return SkillResult(
-            response_text=(
-                f"I don't have a session for <b>{domain}</b>.\n\n"
-                "To save your login:\n"
-                "1. Log into the site in your browser\n"
-                "2. Click the Finance Bot extension → Save Session\n\n"
-                "Don't have the extension? Send /extension to get started."
-            ),
+            response_text=text,
+            buttons=[{"text": btn_text, "url": connect_url}],
         )
 
     @staticmethod
@@ -408,10 +443,13 @@ class BrowserActionSkill:
         alias_map = {
             "uber": "uber.com",
             "lyft": "lyft.com",
+            "amazon relay": "relay.amazon.com",
+            "relay": "relay.amazon.com",
         }
         task_lower = task.lower()
-        for alias, site in alias_map.items():
-            if re.search(rf"\b{alias}\b", task_lower):
+        # Check multi-word aliases first (longest match)
+        for alias, site in sorted(alias_map.items(), key=lambda x: -len(x[0])):
+            if alias in task_lower:
                 return site
 
         return None

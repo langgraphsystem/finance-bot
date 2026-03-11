@@ -114,19 +114,10 @@ domains:
       - объедин
       - split
       - раздели
-      - analyze
-      - анализ
-      - изуч
-      - рассмотр
-      - разбер
-      - просмотр
-      - посмотр
-      - покаж
-      - откр
-      - прочит
-      - study
-      - examine
-      - review
+      - analyze document
+      - анализ документ
+      - analyze pdf
+      - analyze file
       - compare
       - сравни
       - summarize
@@ -324,7 +315,7 @@ domains:
       - summarize_thread
 
   calendar:
-    description: "View schedule, create events, find free slots, reschedule, morning brief"
+    description: "View schedule, create events, find free slots, reschedule, delete events, morning brief"
     triggers:
       - calendar
       - event
@@ -335,12 +326,14 @@ domains:
       - событ
       - встреч
       - расписан
+      - мероприят
     agent: calendar
     skills:
       - list_events
       - create_event
       - find_free_slots
       - reschedule_event
+      - delete_event
       - morning_brief
 
   research:
@@ -362,6 +355,12 @@ domains:
       - content plan
       - похожие видео
       - similar video
+      - relay
+      - подключись
+      - подключи
+      - войди
+      - log in
+      - connect to
     agent: research
     skills:
       - quick_answer
