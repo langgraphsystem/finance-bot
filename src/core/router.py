@@ -2621,6 +2621,57 @@ async def _handle_callback(
             chat_id=message.chat_id,
         )
 
+    elif action == "run_program":
+        from src.core.db import redis
+        from src.core.sandbox import e2b_runner
+        from src.skills.generate_program.handler import (
+            _build_code_response,
+            _extract_description,
+            _wrap_html_as_flask,
+        )
+
+        prog_id = parts[1] if len(parts) > 1 else ""
+        lang = context.language or "en"
+        _expired_msgs = {
+            "en": "Code expired. Send a new request to regenerate.",
+            "ru": "Код истёк. Отправь новый запрос, чтобы сгенерировать снова.",
+            "es": "Código expirado. Envía una nueva solicitud para regenerar.",
+        }
+        raw = await redis.get(f"program:{prog_id}")
+        if not raw:
+            return OutgoingMessage(
+                text=_expired_msgs.get(lang, _expired_msgs["en"]),
+                chat_id=message.chat_id,
+            )
+
+        payload = raw if isinstance(raw, str) else raw.decode("utf-8")
+        if "\n---\n" in payload:
+            filename, code = payload.split("\n---\n", 1)
+        else:
+            filename, code = "program.py", payload
+
+        ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ".py"
+        is_html = ext == ".html"
+        run_code = _wrap_html_as_flask(code) if is_html else code
+        e2b_lang = e2b_runner._map_language(ext)
+        is_web = is_html or e2b_runner._is_web_app(code)
+        timeout = 60 if is_web else 30
+
+        exec_result = await e2b_runner.execute_code(
+            run_code, language=e2b_lang, timeout=timeout,
+        )
+        code_desc = _extract_description(code)
+        buttons = [
+            {"text": "📄 Код" if lang == "ru" else "📄 Code", "callback": f"show_code:{prog_id}"},
+            {"text": "🔄 Запустить снова" if lang == "ru" else "🔄 Run again", "callback": f"run_program:{prog_id}"},
+        ]
+        result = _build_code_response(filename, code_desc, exec_result, buttons, lang=lang)
+        return OutgoingMessage(
+            text=result.response_text,
+            chat_id=message.chat_id,
+            buttons=result.buttons,
+        )
+
     elif action == "doc_save":
         # Retrieve full data from Redis: doc_save:<pending_id>
         pending_id = parts[1] if len(parts) > 1 else ""

@@ -270,7 +270,8 @@ async def test_web_app_url_no_document(skill, ctx):
         )
 
     assert "https://5000-abc123.e2b.app" in result.response_text
-    assert "Open app" in result.response_text
+    # URL is the link; label is localized (ctx language = "ru" → "Открыть приложение")
+    assert "Открыть приложение" in result.response_text
     assert result.document is None  # No document by default
 
 
@@ -288,7 +289,7 @@ async def test_execution_output_shown(skill, ctx):
         )
 
     assert "Hello World" in result.response_text
-    assert "<b>Output:</b>" in result.response_text
+    assert "<b>Вывод:</b>" in result.response_text  # ctx language = "ru"
     assert result.document is None  # No document by default
 
 
@@ -308,7 +309,7 @@ async def test_show_code_button_present(skill, ctx):
     assert result.buttons is not None
     assert len(result.buttons) >= 1
     btn = result.buttons[0]
-    assert "Code" in btn["text"]
+    assert "Код" in btn["text"] or "Code" in btn["text"]  # localized
     assert btn["callback"].startswith("show_code:")
 
 
@@ -423,7 +424,7 @@ async def test_auto_retry_exhausts_all_attempts(skill, ctx):
     assert gen_mock.call_count == 1 + MAX_FIX_ATTEMPTS
     assert exec_mock.call_count == 1 + MAX_FIX_ATTEMPTS
     assert "SyntaxError" in result.response_text
-    assert "&lt;" not in result.response_text or "<b>Error:</b>" in result.response_text
+    assert "&lt;" not in result.response_text or "<b>Ошибка:</b>" in result.response_text
 
 
 async def test_no_retry_on_timeout(skill, ctx):
@@ -458,8 +459,8 @@ async def test_no_execution_without_api_key(skill, ctx):
         )
 
     assert result.document is not None
-    assert "<b>Output:</b>" not in result.response_text
-    assert "Open app" not in result.response_text
+    assert "<b>Вывод:</b>" not in result.response_text
+    assert "Открыть приложение" not in result.response_text
 
 
 async def test_web_timeout_60s(skill, ctx):

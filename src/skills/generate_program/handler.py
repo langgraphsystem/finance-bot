@@ -44,6 +44,7 @@ Rules:
   Minimal pattern: Flask app with routes that render HTML forms.
   CRITICAL: always use app.run(host='0.0.0.0', port=5000, debug=False).
   CRITICAL: always add "# pip install flask" comment at the very first line.
+  CRITICAL: always include <meta charset="utf-8"> in HTML templates for correct Unicode/Cyrillic rendering.
 - For JavaScript: create a standalone HTML page with embedded <script>.
 - For HTML/CSS: create a standalone HTML page.
 - Include all HTML inline (no separate template files).
@@ -202,6 +203,44 @@ def _wrap_html_as_flask(html_code: str) -> str:
     )
 
 
+_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "open_app": "🌐 Open app",
+        "active": "(active ~5 min — open now!)",
+        "error_label": "Error:",
+        "output_label": "Output:",
+        "timed_out": "Execution timed out",
+        "code_btn": "📄 Code",
+        "run_again_btn": "🔄 Run again",
+        "expired": "Link expired. Regenerating…",
+    },
+    "ru": {
+        "open_app": "🌐 Открыть приложение",
+        "active": "(активно ~5 мин — открой сейчас!)",
+        "error_label": "Ошибка:",
+        "output_label": "Вывод:",
+        "timed_out": "Время выполнения истекло",
+        "code_btn": "📄 Код",
+        "run_again_btn": "🔄 Запустить снова",
+        "expired": "Ссылка истекла. Перезапускаю…",
+    },
+    "es": {
+        "open_app": "🌐 Abrir app",
+        "active": "(activo ~5 min — ¡ábrelo ahora!)",
+        "error_label": "Error:",
+        "output_label": "Salida:",
+        "timed_out": "Tiempo de ejecución agotado",
+        "code_btn": "📄 Código",
+        "run_again_btn": "🔄 Ejecutar de nuevo",
+        "expired": "El enlace expiró. Regenerando…",
+    },
+}
+
+
+def _t(key: str, lang: str) -> str:
+    return _STRINGS.get(lang, _STRINGS["en"]).get(key, _STRINGS["en"][key])
+
+
 register_strings("generate_program", {"en": {}, "ru": {}, "es": {}})
 
 
@@ -273,9 +312,12 @@ class GenerateProgramSkill:
         # Extract description from generated code
         code_desc = _extract_description(code)
 
+        lang = context.language or "en"
+
         # Build response
         buttons = [
-            {"text": "\U0001f4c4 Code", "callback": f"show_code:{prog_id}"},
+            {"text": _t("code_btn", lang), "callback": f"show_code:{prog_id}"},
+            {"text": _t("run_again_btn", lang), "callback": f"run_program:{prog_id}"},
         ]
 
         # Mem0 background task — remember what was generated
@@ -346,7 +388,7 @@ class GenerateProgramSkill:
 
             # Build response based on execution result
             result = _build_code_response(
-                filename, code_desc, exec_result, buttons,
+                filename, code_desc, exec_result, buttons, lang=lang,
             )
             result.background_tasks = [_mem0_task]
             return result
@@ -371,6 +413,7 @@ def _build_code_response(
     description: str,
     exec_result: e2b_runner.ExecutionResult,
     buttons: list[dict],
+    lang: str = "en",
 ) -> SkillResult:
     """Build SkillResult from E2B execution result."""
     parts: list[str] = []
@@ -380,27 +423,26 @@ def _build_code_response(
         if description:
             parts.append(f"\n{description}")
         parts.append(
-            f'\n\U0001f310 <a href="{exec_result.url}">'
-            f"Open app</a>"
-            f"\n<i>(active ~5 min)</i>"
+            f'\n{_t("open_app", lang)}: <a href="{exec_result.url}">{exec_result.url}</a>'
+            f"\n<i>{_t('active', lang)}</i>"
         )
     elif exec_result.error:
         err = html_mod.escape(_truncate(exec_result.error, 500))
         parts.append(f"<b>\u274c {filename}</b>")
-        parts.append(f"\n<b>Error:</b>\n<code>{err}</code>")
+        parts.append(f"\n<b>{_t('error_label', lang)}</b>\n<code>{err}</code>")
     elif exec_result.stdout:
         out = html_mod.escape(_truncate(exec_result.stdout, 1000))
         parts.append(f"<b>\u2705 {filename}</b>")
         if description:
             parts.append(f"\n{description}")
-        parts.append(f"\n<b>Output:</b>\n<code>{out}</code>")
+        parts.append(f"\n<b>{_t('output_label', lang)}</b>\n<code>{out}</code>")
     else:
         parts.append(f"<b>\u2705 {filename}</b>")
         if description:
             parts.append(f"\n{description}")
 
     if exec_result.timed_out:
-        parts.append("\n<i>Execution timed out</i>")
+        parts.append(f"\n<i>{_t('timed_out', lang)}</i>")
 
     return SkillResult(
         response_text="\n".join(parts),

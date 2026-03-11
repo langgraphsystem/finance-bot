@@ -375,11 +375,13 @@ class ScanReceiptSkill:
             # 2. Resolve category: merchant mapping → fuel detection → smart fallback
             category_id = self._resolve_category(receipt.merchant, context)
 
-            # Auto-detect fuel: if gallons present → find fuel category
-            if not category_id and receipt.gallons:
-                category_id = _find_fuel_category(
-                    context, merchant=receipt.merchant, gallons=receipt.gallons,
-                )
+            # Auto-detect fuel: gallons must be ≥3 AND merchant must look like a fuel station
+            # (prevents grocery store gallons like "2 gallons of milk" from triggering fuel category)
+            if not category_id and receipt.gallons and float(receipt.gallons) >= 3:
+                if _looks_like_fuel_station(receipt.merchant):
+                    category_id = _find_fuel_category(
+                        context, merchant=receipt.merchant, gallons=receipt.gallons,
+                    )
 
             # Fallback: prefer matching scope category
             if not category_id:
@@ -486,6 +488,23 @@ class ScanReceiptSkill:
     def get_system_prompt(self, context: SessionContext) -> str:
         prompts = load_prompt(Path(__file__).parent)
         return prompts.get("system_prompt", _DEFAULT_SYSTEM_PROMPT)
+
+
+# Keywords that confirm a merchant is a fuel/gas station
+_FUEL_STATION_KEYWORDS = {
+    "gas", "fuel", "diesel", "petro", "gasoline", "station", "shell", "exxon",
+    "bp ", "chevron", "mobil", "marathon", "sunoco", "arco", "valero", "citgo",
+    "speedway", "kwik", "wawa", "casey", "circle k", "loves", "pilot", "flying j",
+    "ta truck", "ambest", "sapp bros", "заправка", "азс", "нефть",
+}
+
+
+def _looks_like_fuel_station(merchant: str | None) -> bool:
+    """Return True if the merchant name suggests a fuel/gas station."""
+    if not merchant:
+        return False
+    ml = merchant.lower()
+    return any(kw in ml for kw in _FUEL_STATION_KEYWORDS)
 
 
 _FUEL_NAMES = {"дизель", "diesel", "fuel", "топливо", "gasoline", "бензин"}
