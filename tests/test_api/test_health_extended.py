@@ -136,6 +136,7 @@ async def test_release_ops_overview_returns_snapshot(mock_dependencies):
         "switches": {"rollout_name": "canary-a", "shadow_mode": True},
         "flags": {"ff_post_gen_check": True},
         "health": {"status": "healthy", "recommended_action": "continue"},
+        "decision": {"next_action": "progress", "target_rollout_percent": 10},
     }
     with patch("api.main.get_release_ops_overview", AsyncMock(return_value=overview)):
         transport = ASGITransport(app=app)
@@ -145,6 +146,7 @@ async def test_release_ops_overview_returns_snapshot(mock_dependencies):
     data = resp.json()
     assert data["switches"]["shadow_mode"] is True
     assert data["health"]["status"] == "healthy"
+    assert data["decision"]["next_action"] == "progress"
 
 
 async def test_release_ops_overview_requires_auth_when_secret_set(mock_dependencies):
@@ -153,3 +155,20 @@ async def test_release_ops_overview_requires_auth_when_secret_set(mock_dependenc
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/ops/release/overview")
     assert resp.status_code == 401
+
+
+async def test_release_ops_decision_returns_guidance(mock_dependencies):
+    decision = {
+        "current_rollout_percent": 5,
+        "target_rollout_percent": 10,
+        "next_action": "progress",
+        "health_status": "healthy",
+    }
+    with patch("api.main.get_release_rollout_decision", AsyncMock(return_value=decision)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/release/decision")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["next_action"] == "progress"
+    assert data["target_rollout_percent"] == 10

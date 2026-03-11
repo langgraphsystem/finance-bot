@@ -33,6 +33,7 @@ from src.core.release import (
     get_release_health_snapshot,
     get_release_ops_overview,
     get_release_request_plan,
+    get_release_rollout_decision,
     log_runtime_event,
     record_release_event,
 )
@@ -1036,6 +1037,13 @@ async def release_ops_overview(request: Request) -> dict[str, Any]:
     """Return operator-facing release switches, flags, and health snapshot."""
     _require_ops_auth(request)
     return await get_release_ops_overview()
+
+
+@app.get("/ops/release/decision")
+async def release_ops_decision(request: Request) -> dict[str, Any]:
+    """Return rollout progression guidance based on current release health gates."""
+    _require_ops_auth(request)
+    return await get_release_rollout_decision()
 
 
 # ------------------------------------------------------------------

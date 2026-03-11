@@ -170,6 +170,8 @@ class Settings(BaseSettings):
     release_health_error_rate_threshold: float = 0.05
     release_health_no_reply_rate_threshold: float = 0.02
     release_health_rate_limited_threshold: float = 0.10
+    release_health_shadow_mismatch_threshold: float = 0.20
+    release_health_shadow_compare_failure_threshold: float = 0.10
 
     @property
     def is_production(self) -> bool:

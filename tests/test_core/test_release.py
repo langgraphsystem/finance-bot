@@ -6,6 +6,7 @@ from src.core.release import (
     get_release_health_snapshot,
     get_release_ops_overview,
     get_release_request_plan,
+    get_release_rollout_decision,
     get_release_switches,
     record_release_event,
     resolve_release_cohort,
@@ -78,6 +79,9 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
         "no_reply_total": "3",
         "rate_limited_total": "1",
         "shadow_requests_total": "20",
+        "shadow_match_total": "10",
+        "shadow_mismatch_total": "7",
+        "shadow_compare_failed_total": "1",
     }
     with patch("src.core.release.redis") as mock_redis:
         mock_redis.hgetall = AsyncMock(return_value=metrics)
@@ -87,6 +91,8 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
     assert snapshot["recommended_action"] == "rollback"
     assert snapshot["rates"]["error_rate"] == 0.08
     assert snapshot["rates"]["shadow_request_rate"] == 0.2
+    assert snapshot["rates"]["shadow_mismatch_rate"] == 0.4118
+    assert "shadow_mismatch_rate" in snapshot["gates"]["triggered"]
 
 
 def test_release_switches_hide_raw_user_ids(monkeypatch):
@@ -110,6 +116,7 @@ async def test_release_ops_overview_combines_switches_flags_and_health():
     assert "switches" in overview
     assert "flags" in overview
     assert overview["health"]["status"] == "healthy"
+    assert "decision" in overview
 
 
 async def test_release_request_plan_keeps_internal_users_enabled_during_canary_hold():
@@ -158,3 +165,45 @@ async def test_release_request_plan_protects_sensitive_and_stops_shadow_on_rollb
     assert plan["mode"] == "rollback_hold"
     assert plan["release_enabled"] is False
     assert plan["shadow_enabled"] is False
+
+
+async def test_release_rollout_decision_suggests_progress_when_healthy():
+    with (
+        patch("src.core.release.settings.release_rollout_percent", 5),
+        patch(
+            "src.core.release.get_release_health_snapshot",
+            AsyncMock(
+                return_value={
+                    "status": "healthy",
+                    "recommended_action": "continue",
+                    "gates": {"triggered": []},
+                }
+            ),
+        ),
+    ):
+        decision = await get_release_rollout_decision()
+
+    assert decision["next_action"] == "progress"
+    assert decision["target_rollout_percent"] == 10
+    assert "progress" in decision["allowed_actions"]
+
+
+async def test_release_rollout_decision_holds_when_degraded_without_gate_breach():
+    with (
+        patch("src.core.release.settings.release_rollout_percent", 10),
+        patch(
+            "src.core.release.get_release_health_snapshot",
+            AsyncMock(
+                return_value={
+                    "status": "degraded",
+                    "recommended_action": "hold",
+                    "gates": {"triggered": []},
+                }
+            ),
+        ),
+    ):
+        decision = await get_release_rollout_decision()
+
+    assert decision["next_action"] == "hold"
+    assert decision["target_rollout_percent"] == 10
+    assert decision["reasons"] == ["non_zero_error_signals"]

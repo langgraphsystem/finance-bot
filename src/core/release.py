@@ -24,6 +24,7 @@ from src.core.request_context import (
 _RELEASE_HEALTH_TTL_SECONDS = 86400
 _ALWAYS_ON_COHORTS = {"internal", "trusted", "beta"}
 _PROTECTED_COHORTS = {"sensitive", "vip", "new_user"}
+_ROLLOUT_PROGRESS_STEPS = (1, 5, 10, 25, 50, 100)
 logger = logging.getLogger(__name__)
 
 
@@ -158,6 +159,14 @@ def _stable_rollout_bucket(subject_id: str) -> int:
     return int(digest[:8], 16) % 100
 
 
+def _next_rollout_percent(current_percent: int) -> int:
+    """Return the next progressive rollout step."""
+    for step in _ROLLOUT_PROGRESS_STEPS:
+        if step > current_percent:
+            return step
+    return 100
+
+
 async def get_release_health_snapshot() -> dict[str, Any]:
     """Return a compact rollout health snapshot based on recent counters."""
     if not settings.release_health_logging:
@@ -182,24 +191,53 @@ async def get_release_health_snapshot() -> dict[str, Any]:
     no_reply_total = _parse_int(metrics, "no_reply_total")
     rate_limited_total = _parse_int(metrics, "rate_limited_total")
     shadow_requests_total = _parse_int(metrics, "shadow_requests_total")
+    shadow_match_total = _parse_int(metrics, "shadow_match_total")
+    shadow_mismatch_total = _parse_int(metrics, "shadow_mismatch_total")
+    shadow_compare_failed_total = _parse_int(metrics, "shadow_compare_failed_total")
+    shadow_compared_total = shadow_match_total + shadow_mismatch_total
 
     error_rate = _safe_rate(errors_total, requests_total)
     no_reply_rate = _safe_rate(no_reply_total, completed_total)
     rate_limited_rate = _safe_rate(rate_limited_total, requests_total)
     shadow_request_rate = _safe_rate(shadow_requests_total, requests_total)
+    shadow_mismatch_rate = _safe_rate(shadow_mismatch_total, shadow_compared_total)
+    shadow_compare_failure_rate = _safe_rate(
+        shadow_compare_failed_total,
+        shadow_requests_total or (shadow_compared_total + shadow_compare_failed_total),
+    )
 
     status = "healthy"
     recommended_action = "continue"
+    triggered_gates: list[str] = []
     if (
         error_rate > settings.release_health_error_rate_threshold
         or no_reply_rate > settings.release_health_no_reply_rate_threshold
         or rate_limited_rate > settings.release_health_rate_limited_threshold
+        or shadow_mismatch_rate > settings.release_health_shadow_mismatch_threshold
+        or shadow_compare_failure_rate > settings.release_health_shadow_compare_failure_threshold
     ):
         status = "rollback_recommended"
         recommended_action = "rollback"
-    elif errors_total or no_reply_total or rate_limited_total:
+    elif (
+        errors_total
+        or no_reply_total
+        or rate_limited_total
+        or shadow_mismatch_total
+        or shadow_compare_failed_total
+    ):
         status = "degraded"
         recommended_action = "hold"
+
+    if error_rate > settings.release_health_error_rate_threshold:
+        triggered_gates.append("error_rate")
+    if no_reply_rate > settings.release_health_no_reply_rate_threshold:
+        triggered_gates.append("no_reply_rate")
+    if rate_limited_rate > settings.release_health_rate_limited_threshold:
+        triggered_gates.append("rate_limited_rate")
+    if shadow_mismatch_rate > settings.release_health_shadow_mismatch_threshold:
+        triggered_gates.append("shadow_mismatch_rate")
+    if shadow_compare_failure_rate > settings.release_health_shadow_compare_failure_threshold:
+        triggered_gates.append("shadow_compare_failure_rate")
 
     return {
         "status": status,
@@ -214,17 +252,28 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "no_reply_total": no_reply_total,
             "rate_limited_total": rate_limited_total,
             "shadow_requests_total": shadow_requests_total,
+            "shadow_match_total": shadow_match_total,
+            "shadow_mismatch_total": shadow_mismatch_total,
+            "shadow_compare_failed_total": shadow_compare_failed_total,
         },
         "rates": {
             "error_rate": error_rate,
             "no_reply_rate": no_reply_rate,
             "rate_limited_rate": rate_limited_rate,
             "shadow_request_rate": shadow_request_rate,
+            "shadow_mismatch_rate": shadow_mismatch_rate,
+            "shadow_compare_failure_rate": shadow_compare_failure_rate,
         },
         "thresholds": {
             "error_rate": settings.release_health_error_rate_threshold,
             "no_reply_rate": settings.release_health_no_reply_rate_threshold,
             "rate_limited_rate": settings.release_health_rate_limited_threshold,
+            "shadow_mismatch_rate": settings.release_health_shadow_mismatch_threshold,
+            "shadow_compare_failure_rate": settings.release_health_shadow_compare_failure_threshold,
+        },
+        "gates": {
+            "passed": not triggered_gates,
+            "triggered": triggered_gates,
         },
     }
 
@@ -274,10 +323,44 @@ async def get_release_request_plan(
     }
 
 
+async def get_release_rollout_decision() -> dict[str, Any]:
+    """Return operator-facing rollout guidance for progress, hold, or rollback."""
+    health = await get_release_health_snapshot()
+    current_percent = settings.release_rollout_percent
+    if health.get("recommended_action") == "rollback":
+        target_percent = 0
+        next_action = "rollback"
+    elif health.get("recommended_action") == "hold":
+        target_percent = current_percent
+        next_action = "hold"
+    else:
+        target_percent = _next_rollout_percent(current_percent)
+        next_action = "progress" if target_percent > current_percent else "hold"
+
+    reasons = health.get("gates", {}).get("triggered", [])
+    if not reasons and health.get("status") == "degraded":
+        reasons = ["non_zero_error_signals"]
+
+    return {
+        "rollout_name": settings.release_rollout_name or "default",
+        "current_rollout_percent": current_percent,
+        "target_rollout_percent": target_percent,
+        "next_action": next_action,
+        "health_status": health.get("status", "unavailable"),
+        "recommended_action": health.get("recommended_action", "ignore"),
+        "reasons": reasons,
+        "allowed_actions": ["hold", "rollback"]
+        if next_action != "progress"
+        else ["progress", "hold", "rollback"],
+        "shadow_mode": settings.release_shadow_mode,
+    }
+
+
 async def get_release_ops_overview() -> dict[str, Any]:
     """Return a compact operator-facing release overview."""
     return {
         "switches": get_release_switches(),
         "flags": get_release_flag_snapshot(),
         "health": await get_release_health_snapshot(),
+        "decision": await get_release_rollout_decision(),
     }
