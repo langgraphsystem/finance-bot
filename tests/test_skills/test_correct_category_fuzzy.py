@@ -57,8 +57,10 @@ async def test_fuzzy_match_grocery_to_groceries():
         call_count += 1
         result = MagicMock()
         if call_count == 1:
-            result.scalar_one_or_none.return_value = mock_tx
+            # First call: query transactions → scalars().all()
+            result.scalars.return_value.all.return_value = [mock_tx]
         else:
+            # Second call: get old category → scalar_one_or_none()
             result.scalar_one_or_none.return_value = mock_old_cat
         return result
 
@@ -66,7 +68,7 @@ async def test_fuzzy_match_grocery_to_groceries():
     mock_session.commit = AsyncMock()
 
     with (
-        patch("src.skills.correct_category.handler.async_session", return_value=mock_session),
+        patch("src.skills.correct_category.handler.get_session", return_value=mock_session),
         patch("src.skills.correct_category.handler.log_action", new_callable=AsyncMock),
     ):
         result = await skill.execute(msg, ctx, {"category": "Grocery"})

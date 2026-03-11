@@ -189,7 +189,7 @@ class AgentRouter:
         try:
             tz = ZoneInfo(context.timezone)
         except Exception:
-            tz = ZoneInfo("America/New_York")
+            tz = ZoneInfo("UTC")
         now = datetime.now(tz)
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         block = (

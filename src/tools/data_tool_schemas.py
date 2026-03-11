@@ -144,7 +144,10 @@ DATA_TOOL_SCHEMAS: list[dict] = [
             "name": "update_record",
             "description": (
                 "Update an existing record by its UUID. "
-                "Cannot change id, family_id, or user_id."
+                "Cannot change id, family_id, or user_id. "
+                "CRITICAL: 'data' is REQUIRED — always include it with fields to change. "
+                "Example: update_record(table='transactions', record_id='<uuid>', "
+                "data={'category_id': '<category_uuid>'})"
             ),
             "parameters": {
                 "type": "object",
@@ -160,7 +163,11 @@ DATA_TOOL_SCHEMAS: list[dict] = [
                     },
                     "data": {
                         "type": "object",
-                        "description": "Fields to update with new values.",
+                        "description": (
+                            "Fields to update with new values. REQUIRED. "
+                            "Example for category change: {\"category_id\": \"<uuid>\"}. "
+                            "Example for status change: {\"status\": \"completed\"}."
+                        ),
                         "additionalProperties": True,
                     },
                 },
@@ -365,7 +372,10 @@ def _build_schemas(
                 "name": "update_record",
                 "description": (
                     "Update an existing record by its UUID. "
-                    "Cannot change id, family_id, or user_id."
+                    "Cannot change id, family_id, or user_id. "
+                    "CRITICAL: 'data' is REQUIRED — always include it with fields to change. "
+                    "Example: update_record(table='transactions', record_id='<uuid>', "
+                    "data={'category_id': '<category_uuid>'})"
                 ),
                 "parameters": {
                     "type": "object",
@@ -381,7 +391,11 @@ def _build_schemas(
                         },
                         "data": {
                             "type": "object",
-                            "description": "Fields to update with new values.",
+                            "description": (
+                                "Fields to update with new values. REQUIRED. "
+                                "Example for category change: {\"category_id\": \"<uuid>\"}. "
+                                "Example for status change: {\"status\": \"completed\"}."
+                            ),
                             "additionalProperties": True,
                         },
                     },

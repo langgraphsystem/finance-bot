@@ -58,8 +58,30 @@ async def has_google_connection(user_id: str, service: str = "gmail") -> bool:
         return False
 
 
+_CONNECT_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "prompt": "To use {label}, connect your Google account.\nClick the button below:",
+        "button": "🔗 Connect {label}",
+        "fallback": "To use {label}, connect Google with /connect",
+    },
+    "ru": {
+        "prompt": "Для работы с {label} подключите аккаунт Google.\nНажмите кнопку ниже:",
+        "button": "🔗 Подключить {label}",
+        "fallback": "Для работы с {label} подключите Google через /connect",
+    },
+    "es": {
+        "prompt": "Para usar {label}, conecta tu cuenta de Google.\nHaz clic en el botón:",
+        "button": "🔗 Conectar {label}",
+        "fallback": "Para usar {label}, conecta Google con /connect",
+    },
+}
+
+
 async def require_google_or_prompt(
-    user_id: str, service: str = "gmail"
+    user_id: str,
+    service: str = "gmail",
+    lang: str = "en",
+    chat_id: str | None = None,
 ) -> SkillResult | None:
     """Return SkillResult with Composio connect link if not connected, None if connected."""
     from src.skills.base import SkillResult
@@ -68,19 +90,21 @@ async def require_google_or_prompt(
         return None
 
     label = _SERVICE_LABELS.get(service, "Google")
+    strings = _CONNECT_STRINGS.get(lang, _CONNECT_STRINGS["en"])
     try:
         from api.oauth import generate_composio_connect_link
 
-        link = await generate_composio_connect_link(user_id, service=service)
+        link = await generate_composio_connect_link(
+            user_id, service=service, chat_id=chat_id, lang=lang
+        )
         return SkillResult(
-            response_text=f"To use {label}, connect your Google account.\n"
-            "Click the button below:",
-            buttons=[{"text": f"\U0001f517 Connect {label}", "url": link}],
+            response_text=strings["prompt"].format(label=label),
+            buttons=[{"text": strings["button"].format(label=label), "url": link}],
         )
     except Exception as e:
         logger.warning("Failed to generate Composio connect link: %s", e)
         return SkillResult(
-            response_text=f"To use {label}, connect Google with /connect",
+            response_text=strings["fallback"].format(label=label),
         )
 
 

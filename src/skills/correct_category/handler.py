@@ -8,7 +8,8 @@ from sqlalchemy import select
 
 from src.core.audit import log_action
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import async_session, get_session
+from src.core.memory.procedural import learn_from_correction
 from src.core.models.category import Category
 from src.core.models.transaction import Transaction
 from src.core.tasks.memory_tasks import async_update_merchant_mapping
@@ -63,46 +64,78 @@ class CorrectCategorySkill:
                 response_text=(f"Категория \u00ab{new_category_name}\u00bb не найдена."),
             )
 
-        # Get last transaction
-        async with async_session() as session:
-            result = await session.execute(
-                select(Transaction)
-                .where(Transaction.user_id == uuid.UUID(context.user_id))
-                .order_by(Transaction.created_at.desc())
-                .limit(1)
-            )
-            tx = result.scalar_one_or_none()
-            if not tx:
+        merchant_filter = intent_data.get("merchant")
+
+        async with get_session() as session:
+            if merchant_filter:
+                # Bulk: update all transactions matching the merchant name
+                from sqlalchemy import ilike as sa_ilike
+
+                result = await session.execute(
+                    select(Transaction)
+                    .where(
+                        Transaction.family_id == uuid.UUID(context.family_id),
+                        Transaction.merchant.ilike(f"%{merchant_filter}%"),
+                    )
+                    .order_by(Transaction.created_at.desc())
+                    .limit(50)
+                )
+                txs = result.scalars().all()
+            else:
+                # Single: update last transaction for this user
+                result = await session.execute(
+                    select(Transaction)
+                    .where(Transaction.user_id == uuid.UUID(context.user_id))
+                    .order_by(Transaction.created_at.desc())
+                    .limit(1)
+                )
+                txs = result.scalars().all()
+
+            if not txs:
                 return SkillResult(response_text="Нет транзакций для исправления.")
 
+            # Get old category name from first transaction
             old_category_name = "Unknown"
-            # Get old category name
-            old_cat = await session.execute(select(Category).where(Category.id == tx.category_id))
+            old_cat = await session.execute(
+                select(Category).where(Category.id == txs[0].category_id)
+            )
             old_cat_obj = old_cat.scalar_one_or_none()
             if old_cat_obj:
                 old_category_name = old_cat_obj.name
 
-            tx.category_id = uuid.UUID(new_cat_id)
-            tx.is_corrected = True
-
-            await log_action(
-                session=session,
-                family_id=context.family_id,
-                user_id=context.user_id,
-                action="update",
-                entity_type="transaction",
-                entity_id=str(tx.id),
-                old_data={"category": old_category_name},
-                new_data={"category": new_category_name},
-            )
+            for tx in txs:
+                tx.category_id = uuid.UUID(new_cat_id)
+                tx.is_corrected = True
+                await log_action(
+                    session=session,
+                    family_id=context.family_id,
+                    user_id=context.user_id,
+                    action="update",
+                    entity_type="transaction",
+                    entity_id=str(tx.id),
+                    old_data={"category": old_category_name},
+                    new_data={"category": new_category_name},
+                )
 
             await session.commit()
 
-        merchant = tx.merchant
-        scope_value = tx.scope.value if tx.scope else "family"
+        count = len(txs)
+        last_tx = txs[0]
+        merchant = last_tx.merchant
+        scope_value = last_tx.scope.value if last_tx.scope else "family"
+
+        # Capture values for closures (avoid late-binding issues)
+        _user_id = context.user_id
+        _old = old_category_name
+        _new = new_category_name
+
+        if count > 1:
+            response = f"Исправлено {count} транзакций: {old_category_name} → {new_category_name}"
+        else:
+            response = f"Исправлено: {old_category_name} → {new_category_name}"
 
         return SkillResult(
-            response_text=f"Исправлено: {old_category_name} -> {new_category_name}",
+            response_text=response,
             background_tasks=[
                 lambda: (
                     async_update_merchant_mapping.kiq(
@@ -110,6 +143,13 @@ class CorrectCategorySkill:
                     )
                     if merchant
                     else None
+                ),
+                lambda: learn_from_correction(
+                    user_id=_user_id,
+                    intent="correct_category",
+                    original_value=_old,
+                    corrected_value=_new,
+                    context={"merchant": merchant} if merchant else None,
                 ),
             ],
         )

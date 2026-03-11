@@ -40,7 +40,7 @@ class RescheduleEventSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        prompt_result = await require_google_or_prompt(context.user_id, service="calendar")
+        prompt_result = await require_google_or_prompt(context.user_id, service="calendar", lang=context.language or "en", chat_id=message.chat_id)
         if prompt_result:
             return prompt_result
 
@@ -163,7 +163,7 @@ async def execute_reschedule(action_data: dict, user_id: str) -> str:
     event_id = action_data["event_id"]
     new_date = action_data["new_date"]
     new_time = action_data.get("new_time", "09:00")
-    timezone = action_data.get("timezone", "America/New_York")
+    timezone = action_data.get("timezone", "UTC")
     tz = ZoneInfo(timezone)
 
     try:

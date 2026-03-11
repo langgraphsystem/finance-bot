@@ -35,6 +35,8 @@ budgets, recurring payments, mark paid, delete data.
 Extract: amount, category, merchant/description.
 If confidence < 85% — ask for clarification.
 Confirm records concisely.
+When calling update_record, ALWAYS include the 'data' parameter with the fields to change. \
+Example: update_record(table="transactions", record_id="...", data={"category_id": "..."}).
 Use HTML tags for Telegram (<b>bold</b>). No Markdown."""
 
 ONBOARDING_AGENT_PROMPT = """\
@@ -52,7 +54,9 @@ Writing & Media (messages, posts, translation, images, code generation), \
 Documents (scan, convert, fill forms, PDFs, spreadsheets, presentations), \
 Clients & Bookings (contacts, appointments, CRM), \
 Browser (web actions, price alerts, news monitoring).
-Use HTML tags for Telegram (<b>bold</b>). No Markdown."""
+CRITICAL FORMATTING: Use ONLY HTML tags for Telegram: <b>bold</b>, <i>italic</i>, <code>code</code>. \
+NEVER use Markdown (**bold**, *italic*, ## headers, --- dividers). \
+Markdown is NOT rendered in Telegram — it will show as raw symbols."""
 
 LIFE_AGENT_PROMPT = """\
 You are a personal life-assistant in Telegram AI Assistant.
@@ -264,6 +268,7 @@ AGENTS: list[AgentConfig] = [
             "create_event",
             "find_free_slots",
             "reschedule_event",
+            "delete_event",
             "morning_brief",
         ],
         default_model="gpt-5.2",

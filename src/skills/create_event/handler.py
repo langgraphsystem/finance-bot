@@ -50,7 +50,7 @@ class CreateEventSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        prompt_result = await require_google_or_prompt(context.user_id, service="calendar")
+        prompt_result = await require_google_or_prompt(context.user_id, service="calendar", lang=context.language or "en", chat_id=message.chat_id)
         if prompt_result:
             return prompt_result
 
@@ -171,7 +171,7 @@ async def execute_create_event(action_data: dict, user_id: str) -> str:
     start = datetime.fromisoformat(action_data["start_iso"])
     end = datetime.fromisoformat(action_data["end_iso"])
     location = action_data.get("location")
-    timezone = action_data.get("timezone", "America/New_York")
+    timezone = action_data.get("timezone", "UTC")
 
     try:
         event = await google.create_event(
