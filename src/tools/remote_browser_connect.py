@@ -65,7 +65,21 @@ _PRESS_KEY_MAP = {
     "tab": "Tab",
     "backspace": "Backspace",
     "escape": "Escape",
+    "space": " ",
+    "arrowup": "ArrowUp",
+    "arrowdown": "ArrowDown",
+    "arrowleft": "ArrowLeft",
+    "arrowright": "ArrowRight",
+    "up": "ArrowUp",
+    "down": "ArrowDown",
+    "left": "ArrowLeft",
+    "right": "ArrowRight",
+    "home": "Home",
+    "end": "End",
+    "delete": "Delete",
 }
+# URL schemes that must NEVER be followed as popups
+_SKIP_POPUP_SCHEMES = ("about:", "data:", "blob:", "javascript:")
 _active_sessions: dict[str, RemoteBrowserSession] = {}
 _sessions_lock = asyncio.Lock()
 
@@ -86,6 +100,7 @@ class RemoteBrowserSession:
     current_url: str = ""
     status: str = "active"
     error: str = ""
+    is_mobile: bool = False
     action_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -220,6 +235,7 @@ async def ensure_session(token: str, *, user_agent: str | None = None) -> Remote
             page=page,
             created_at=now,
             updated_at=now,
+            is_mobile=profile.is_mobile,
         )
 
         # Auto-follow popups (Google OAuth, Apple Sign-in, etc.).
@@ -237,19 +253,32 @@ async def ensure_session(token: str, *, user_agent: str | None = None) -> Remote
 
 
 async def _follow_popup(session: RemoteBrowserSession, new_page: Any) -> None:
-    """Switch session to a popup page (e.g. Google/Apple OAuth window)."""
+    """Switch session to a popup page (e.g. Google/Apple OAuth window).
+
+    Filters out blank/data/blob pages and only follows real HTTP(S) URLs.
+    Acquires action_lock so concurrent apply_action calls see the new page.
+    """
     try:
         await new_page.wait_for_load_state("domcontentloaded", timeout=10_000)
     except Exception:
         pass
-    # Only follow the popup if the session is still active
+
+    url = new_page.url or ""
+    # Reject blank, data-URI, blob, and javascript: "pages" — these are
+    # analytics pixels or attack vectors, not real login pages.
+    if not url or any(url.startswith(s) for s in _SKIP_POPUP_SCHEMES):
+        logger.debug("browser-connect %s: ignoring popup with url=%r", session.token[:8], url)
+        return
+
     if session.status != "active":
         return
-    session.page = new_page
-    logger.info(
-        "browser-connect %s: switched to popup %s", session.token[:8], new_page.url
-    )
-    await _refresh_session_snapshot(session)
+
+    async with session.action_lock:
+        session.page = new_page
+        logger.info(
+            "browser-connect %s: switched to popup %s", session.token[:8], url
+        )
+        await _refresh_session_snapshot(session)
 
 
 async def _cleanup_stale_sessions() -> None:
@@ -384,8 +413,13 @@ async def apply_action(
             return _session_state_payload(session)
 
         page = session.page
+        cx, cy = float(x or 0), float(y or 0)
         if action == "click":
-            await page.mouse.click(float(x or 0), float(y or 0))
+            # Mobile contexts respond better to tap() than mouse.click()
+            if session.is_mobile:
+                await page.tap(cx, cy)
+            else:
+                await page.mouse.click(cx, cy)
         elif action == "type":
             if text:
                 await page.keyboard.type(text, delay=20)
@@ -393,6 +427,8 @@ async def apply_action(
             mapped_key = _PRESS_KEY_MAP.get((key or "").lower())
             if mapped_key:
                 await page.keyboard.press(mapped_key)
+            else:
+                logger.debug("browser-connect: unmapped key %r — ignored", key)
         elif action == "scroll":
             await page.mouse.wheel(0, float(delta_y or 0))
         elif action == "back":
@@ -400,9 +436,9 @@ async def apply_action(
         elif action == "refresh":
             await page.reload(wait_until="domcontentloaded")
 
-        # Wait for navigation after click/keypress; give extra time for SPAs/OAuth redirects
+        # Wait for navigation; 12s covers slow OAuth redirects and SPAs
         try:
-            await page.wait_for_load_state("domcontentloaded", timeout=6000)
+            await page.wait_for_load_state("domcontentloaded", timeout=12_000)
         except Exception:
             pass
         await asyncio.sleep(1.2)

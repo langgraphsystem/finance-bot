@@ -33,11 +33,11 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     debug_js = """
     document.getElementById('backPage').addEventListener(
       'click',
-      () => postAction({ action: 'back' })
+      () => doAction({ action: 'back' })
     );
     document.getElementById('refreshPage').addEventListener(
       'click',
-      () => postAction({ action: 'refresh' })
+      () => doAction({ action: 'refresh' })
     );
     document.getElementById('reloadScreen').addEventListener('click', () => reloadAll());
     """ if debug else ""
@@ -388,11 +388,30 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
         body: JSON.stringify(payload),
       }});
       if (!resp.ok) {{
-        throw new Error('action ' + resp.status);
+        throw new Error('Server error ' + resp.status);
       }}
       const state = await resp.json();
       updateStatus(state);
       refreshImage();
+    }}
+
+    let _actionInFlight = false;
+
+    async function doAction(payload) {{
+      if (_actionInFlight) return;
+      _actionInFlight = true;
+      screenEl.style.opacity = '0.55';
+      screenEl.style.pointerEvents = 'none';
+      try {{
+        await postAction(payload);
+      }} catch (err) {{
+        statusEl.classList.add('visible');
+        statusEl.textContent = 'Action failed: ' + err.message + '. Try again.';
+      }} finally {{
+        _actionInFlight = false;
+        screenEl.style.opacity = '1';
+        screenEl.style.pointerEvents = '';
+      }}
     }}
 
     function updateStatus(state) {{
@@ -430,7 +449,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       const scaleY = screenEl.naturalHeight / rect.height;
       const x = (event.clientX - rect.left) * scaleX;
       const y = (event.clientY - rect.top) * scaleY;
-      await postAction({{ action: 'click', x, y }});
+      await doAction({{ action: 'click', x, y }});
     }});
 
     screenEl.addEventListener('wheel', async (event) => {{
@@ -440,7 +459,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       }}
       wheelLock = true;
       try {{
-        await postAction({{ action: 'scroll', delta_y: event.deltaY }});
+        await doAction({{ action: 'scroll', delta_y: event.deltaY }});
       }} finally {{
         window.setTimeout(() => {{
           wheelLock = false;
@@ -479,7 +498,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
 
       const x = (finalTouch.clientX - rect.left) * scaleX;
       const y = (finalTouch.clientY - rect.top) * scaleY;
-      await postAction({{ action: 'click', x, y }});
+      await doAction({{ action: 'click', x, y }});
     }});
 
     openComposerEl.addEventListener('click', () => {{
@@ -490,21 +509,22 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
 
     document.getElementById('sendText').addEventListener('click', async () => {{
       if (!textInputEl.value) return;
-      await postAction({{ action: 'type', text: textInputEl.value }});
+      const val = textInputEl.value;
       textInputEl.value = '';
       setComposerOpen(false);
+      await doAction({{ action: 'type', text: val }});
     }});
     document.getElementById('nextField').addEventListener(
       'click',
-      () => postAction({{ action: 'press', key: 'tab' }})
+      () => doAction({{ action: 'press', key: 'tab' }})
     );
     document.getElementById('continueKey').addEventListener(
       'click',
-      () => postAction({{ action: 'press', key: 'enter' }})
+      () => doAction({{ action: 'press', key: 'enter' }})
     );
     document.getElementById('deleteKey').addEventListener(
       'click',
-      () => postAction({{ action: 'press', key: 'backspace' }})
+      () => doAction({{ action: 'press', key: 'backspace' }})
     );
     continueTelegramEl.addEventListener('click', () => {{
       if (lastReturnUrl) {{
