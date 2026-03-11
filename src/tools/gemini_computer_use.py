@@ -33,7 +33,7 @@ from src.tools.computer_use_service import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL = "gemini-3.1-pro-preview"
+DEFAULT_MODEL = "gemini-3-flash-preview"
 MAX_SCREENSHOT_HISTORY = 3
 
 

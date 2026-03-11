@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    gemini_computer_use_model: str = "gemini-3.1-pro-preview"
+    gemini_computer_use_model: str = "gemini-3-flash-preview"
     google_ai_api_key: str = ""
     xai_api_key: str = ""
     grok_dual_search_model: str = "grok-4.20-experimental-beta-0304-reasoning"
@@ -167,6 +167,9 @@ class Settings(BaseSettings):
     release_rollout_percent: int = 0
     release_shadow_mode: bool = False
     release_health_logging: bool = True
+    release_health_error_rate_threshold: float = 0.05
+    release_health_no_reply_rate_threshold: float = 0.02
+    release_health_rate_limited_threshold: float = 0.10
 
     @property
     def is_production(self) -> bool:
