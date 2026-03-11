@@ -16,8 +16,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 DLQ_KEY_PREFIX = "mem0_dlq"
+DLQ_IDEM_PREFIX = "mem0_dlq_idem"  # GAP-L1: O(1) idempotency SET
 DLQ_MAX_SIZE = 200  # Alert threshold
-DLQ_ITEM_TTL = 86400  # 24h max retention
+DLQ_ITEM_TTL = 604800  # GAP-L2: 7 days retention (was 24h — too short for extended outages)
 
 
 def _get_redis():
@@ -50,19 +51,16 @@ async def enqueue_failed_memory(
         }, ensure_ascii=False)
 
         key = f"{DLQ_KEY_PREFIX}:{user_id}"
+        idem_set_key = f"{DLQ_IDEM_PREFIX}:{user_id}"
 
-        # Check for duplicate via idempotency key
-        existing = await redis.lrange(key, 0, -1)
-        for item in existing:
-            try:
-                parsed = json.loads(item)
-                if parsed.get("idem_key") == idem_key:
-                    return  # Already enqueued
-            except (json.JSONDecodeError, TypeError):
-                continue
+        # GAP-L1: O(1) duplicate check via Redis SET (was O(n) list scan)
+        if await redis.sismember(idem_set_key, idem_key):
+            return  # Already enqueued
 
         await redis.rpush(key, entry)
+        await redis.sadd(idem_set_key, idem_key)
         await redis.expire(key, DLQ_ITEM_TTL)
+        await redis.expire(idem_set_key, DLQ_ITEM_TTL)
 
         # Check queue size for alerting
         queue_size = await redis.llen(key)
@@ -80,12 +78,18 @@ async def dequeue_failed_memories(user_id: str, batch_size: int = 10) -> list[di
         key = f"{DLQ_KEY_PREFIX}:{user_id}"
         items: list[dict] = []
 
+        idem_set_key = f"{DLQ_IDEM_PREFIX}:{user_id}"
         for _ in range(batch_size):
             raw = await redis.lpop(key)
             if raw is None:
                 break
             try:
-                items.append(json.loads(raw))
+                parsed = json.loads(raw)
+                items.append(parsed)
+                # Remove from idempotency SET so re-enqueue works if retry fails
+                idem = parsed.get("idem_key")
+                if idem:
+                    await redis.srem(idem_set_key, idem)
             except (json.JSONDecodeError, TypeError):
                 continue
         return items
@@ -137,7 +141,10 @@ async def retry_failed_memories(user_id: str) -> int:
                 item["content"],
                 item.get("metadata"),
             )
-            break  # Stop retrying if Mem0 is still failing
+            # If circuit breaker is now open, stop retrying all items
+            if not cb.can_execute():
+                break
+            # Otherwise continue to next item (transient error)
 
     if success_count:
         logger.info("DLQ: retried %d/%d memories for user %s",

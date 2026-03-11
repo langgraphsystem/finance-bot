@@ -106,7 +106,7 @@ async def create_family(
         user_id=user.id,
         family_id=family.id,
         display_name=owner_name,
-        timezone="America/New_York",
+        timezone="UTC",
         preferred_language=language,
     )
     session.add(profile)
@@ -213,7 +213,7 @@ async def create_family_for_channel(
         user_id=user.id,
         family_id=family.id,
         display_name=owner_name,
-        timezone="America/New_York",
+        timezone="UTC",
         preferred_language=language,
     )
     session.add(profile)
@@ -310,7 +310,7 @@ async def join_family_for_channel(
         user_id=user.id,
         family_id=family.id,
         display_name=name,
-        timezone="America/New_York",
+        timezone="UTC",
         preferred_language=language,
     )
     session.add(profile)
@@ -397,7 +397,7 @@ async def join_family(
         user_id=user.id,
         family_id=family.id,
         display_name=name,
-        timezone="America/New_York",
+        timezone="UTC",
         preferred_language=language,
     )
     session.add(profile)

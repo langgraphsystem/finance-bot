@@ -398,9 +398,9 @@ async def _add_user_rule(user_id: str, rule_text: str) -> None:
             if not isinstance(current_rules, list):
                 current_rules = []
 
-            # Deduplicate
-            normalized = rule_text.strip().lower()
-            if not any(r.lower() == normalized for r in current_rules):
+            # Deduplicate (casefold for Unicode-safe comparison — GAP-M2)
+            normalized = rule_text.strip().casefold()
+            if not any(r.casefold() == normalized for r in current_rules):
                 current_rules.append(rule_text.strip())
                 await session.execute(
                     update(UserProfile)

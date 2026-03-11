@@ -17,7 +17,11 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LIST_NAME = "grocery"
+_DEFAULT_LIST_NAMES = {
+    "en": "grocery",
+    "ru": "продукты",
+    "es": "compras",
+}
 
 SHOPPING_LIST_SYSTEM_PROMPT = """\
 You help users manage shopping lists — grocery, hardware, pharmacy, or any other list.
@@ -27,12 +31,12 @@ ALWAYS respond in the same language as the user's message/query.
 If no preference is set, detect and match the language of their message."""
 
 
-def _parse_list_name(intent_data: dict[str, Any]) -> str:
-    """Extract list name from intent data, default to 'grocery'."""
+def _parse_list_name(intent_data: dict[str, Any], lang: str = "ru") -> str:
+    """Extract list name from intent data, default to localized grocery name."""
     raw = intent_data.get("shopping_list_name")
     if raw:
         return raw.strip().lower()[:100]
-    return DEFAULT_LIST_NAME
+    return _DEFAULT_LIST_NAMES.get(lang, _DEFAULT_LIST_NAMES["ru"])
 
 
 def _parse_items(intent_data: dict[str, Any], text: str) -> list[str]:
@@ -224,12 +228,12 @@ class ShoppingListAddSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        lang = context.language or "en"
+        lang = context.language or "ru"
         items = _parse_items(intent_data, message.text or "")
         if not items:
             return SkillResult(response_text=t(_STRINGS, "add_ask", lang))
 
-        list_name = _parse_list_name(intent_data)
+        list_name = _parse_list_name(intent_data, lang)
         family_id = uuid.UUID(context.family_id)
         user_id = uuid.UUID(context.user_id)
 
@@ -298,7 +302,7 @@ class ShoppingListViewSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        lang = context.language or "en"
+        lang = context.language or "ru"
         family_id = uuid.UUID(context.family_id)
         list_name = intent_data.get("shopping_list_name")
 
@@ -358,7 +362,7 @@ class ShoppingListRemoveSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        lang = context.language or "en"
+        lang = context.language or "ru"
         family_id = uuid.UUID(context.family_id)
         text = (message.text or "").lower()
 
@@ -498,7 +502,7 @@ class ShoppingListClearSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        lang = context.language or "en"
+        lang = context.language or "ru"
         family_id = uuid.UUID(context.family_id)
 
         list_name = intent_data.get("shopping_list_name")

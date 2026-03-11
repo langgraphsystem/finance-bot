@@ -186,4 +186,4 @@ async def test_self_employment_tax_for_business(sample_context):
         await skill.execute(message, sample_context, intent_data)
 
     # sample_context has business_type="trucker", so SE tax should appear
-    assert "Self-employment tax" in captured_args.get("user_message", "")
+    assert "Self-employment tax" in captured_args.get("prompt", "")

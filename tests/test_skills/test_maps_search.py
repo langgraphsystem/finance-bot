@@ -76,6 +76,7 @@ async def test_quick_mode_default(skill, message, ctx_with_city):
     ):
         mock_redis.set = AsyncMock()
         mock_settings.google_maps_api_key = ""
+        mock_settings.ff_dual_search = False
         result = await skill.execute(
             message,
             ctx_with_city,

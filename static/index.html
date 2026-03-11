@@ -3,80 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | AI Agent OS</title>
+    <title>Stridos | Your AI Life Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div class="grid-overlay"></div>
-    <div class="glow-mesh"></div>
 
+    <!-- Navigation -->
     <nav class="navbar">
-        <div class="logo"><i class="fa-solid fa-brain"></i> Finance AI</div>
-        <div class="nav-menu">
-            <a href="#features" class="nav-link">Capabilities</a>
-            <a href="#agents" class="nav-link">Agents</a>
-            <a href="https://t.me/YourBotName" class="btn btn-primary" style="padding: 10px 24px;">Launch App</a>
+        <a href="/" class="logo">
+            <div class="logo-icon">S</div>
+            <span>Stridos</span>
+        </a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#integrations">Integrations</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#blog">Blog</a>
         </div>
+        <a href="https://t.me/YourBotName" class="btn btn-cta">Get Started Free</a>
+        <button class="mobile-menu-btn" aria-label="Menu">
+            <span></span><span></span><span></span>
+        </button>
     </nav>
 
-    <main>
-        <section class="hero">
-            <div class="hero-badge reveal">Next-Gen Agentic Workflow</div>
-            <h1 class="hero-title reveal">The Operating System <br>for your Life.</h1>
-            <p class="hero-subtitle reveal">
-                Connect your financial tools, documents, and calendar to a unified ecosystem of 12 autonomous agents. 
-                Built on LangGraph. Orchestrated by you.
-            </p>
-            <div class="hero-cta reveal">
-                <a href="https://t.me/YourBotName" class="btn btn-primary">Get Started — It's Free</a>
-                <a href="#docs" class="btn btn-secondary">Read Documentation</a>
+    <!-- Hero -->
+    <section class="hero">
+        <div class="hero-content">
+            <h1 class="hero-title">Your AI Life<br>Assistant</h1>
+            <p class="hero-subtitle">The best of every AI &mdash; working together for you.</p>
+            <div class="hero-buttons">
+                <a href="https://t.me/YourBotName" class="btn btn-primary">Start for Free</a>
+                <a href="#features" class="btn btn-outline">Learn More</a>
+            </div>
+        </div>
+
+        <div class="hero-visual">
+            <!-- Floating Channel Icons — Left side -->
+            <div class="channel-icon channel-telegram">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="#2AABEE"><path d="M11.944 0A12 12 0 000 12a12 12 0 0012 12 12 12 0 0012-12A12 12 0 0012 0h-.056zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 01.171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+            </div>
+            <div class="channel-icon channel-whatsapp">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            </div>
+            <div class="channel-icon channel-slack">
+                <svg width="24" height="24" viewBox="0 0 24 24"><path fill="#E01E5A" d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z"/><path fill="#36C5F0" d="M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z"/><path fill="#2EB67D" d="M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312z"/><path fill="#ECB22E" d="M15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z"/></svg>
             </div>
 
-            <!-- Composio-like Visualization -->
-            <div class="visual-container reveal">
-                <div class="node node-center"><i class="fa-solid fa-hubspot"></i></div>
-                <div class="connector-line" style="transform: rotate(45deg) translateX(100px);"></div>
-                <div class="connector-line" style="transform: rotate(135deg) translateX(100px);"></div>
-                <div class="connector-line" style="transform: rotate(-45deg) translateX(100px);"></div>
-                <div class="connector-line" style="transform: rotate(-135deg) translateX(100px);"></div>
-                
-                <div class="node" style="position: absolute; transform: translate(140px, 140px);"><i class="fab fa-telegram"></i></div>
-                <div class="node" style="position: absolute; transform: translate(-140px, 140px);"><i class="fab fa-google"></i></div>
-                <div class="node" style="position: absolute; transform: translate(140px, -140px);"><i class="fa-solid fa-file-pdf"></i></div>
-                <div class="node" style="position: absolute; transform: translate(-140px, -140px);"><i class="fab fa-stripe"></i></div>
-            </div>
-        </section>
+            <!-- Floating Channel Icons — Right side -->
+            <div class="channel-icon channel-sms-green">SMS</div>
 
-        <section id="features" class="section-padding">
-            <div class="bento-grid">
-                <div class="bento-card f-main reveal">
-                    <div class="card-title">Multi-Agent Orchestration</div>
-                    <p class="card-desc">12 specialized agents working in sync. From analyzing complex financial spreadsheets to drafting legal emails, LangGraph ensures seamless transitions between domains.</p>
-                </div>
-                <div class="bento-card f-side reveal">
-                    <div class="card-title">Gemini 3 OCR</div>
-                    <p class="card-desc">Vision-first processing for receipts and documents.</p>
-                </div>
-                <div class="bento-card f-side reveal">
-                    <div class="card-title">E2B Sandbox</div>
-                    <p class="card-desc">Secure code execution for report generation.</p>
-                </div>
-                <div class="bento-card f-wide reveal">
-                    <div class="card-title">Document Intelligence</div>
-                    <p class="card-desc">Autonomous handling of PDF, Excel, and Word templates. Extract data or generate professional reports in seconds.</p>
-                </div>
-                <div class="bento-card f-wide reveal">
-                    <div class="card-title">Real-time Memory</div>
-                    <p class="card-desc">Multi-layer memory system that learns your preferences, business context, and recurring life patterns.</p>
-                </div>
-            </div>
-        </section>
-    </main>
+            <!-- Bottom-left SMS (same green style) -->
+            <div class="channel-icon channel-sms-red">SMS</div>
 
-    <script src="https://cdn.jsdelivr.net/gh/studio-freight/lenis@1.0.29/bundled/lenis.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+            <!-- Phone Background Animation (Remotion-rendered) -->
+            <video class="hero-bg-video" autoplay loop muted playsinline>
+                <source src="hero-bg.webm" type="video/webm">
+            </video>
+
+            <!-- Phone Mockup (Gemini-generated realistic image) -->
+            <img src="phone-mockup.png" alt="Stridos AI Assistant on iPhone" class="phone-mockup-img">
+
+            <!-- AI Models Card (no labels, just icons + text) -->
+            <div class="ai-models-card">
+                <div class="ai-models-row">
+                    <div class="ai-icon ai-claude">
+                        <svg width="24" height="24" viewBox="0 0 46 32" fill="white"><path d="M28.908 1.807L18.058 30.18h5.584l2.202-5.784h12.003l2.2 5.784h5.585L34.784 1.807h-5.876zm-.387 18.27l3.318-8.718 3.318 8.717h-6.636zM14.728 1.807H9.168L0 30.18h5.504l1.722-5.33h8.47l-.86-4.32H8.77l4.092-12.67 7.998 22.32h5.52L14.728 1.807z"/></svg>
+                    </div>
+                    <div class="ai-icon ai-chatgpt">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.05.5a6.074 6.074 0 00-5.793 4.211 6.033 6.033 0 00-4.03 2.929 6.05 6.05 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.5 24a6.071 6.071 0 005.793-4.211 6.036 6.036 0 004.029-2.93 6.05 6.05 0 00-.743-7.097z"/></svg>
+                    </div>
+                    <div class="ai-icon ai-gemini">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 24C12 18.2 8.32 13.36 3.14 11.5C2.08 11.12 1.06 10.6 0 10.06V13.94C1.06 13.4 2.08 12.88 3.14 12.5C8.32 10.64 12 5.8 12 0C12 5.8 15.68 10.64 20.86 12.5C21.92 12.88 22.94 13.4 24 13.94V10.06C22.94 10.6 21.92 11.12 20.86 11.5C15.68 13.36 12 18.2 12 24Z" fill="url(#gemini-grad)"/><defs><linearGradient id="gemini-grad" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#4285F4"/><stop offset="0.5" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient></defs></svg>
+                    </div>
+                    <div class="ai-icon ai-grok">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6"/><path d="M2.5 22v-6h6"/><path d="M2.5 16s2-4.5 5.5-6.5S16 7 21.5 8"/><path d="M21.5 8s-2 4.5-5.5 6.5S8 17 2.5 16"/></svg>
+                    </div>
+                </div>
+                <p class="ai-models-label">Powered by the world's most advanced AI</p>
+            </div>
+
+            <!-- Sparkle icon bottom-right -->
+            <div class="sparkle-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M12 2L13.5 8.5L20 10L13.5 11.5L12 18L10.5 11.5L4 10L10.5 8.5L12 2Z" fill="rgba(108,92,231,0.15)" stroke="rgba(108,92,231,0.3)" stroke-width="0.5"/></svg>
+            </div>
+        </div>
+    </section>
+
     <script src="script.js"></script>
 </body>
 </html>

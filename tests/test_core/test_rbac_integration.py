@@ -58,7 +58,7 @@ async def test_expense_skill_allows_authorized_member():
 
     ctx = _make_context(role="member", permissions=["view_finance", "create_finance"])
 
-    with patch("src.skills.add_expense.handler.async_session") as mock_sm:
+    with patch("src.skills.add_expense.handler.get_session") as mock_sm:
         mock_session = AsyncMock()
         mock_sm.return_value.__aenter__ = AsyncMock(return_value=mock_session)
         mock_sm.return_value.__aexit__ = AsyncMock(return_value=False)

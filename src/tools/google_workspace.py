@@ -236,7 +236,7 @@ class GoogleWorkspaceClient:
         location: str | None = None,
         description: str | None = None,
         calendar_id: str = "primary",
-        timezone: str = "America/New_York",
+        timezone: str = "UTC",
     ) -> dict:
         """Create a new calendar event."""
         params: dict = {

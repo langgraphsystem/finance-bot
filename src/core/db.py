@@ -21,6 +21,7 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 redis = Redis.from_url(settings.redis_url, decode_responses=True)
 
 
+@asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session, automatically applying RLS if a family context is set.
 

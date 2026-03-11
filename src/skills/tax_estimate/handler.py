@@ -191,13 +191,11 @@ class TaxEstimateSkill:
 
         data_text = "\n".join(data_lines)
 
-        assembled = intent_data.get("_assembled")
         model = intent_data.get("_model", self.model)
         response = await generate_text(
             model=model,
-            system_prompt=TAX_SYSTEM_PROMPT.format(language=lang),
-            user_message=f"{message.text}\n\n--- DATA ---\n{data_text}",
-            assembled_context=assembled,
+            system=TAX_SYSTEM_PROMPT.format(language=lang),
+            prompt=f"{message.text}\n\n--- DATA ---\n{data_text}",
         )
 
         # Prepend data summary so user sees what data was used

@@ -17,7 +17,7 @@ class UserProfile(Base, TimestampMixin):
         UUID(as_uuid=True), ForeignKey("users.id"), unique=True
     )
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    timezone: Mapped[str] = mapped_column(String(50), default="America/New_York")
+    timezone: Mapped[str] = mapped_column(String(50), default="UTC")
     timezone_source: Mapped[str] = mapped_column(String(32), default="default")
     timezone_confidence: Mapped[int] = mapped_column(Integer, default=0)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)

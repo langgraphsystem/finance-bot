@@ -1,8 +1,8 @@
 # Backlog: Scheduled Intelligence Actions (SIA)
 
 Date: 2026-03-03
-Updated: 2026-03-03
-Status: Proposed
+Updated: 2026-03-10
+Status: ✅ DONE — все Epics A–E реализованы
 Owner: Product + Core Platform
 
 ## 1. Planning Assumptions
@@ -22,7 +22,7 @@ Owner: Product + Core Platform
 
 ## 3. Epic Backlog
 
-## Epic A - Data Foundation (`P0`)
+## Epic A - Data Foundation (`P0`) — ✅ DONE
 
 ### A1. Create `scheduled_actions` model + migration
 
@@ -86,7 +86,7 @@ Estimate: 0.5 day
 
 ---
 
-## Epic B - Intent and Skills (`P0`)
+## Epic B - Intent and Skills (`P0`) — ✅ DONE
 
 ### B1. Add `schedule_action` intent support
 
@@ -170,7 +170,7 @@ Estimate: 1 day
 
 ---
 
-## Epic C - Dispatcher Engine (`P0`)
+## Epic C - Dispatcher Engine (`P0`) — ✅ DONE
 
 ### C1. Add `dispatch_scheduled_actions` Taskiq cron
 
@@ -218,7 +218,7 @@ Estimate: 1 day
 
 ---
 
-## Epic D - Data Collection and Formatting (`P0`)
+## Epic D - Data Collection and Formatting (`P0`) — ✅ DONE
 
 ### D1. Create collector wrapper module
 
@@ -286,7 +286,7 @@ Estimate: 1 day
 
 ---
 
-## Epic E - Telegram Interaction (`P0`)
+## Epic E - Telegram Interaction (`P0`) — ✅ DONE
 
 ### E1. Add `sched:*` callbacks to router
 
@@ -321,7 +321,7 @@ Estimate: 0.5 day
 
 ---
 
-## Epic F - Market Parity Enhancements (`P1`)
+## Epic F - Market Parity Enhancements (`P1`) — ⏳ BACKLOG (не реализовано)
 
 ### F1. Weekdays schedule support
 

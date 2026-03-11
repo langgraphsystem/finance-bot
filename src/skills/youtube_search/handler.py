@@ -53,6 +53,9 @@ extract key steps, tips, conclusions, or transcription highlights.
 - For product videos: mention price, features, and recommendation.
 - Show video title (bold), channel name, and a YouTube URL.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: match the query mood. Fun/casual topics (music, travel, food, gaming, \
+entertainment) — use relevant emojis. Serious topics (legal, medical, financial, \
+educational lectures) — no emojis, professional tone.
 - ALWAYS respond in the same language as the user's message/query."""
 
 YOUTUBE_API_PROMPT = """\
@@ -67,6 +70,7 @@ Rules:
 - Present ALL videos from the list — the user asked for a detailed list.
 - Use bullet points for steps or comparisons.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: fun/entertainment videos — use emojis. Serious/educational — no emojis.
 - ALWAYS respond in the same language as the user's message/query."""
 
 YOUTUBE_ANALYZE_PROMPT = """\
@@ -83,6 +87,7 @@ Rules:
 - Show video title (bold), channel name, view count if available.
 - Include the original YouTube URL as a clickable link.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: fun/entertainment videos — use emojis. Serious/educational — no emojis.
 - ALWAYS respond in the same language as the user's message/query."""
 
 YOUTUBE_NATIVE_ANALYZE_PROMPT = """\
@@ -97,6 +102,7 @@ Rules:
 - If the user asks a specific question, answer it using the video content.
 - Show the video title (bold) if identifiable. Include the original URL as a clickable link.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: fun/entertainment videos — use emojis. Serious/educational — no emojis.
 - ALWAYS respond in the same language as the user's message."""
 
 YT_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"

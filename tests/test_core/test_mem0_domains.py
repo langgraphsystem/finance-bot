@@ -75,8 +75,8 @@ class TestGetDomainsForIntent:
         assert len(domains) == 12
 
     def test_unmapped_intent_uses_mem_type(self):
-        # shopping_list_add not in INTENT_DOMAIN_MEM_MAP
-        domains = get_domains_for_intent("shopping_list_add", "profile")
+        # some_future_intent not in INTENT_DOMAIN_MEM_MAP → falls back to mem_type
+        domains = get_domains_for_intent("some_future_intent", "profile")
         assert domains == MEM_TYPE_DOMAIN_MAP["profile"]
 
     def test_unmapped_intent_and_mem_type_fallback(self):

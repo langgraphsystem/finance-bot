@@ -290,8 +290,16 @@ class TestQueryContextMap:
 # _apply_overflow_trimming
 # ---------------------------------------------------------------------------
 class TestOverflowTrimming:
+    def _unpack(self, result):
+        """Unpack 9-tuple from _apply_overflow_trimming."""
+        (
+            mem_block, sql_block, summary_block, history, memories,
+            obs_block, proc_block, ep_block, graph_block,
+        ) = result
+        return mem_block, sql_block, summary_block, history, memories
+
     def test_no_trimming_when_within_budget(self):
-        mem_block, sql_block, summary_block, history, memories = _apply_overflow_trimming(
+        result = _apply_overflow_trimming(
             system_prompt_tokens=10,
             user_msg_tokens=5,
             mem_block="mem",
@@ -301,6 +309,7 @@ class TestOverflowTrimming:
             memories=[{"memory": "test"}],
             total_budget=10000,
         )
+        mem_block, sql_block, summary_block, history, memories = self._unpack(result)
         assert mem_block == "mem"
         assert sql_block == "sql"
         assert summary_block == "sum"
@@ -308,7 +317,7 @@ class TestOverflowTrimming:
     def test_drops_old_history_first(self):
         # Large history to trigger overflow
         history = [{"role": "user", "content": "x" * 400} for _ in range(10)]
-        mem_block, sql_block, summary_block, trimmed_history, memories = _apply_overflow_trimming(
+        result = _apply_overflow_trimming(
             system_prompt_tokens=10,
             user_msg_tokens=5,
             mem_block="",
@@ -318,6 +327,7 @@ class TestOverflowTrimming:
             memories=[],
             total_budget=500,  # tight budget
         )
+        _, _, _, trimmed_history, _ = self._unpack(result)
         # Should have fewer messages
         assert len(trimmed_history) < 10
 
@@ -326,7 +336,7 @@ class TestOverflowTrimming:
         history = []
         summary = "s" * 2000
         sql = "q" * 100
-        mem_block, sql_block, summary_block, _, _ = _apply_overflow_trimming(
+        result = _apply_overflow_trimming(
             system_prompt_tokens=10,
             user_msg_tokens=5,
             mem_block="",
@@ -336,12 +346,13 @@ class TestOverflowTrimming:
             memories=[],
             total_budget=100,  # very tight
         )
+        _, _, summary_block, _, _ = self._unpack(result)
         # Summary should be trimmed or empty
         assert len(summary_block) < len(summary)
 
     def test_never_drops_system_and_user(self):
         # Even with extremely tight budget, we should not crash
-        mem_block, sql_block, summary_block, history, memories = _apply_overflow_trimming(
+        result = _apply_overflow_trimming(
             system_prompt_tokens=50,
             user_msg_tokens=50,
             mem_block="m" * 1000,
@@ -351,12 +362,36 @@ class TestOverflowTrimming:
             memories=[{"memory": "test"}],
             total_budget=100,  # exactly system + user, no room for anything else
         )
+        mem_block, sql_block, summary_block, history, memories = self._unpack(result)
         # Everything else should be trimmed away
         assert len(history) == 0
         assert summary_block == ""
         assert sql_block == ""
         assert mem_block == ""
         assert memories == []
+
+    def test_drops_episodes_and_graph_before_mem0(self):
+        """Episodic and graph blocks should be dropped before Mem0 and SQL."""
+        result = _apply_overflow_trimming(
+            system_prompt_tokens=10,
+            user_msg_tokens=5,
+            mem_block="mem data",
+            sql_block="sql data",
+            summary_block="",
+            history_messages=[],
+            memories=[{"memory": "test"}],
+            total_budget=50,  # tight — forces auxiliary drops
+            episodes_block="e" * 200,
+            graph_block="g" * 200,
+            observations_block="o" * 200,
+        )
+        (
+            mem_block, sql_block, _, _, _,
+            obs_block, _, ep_block, graph_block,
+        ) = result
+        # Auxiliary layers should be dropped first
+        assert ep_block == ""
+        assert graph_block == ""
 
 
 # ---------------------------------------------------------------------------

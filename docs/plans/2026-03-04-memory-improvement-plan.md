@@ -1,7 +1,8 @@
 # Memory & Personalization Improvement Plan
 
 **Дата:** 2026-03-04
-**Статус:** В работе
+**Обновлено:** 2026-03-10
+**Статус:** ✅ ЗАВЕРШЕНО (все 13 фаз + A–F реализованы)
 **Источник:** `stridos_memory_plan.docx` + Production Upgrade Guide + анализ 20 проблем
 
 ---
@@ -27,16 +28,14 @@
 ## ЧАСТЬ 1 — Фазы 1–10 (базовый план)
 
 ### Фаза 1: Guardrails — whitelist персонализации
+**Статус:** ✅ DONE — `_PERSONALIZATION_PATTERNS` + `_is_personalization()` в `guardrails.py` (lines 59-93)
 **Проблема:** "Тебя зовут Хюррем" → "Я не могу помочь" (false positive)
 **Файл:** `src/core/guardrails.py`
-**Что сделать:**
-- В policy промпт добавить: "Персонализация бота (назначение имени, стиля, предпочтений) — разрешена. Это НЕ impersonation."
-- Уточнить: impersonation = притворяться реальным человеком/организацией
-- Тест: "тебя зовут X", "запомни что ты Y", "отвечай коротко" → должны проходить
 
 ### Фаза 2: Расширение Fact Extraction Prompt
+**Статус:** ✅ DONE — переименован в `FACT_EXTRACTION_PROMPT`, добавлены user_identity/bot_identity/user_rule/user_project/user_preference
 **Проблема:** Промпт говорит "Извлеки ТОЛЬКО финансовые факты". Имя, город, проект — не извлекаются.
-**Файл:** `src/core/memory/mem0_client.py` → `FINANCIAL_FACT_EXTRACTION_PROMPT`
+**Файл:** `src/core/memory/mem0_client.py` → `FACT_EXTRACTION_PROMPT` (lines 124-158)
 **Новые категории:**
 - `user_identity` — имя, возраст, профессия, город, страна
 - `bot_identity` — имя бота, роль, стиль обращения
@@ -46,6 +45,7 @@
 **Переименовать:** `FINANCIAL_FACT_EXTRACTION_PROMPT` → `FACT_EXTRACTION_PROMPT` (больше не только финансы)
 
 ### Фаза 3: Immediate Identity Update
+**Статус:** ✅ DONE — `immediate_identity_update()` в `identity.py` (lines 163-190), IDENTITY_CATEGORIES определены
 **Проблема:** "Меня зовут Манас" → Core Identity обновится только ночным кроном.
 **Файлы:** `src/core/identity.py`, `src/core/tasks/memory_tasks.py`
 **Что сделать:**
@@ -55,6 +55,7 @@
 - Redis-кэш identity инвалидировать при обновлении
 
 ### Фаза 4: User Rules — NEVER DROP injection
+**Статус:** ✅ DONE — `active_rules: Mapped[list | None]` в `user_profiles` модели, Layer 0.5 в `assemble_context()`
 **Проблема:** Бот соглашается "ОК, без эмодзи", но следующий ответ с эмодзи.
 **Файлы:** `src/core/memory/context.py`, модели
 **Что сделать:**
@@ -71,6 +72,7 @@
 - Cache-aware: статичный блок → в cached prefix (Anthropic cache_control)
 
 ### Фаза 5: Intent Detection — персонализация
+**Статус:** ✅ DONE — интент `set_user_rule` существует в life agent, `src/skills/user_rules/handler.py`
 **Проблема:** "Запомни что ты Хюррем" → general_chat → просто текст.
 **Файлы:** `src/core/intent.py`, `src/core/schemas/intent.py`
 **Что сделать:**
@@ -80,6 +82,7 @@
 - Handler: извлечь правило → записать в `active_rules` + Mem0
 
 ### Фаза 6: Realtime Procedural Update
+**Статус:** ✅ DONE — `get_realtime_procedural_rules()` в `procedural.py`, кэш в Redis, вызывается при коррекции
 **Проблема:** Procedural memory — еженедельный крон. Исправление сегодня → бот повторит завтра.
 **Файлы:** `src/core/memory/procedural.py`, `src/core/tasks/memory_tasks.py`
 **Что сделать:**
@@ -88,16 +91,10 @@
 - Распознавание коррекции: intent_data или эвристика ("я же сказал", "я просил", "опять")
 
 ### Фаза 7: Противоречия + приоритет фактов
-**Проблемы:** #15 (два города одновременно), #18 (кофе = ребёнок по весу)
-**Файлы:** `src/core/memory/mem0_client.py`, `src/core/memory/context.py`
-**Что сделать:**
-- `priority` поле в Mem0 metadata: `critical` / `important` / `normal`
-- Маппинг: identity→critical, project→important, habits→normal
-- При overflow: дропать `normal` раньше `critical`
-- Temporal: `updated_at` в каждый факт. В промпт: "Город: Бишкек (обновлено 2026-03-01)"
-- Проверить что `_archive_superseded_fact` работает для identity фактов
+**Статус:** ✅ DONE (2026-03-10) — `_CATEGORY_PRIORITY` + `_enrich_metadata()` + `_detect_and_resolve_contradiction()` в `mem0_client.py`. `_PRIORITY_RANK` sort в `_split_memories_by_priority()` в `context.py` — intra-domain overflow: critical факты выживают, normal дропаются первыми. Тесты: `test_two_cities_contradiction_archives_old` + `test_critical_survives_overflow_sort` в `test_memory_regression.py`.
 
 ### Фаза 8: Mem0 DLQ
+**Статус:** ✅ DONE — `src/core/memory/mem0_dlq.py` — enqueue/dequeue, SHA-256 idempotency, 7-day TTL, DLQ_MAX_SIZE=200
 **Проблема:** Async fire-and-forget. Mem0 упал → факт потерян.
 **Файлы:** `src/core/memory/mem0_client.py`, новый `src/core/memory/mem0_dlq.py`
 **Что сделать:**
@@ -108,6 +105,7 @@
 - Алерт если очередь > 100 элементов
 
 ### Фаза 9: Undo + Mem0 Sync
+**Статус:** ✅ DONE — commit c7a6ceb, transaction_id в Mem0 metadata, Undo откатывает факты
 **Проблема:** Undo откатывает транзакцию, но Mem0 факт остаётся.
 **Файлы:** `src/core/undo.py`, `src/core/memory/mem0_client.py`
 **Что сделать:**
@@ -116,6 +114,7 @@
 - Атомарность: DB откат + Mem0 откат в одном flow
 
 ### Фаза 10: Dialog History Search
+**Статус:** ✅ DONE — commit 133a1d2, `src/skills/dialog_history/handler.py` в life agent
 **Проблема:** "О чём мы говорили вчера?" → бот не может ответить.
 **Файлы:** новый `src/skills/dialog_history/handler.py`
 **Что сделать:**
@@ -129,6 +128,7 @@
 ## ЧАСТЬ 2 — Архитектурные дополнения (A–F)
 
 ### A: Cache-aware Context Assembly
+**Статус:** ✅ DONE — cached prefix в `assemble_context()`, User Rules Layer 0.5 в cached секции
 **Что сделать:**
 - User Rules (Layer 0.5) → в cached prefix (статичный блок)
 - Core Identity (Layer 0) → в cached prefix (статичный блок)
@@ -143,19 +143,10 @@
 **Статус:** Уже реализовано (`src/core/memory/session_buffer.py`)
 
 ### D: Regression Test Suite — 20 сценариев
-**Что сделать:**
-- Тест-файл: `tests/test_memory_regression.py`
-- 20 тестов (по одному на каждую проблему из списка)
-- Метрики: intent accuracy, rule compliance, fact retention
-- Запуск в CI после каждого деплоя
+**Статус:** ✅ DONE — `tests/test_memory_regression.py` (361 строк, 20 тестовых классов), запускается в CI
 
 ### E: Graceful Degradation Policy
-**Что сделать:**
-- Документировать поведение при недоступности:
-  - Redis down → читать из PostgreSQL (fallback), ответ медленнее но корректный
-  - Mem0 down → circuit breaker уже есть, добавить DLQ (Фаза 8)
-  - Supabase медленный → timeout + cached identity из Redis
-  - LLM rate limit → fallback chain уже есть (Gemini → Claude → GPT)
+**Статус:** ✅ DONE — commit a6c5efc, политика задокументирована
 
 ### F: Core Identity Layer 0
 **Статус:** Уже реализовано (`src/core/identity.py`)
@@ -166,26 +157,13 @@
 ## ЧАСТЬ 3 — Дополнения (Фазы 11–13)
 
 ### Фаза 11: Memory Feedback + memory_update
-**Что сделать:**
-- Подтверждение при сохранении: "Запомнил: твоё имя — Манас"
-- Новый интент `memory_update`: изменить факт без удаления
-- Пример: "обнови мою зарплату" → find → patch → save с новым updated_at
-- Команды: "что ты помнишь?", "забудь X", "обнови X"
+**Статус:** ✅ DONE — интент `memory_update` в life agent, memory_vault поддерживает memory_show/forget/save (полная i18n en/ru/es)
 
 ### Фаза 12: Project Context Entity
-**Что сделать:**
-- Новая сущность `user_projects`: project_id, name, description, status, related_sessions
-- Привязка разговоров к проекту: "это про Stridos" → тег на сессию
-- В `assemble_context()`: если проект определён → подгружать project-specific facts
-- Clarification: "о каком проекте речь?" если неоднозначно
+**Статус:** ✅ DONE — `src/skills/project_manager/handler.py`, интенты set_project/create_project/list_projects в life agent
 
 ### Фаза 13: Post-generation Rule Check
-**Что сделать:**
-- Haiku промпт (~200 токенов): "Этот ответ нарушает правила пользователя?"
-- Проверяет: язык, эмодзи, длину, имя бота, стиль
-- Нарушение → regenerate с напоминанием нарушенного правила
-- Лог нарушений → усиливает правило в Layer 0.5
-- Опционально: feature flag `ff_post_gen_check` (добавляет ~1с latency)
+**Статус:** ✅ DONE — commit a6c5efc, `src/core/post_gen_check.py`, ff_post_gen_check=True (включён по умолчанию)
 
 ---
 

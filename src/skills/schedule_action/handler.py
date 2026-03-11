@@ -538,7 +538,7 @@ class ScheduleActionSkill:
         if schedule_kind is None:
             return SkillResult(response_text=_t("ask_schedule", language))
 
-        timezone = context.timezone or "America/New_York"
+        timezone = context.timezone or "UTC"
         now = datetime.now(ZoneInfo(timezone))
         weekday = now.weekday()
         day_of_month = now.day

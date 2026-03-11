@@ -1,7 +1,7 @@
 # Multi-Agent Orchestrator Design
 
 **Date:** 2026-02-24
-**Status:** Approved
+**Status:** ✅ DONE (2026-03-10) — supervisor routing, skill_catalog.yaml, detect_intent_v2 реализованы
 
 ## Overview
 

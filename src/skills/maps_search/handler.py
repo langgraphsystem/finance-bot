@@ -13,6 +13,8 @@ from src.core.context import SessionContext
 from src.core.db import redis
 from src.core.llm.clients import google_client
 from src.core.observability import observe
+from src.core.research.dual_search import dual_search
+from src.core.research.signal_detector import detect_signals
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
@@ -31,6 +33,9 @@ and transport options (subway, bus, car, walk).
 - Describe places in useful detail — hours, phone, website, what to expect.
 - Include Google Maps links where possible.
 - Use HTML tags for Telegram formatting (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: match the query mood. Fun/casual places (restaurants, cafes, bars, \
+entertainment) — use relevant emojis. Practical queries (hospitals, offices, \
+government buildings) — no emojis, professional tone.
 - ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
 User's preferred language: {language}.
 {location_hint}"""
@@ -170,12 +175,22 @@ class MapsSearchSkill:
             grounding_query = query
             if maps_mode == "directions" and destination:
                 grounding_query = f"directions from {query} to {destination}"
-            answer = await search_places_grounding(
-                grounding_query,
-                language,
-                location_hint=location_hint,
-                original_message=message.text or query,
-            )
+            signals = detect_signals(grounding_query)
+            if signals.should_dual_search and settings.ff_dual_search and settings.xai_api_key:
+                answer = await dual_search(
+                    grounding_query,
+                    language,
+                    message.text or query,
+                    gemini_searcher=_maps_grounding_adapter,
+                    trace_user_id=str(context.user_id),
+                )
+            else:
+                answer = await search_places_grounding(
+                    grounding_query,
+                    language,
+                    location_hint=location_hint,
+                    original_message=message.text or query,
+                )
 
         # For non-location-specified queries with saved city, offer location update
         if not location_specified and user_city:
@@ -216,6 +231,13 @@ class MapsSearchSkill:
 # ---------------------------------------------------------------------------
 # Quick mode: Gemini + Google Search Grounding
 # ---------------------------------------------------------------------------
+
+
+async def _maps_grounding_adapter(
+    query: str, language: str, _original_message: str = "",
+) -> str:
+    """Adapter matching dual_search gemini_searcher signature."""
+    return await search_places_grounding(query, language, original_message=_original_message)
 
 
 async def search_places_grounding(

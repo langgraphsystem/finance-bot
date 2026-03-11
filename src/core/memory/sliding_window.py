@@ -106,6 +106,19 @@ async def _fallback_from_postgres(user_id: str, limit: int) -> list[dict]:
             "Sliding window fallback: loaded %d messages from PostgreSQL for %s",
             len(messages), user_id,
         )
+
+        # GAP-M7: Warm Redis cache so subsequent requests skip DB fallback
+        try:
+            key = f"{REDIS_KEY_PREFIX}:{user_id}:messages"
+            pipe = redis.pipeline()
+            for msg in messages:
+                pipe.rpush(key, json.dumps(msg, ensure_ascii=False))
+            pipe.ltrim(key, -DEFAULT_WINDOW_SIZE, -1)
+            pipe.expire(key, TTL_SECONDS)
+            await pipe.execute()
+        except Exception as warm_err:
+            logger.debug("Redis cache warming failed (non-critical): %s", warm_err)
+
         return messages
     except Exception as e:
         logger.warning("PostgreSQL fallback for sliding window failed: %s", e)

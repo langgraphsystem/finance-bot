@@ -1,6 +1,10 @@
 """Tests for locale resolution helpers used by notification tasks."""
 
-from src.core.locale_resolution import normalize_language, resolve_notification_locale
+from src.core.locale_resolution import (
+    normalize_language,
+    notification_language_fallback,
+    resolve_notification_locale,
+)
 
 
 def test_normalize_language_region_code():
@@ -50,3 +54,43 @@ def test_resolve_locale_prefers_user_when_desynced():
     )
     assert resolved.language == "en"
     assert resolved.language_source == "users.language_desync_override"
+
+
+# ---------------------------------------------------------------------------
+# CIS language notification fallback
+# ---------------------------------------------------------------------------
+
+def test_notification_fallback_kyrgyz_to_russian():
+    assert notification_language_fallback("ky") == "ru"
+
+
+def test_notification_fallback_kazakh_to_russian():
+    assert notification_language_fallback("kk") == "ru"
+
+
+def test_notification_fallback_uzbek_to_russian():
+    assert notification_language_fallback("uz") == "ru"
+
+
+def test_notification_fallback_tajik_to_russian():
+    assert notification_language_fallback("tg") == "ru"
+
+
+def test_notification_fallback_mongolian_to_russian():
+    assert notification_language_fallback("mn") == "ru"
+
+
+def test_notification_fallback_english_stays():
+    assert notification_language_fallback("en") == "en"
+
+
+def test_notification_fallback_russian_stays():
+    assert notification_language_fallback("ru") == "ru"
+
+
+def test_notification_fallback_spanish_stays():
+    assert notification_language_fallback("es") == "es"
+
+
+def test_notification_fallback_none():
+    assert notification_language_fallback(None) == "en"

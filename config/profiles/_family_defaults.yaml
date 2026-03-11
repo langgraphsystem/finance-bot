@@ -1,40 +1,95 @@
 family_categories:
+  # ── Еда и напитки ──
   - name: "Продукты"
     icon: "🛒"
     scope: family
   - name: "Рестораны/Кафе"
     icon: "🍽️"
     scope: family
+  - name: "Фастфуд"
+    icon: "🍔"
+    scope: family
+  - name: "Доставка еды"
+    icon: "🛵"
+    scope: family
+  - name: "Кофе/Напитки"
+    icon: "☕"
+    scope: family
+  # ── Жильё ──
   - name: "Аренда/ипотека"
     icon: "🏠"
     scope: family
   - name: "Коммунальные"
     icon: "💡"
     scope: family
-  - name: "Дети"
-    icon: "👶"
+  - name: "Товары для дома"
+    icon: "🏡"
     scope: family
-  - name: "Медицина"
-    icon: "🏥"
-    scope: family
+  # ── Транспорт ──
   - name: "Транспорт"
     icon: "🚗"
+    scope: family
+  - name: "Такси"
+    icon: "🚕"
     scope: family
   - name: "Топливо"
     icon: "⛽"
     scope: family
+  # ── Здоровье и красота ──
+  - name: "Медицина"
+    icon: "🏥"
+    scope: family
+  - name: "Аптека"
+    icon: "💊"
+    scope: family
+  - name: "Красота/Уход"
+    icon: "💇"
+    scope: family
+  - name: "Спорт/Фитнес"
+    icon: "🏋️"
+    scope: family
+  # ── Одежда и покупки ──
   - name: "Одежда"
     icon: "👕"
+    scope: family
+  - name: "Электроника"
+    icon: "📱"
+    scope: family
+  # ── Образование и развитие ──
+  - name: "Образование"
+    icon: "📚"
     scope: family
   - name: "Подписки"
     icon: "📺"
     scope: family
-  - name: "Переводы родным"
-    icon: "💸"
+  - name: "Связь/Интернет"
+    icon: "📡"
     scope: family
+  # ── Семья и жизнь ──
+  - name: "Дети"
+    icon: "👶"
+    scope: family
+  - name: "Домашние животные"
+    icon: "🐾"
+    scope: family
+  - name: "Подарки"
+    icon: "🎁"
+    scope: family
+  # ── Путешествия и развлечения ──
   - name: "Развлечения"
     icon: "🎬"
     scope: family
+  - name: "Путешествия"
+    icon: "✈️"
+    scope: family
+  # ── Финансы ──
+  - name: "Переводы родным"
+    icon: "💸"
+    scope: family
+  - name: "Кредит/Долги"
+    icon: "🏦"
+    scope: family
+  # ── Прочее ──
   - name: "Прочее"
     icon: "📦"
     scope: family

@@ -21,6 +21,7 @@ from src.skills.create_task.handler import skill as create_task_skill
 from src.skills.day_plan.handler import skill as day_plan_skill
 from src.skills.day_reflection.handler import skill as day_reflection_skill
 from src.skills.delete_data.handler import skill as delete_data_skill
+from src.skills.delete_event.handler import skill as delete_event_skill
 from src.skills.dialog_history.handler import skill as dialog_history_skill
 from src.skills.draft_message.handler import skill as draft_message_skill
 from src.skills.draft_reply.handler import skill as draft_reply_skill
@@ -157,6 +158,7 @@ def create_registry() -> SkillRegistry:
     registry.register(create_event_skill)
     registry.register(find_free_slots_skill)
     registry.register(reschedule_event_skill)
+    registry.register(delete_event_skill)
     registry.register(morning_brief_skill)
     registry.register(shopping_list_add_skill)
     registry.register(shopping_list_view_skill)

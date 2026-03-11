@@ -14,6 +14,22 @@ if (tg) {
 
 const INIT_DATA = tg?.initData || '';
 
+// ─── Auto-detect timezone from browser and send to backend ────────────────
+(async function detectTimezone() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!tz || !INIT_DATA) return;
+    await fetch('/api/tz/detect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Telegram-Init-Data': INIT_DATA,
+      },
+      body: JSON.stringify({ timezone: tz }),
+    });
+  } catch (_) { /* best-effort */ }
+})();
+
 // ─── Global state ──────────────────────────────────────────────────────────
 const state = {
   user: null,

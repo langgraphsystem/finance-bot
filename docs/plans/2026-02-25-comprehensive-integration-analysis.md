@@ -1,7 +1,7 @@
 # Comprehensive Integration Analysis: LangGraph, LangChain, Deep Agents, LangSmith + Scaling Strategy
 
 **Date:** 2026-02-25
-**Updated:** 2026-02-26
+**Updated:** 2026-03-10
 **Scope:** Full analysis of current architecture, LangGraph/LangChain ecosystem, Deep Agents SDK, LangSmith platform, memory system, agent architecture, specialist roadmap, and scaling strategy.
 
 ## Progress Tracker
@@ -29,6 +29,11 @@
 | Dead code cleanup (hooks.py removed) | **DONE** | `f191faf` |
 | Multilingual booking parsing (RU/ES) | **DONE** | `9e2cd96` |
 | Checkpointer test fix (mock psycopg) | **DONE** | `f191faf` |
+| Document Agent (19 skills + versioning) | **DONE** (Mar 2026) | |
+| Memory Improvement Plan (все 13 фаз) | **DONE** (Mar 2026) | |
+| RBAC Phase 1-2 (workspace_memberships + visibility) | **DONE** (Mar 2026) | |
+| SIA (Scheduled Intelligence Actions) | **DONE** (Mar 2026) | |
+| OpenClaw features (undo, suggestions, memory vault) | **DONE** (Mar 2026) | |
 | Deep Agents for generate_program | NOT STARTED | |
 
 ---

@@ -67,6 +67,8 @@ dependencies = [
     "python-barcode>=0.15.0",
     "python-pptx>=1.0.0",
     "yt-dlp>=2026.3.3",
+    # Phone number parsing (timezone from WhatsApp wa_id)
+    "phonenumbers>=8.13.0",
 ]
 
 [dependency-groups]

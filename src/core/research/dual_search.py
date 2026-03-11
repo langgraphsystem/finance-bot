@@ -17,7 +17,11 @@ _GROK_TIMEOUT_SECONDS = 25
 _GROK_SEARCH_SYSTEM = (
     "You are a web search assistant. Search the web and return factual, "
     "up-to-date information. Include specific numbers, prices, dates, "
-    "and source references where possible. Be concise — max 10 bullet points."
+    "and source references where possible. Be concise — max 10 bullet points.\n"
+    "Format: Telegram HTML (<b>, <i>). Use • for bullets.\n"
+    "Tone: match the query mood. Casual/fun topics (food, travel, entertainment, "
+    "lifestyle) — use relevant emojis. Serious topics (legal, medical, financial "
+    "analysis, business plans) — no emojis, professional tone."
 )
 
 _SYNTHESIS_TEMPLATE = """\
@@ -30,6 +34,9 @@ Rules:
 - Telegram HTML only (<b>, <i>). No Markdown.
 - Respond in {language}
 - Max 15 lines, scannable bullets
+- Tone: match the query mood. Fun/casual topics (food, travel, entertainment, \
+lifestyle) — add relevant emojis. Serious topics (legal, medical, financial \
+analysis, business) — no emojis, professional tone.
 
 Source 1 (Google):
 {gemini_result}

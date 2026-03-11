@@ -2,6 +2,10 @@
 
 from dataclasses import dataclass
 
+# CIS/Central Asian languages that fall back to Russian for notifications.
+# These users almost universally read Russian as a second language.
+_CIS_NOTIFICATION_FALLBACK = frozenset({"ky", "kk", "uz", "tg", "mn"})
+
 
 def normalize_language(lang: str | None) -> str:
     """Normalize language codes (e.g. en-US/en_US -> en)."""
@@ -10,6 +14,18 @@ def normalize_language(lang: str | None) -> str:
     normalized = lang.strip().lower().replace("_", "-")
     normalized = normalized.split("-", 1)[0]
     return normalized or "en"
+
+
+def notification_language_fallback(lang: str | None) -> str:
+    """Map language to nearest supported notification language.
+
+    CIS languages (ky, kk, uz, tg, mn) fall back to Russian.
+    Everything else passes through normalize_language.
+    """
+    normalized = normalize_language(lang)
+    if normalized in _CIS_NOTIFICATION_FALLBACK:
+        return "ru"
+    return normalized
 
 
 @dataclass(frozen=True)

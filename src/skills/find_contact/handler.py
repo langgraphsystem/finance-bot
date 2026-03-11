@@ -76,6 +76,23 @@ class FindContactSkill:
         if best_name:
             contacts = sorted(contacts, key=lambda c: c.name != best_name)
 
+        # Strengthen graph edges for accessed contacts (GAP-H7)
+        try:
+            from src.core.memory.graph_memory import strengthen_relationship
+
+            for c in contacts[:3]:  # Top 3 results only
+                await strengthen_relationship(
+                    context.family_id,
+                    subject_type="person",
+                    subject_id=context.user_id,
+                    relation="related_to",
+                    object_type="contact",
+                    object_id=str(c.id),
+                    amount=0.1,  # Small increment for read access
+                )
+        except Exception as e:
+            logger.debug("Graph strengthen on contact read failed: %s", e)
+
         lines = [f"<b>Found {len(contacts)} contact(s):</b>\n"]
         for c in contacts:
             line = f"- <b>{c.name}</b>"

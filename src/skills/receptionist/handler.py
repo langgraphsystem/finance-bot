@@ -79,17 +79,15 @@ class ReceptionistSkill:
 
         # LLM-assisted response for open-ended questions
         data_text = self._build_data_context(specialist, language, context)
-        assembled = intent_data.get("_assembled")
         model = intent_data.get("_model", self.model)
 
         response = await generate_text(
             model=model,
-            system_prompt=RECEPTIONIST_SYSTEM_PROMPT.format(language=language),
-            user_message=(
+            system=RECEPTIONIST_SYSTEM_PROMPT.format(language=language),
+            prompt=(
                 f"{message.text}\n\n--- BUSINESS DATA ---\n{data_text}\n\n"
                 "Answer the question using ONLY the business data above."
             ),
-            assembled_context=assembled,
         )
 
         buttons = self._build_quick_buttons(specialist, language)

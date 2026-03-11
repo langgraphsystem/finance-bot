@@ -1,6 +1,6 @@
 # Phase 2: App-Level Access Layer Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status (2026-03-10):** ✅ DONE — `apply_visibility_filter()` реализован в `src/core/access.py` (lines 93-135), SessionContext.filter_query() обновлён, permission checks добавлены.
 
 **Goal:** Replace `apply_scope_filter()` with `apply_visibility_filter()` across all query paths for models that have a `visibility` column, and add permission checks at sensitive entry points.
 

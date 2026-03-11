@@ -63,8 +63,52 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
             )
             msg_count = count_result.scalar() or 0
 
+            # GAP-H8 + GAP-M6: For sparse conversations (below message threshold),
+            # check token count. If exceeded: trigger observer AND fall through
+            # to summarization (token-based trigger supplements message count).
             if msg_count < SUMMARY_THRESHOLD:
-                return None
+                sparse_tokens_exceeded = False
+                try:
+                    from src.core.memory.observational import (
+                        OBSERVER_TOKEN_THRESHOLD,
+                        estimate_tokens,
+                        extract_observations,
+                        load_user_observations,
+                        save_user_observations,
+                    )
+
+                    obs_query = (
+                        select(ConversationMessage)
+                        .where(ConversationMessage.user_id == uuid.UUID(user_id))
+                        .order_by(ConversationMessage.created_at.desc())
+                        .limit(msg_count)
+                    )
+                    obs_result = await session.execute(obs_query)
+                    obs_messages = obs_result.scalars().all()
+                    total_tokens = sum(
+                        estimate_tokens(m.content or "") for m in obs_messages
+                    )
+                    if total_tokens > OBSERVER_TOKEN_THRESHOLD:
+                        msg_dicts = [
+                            {"role": m.role.value, "content": m.content or ""}
+                            for m in reversed(list(obs_messages))
+                        ]
+                        existing_obs = await load_user_observations(user_id)
+                        updated_obs = await extract_observations(msg_dicts, existing_obs)
+                        await save_user_observations(user_id, updated_obs)
+                        logger.info(
+                            "Observer triggered for sparse conversation (user=%s, "
+                            "%d msgs, %d tokens)",
+                            user_id, msg_count, total_tokens,
+                        )
+                    # GAP-M6: Also trigger summarization if tokens high
+                    if total_tokens > TOKEN_THRESHOLD:
+                        sparse_tokens_exceeded = True
+                except Exception as e:
+                    logger.debug("Sparse observer trigger failed: %s", e)
+                if not sparse_tokens_exceeded:
+                    return None
+                # Fall through to summarization (token threshold exceeded)
 
             # Get existing summary
             sum_result = await session.execute(

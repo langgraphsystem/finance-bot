@@ -52,6 +52,26 @@ def test_get_life_text_fallback():
     assert t == LIFE_TEXTS["en"]
 
 
+def test_get_life_text_kyrgyz_falls_back_to_russian():
+    """Kyrgyz language should fall back to Russian, not English."""
+    t = get_life_text("ky")
+    assert t == LIFE_TEXTS["ru"]
+
+
+def test_get_life_text_kazakh_falls_back_to_russian():
+    t = get_life_text("kk")
+    assert t == LIFE_TEXTS["ru"]
+
+
+def test_get_reminder_label_kyrgyz():
+    assert get_reminder_label("ky") == "Напоминание"
+
+
+def test_get_financial_text_uzbek():
+    t = get_financial_text("uz")
+    assert t == FINANCIAL_TEXTS["ru"]
+
+
 def test_get_life_text_none():
     t = get_life_text(None)
     assert t == LIFE_TEXTS["en"]

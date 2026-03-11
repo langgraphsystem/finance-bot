@@ -58,7 +58,7 @@ def _patch_helpers(mode: str = "receipt"):
 
 @pytest.mark.asyncio
 async def test_keyword_coffee_detected(skill, ctx):
-    """Keyword 'кофе' resolves to 'coffee'."""
+    """Keyword 'кофе' resolves to localized display name."""
     msg = _msg("выпил кофе")
     p_save, p_mode = _patch_helpers()
 
@@ -67,33 +67,33 @@ async def test_keyword_coffee_detected(skill, ctx):
 
     call_kwargs = mock_save.call_args.kwargs
     assert call_kwargs["event_type"] == LifeEventType.drink
-    assert "coffee" in call_kwargs["text"]
+    assert "кофе" in call_kwargs["text"]  # localized (ctx.language=ru)
     assert result.response_text
 
 
 @pytest.mark.asyncio
 async def test_keyword_water_detected(skill, ctx):
-    """Keyword 'вода' resolves to 'water'."""
+    """Keyword 'вода' resolves to localized display name."""
     msg = _msg("вода")
     p_save, p_mode = _patch_helpers()
 
     with p_save as mock_save, p_mode:
         result = await skill.execute(msg, ctx, {})
 
-    assert "water" in mock_save.call_args.kwargs["text"]
+    assert "вода" in mock_save.call_args.kwargs["text"]  # localized
     assert result.response_text
 
 
 @pytest.mark.asyncio
 async def test_keyword_tea_detected(skill, ctx):
-    """Keyword 'чай' resolves to 'tea'."""
+    """Keyword 'чай' resolves to localized display name."""
     msg = _msg("зелёный чай")
     p_save, p_mode = _patch_helpers()
 
     with p_save as mock_save, p_mode:
         await skill.execute(msg, ctx, {})
 
-    assert "tea" in mock_save.call_args.kwargs["text"]
+    assert "чай" in mock_save.call_args.kwargs["text"]  # localized
 
 
 @pytest.mark.asyncio
@@ -212,7 +212,7 @@ async def test_llm_fallback_when_no_keyword(skill, ctx):
         await skill.execute(msg, ctx, {})
 
     data = mock_save.call_args.kwargs["data"]
-    assert data["item"] == "juice"
+    assert data["item"] == "сок"  # localized from "juice" (ctx.language=ru)
     assert data["volume_ml"] == 200
 
 
@@ -233,4 +233,4 @@ async def test_llm_fallback_error_defaults_to_drink(skill, ctx):
         await skill.execute(msg, ctx, {})
 
     data = mock_save.call_args.kwargs["data"]
-    assert data["item"] == "drink"
+    assert data["item"] == "напиток"  # localized from "drink" (ctx.language=ru)

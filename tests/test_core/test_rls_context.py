@@ -153,21 +153,14 @@ async def test_get_session_applies_rls_when_context_set():
         with patch("src.core.db.async_session", mock_session_factory):
             from src.core.db import get_session
 
-            gen = get_session()
-            session = await gen.__anext__()
-            assert session is mock_session
+            async with get_session() as session:
+                assert session is mock_session
 
-            # set_config must have been called (at least once for family_id)
-            assert mock_session.execute.call_count >= 1
-            sql_text = str(mock_session.execute.call_args_list[0][0][0])
-            assert "set_config" in sql_text
-            assert "app.current_family_id" in sql_text
-
-            # Clean up the generator
-            try:
-                await gen.__anext__()
-            except StopAsyncIteration:
-                pass
+                # set_config must have been called (at least once for family_id)
+                assert mock_session.execute.call_count >= 1
+                sql_text = str(mock_session.execute.call_args_list[0][0][0])
+                assert "set_config" in sql_text
+                assert "app.current_family_id" in sql_text
     finally:
         reset_family_context(token)
 
@@ -188,17 +181,11 @@ async def test_get_session_skips_rls_when_no_context():
     with patch("src.core.db.async_session", mock_session_factory):
         from src.core.db import get_session
 
-        gen = get_session()
-        session = await gen.__anext__()
-        assert session is mock_session
+        async with get_session() as session:
+            assert session is mock_session
 
-        # set_config must NOT have been called
-        mock_session.execute.assert_not_called()
-
-        try:
-            await gen.__anext__()
-        except StopAsyncIteration:
-            pass
+            # set_config must NOT have been called
+            mock_session.execute.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # OpenClaw vs Finance Bot — Gap Analysis & Action Plan
 
 **Date:** 2026-02-27
-**Version:** 1.0
+**Version:** 1.1 (updated 2026-03-10)
 **Source:** OpenClaw knowledge base (145 videos, 18 queries to NotebookLM)
 **Scope:** All 10 architectural directions of OpenClaw vs Finance Bot current state
 
@@ -11,22 +11,25 @@
 
 OpenClaw — open-source self-hosted framework для автономного 24/7 ИИ-ассистента (430K+ LOC, Node.js). Создатель — Peter Steinberger (ушёл в OpenAI возглавлять personal agents).
 
-Finance Bot — SaaS AI Life Assistant ($49/мес, Python/FastAPI, 390+ файлов, 74 навыка, 12 агентов, 4 LangGraph оркестратора).
+Finance Bot — SaaS AI Life Assistant ($49/мес, Python/FastAPI, 390+ файлов, **108 навыков**, **13 агентов**, 4 LangGraph оркестратора). *(обновлено 2026-03-10)*
 
-**Scorecard: OpenClaw 41/50 vs Finance Bot 34/50** — разрыв в 7 баллов, но в разных направлениях.
+**Scorecard (Mar 2026): OpenClaw 41/50 vs Finance Bot ~40/50** — разрыв сократился с 7 до ~1 балла после внедрения Memory Plan, RBAC, SIA, Document Agent и OpenClaw features.
 
 ### Где мы сильнее OpenClaw (5 областей):
-1. **Память** — 5 слоёв vs 2-3, per-intent token budgeting, progressive disclosure
-2. **Model routing** — 6 моделей + 3 уровня маршрутизации + zero-LLM keyword path
+1. **Память** — 10 слоёв (+ DLQ, immediate identity update, user rules Layer 0.5, post-gen check) vs 2-3
+2. **Model routing** — 9 моделей + 3 уровня маршрутизации + zero-LLM keyword path
 3. **Каналы** — 4 канала + голосовые звонки (Twilio + OpenAI STT)
 4. **Email** — LangGraph orchestrator (5 нод, revision loop, HITL) vs базовая автоматизация
 5. **Антиспам проактивности** — cooldowns, daily cap, communication modes, suppression
+6. **RBAC** — workspace_memberships, visibility columns, role-based access (Mar 2026) *(новое)*
+7. **Document Agent** — 19 специализированных навыков + versioning + pgvector search *(новое)*
 
-### Где OpenClaw сильнее (4 области):
+### Где OpenClaw сильнее (3 области):
 1. **Desktop control** — полный контроль ОС vs только браузер
 2. **Параллельные субагенты** — произвольные параллельные задачи vs 1-intent-1-skill
-3. **Динамические навыки** — Markdown runtime creation vs 74 статических (11 шагов добавления)
-4. **Soul.md** — самообновляющийся характер бота vs статичные system prompts
+3. **Динамические навыки** — Markdown runtime creation vs 108 статических (11 шагов добавления)
+
+> **Закрытые гепы (Mar 2026):** Soul.md → Adaptive Personality (profile_tasks + observational), User Rules JSONB; Memory Feedback → memory_update intent; Undo Window → undo.py; Scheduled Actions → SIA Epic A-E
 
 ---
 

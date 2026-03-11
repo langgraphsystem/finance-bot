@@ -67,7 +67,7 @@ async def generate_answer(
     query: str,
     language: str,
     original_message: str = "",
-    timezone: str = "America/New_York",
+    timezone: str = "UTC",
 ) -> str:
     """Generate a factual answer using Gemini Flash."""
     client = google_client()
@@ -76,7 +76,7 @@ async def generate_answer(
     try:
         tz = ZoneInfo(timezone)
     except Exception:
-        tz = ZoneInfo("America/New_York")
+        tz = ZoneInfo("UTC")
     now = datetime.now(tz)
     days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     time_block = (

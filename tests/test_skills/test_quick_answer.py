@@ -71,7 +71,7 @@ async def test_quick_answer_from_message_text(skill, ctx):
         result = await skill.execute(msg, ctx, {})
 
     mock_gen.assert_awaited_once_with(
-        "what is the speed of light?", "en", "what is the speed of light?", "America/New_York",
+        "what is the speed of light?", "en", "what is the speed of light?", "UTC",
     )
     assert "299,792,458" in result.response_text
 
@@ -111,7 +111,7 @@ async def test_quick_answer_uses_language(skill, message):
         await skill.execute(message, ctx, {})
 
     mock_gen.assert_awaited_once_with(
-        "how many cups in a gallon?", "ru", "how many cups in a gallon?", "America/New_York",
+        "how many cups in a gallon?", "ru", "how many cups in a gallon?", "UTC",
     )
 
 

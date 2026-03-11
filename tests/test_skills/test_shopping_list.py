@@ -66,7 +66,7 @@ def _msg(text: str) -> IncomingMessage:
 
 
 def test_parse_list_name_default():
-    assert _parse_list_name({}) == "grocery"
+    assert _parse_list_name({}) == "продукты"  # default for ru
 
 
 def test_parse_list_name_from_intent_data():

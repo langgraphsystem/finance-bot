@@ -198,7 +198,7 @@ class TestProblem13HallucinatedMemory:
         skill = MemoryVaultSkill()
         mock_add = AsyncMock()
         context = MagicMock(user_id="test-user", language="en")
-        result = await skill._handle_save(context, "My city is Almaty", mock_add)
+        result = await skill._handle_save(context, "My city is Almaty", mock_add, lang="en")
         assert "Almaty" in result.response_text
 
 
@@ -231,6 +231,46 @@ class TestProblem15ContradictoryFacts:
         assert "updated_at" in meta
         assert "priority" in meta
         assert meta["priority"] == "critical"
+
+    async def test_two_cities_contradiction_archives_old(self):
+        """When user says 'I live in Almaty' after 'I live in Bishkek',
+        the old city fact must be archived and deleted."""
+        from src.core.memory.mem0_client import _detect_and_resolve_contradiction
+        from src.core.memory.mem0_domains import MemoryDomain
+
+        old_city_mem = {
+            "id": "mem-city-old",
+            "memory": "User lives in Bishkek",
+            "score": 0.85,
+            "metadata": {"category": "user_identity"},
+        }
+        mock_memory = MagicMock()
+        mock_memory.add = MagicMock()
+        mock_memory.delete = MagicMock()
+
+        with (
+            patch(
+                "src.core.memory.mem0_client.search_memories",
+                new_callable=AsyncMock,
+                return_value=[old_city_mem],
+            ),
+            patch("src.core.memory.mem0_client.get_memory", return_value=mock_memory),
+            patch(
+                "src.core.memory.mem0_client._resolve_user_id",
+                return_value="user1:core",
+            ),
+        ):
+            await _detect_and_resolve_contradiction(
+                "User lives in Almaty", "user1", MemoryDomain.core, "user_identity"
+            )
+
+        # Old fact archived (add called with superseded marker)
+        assert mock_memory.add.called
+        archived_text = mock_memory.add.call_args[0][0]
+        assert "Bishkek" in archived_text or "Superseded" in archived_text
+
+        # Old fact deleted
+        assert mock_memory.delete.called
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +315,35 @@ class TestProblem18ImportanceDiscrimination:
         assert len(critical) >= 4  # identity, bot, rule, preference, profile
         assert len(normal) >= 3  # merchant, spending, life_*
 
+    def test_critical_survives_overflow_sort(self):
+        """During intra-domain overflow, critical facts must come first in the
+        sorted list so the trimmer drops normal/important facts from the tail."""
+        from src.core.memory.context import _split_memories_by_priority
+
+        memories = [
+            {
+                "memory": "Spending pattern: eats out often",
+                "metadata": {"domain": "finance", "category": "spending_pattern", "priority": "normal"},
+            },
+            {
+                "memory": "Name is Maria",
+                "metadata": {"domain": "core", "category": "user_identity", "priority": "critical"},
+            },
+            {
+                "memory": "Monthly budget $5000",
+                "metadata": {"domain": "finance", "category": "budget_limit", "priority": "important"},
+            },
+        ]
+
+        core_mems, noncore_mems = _split_memories_by_priority(memories)
+
+        assert len(core_mems) == 3
+        assert len(noncore_mems) == 0
+        # Critical must be first (survives longest during trim)
+        assert core_mems[0]["metadata"]["priority"] == "critical"
+        # Normal must be last (dropped first during trim)
+        assert core_mems[-1]["metadata"]["priority"] == "normal"
+
 
 # ---------------------------------------------------------------------------
 # Problem 19: Контекстно-зависимые предпочтения → Phase 4 user rules
@@ -308,7 +377,7 @@ class TestProblem20InvisibleMemory:
 
         result = await skill._handle_update(
             context, "City: Almaty",
-            mock_search, mock_delete, mock_add,
+            mock_search, mock_delete, mock_add, lang="en",
         )
         assert "Bishkek" in result.response_text
         assert "Almaty" in result.response_text

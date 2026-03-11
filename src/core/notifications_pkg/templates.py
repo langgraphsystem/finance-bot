@@ -1,6 +1,6 @@
 """Centralized i18n templates for all notification types."""  # noqa: E501
 
-from src.core.locale_resolution import normalize_language
+from src.core.locale_resolution import notification_language_fallback
 
 # ---------------------------------------------------------------------------
 # Life-tracking notification texts (moved from life_tasks.py)
@@ -210,19 +210,19 @@ FINANCIAL_TEXTS: dict[str, dict[str, str]] = {
 
 
 def get_life_text(lang: str | None) -> dict[str, str]:
-    """Get life-tracking texts for a language."""
-    return LIFE_TEXTS.get(normalize_language(lang), LIFE_TEXTS["en"])
+    """Get life-tracking texts for a language (CIS langs fall back to Russian)."""
+    return LIFE_TEXTS.get(notification_language_fallback(lang), LIFE_TEXTS["en"])
 
 
 def get_reminder_label(lang: str | None) -> str:
     """Get the localized 'Reminder' label."""
     return REMINDER_LABELS.get(
-        normalize_language(lang), REMINDER_LABELS["en"]
+        notification_language_fallback(lang), REMINDER_LABELS["en"]
     )
 
 
 def get_financial_text(lang: str | None) -> dict[str, str]:
     """Get financial notification texts for a language."""
     return FINANCIAL_TEXTS.get(
-        normalize_language(lang), FINANCIAL_TEXTS["en"]
+        notification_language_fallback(lang), FINANCIAL_TEXTS["en"]
     )

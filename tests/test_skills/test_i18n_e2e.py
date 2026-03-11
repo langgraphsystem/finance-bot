@@ -314,7 +314,7 @@ async def test_add_expense_buttons_in_russian():
     mock_session.commit = AsyncMock()
 
     with (
-        patch("src.skills.add_expense.handler.async_session", return_value=mock_session),
+        patch("src.skills.add_expense.handler.get_session", return_value=mock_session),
         patch("src.skills.add_expense.handler.log_action", new_callable=AsyncMock),
     ):
         result = await skill.execute(msg, ctx, intent_data)

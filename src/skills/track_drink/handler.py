@@ -19,6 +19,7 @@ from src.skills.base import SkillResult
 logger = logging.getLogger(__name__)
 
 # Keyword-based drink detection (fast path, no LLM needed)
+# Maps user keywords → canonical English key (used internally for volume defaults)
 DRINK_KEYWORDS: dict[str, str] = {
     "кофе": "coffee",
     "coffee": "coffee",
@@ -41,6 +42,24 @@ DRINK_KEYWORDS: dict[str, str] = {
     "смузи": "smoothie",
     "smoothie": "smoothie",
 }
+
+# Reverse map: canonical English key → localized display name
+_DRINK_DISPLAY: dict[str, dict[str, str]] = {
+    "coffee": {"ru": "кофе", "es": "café", "en": "coffee"},
+    "tea": {"ru": "чай", "es": "té", "en": "tea"},
+    "water": {"ru": "вода", "es": "agua", "en": "water"},
+    "juice": {"ru": "сок", "es": "jugo", "en": "juice"},
+    "smoothie": {"ru": "смузи", "es": "batido", "en": "smoothie"},
+    "drink": {"ru": "напиток", "es": "bebida", "en": "drink"},
+}
+
+
+def _localize_drink(item: str, lang: str) -> str:
+    """Convert canonical drink key to localized display name."""
+    names = _DRINK_DISPLAY.get(item.lower())
+    if names:
+        return names.get(lang, names.get("en", item))
+    return item
 
 TRACK_DRINK_SYSTEM_PROMPT = """Ты помогаешь трекать напитки пользователя.
 Извлеки из сообщения: название напитка (item), объём в мл (volume_ml), количество (count).
@@ -104,13 +123,17 @@ class TrackDrinkSkill:
 
         count = count or 1
 
-        data = {"item": item, "volume_ml": volume_ml, "count": count}
+        # Localize drink name for display
+        lang = getattr(context, "language", None) or "ru"
+        display_item = _localize_drink(item, lang)
+
+        data = {"item": display_item, "volume_ml": volume_ml, "count": count}
 
         event = await save_life_event(
             family_id=context.family_id,
             user_id=context.user_id,
             event_type=LifeEventType.drink,
-            text=f"{item} x{count}",
+            text=f"{display_item} x{count}",
             data=data,
         )
         intent_data["_record_id"] = str(event.id)
@@ -119,7 +142,7 @@ class TrackDrinkSkill:
         mode = await get_communication_mode(context.user_id)
         response = format_save_response(
             LifeEventType.drink,
-            item,
+            display_item,
             data=data,
         )
         if mode == "silent":

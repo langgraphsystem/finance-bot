@@ -1,7 +1,8 @@
 # Technical Design: Scheduled Intelligence Actions (SIA)
 
 Date: 2026-03-03
-Updated: 2026-03-03
+Updated: 2026-03-10
+Status: ✅ DONE — scheduled_actions table, skills (schedule_action/list/manage), scheduled_action_tasks.py реализованы
 Owner: Core Platform
 
 ## 1. Goals

@@ -32,6 +32,7 @@ Rules:
 - Return: product name, exact price, store name/URL.
 - If multiple options exist, show 2-3 best matches.
 - Use HTML tags for Telegram (<b>bold</b>, <i>italic</i>). No Markdown.
+- Tone: fun/lifestyle products — use emojis. Serious/business items — no emojis.
 - ALWAYS respond in {language}."""
 
 _FORMAT_PROMPT = """\
