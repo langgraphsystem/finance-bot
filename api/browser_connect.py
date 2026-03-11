@@ -267,6 +267,30 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       gap: 8px;
       grid-template-columns: repeat(3, 1fr);
     }}
+    .kbd-indicator {{
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15,108,189,0.9);
+      color: #fff;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      z-index: 10;
+      pointer-events: none;
+      white-space: nowrap;
+      box-shadow: 0 2px 10px rgba(15,108,189,0.25);
+    }}
+    .kbd-indicator.visible {{
+      display: block;
+    }}
+    #screen.kbd-active {{
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }}
     @media (max-width: 480px) {{
       main {{
         padding-bottom: calc(88px + env(safe-area-inset-bottom));
@@ -303,10 +327,10 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     <div class="panel">
       <div class="screen-wrap">
         <img id="screen" alt="Remote browser screen">
+        <div id="kbdIndicator" class="kbd-indicator">⌨ Typing active — Esc to stop</div>
       </div>
-      <div class="hint">
-        Tap the page to interact. Swipe up or down on the page to move.
-        Only open the typing drawer when you need phone, email, password, or SMS code input.
+      <div class="hint" id="interactHint">
+        Click the page to interact. Scroll to move. On desktop, clicking activates keyboard — type directly, press Esc to stop.
       </div>
     </div>
   </main>
@@ -356,8 +380,48 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
     let touchLast = null;
     let wheelLock = false;
     let pollHandle = null;
+    const kbdIndicatorEl = document.getElementById('kbdIndicator');
+    const _isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    let _kbdMode = false;
+    let _kbdQueue = [];
+    let _kbdProcessing = false;
+    let _charBuffer = '';
+    let _charFlushTimer = null;
+
+    function setKbdMode(on) {{
+      if (_isMobile) return;
+      _kbdMode = on;
+      kbdIndicatorEl.classList.toggle('visible', on);
+      screenEl.classList.toggle('kbd-active', on);
+    }}
+
+    function flushCharBuffer() {{
+      if (_charFlushTimer) {{ clearTimeout(_charFlushTimer); _charFlushTimer = null; }}
+      if (_charBuffer) {{
+        const text = _charBuffer;
+        _charBuffer = '';
+        enqueueKbdAction({{ action: 'type', text }});
+      }}
+    }}
+
+    function enqueueKbdAction(payload) {{
+      _kbdQueue.push(payload);
+      _drainKbdQueue();
+    }}
+
+    async function _drainKbdQueue() {{
+      if (_kbdProcessing) return;
+      _kbdProcessing = true;
+      while (_kbdQueue.length > 0) {{
+        const payload = _kbdQueue.shift();
+        try {{ await postAction(payload); }} catch (e) {{ /* ignore */ }}
+      }}
+      _kbdProcessing = false;
+      refreshImage();
+    }}
 
     function setComposerOpen(open) {{
+      if (open) setKbdMode(false);
       composerEl.classList.toggle('visible', open);
       composerEl.setAttribute('aria-hidden', open ? 'false' : 'true');
     }}
@@ -450,6 +514,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       const x = (event.clientX - rect.left) * scaleX;
       const y = (event.clientY - rect.top) * scaleY;
       await doAction({{ action: 'click', x, y }});
+      if (!_isMobile) setKbdMode(true);
     }});
 
     screenEl.addEventListener('wheel', async (event) => {{
@@ -499,6 +564,34 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       const x = (finalTouch.clientX - rect.left) * scaleX;
       const y = (finalTouch.clientY - rect.top) * scaleY;
       await doAction({{ action: 'click', x, y }});
+    }});
+
+    document.addEventListener('keydown', (event) => {{
+      if (!_kbdMode) return;
+      if (document.activeElement === textInputEl) return;
+      const key = event.key;
+      if (key === 'Escape') {{ setKbdMode(false); return; }}
+      const _specialMap = {{
+        'Enter': 'enter', 'Tab': 'tab', 'Backspace': 'backspace',
+        'Delete': 'delete', ' ': 'space',
+        'ArrowUp': 'arrowup', 'ArrowDown': 'arrowdown',
+        'ArrowLeft': 'arrowleft', 'ArrowRight': 'arrowright',
+        'Home': 'home', 'End': 'end',
+      }};
+      if (_specialMap[key]) {{
+        event.preventDefault();
+        flushCharBuffer();
+        enqueueKbdAction({{ action: 'press', key: _specialMap[key] }});
+      }} else if (key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {{
+        event.preventDefault();
+        _charBuffer += key;
+        if (_charFlushTimer) clearTimeout(_charFlushTimer);
+        _charFlushTimer = setTimeout(flushCharBuffer, 80);
+      }}
+    }});
+
+    document.addEventListener('click', (event) => {{
+      if (_kbdMode && !screenEl.contains(event.target)) setKbdMode(false);
     }});
 
     openComposerEl.addEventListener('click', () => {{
