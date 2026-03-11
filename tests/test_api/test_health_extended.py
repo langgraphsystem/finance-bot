@@ -198,3 +198,66 @@ async def test_analytics_review_queue_returns_snapshot(mock_dependencies):
     assert resp.status_code == 200
     data = resp.json()
     assert data["review_queue_size"] == 1
+
+
+async def test_analytics_submit_review_returns_result(mock_dependencies):
+    result = {
+        "review": {
+            "trace_key": "corr-1",
+            "reviewer": "qa-1",
+            "final_label": "wrong_route",
+            "action": "promote_to_dataset",
+        },
+        "dataset_candidate_created": True,
+        "trace": {"trace_key": "corr-1"},
+    }
+    payload = {
+        "trace_key": "corr-1",
+        "reviewer": "qa-1",
+        "final_label": "wrong_route",
+        "action": "promote_to_dataset",
+        "rubric": {
+            "intent_correct": False,
+            "response_useful": False,
+            "action_completed": False,
+            "clarification_appropriate": True,
+            "memory_applied": False,
+            "safe": True,
+            "language_correct": True,
+            "formatting_correct": True,
+            "latency_acceptable": True,
+        },
+        "notes": "Needs routing fix.",
+        "labels": ["routing"],
+    }
+    with patch("api.main.submit_trace_review", AsyncMock(return_value=result)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/ops/analytics/reviews", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dataset_candidate_created"] is True
+    assert data["review"]["final_label"] == "wrong_route"
+
+
+async def test_analytics_dataset_candidates_returns_snapshot(mock_dependencies):
+    candidates = [
+        {
+            "trace_key": "corr-1",
+            "review": {"final_label": "wrong_route"},
+        }
+    ]
+    with (
+        patch("api.main.get_dataset_candidates", AsyncMock(return_value=candidates)),
+        patch(
+            "api.main.get_conversation_analytics_policy",
+            return_value={"review_actions": ["promote_to_dataset"]},
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/dataset-candidates?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dataset_candidate_size"] == 1
+    assert data["dataset_candidates"][0]["trace_key"] == "corr-1"

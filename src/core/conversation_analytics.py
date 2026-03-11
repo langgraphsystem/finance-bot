@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from src.core.config import settings
@@ -52,20 +53,44 @@ _ALWAYS_SAMPLE_OUTCOMES = {
 }
 _REVIEW_QUEUE_KEY = "analytics:review_queue"
 _TRACE_EXPORT_QUEUE_KEY = "analytics:trace_exports"
+_TRACE_INDEX_KEY = "analytics:trace_index"
+_REVIEW_RESULT_QUEUE_KEY = "analytics:review_results"
+_REVIEW_RESULT_INDEX_KEY = "analytics:review_results:index"
+_DATASET_CANDIDATE_QUEUE_KEY = "analytics:dataset_candidates"
+_DATASET_CANDIDATE_INDEX_KEY = "analytics:dataset_candidates:index"
+_REVIEW_LABELS = [
+    "success",
+    "wrong_route",
+    "memory_failure",
+    "unsafe_block",
+    "unsafe_allow",
+    "tool_failure",
+]
+_REVIEW_ACTIONS = [
+    "close",
+    "follow_up",
+    "promote_to_dataset",
+]
+_REVIEW_RUBRIC_FIELDS = [
+    "intent_correct",
+    "response_useful",
+    "action_completed",
+    "clarification_appropriate",
+    "memory_applied",
+    "safe",
+    "language_correct",
+    "formatting_correct",
+    "latency_acceptable",
+]
 
 
 def get_conversation_analytics_policy() -> dict[str, Any]:
     """Return the active sampling policy for conversation analytics events."""
     return {
         "always_sample_outcomes": sorted(_ALWAYS_SAMPLE_OUTCOMES),
-        "review_labels": [
-            "success",
-            "wrong_route",
-            "memory_failure",
-            "unsafe_block",
-            "unsafe_allow",
-            "tool_failure",
-        ],
+        "review_labels": list(_REVIEW_LABELS),
+        "review_actions": list(_REVIEW_ACTIONS),
+        "review_rubric": list(_REVIEW_RUBRIC_FIELDS),
         "sample_rates": {
             "multi_intent": 30,
             "memory_related": 25,
@@ -74,6 +99,8 @@ def get_conversation_analytics_policy() -> dict[str, Any]:
         },
         "review_queue_limit": settings.analytics_review_queue_limit,
         "trace_export_queue_limit": settings.analytics_trace_export_queue_limit,
+        "review_result_limit": settings.analytics_review_result_limit,
+        "dataset_candidate_limit": settings.analytics_dataset_candidate_limit,
     }
 
 
@@ -186,6 +213,13 @@ async def _push_queue_item(key: str, payload: dict[str, Any], *, limit: int) -> 
 async def _store_trace_artifacts(payload: dict[str, Any]) -> None:
     """Persist analytics exports and review candidates in Redis lists."""
     try:
+        trace_key = str(payload.get("trace_key") or "")
+        if trace_key:
+            await redis.hset(
+                _TRACE_INDEX_KEY,
+                trace_key,
+                json.dumps(payload, ensure_ascii=False, default=str),
+            )
         await _push_queue_item(
             _TRACE_EXPORT_QUEUE_KEY,
             payload,
@@ -244,6 +278,122 @@ async def get_trace_exports(limit: int = 25) -> list[dict[str, Any]]:
         items = await redis.lrange(_TRACE_EXPORT_QUEUE_KEY, 0, max(limit - 1, 0))
     except Exception:
         logging.getLogger(__name__).debug("Failed to fetch trace exports", exc_info=True)
+        return []
+    parsed: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            parsed.append(json.loads(item))
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return parsed
+
+
+async def get_trace_by_key(trace_key: str) -> dict[str, Any] | None:
+    """Return a stored trace export by its stable trace key."""
+    if not trace_key:
+        return None
+    try:
+        item = await redis.hget(_TRACE_INDEX_KEY, trace_key)
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to fetch trace by key", exc_info=True)
+        return None
+    if not item:
+        return None
+    try:
+        return json.loads(item)
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+
+def _normalize_review_rubric(rubric: dict[str, Any]) -> dict[str, bool]:
+    normalized: dict[str, bool] = {}
+    missing = [field for field in _REVIEW_RUBRIC_FIELDS if field not in rubric]
+    if missing:
+        raise ValueError(f"missing_rubric_fields:{','.join(missing)}")
+    for field in _REVIEW_RUBRIC_FIELDS:
+        value = rubric[field]
+        if not isinstance(value, bool):
+            raise ValueError(f"invalid_rubric_value:{field}")
+        normalized[field] = value
+    return normalized
+
+
+async def submit_trace_review(
+    *,
+    trace_key: str,
+    reviewer: str,
+    final_label: str,
+    action: str,
+    rubric: dict[str, Any],
+    notes: str = "",
+    labels: list[str] | None = None,
+) -> dict[str, Any]:
+    """Persist a structured human review and optionally promote it to dataset candidates."""
+    normalized_trace_key = trace_key.strip()
+    normalized_reviewer = reviewer.strip()
+    if not normalized_trace_key:
+        raise ValueError("trace_key_required")
+    if not normalized_reviewer:
+        raise ValueError("reviewer_required")
+    if final_label not in _REVIEW_LABELS:
+        raise ValueError("invalid_final_label")
+    if action not in _REVIEW_ACTIONS:
+        raise ValueError("invalid_review_action")
+
+    rubric_result = _normalize_review_rubric(rubric)
+    trace_payload = await get_trace_by_key(normalized_trace_key)
+    if not trace_payload:
+        raise ValueError("trace_not_found")
+
+    review_payload = {
+        "trace_key": normalized_trace_key,
+        "reviewer": normalized_reviewer,
+        "final_label": final_label,
+        "action": action,
+        "rubric": rubric_result,
+        "notes": notes.strip(),
+        "labels": list(labels or []),
+        "reviewed_at": datetime.now(UTC).isoformat(),
+        "source_review_label": trace_payload.get("review_label"),
+        "source_outcome": trace_payload.get("outcome"),
+    }
+    serialized_review = json.dumps(review_payload, ensure_ascii=False, default=str)
+    await redis.hset(_REVIEW_RESULT_INDEX_KEY, normalized_trace_key, serialized_review)
+    await _push_queue_item(
+        _REVIEW_RESULT_QUEUE_KEY,
+        review_payload,
+        limit=settings.analytics_review_result_limit,
+    )
+
+    dataset_candidate_created = action == "promote_to_dataset"
+    if dataset_candidate_created:
+        dataset_payload = {
+            "trace_key": normalized_trace_key,
+            "trace": trace_payload,
+            "review": review_payload,
+            "candidate_created_at": datetime.now(UTC).isoformat(),
+        }
+        serialized_candidate = json.dumps(dataset_payload, ensure_ascii=False, default=str)
+        await redis.hset(_DATASET_CANDIDATE_INDEX_KEY, normalized_trace_key, serialized_candidate)
+        await _push_queue_item(
+            _DATASET_CANDIDATE_QUEUE_KEY,
+            dataset_payload,
+            limit=settings.analytics_dataset_candidate_limit,
+        )
+
+    return {
+        "review": review_payload,
+        "dataset_candidate_created": dataset_candidate_created,
+        "trace": trace_payload,
+    }
+
+
+async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
+    """Return recent reviewed traces promoted to dataset candidates."""
+    try:
+        items = await redis.lrange(_DATASET_CANDIDATE_QUEUE_KEY, 0, max(limit - 1, 0))
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to fetch dataset candidates", exc_info=True)
         return []
     parsed: list[dict[str, Any]] = []
     for item in items:

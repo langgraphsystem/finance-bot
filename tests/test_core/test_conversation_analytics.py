@@ -1,3 +1,4 @@
+import json
 import logging
 import uuid
 from unittest.mock import AsyncMock, patch
@@ -7,11 +8,13 @@ from src.core.conversation_analytics import (
     derive_conversation_tags,
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
+    get_dataset_candidates,
     get_review_queue_snapshot,
     get_sampling_rule,
     normalize_review_label,
     schedule_review_trace_capture,
     should_sample_analytics_event,
+    submit_trace_review,
 )
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 
@@ -90,6 +93,8 @@ def test_policy_exposes_sample_rates():
     policy = get_conversation_analytics_policy()
     assert "sample_rates" in policy
     assert policy["sample_rates"]["default_success"] == 10
+    assert "review_rubric" in policy
+    assert "promote_to_dataset" in policy["review_actions"]
 
 
 def test_normalize_review_label_maps_memory_and_guardrails():
@@ -110,6 +115,18 @@ async def test_get_review_queue_snapshot_returns_review_and_trace_items():
     assert snapshot["review_queue_size"] == 2
     assert snapshot["trace_export_size"] == 2
     assert snapshot["review_queue"][0]["review_label"] == "wrong_route"
+
+
+async def test_get_dataset_candidates_returns_recent_items():
+    items = [
+        '{"trace_key":"corr-1","review":{"final_label":"wrong_route"}}',
+    ]
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.lrange = AsyncMock(return_value=items)
+        candidates = await get_dataset_candidates(limit=1)
+
+    assert candidates[0]["trace_key"] == "corr-1"
+    assert candidates[0]["review"]["final_label"] == "wrong_route"
 
 
 def test_schedule_review_trace_capture_is_safe_without_loop():
@@ -149,3 +166,59 @@ def test_schedule_review_trace_capture_backfills_runtime_context():
     assert payload["request_id"] == "req-123"
     assert payload["correlation_id"] == "corr-123"
     assert payload["trace_key"] == "corr-123"
+
+
+async def test_submit_trace_review_promotes_dataset_candidate():
+    trace_payload = {
+        "trace_key": "corr-123",
+        "review_label": "wrong_route",
+        "outcome": "wrong_route",
+    }
+    serialized_trace = json.dumps(trace_payload)
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.hget = AsyncMock(return_value=serialized_trace)
+        mock_redis.hset = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+        result = await submit_trace_review(
+            trace_key="corr-123",
+            reviewer="qa-1",
+            final_label="wrong_route",
+            action="promote_to_dataset",
+            rubric={
+                "intent_correct": False,
+                "response_useful": False,
+                "action_completed": False,
+                "clarification_appropriate": True,
+                "memory_applied": False,
+                "safe": True,
+                "language_correct": True,
+                "formatting_correct": True,
+                "latency_acceptable": True,
+            },
+            notes="Shadow route diverged from primary.",
+            labels=["routing", "shadow"],
+        )
+
+    assert result["dataset_candidate_created"] is True
+    assert result["review"]["reviewer"] == "qa-1"
+    assert result["review"]["final_label"] == "wrong_route"
+    assert result["review"]["rubric"]["intent_correct"] is False
+    assert result["trace"]["trace_key"] == trace_payload["trace_key"]
+
+
+async def test_submit_trace_review_rejects_missing_rubric_fields():
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.hget = AsyncMock(return_value='{"trace_key":"corr-123"}')
+        try:
+            await submit_trace_review(
+                trace_key="corr-123",
+                reviewer="qa-1",
+                final_label="tool_failure",
+                action="close",
+                rubric={"intent_correct": True},
+            )
+        except ValueError as exc:
+            assert str(exc).startswith("missing_rubric_fields:")
+        else:
+            raise AssertionError("submit_trace_review should reject partial rubric")

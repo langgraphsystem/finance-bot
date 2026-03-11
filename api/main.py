@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 
 from api.browser_connect import router as browser_connect_router
@@ -23,7 +24,9 @@ from src.core.context import SessionContext
 from src.core.conversation_analytics import (
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
+    get_dataset_candidates,
     get_review_queue_snapshot,
+    submit_trace_review,
 )
 from src.core.db import async_session, redis
 from src.core.models.category import Category
@@ -83,6 +86,16 @@ LANGUAGE_TIMEZONE_MAP = {
     "kk": "Asia/Almaty",
     "uz": "Asia/Tashkent",
 }
+
+
+class TraceReviewSubmission(BaseModel):
+    trace_key: str
+    reviewer: str
+    final_label: str
+    action: str
+    rubric: dict[str, bool]
+    notes: str = ""
+    labels: list[str] = Field(default_factory=list)
 
 
 def _require_ops_auth(request: Request) -> None:
@@ -1079,6 +1092,39 @@ async def analytics_review_queue(request: Request, limit: int = 25) -> dict[str,
     """Return recent review candidates and exported traces."""
     _require_ops_auth(request)
     return await get_review_queue_snapshot(limit=max(1, min(limit, 100)))
+
+
+@app.post("/ops/analytics/reviews")
+async def analytics_submit_review(
+    request: Request,
+    submission: TraceReviewSubmission,
+) -> dict[str, Any]:
+    """Persist operator review for a trace and optionally promote it to a dataset candidate."""
+    _require_ops_auth(request)
+    try:
+        return await submit_trace_review(
+            trace_key=submission.trace_key,
+            reviewer=submission.reviewer,
+            final_label=submission.final_label,
+            action=submission.action,
+            rubric=submission.rubric,
+            notes=submission.notes,
+            labels=submission.labels,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/ops/analytics/dataset-candidates")
+async def analytics_dataset_candidates(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return reviewed traces promoted to dataset candidates."""
+    _require_ops_auth(request)
+    candidates = await get_dataset_candidates(limit=max(1, min(limit, 100)))
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "dataset_candidate_size": len(candidates),
+        "dataset_candidates": candidates,
+    }
 
 
 # ------------------------------------------------------------------
