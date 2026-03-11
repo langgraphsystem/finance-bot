@@ -94,14 +94,18 @@ async def start_login(
     try:
         # Launch browser and navigate to login page
         pw = await async_playwright().__aenter__()
-        browser = await pw.chromium.launch(
-            headless=True,
-            args=[
+        _launch_args = {
+            "headless": True,
+            "args": [
                 "--disable-blink-features=AutomationControlled",
                 "--no-first-run",
                 "--disable-infobars",
             ],
-        )
+        }
+        try:
+            browser = await pw.chromium.launch(channel="chrome", **_launch_args)
+        except Exception:
+            browser = await pw.chromium.launch(**_launch_args)
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

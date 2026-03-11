@@ -186,20 +186,25 @@ async def _take_screenshot(page: Any) -> bytes:
 
 
 def _prune_screenshot_history(contents: list, keep: int = MAX_SCREENSHOT_HISTORY) -> None:
-    """Remove screenshot blobs from older turns to save context tokens.
+    """Remove screenshot blobs from older function response turns.
 
-    Keeps only the last `keep` turns that have inline_data in function responses.
+    Keeps only the last `keep` user turns that contain screenshots inside
+    FunctionResponse.parts.
     """
     screenshot_turn_indices: list[int] = []
     for i, content in enumerate(contents):
-        if not hasattr(content, "parts"):
+        if not hasattr(content, "parts") or not content.parts:
             continue
-        for part in content.parts or []:
+        if getattr(content, "role", None) != "user":
+            continue
+        for part in content.parts:
             fr = getattr(part, "function_response", None)
-            if fr is None:
-                continue
-            fr_parts = getattr(fr, "parts", None)
-            if fr_parts:
+            if fr and getattr(fr, "parts", None):
+                screenshot_turn_indices.append(i)
+                break
+            # Also catch standalone inline_data (initial screenshot)
+            inline = getattr(part, "inline_data", None)
+            if inline and getattr(inline, "mime_type", "").startswith("image/"):
                 screenshot_turn_indices.append(i)
                 break
 
@@ -209,10 +214,19 @@ def _prune_screenshot_history(contents: list, keep: int = MAX_SCREENSHOT_HISTORY
     to_prune = screenshot_turn_indices[:-keep]
     for idx in to_prune:
         content = contents[idx]
-        for part in content.parts or []:
+        new_parts = []
+        for part in content.parts:
             fr = getattr(part, "function_response", None)
-            if fr and hasattr(fr, "parts"):
+            if fr and getattr(fr, "parts", None):
+                # Remove screenshot from function response, keep the response itself
                 fr.parts = None
+                new_parts.append(part)
+            elif getattr(getattr(part, "inline_data", None), "mime_type", "").startswith("image/"):
+                # Drop standalone image parts
+                continue
+            else:
+                new_parts.append(part)
+        content.parts = new_parts
 
 
 def _extract_function_calls(response: Any) -> list[tuple[str, dict]]:
@@ -297,14 +311,20 @@ async def execute_task(
     )
 
     pw = await async_playwright().start()
-    browser = await pw.chromium.launch(
-        headless=True,
-        args=[
+    # Try real Chrome first (bypasses WAF on Uber, Amazon, etc.)
+    # Falls back to Playwright Chromium on servers without Chrome
+    launch_kwargs: dict[str, Any] = {
+        "headless": True,
+        "args": [
             "--disable-blink-features=AutomationControlled",
             "--no-first-run",
             "--no-default-browser-check",
         ],
-    )
+    }
+    try:
+        browser = await pw.chromium.launch(channel="chrome", **launch_kwargs)
+    except Exception:
+        browser = await pw.chromium.launch(**launch_kwargs)
     try:
         context = await browser.new_context(
             storage_state=storage_state,
@@ -371,15 +391,15 @@ async def execute_task(
                 break  # Model returned text only — done
 
             # Execute each action, collect results + screenshot
-            action_results: list[tuple[str, dict]] = []
+            action_results: list[tuple[str, dict, dict | None]] = []
             for name, args in calls:
-                # Auto-acknowledge safety checks
-                if _has_safety_check(name, args):
+                # Detect and extract safety check before executing
+                safety_val = args.pop("safety_decision", None)
+                if safety_val is not None:
                     logger.info("Gemini CU: auto-acknowledging safety check for %s", name)
-                    args.pop("safety_decision", None)
 
                 result = await _execute_action(page, name, args, VIEWPORT_W, VIEWPORT_H)
-                action_results.append((name, result))
+                action_results.append((name, result, safety_val))
 
                 # Wait for navigation after click/type/key actions
                 if name in {"click_at", "type_text_at", "key_combination"}:
@@ -392,19 +412,26 @@ async def execute_task(
             await asyncio.sleep(0.5)
             screenshot_bytes = await _take_screenshot(page)
 
-            # Build function responses with screenshot
+            # Build function responses with screenshot embedded inside
             fn_response_parts: list[types.Part] = []
-            for name, result in action_results:
-                fn_response_parts.append(
-                    types.Part.from_function_response(
-                        name=name,
-                        response={"url": page.url, **result},
-                    )
+            screenshot_part = types.FunctionResponsePart(
+                inline_data=types.FunctionResponseBlob(
+                    mime_type="image/png",
+                    data=screenshot_bytes,
                 )
-            # Attach screenshot to last function response
-            fn_response_parts.append(
-                types.Part.from_bytes(data=screenshot_bytes, mime_type="image/png")
             )
+            for i, (name, result, safety_val) in enumerate(action_results):
+                resp_payload = {"url": page.url, **result}
+                if safety_val is not None:
+                    resp_payload["safety_acknowledgement"] = "true"
+                # Attach screenshot to the last function response
+                fr_parts = [screenshot_part] if i == len(action_results) - 1 else None
+                fr = types.FunctionResponse(
+                    name=name,
+                    response=resp_payload,
+                    parts=fr_parts,
+                )
+                fn_response_parts.append(types.Part(function_response=fr))
 
             contents.append(
                 types.Content(role="user", parts=fn_response_parts)
@@ -413,8 +440,35 @@ async def execute_task(
             # Prune old screenshots to save context
             _prune_screenshot_history(contents, keep=MAX_SCREENSHOT_HISTORY)
 
-        # Extract final text
+        # If loop exhausted steps without text, ask model to summarize
         final_text = _extract_text(response)
+        if not final_text:
+            try:
+                screenshot_bytes = await _take_screenshot(page)
+                contents.append(
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_text(
+                                text="You've run out of steps. Based on what you see now, "
+                                "summarize the result so far. What information did you find?"
+                            ),
+                            types.Part.from_bytes(
+                                data=screenshot_bytes, mime_type="image/png"
+                            ),
+                        ],
+                    )
+                )
+                _prune_screenshot_history(contents, keep=2)
+                summary_resp = await client.aio.models.generate_content(
+                    model=current_model,
+                    contents=contents,
+                    config=config,
+                )
+                final_text = _extract_text(summary_resp)
+            except Exception as e:
+                logger.warning("Gemini CU summary fallback failed: %s", e)
+
         updated_state = await context.storage_state()
 
         return {
