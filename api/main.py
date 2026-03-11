@@ -20,6 +20,10 @@ from api.oauth import router as oauth_router
 from src.core.access import filter_scope_items
 from src.core.config import settings
 from src.core.context import SessionContext
+from src.core.conversation_analytics import (
+    emit_conversation_analytics_event,
+    get_conversation_analytics_policy,
+)
 from src.core.db import async_session, redis
 from src.core.models.category import Category
 from src.core.models.family import Family
@@ -595,6 +599,14 @@ async def on_message(incoming):
         except Exception:
             logger.exception("Unhandled error in handle_message for user %s", incoming.user_id)
             await record_release_event("errors_total")
+            emit_conversation_analytics_event(
+                logger,
+                context=context,
+                message=incoming,
+                outcome="error",
+                tags=["handler_exception"],
+                force_sample=True,
+            )
             response = OutgoingMessage(
                 text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
                 chat_id=incoming.chat_id,
@@ -713,6 +725,14 @@ async def _handle_channel_message(incoming, gw):
             incoming.channel, incoming.channel_user_id,
         )
         await record_release_event("errors_total")
+        emit_conversation_analytics_event(
+            logger,
+            context=context if "context" in locals() else None,
+            message=incoming,
+            outcome="error",
+            tags=["channel_handler_exception"],
+            force_sample=True,
+        )
         fallback = OutgoingMessage(
             text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
             chat_id=incoming.chat_id,
@@ -1044,6 +1064,13 @@ async def release_ops_decision(request: Request) -> dict[str, Any]:
     """Return rollout progression guidance based on current release health gates."""
     _require_ops_auth(request)
     return await get_release_rollout_decision()
+
+
+@app.get("/ops/analytics/policy")
+async def analytics_policy(request: Request) -> dict[str, Any]:
+    """Return the active analytics sampling policy."""
+    _require_ops_auth(request)
+    return get_conversation_analytics_policy()
 
 
 # ------------------------------------------------------------------

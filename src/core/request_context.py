@@ -35,6 +35,12 @@ _current_release_enabled: contextvars.ContextVar[bool | None] = contextvars.Cont
 _current_shadow_enabled: contextvars.ContextVar[bool | None] = contextvars.ContextVar(
     "_current_shadow_enabled", default=None
 )
+_current_request_intent: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_request_intent", default=None
+)
+_current_analytics_tags: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "_current_analytics_tags", default=None
+)
 _current_release_flags: contextvars.ContextVar[dict[str, bool] | None] = contextvars.ContextVar(
     "_current_release_flags", default=None
 )
@@ -83,6 +89,16 @@ def get_current_release_enabled() -> bool | None:
 def get_current_shadow_enabled() -> bool | None:
     """Return whether shadow evaluation is enabled for the current request."""
     return _current_shadow_enabled.get()
+
+
+def get_current_request_intent() -> str | None:
+    """Return the resolved request intent for the current async context."""
+    return _current_request_intent.get()
+
+
+def get_current_analytics_tags() -> list[str] | None:
+    """Return the analytics tags for the current async context."""
+    return _current_analytics_tags.get()
 
 
 def get_current_release_flags() -> dict[str, bool] | None:
@@ -144,6 +160,8 @@ class _RequestToken:
         "mode_token",
         "release_enabled_token",
         "shadow_enabled_token",
+        "intent_token",
+        "analytics_tags_token",
         "release_flags_token",
     )
 
@@ -156,6 +174,8 @@ class _RequestToken:
         mode_token: contextvars.Token[str | None],
         release_enabled_token: contextvars.Token[bool | None],
         shadow_enabled_token: contextvars.Token[bool | None],
+        intent_token: contextvars.Token[str | None],
+        analytics_tags_token: contextvars.Token[list[str] | None],
         release_flags_token: contextvars.Token[dict[str, bool] | None],
     ):
         self.request_token = request_token
@@ -165,6 +185,8 @@ class _RequestToken:
         self.mode_token = mode_token
         self.release_enabled_token = release_enabled_token
         self.shadow_enabled_token = shadow_enabled_token
+        self.intent_token = intent_token
+        self.analytics_tags_token = analytics_tags_token
         self.release_flags_token = release_flags_token
 
 
@@ -177,6 +199,8 @@ def set_request_context(
     release_mode: str | None = None,
     release_enabled: bool | None = None,
     shadow_enabled: bool | None = None,
+    request_intent: str | None = None,
+    analytics_tags: list[str] | None = None,
     release_flags: dict[str, bool] | None = None,
 ) -> _RequestToken:
     """Bind request-scoped metadata for the current async context."""
@@ -187,6 +211,8 @@ def set_request_context(
     mode_t = _current_release_mode.set(release_mode)
     release_enabled_t = _current_release_enabled.set(release_enabled)
     shadow_enabled_t = _current_shadow_enabled.set(shadow_enabled)
+    intent_t = _current_request_intent.set(request_intent)
+    analytics_tags_t = _current_analytics_tags.set(analytics_tags)
     flags_t = _current_release_flags.set(release_flags)
     return _RequestToken(
         rt,
@@ -196,6 +222,8 @@ def set_request_context(
         mode_t,
         release_enabled_t,
         shadow_enabled_t,
+        intent_t,
+        analytics_tags_t,
         flags_t,
     )
 
@@ -207,6 +235,8 @@ def update_request_context(
     release_mode: str | None = None,
     release_enabled: bool | None = None,
     shadow_enabled: bool | None = None,
+    request_intent: str | None = None,
+    analytics_tags: list[str] | None = None,
     release_flags: dict[str, bool] | None = None,
 ) -> None:
     """Update request-scoped rollout metadata for the current async context."""
@@ -220,6 +250,10 @@ def update_request_context(
         _current_release_enabled.set(release_enabled)
     if shadow_enabled is not None:
         _current_shadow_enabled.set(shadow_enabled)
+    if request_intent is not None:
+        _current_request_intent.set(request_intent)
+    if analytics_tags is not None:
+        _current_analytics_tags.set(analytics_tags)
     if release_flags is not None:
         _current_release_flags.set(release_flags)
 
@@ -233,4 +267,6 @@ def reset_request_context(token: _RequestToken) -> None:
     _current_release_mode.reset(token.mode_token)
     _current_release_enabled.reset(token.release_enabled_token)
     _current_shadow_enabled.reset(token.shadow_enabled_token)
+    _current_request_intent.reset(token.intent_token)
+    _current_analytics_tags.reset(token.analytics_tags_token)
     _current_release_flags.reset(token.release_flags_token)

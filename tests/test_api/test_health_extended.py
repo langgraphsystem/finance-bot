@@ -172,3 +172,13 @@ async def test_release_ops_decision_returns_guidance(mock_dependencies):
     data = resp.json()
     assert data["next_action"] == "progress"
     assert data["target_rollout_percent"] == 10
+
+
+async def test_analytics_policy_returns_sampling_rules(mock_dependencies):
+    policy = {"sample_rates": {"default_success": 10}}
+    with patch("api.main.get_conversation_analytics_policy", return_value=policy):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/policy")
+    assert resp.status_code == 200
+    assert resp.json()["sample_rates"]["default_success"] == 10

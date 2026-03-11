@@ -14,6 +14,11 @@ from sqlalchemy import delete, select
 from src.agents import AGENTS, AgentRouter
 from src.core.config import settings
 from src.core.context import SessionContext
+from src.core.conversation_analytics import (
+    derive_conversation_tags,
+    emit_conversation_analytics_event,
+    merge_analytics_tags,
+)
 from src.core.db import async_session
 from src.core.db import redis as redis_client
 from src.core.domain_router import DomainRouter
@@ -41,9 +46,12 @@ from src.core.pending_actions import store_pending_action
 from src.core.rate_limit import check_rate_limit
 from src.core.release import log_runtime_event, record_release_event
 from src.core.request_context import (
+    get_current_analytics_tags,
+    get_current_request_intent,
     get_current_shadow_enabled,
     reset_family_context,
     set_family_context,
+    update_request_context,
 )
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills import create_registry
@@ -370,10 +378,20 @@ async def handle_message(
             channel=context.channel,
             message_id=message.id,
         )
-        return OutgoingMessage(
+        response = OutgoingMessage(
             text="Слишком много сообщений. Подождите минуту.",
             chat_id=message.chat_id,
         )
+        emit_conversation_analytics_event(
+            logger,
+            context=context,
+            message=message,
+            outcome="rate_limited",
+            tags=["rate_limited"],
+            response=response,
+            force_sample=True,
+        )
+        return response
 
     # Set RLS family context so that any DB session opened downstream
     # (inside skills, agents, etc.) automatically applies the correct
@@ -385,6 +403,22 @@ async def handle_message(
     )
     try:
         response = await _dispatch_message(message, context, registry)
+        resolved_tags = get_current_analytics_tags() or []
+        resolved_intent = get_current_request_intent()
+        outcome = "success"
+        if resolved_intent == "guardrail_blocked":
+            outcome = "guardrail_blocked"
+        elif not response.text:
+            outcome = "no_reply"
+        emit_conversation_analytics_event(
+            logger,
+            context=context,
+            message=message,
+            outcome=outcome,
+            intent_name=resolved_intent,
+            tags=resolved_tags,
+            response=response,
+        )
         log_runtime_event(
             logger,
             "info",
@@ -408,6 +442,7 @@ async def _dispatch_message(
     registry: SkillRegistry,
 ) -> OutgoingMessage:
     """Inner dispatch logic extracted from *handle_message* for clean RLS wrapping."""
+    recent_context = None
 
     # Handle callbacks immediately
     if message.type == MessageType.callback:
@@ -492,6 +527,10 @@ async def _dispatch_message(
         if message.text:
             is_safe, refusal_text = await check_input(message.text)
             if not is_safe:
+                update_request_context(
+                    request_intent="guardrail_blocked",
+                    analytics_tags=["guardrail_blocked", "safety"],
+                )
                 return OutgoingMessage(
                     text=(refusal_text or "Я не могу помочь с этим запросом."),
                     chat_id=message.chat_id,
@@ -550,6 +589,10 @@ async def _dispatch_message(
         if message.text:
             is_safe, refusal_text = await check_input(message.text)
             if not is_safe:
+                update_request_context(
+                    request_intent="guardrail_blocked",
+                    analytics_tags=["guardrail_blocked", "safety"],
+                )
                 return OutgoingMessage(
                     text=(refusal_text or "Я не могу помочь с этим запросом."),
                     chat_id=message.chat_id,
@@ -562,7 +605,6 @@ async def _dispatch_message(
                 return cmd_result
 
         # Fetch recent dialog context for intent disambiguation
-        recent_context = None
         recent_msgs: list[dict] = []
         try:
             recent_msgs = await sliding_window.get_recent_messages(context.user_id, limit=2)
@@ -681,6 +723,15 @@ async def _dispatch_message(
             result.confidence,
             context.user_id,
         )
+        analytics_tags = derive_conversation_tags(
+            message=message,
+            intent_name=intent_name,
+            recent_context=recent_context,
+        )
+        update_request_context(
+            request_intent=intent_name,
+            analytics_tags=merge_analytics_tags(get_current_analytics_tags(), analytics_tags),
+        )
         log_runtime_event(
             logger,
             "info",
@@ -692,6 +743,7 @@ async def _dispatch_message(
             intent=intent_name,
             confidence=round(result.confidence, 4),
             source="intent_detector",
+            analytics_tags=analytics_tags,
         )
 
         # Auto-save detected city to user profile (background)
