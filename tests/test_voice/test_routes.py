@@ -1,12 +1,15 @@
 """Tests for voice webhook and route wiring."""
 
+from dataclasses import asdict
 from unittest.mock import AsyncMock, patch
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from src.voice.review_store import VoiceCallReview
 from src.voice.routes import router
 from src.voice.session_store import VoiceCallMetadata
+from src.voice.trace import VoiceTraceEvent
 
 
 def _build_app() -> FastAPI:
@@ -88,3 +91,101 @@ async def test_main_app_includes_voice_router():
     assert "/webhook/voice/inbound" in paths
     assert "/webhook/voice/outbound/{call_id}" in paths
     assert "/ws/voice/{call_type}/{call_id}" in paths
+
+
+async def test_voice_review_endpoint_returns_review_and_trace():
+    app = _build_app()
+    transport = ASGITransport(app=app)
+    review = VoiceCallReview(
+        call_id="call-123",
+        created_at="2026-03-10T00:00:00Z",
+        call_type="inbound",
+        caller="John",
+        duration_seconds=42,
+        disposition="completed_with_tools",
+        summary_text="Summary",
+        tool_names=["create_booking"],
+        qa_score=92,
+        qa_status="pass",
+    )
+    metadata = VoiceCallMetadata(
+        call_id="call-123",
+        call_type="inbound",
+        owner_name="David",
+        business_name="North Star Plumbing",
+        services="plumbing",
+        hours="Mon-Fri 9-5",
+    )
+    trace = [
+        VoiceTraceEvent(
+            timestamp="2026-03-10T00:00:00Z",
+            kind="call_started",
+            payload={"call_type": "inbound"},
+        )
+    ]
+
+    with (
+        patch(
+            "src.voice.routes.voice_review_store.load",
+            new_callable=AsyncMock,
+            return_value=review,
+        ),
+        patch(
+            "src.voice.routes.voice_session_store.get",
+            new_callable=AsyncMock,
+            return_value=metadata,
+        ),
+        patch(
+            "src.voice.routes.voice_trace_store.load",
+            new_callable=AsyncMock,
+            return_value=trace,
+        ),
+    ):
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/voice/review/call-123")
+
+    assert response.status_code == 200
+    assert response.json()["review"] == asdict(review)
+    assert response.json()["metadata"] == asdict(metadata)
+    assert response.json()["trace"] == [asdict(item) for item in trace]
+
+
+async def test_recent_voice_reviews_endpoint_returns_items():
+    app = _build_app()
+    transport = ASGITransport(app=app)
+    review = VoiceCallReview(
+        call_id="call-123",
+        created_at="2026-03-10T00:00:00Z",
+        call_type="inbound",
+        caller="John",
+        duration_seconds=42,
+        disposition="completed_with_tools",
+        summary_text="Summary",
+        qa_score=92,
+        qa_status="pass",
+    )
+
+    with patch(
+        "src.voice.routes.voice_review_store.recent",
+        new_callable=AsyncMock,
+        return_value=[review],
+    ) as mock_recent:
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/voice/review/recent?limit=5")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [asdict(review)]}
+    mock_recent.assert_awaited_once_with(limit=5)
+
+
+async def test_voice_simulation_route_runs_builtin_scenario():
+    app = _build_app()
+    transport = ASGITransport(app=app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post("/voice/simulations/inbound_booking_success")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["passed"] is True
+    assert payload["summary"]["disposition"] == "completed_with_tools"
