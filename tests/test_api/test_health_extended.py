@@ -105,3 +105,27 @@ async def test_health_detailed_shows_circuits(mock_dependencies):
             resp = await client.get("/health/detailed")
     data = resp.json()
     assert data["circuits"]["anthropic"]["state"] == "half_open"
+
+
+async def test_health_detailed_includes_release_health(mock_dependencies):
+    release_health = {
+        "status": "degraded",
+        "recommended_action": "hold",
+        "counts": {"requests_total": 10},
+        "rates": {"error_rate": 0.0},
+    }
+    with (
+        patch(
+            "src.core.circuit_breaker.all_circuit_statuses",
+            return_value={"mem0": {"state": "closed"}},
+        ),
+        patch("src.core.memory.mem0_client.get_memory", return_value=MagicMock()),
+        patch("src.core.observability.get_langfuse", return_value=None),
+        patch("api.main.get_release_health_snapshot", AsyncMock(return_value=release_health)),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/health/detailed")
+    data = resp.json()
+    assert data["release_health"]["status"] == "degraded"
+    assert data["release_health"]["recommended_action"] == "hold"

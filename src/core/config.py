@@ -59,7 +59,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     anthropic_api_key: str = ""
     openai_api_key: str = ""
-    gemini_computer_use_model: str = "gemini-3-flash-preview"
+    gemini_computer_use_model: str = "gemini-3.1-flash-lite-preview"
     google_ai_api_key: str = ""
     xai_api_key: str = ""
     grok_dual_search_model: str = "grok-4.20-experimental-beta-0304-reasoning"

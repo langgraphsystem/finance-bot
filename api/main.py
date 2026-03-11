@@ -28,7 +28,13 @@ from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
 from src.core.models.workspace_membership import WorkspaceMembership
 from src.core.profiles import ProfileLoader
-from src.core.release import get_release_flag_snapshot, log_runtime_event, resolve_release_cohort
+from src.core.release import (
+    get_release_flag_snapshot,
+    get_release_health_snapshot,
+    log_runtime_event,
+    record_release_event,
+    resolve_release_cohort,
+)
 from src.core.request_context import (
     reset_request_context,
     set_request_context,
@@ -396,6 +402,7 @@ async def on_message(incoming):
             message_id=incoming.id,
             message_type=incoming.type,
         )
+        await record_release_event("requests_total")
 
         if not context:
             # Unregistered user — handle onboarding callbacks and FSM state
@@ -564,6 +571,7 @@ async def on_message(incoming):
             response = await handle_message(incoming, context)
         except Exception:
             logger.exception("Unhandled error in handle_message for user %s", incoming.user_id)
+            await record_release_event("errors_total")
             response = OutgoingMessage(
                 text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
                 chat_id=incoming.chat_id,
@@ -571,6 +579,9 @@ async def on_message(incoming):
         finally:
             typing_task.cancel()
         await gateway.send(response)
+        await record_release_event("completed_total")
+        if not response.text:
+            await record_release_event("no_reply_total")
         log_runtime_event(
             logger,
             "info",
@@ -621,6 +632,7 @@ async def _handle_channel_message(incoming, gw):
             message_id=incoming.id,
             message_type=incoming.type,
         )
+        await record_release_event("requests_total")
 
         if not context:
             # Unregistered channel user — run onboarding (same as Telegram)
@@ -642,6 +654,9 @@ async def _handle_channel_message(incoming, gw):
         response.chat_id = incoming.chat_id
         response.channel = incoming.channel
         await gw.send(response)
+        await record_release_event("completed_total")
+        if not response.text:
+            await record_release_event("no_reply_total")
         log_runtime_event(
             logger,
             "info",
@@ -658,6 +673,7 @@ async def _handle_channel_message(incoming, gw):
             "Unhandled error while processing %s message for %s",
             incoming.channel, incoming.channel_user_id,
         )
+        await record_release_event("errors_total")
         fallback = OutgoingMessage(
             text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
             chat_id=incoming.chat_id,
@@ -968,6 +984,12 @@ async def health_detailed(request: Request):
         checks["langfuse"] = "ok" if lf else "not_configured"
     except Exception:
         checks["langfuse"] = "error"
+
+    # Release health
+    try:
+        checks["release_health"] = await get_release_health_snapshot()
+    except Exception:
+        checks["release_health"] = "unavailable"
 
     core_checks = {k: v for k, v in checks.items() if k in ("api", "redis", "database")}
     status = "ok" if all(v == "ok" for v in core_checks.values()) else "degraded"

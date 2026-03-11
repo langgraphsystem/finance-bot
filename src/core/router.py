@@ -39,7 +39,7 @@ from src.core.models.transaction import Transaction
 from src.core.models.user_context import UserContext
 from src.core.pending_actions import store_pending_action
 from src.core.rate_limit import check_rate_limit
-from src.core.release import log_runtime_event
+from src.core.release import log_runtime_event, record_release_event
 from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills import create_registry
@@ -279,6 +279,7 @@ async def handle_message(
         logger.warning("Rate limit check failed (Redis down?): %s — allowing message", e)
         rate_ok = True
     if not rate_ok:
+        await record_release_event("rate_limited_total")
         log_runtime_event(
             logger,
             "warning",
