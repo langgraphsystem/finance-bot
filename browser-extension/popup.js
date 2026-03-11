@@ -14,6 +14,10 @@ const savedListEl = document.getElementById('savedList');
 let currentDomain = '';
 let currentCookies = [];
 
+const COOKIE_DOMAIN_ALIASES = {
+  'relay.amazon.com': ['relay.amazon.com', 'amazon.com'],
+};
+
 function showStatus(msg, type) {
   statusEl.textContent = msg;
   statusEl.className = 'status ' + type;
@@ -34,6 +38,48 @@ function normalizeApiUrl(value) {
     return trimmed.slice(0, -'/api/ext'.length);
   }
   return trimmed;
+}
+
+function normalizeDomain(value) {
+  const raw = (value || '').trim().toLowerCase().replace(/^https?:\/\//, '');
+  const domain = raw.split('/')[0].replace(/^www\./, '');
+  if (!domain) return '';
+  if (domain === 'uber.com' || domain.endsWith('.uber.com')) {
+    return 'uber.com';
+  }
+  if (domain === 'lyft.com' || domain.endsWith('.lyft.com')) {
+    return 'lyft.com';
+  }
+  if (domain === 'booking.com' || domain.endsWith('.booking.com')) {
+    return 'booking.com';
+  }
+  if (domain === 'relay.amazon.com' || domain.endsWith('.relay.amazon.com')) {
+    return 'relay.amazon.com';
+  }
+  return domain;
+}
+
+function getCookieDomains(domain) {
+  return COOKIE_DOMAIN_ALIASES[domain] || [domain];
+}
+
+async function loadCookiesForDomain(domain) {
+  const cookies = [];
+  const seen = new Set();
+
+  for (const cookieDomain of getCookieDomains(domain)) {
+    const exactCookies = await chrome.cookies.getAll({ domain: cookieDomain });
+    const dotCookies = await chrome.cookies.getAll({ domain: '.' + cookieDomain });
+
+    for (const cookie of exactCookies.concat(dotCookies)) {
+      const key = cookie.name + '|' + cookie.domain + '|' + cookie.path;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cookies.push(cookie);
+    }
+  }
+
+  return cookies;
 }
 
 function setConnectionInfo(text) {
@@ -85,22 +131,10 @@ async function init() {
       return;
     }
 
-    currentDomain = url.hostname.replace(/^www\./, '');
+    currentDomain = normalizeDomain(url.hostname);
     domainEl.textContent = currentDomain;
 
-    // Get cookies for this domain
-    currentCookies = await chrome.cookies.getAll({ domain: currentDomain });
-
-    // Also try with dot prefix for broader coverage
-    const dotCookies = await chrome.cookies.getAll({ domain: '.' + currentDomain });
-    const seen = new Set(currentCookies.map(c => c.name + '|' + c.domain));
-    for (const c of dotCookies) {
-      const key = c.name + '|' + c.domain;
-      if (!seen.has(key)) {
-        currentCookies.push(c);
-        seen.add(key);
-      }
-    }
+    currentCookies = await loadCookiesForDomain(currentDomain);
 
     cookieCountEl.textContent = currentCookies.length + ' cookies found';
     saveBtnEl.disabled = currentCookies.length === 0;

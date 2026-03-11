@@ -2,8 +2,21 @@
 
 const CONNECT_PATH = '/api/ext/connect';
 const RETURN_PAYLOAD = 'browser_connect';
-const SUPPORTED_PROVIDERS = new Set(['uber.com', 'lyft.com', 'booking.com']);
-const AUTH_PATH_HINTS = ['/login', '/signin', '/sign-in', '/auth', '/challenge', '/verify'];
+const SUPPORTED_PROVIDERS = new Set(['uber.com', 'lyft.com', 'booking.com', 'relay.amazon.com']);
+const AUTH_PATH_HINTS = [
+  '/login',
+  '/signin',
+  '/sign-in',
+  '/auth',
+  '/challenge',
+  '/verify',
+  '/mfa',
+  '/otp',
+  '/ap/signin',
+];
+const COOKIE_DOMAIN_ALIASES = {
+  'relay.amazon.com': ['relay.amazon.com', 'amazon.com'],
+};
 
 chrome.runtime.onInstalled.addListener(() => {
   console.log('Finance Bot Session Saver installed');
@@ -34,6 +47,9 @@ function normalizeDomain(value) {
   if (domain === 'booking.com' || domain.endsWith('.booking.com')) {
     return 'booking.com';
   }
+  if (domain === 'relay.amazon.com' || domain.endsWith('.relay.amazon.com')) {
+    return 'relay.amazon.com';
+  }
   return domain;
 }
 
@@ -59,28 +75,35 @@ async function getStatus(settings) {
   return response.json();
 }
 
+function getCookieDomains(domain) {
+  return COOKIE_DOMAIN_ALIASES[domain] || [domain];
+}
+
 async function getCookiesForDomain(domain) {
-  const exactCookies = await chrome.cookies.getAll({ domain });
-  const dottedCookies = await chrome.cookies.getAll({ domain: '.' + domain });
   const seen = new Set();
   const cookies = [];
 
-  for (const cookie of exactCookies.concat(dottedCookies)) {
-    const key = cookie.name + '|' + cookie.domain + '|' + cookie.path;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    cookies.push({
-      name: cookie.name,
-      value: cookie.value,
-      domain: cookie.domain,
-      path: cookie.path || '/',
-      expires: cookie.expirationDate || -1,
-      httpOnly: cookie.httpOnly || false,
-      secure: cookie.secure || false,
-      sameSite: cookie.sameSite === 'unspecified'
-        ? 'None'
-        : cookie.sameSite.charAt(0).toUpperCase() + cookie.sameSite.slice(1),
-    });
+  for (const cookieDomain of getCookieDomains(domain)) {
+    const exactCookies = await chrome.cookies.getAll({ domain: cookieDomain });
+    const dottedCookies = await chrome.cookies.getAll({ domain: '.' + cookieDomain });
+
+    for (const cookie of exactCookies.concat(dottedCookies)) {
+      const key = cookie.name + '|' + cookie.domain + '|' + cookie.path;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cookies.push({
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path || '/',
+        expires: cookie.expirationDate || -1,
+        httpOnly: cookie.httpOnly || false,
+        secure: cookie.secure || false,
+        sameSite: cookie.sameSite === 'unspecified'
+          ? 'None'
+          : cookie.sameSite.charAt(0).toUpperCase() + cookie.sameSite.slice(1),
+      });
+    }
   }
 
   return cookies;

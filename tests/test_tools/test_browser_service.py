@@ -187,6 +187,10 @@ def test_extract_domain_normalizes_lyft_ride_subdomain():
     assert extract_domain("ride.lyft.com") == "lyft.com"
 
 
+def test_extract_domain_normalizes_relay_subdomain():
+    assert extract_domain("https://ops.relay.amazon.com/tours") == "relay.amazon.com"
+
+
 def test_get_connect_url_uses_public_base_url():
     with patch.object(
         browser_service.settings,
@@ -201,3 +205,11 @@ def test_get_login_url_uses_direct_uber_auth_entrypoint():
     url = get_login_url("uber.com")
     assert url.startswith("https://auth.uber.com/v2/")
     assert "next_url=" in url
+
+
+def test_get_login_url_uses_amazon_relay_entrypoint():
+    assert get_login_url("relay.amazon.com") == "https://relay.amazon.com/"
+
+
+def test_get_provider_label_uses_amazon_relay_brand_name():
+    assert browser_service.get_provider_label("relay.amazon.com") == "Amazon Relay"

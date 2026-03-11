@@ -30,6 +30,7 @@ DEFAULT_SESSION_TTL_DAYS = 30
 _CANONICAL_DOMAIN_SUFFIXES: dict[str, str] = {
     "uber.com": "uber.com",
     "lyft.com": "lyft.com",
+    "relay.amazon.com": "relay.amazon.com",
 }
 
 # Mapping of popular domains to their specific login page URLs
@@ -42,6 +43,7 @@ _LOGIN_URLS: dict[str, str] = {
     "trivago.com": "https://www.trivago.com/account/login",
     "kayak.com": "https://www.kayak.com/signin",
     "amazon.com": "https://www.amazon.com/ap/signin",
+    "relay.amazon.com": "https://relay.amazon.com/",
     "ebay.com": "https://signin.ebay.com/ws/eBayISAPI.dll?SignIn",
     "walmart.com": "https://www.walmart.com/account/login",
     "aliexpress.com": "https://login.aliexpress.com/",
@@ -55,6 +57,10 @@ _LOGIN_URLS: dict[str, str] = {
         "?next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome"
     ),
     "lyft.com": "https://ride.lyft.com/",
+}
+
+_PROVIDER_LABELS: dict[str, str] = {
+    "relay.amazon.com": "Amazon Relay",
 }
 
 
@@ -74,6 +80,15 @@ def get_connect_url(domain: str) -> str:
         return get_login_url(provider)
     encoded_provider = quote(provider, safe="")
     return f"{settings.public_base_url}/api/ext/connect?provider={encoded_provider}"
+
+
+def get_provider_label(domain: str) -> str:
+    """Return a human-readable label for a provider domain."""
+    normalized = extract_domain(domain)
+    return _PROVIDER_LABELS.get(
+        normalized,
+        normalized.replace(".com", "").replace(".", " ").title(),
+    )
 
 
 def extract_domain(url_or_site: str) -> str:

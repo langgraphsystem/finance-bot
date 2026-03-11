@@ -203,6 +203,14 @@ async def test_extension_connect_redirects_to_provider_login(client):
     assert "next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome" in resp.text
 
 
+async def test_extension_connect_redirects_to_amazon_relay_login(client):
+    resp = await client.get("/api/ext/connect", params={"provider": "ops.relay.amazon.com"})
+
+    assert resp.status_code == 200
+    assert "Connecting Amazon Relay" in resp.text
+    assert "https://relay.amazon.com/" in resp.text
+
+
 async def test_delete_session(client):
     with patch(
         "api.browser_extension.browser_service.delete_session",

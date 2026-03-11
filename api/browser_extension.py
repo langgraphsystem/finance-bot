@@ -179,7 +179,7 @@ async def extension_connect(provider: str = Query(..., min_length=1)) -> HTMLRes
     """Bootstrap a browser-connect flow, then redirect to the provider login page."""
     domain = browser_service.extract_domain(provider)
     login_url = browser_service.get_login_url(domain)
-    provider_label = domain.replace(".com", "").replace(".", " ").title()
+    provider_label = browser_service.get_provider_label(domain)
     html = f"""<!doctype html>
 <html lang="en">
 <head>
