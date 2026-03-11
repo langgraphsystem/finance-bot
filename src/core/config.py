@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     voice_default_business_name: str = "our business"
     voice_default_business_hours: str = "business hours unavailable"
     voice_default_services: str = "general assistance"
+    voice_verification_ttl_seconds: int = 300
+    voice_verification_code_length: int = 6
 
     # Stripe (Phase 4)
     stripe_secret_key: str = ""

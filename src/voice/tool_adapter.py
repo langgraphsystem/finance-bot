@@ -14,10 +14,12 @@ from src.core.models.booking import Booking
 from src.core.models.enums import BookingStatus
 from src.core.pending_actions import store_pending_action
 from src.core.request_context import reset_family_context, set_family_context
+from src.gateway.sms_gw import SMSGateway
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills.base import SkillResult
 from src.voice.policy import evaluate_voice_policy
 from src.voice.session_store import VoiceCallMetadata
+from src.voice.verification import voice_verification_store
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,10 @@ class VoiceToolAdapter:
             "reschedule_booking": self._run_reschedule_booking,
             "confirm_booking": self._run_confirm_booking,
             "send_to_client": self._run_send_to_client,
+            "request_verification": self._run_request_verification,
+            "verify_caller": self._run_verify_caller,
+            "handoff_to_owner": self._run_handoff_to_owner,
+            "schedule_callback": self._run_schedule_callback,
         }
 
         handler = handlers.get(name)
@@ -218,6 +224,27 @@ class VoiceToolAdapter:
                 buttons=buttons,
             )
         )
+        return True
+
+    async def _send_sms_message(self, phone_number: str, text: str) -> bool:
+        """Send an SMS using the shared Twilio SMS gateway."""
+        if not phone_number:
+            return False
+
+        gateway = SMSGateway()
+        if not gateway.is_configured:
+            return False
+
+        try:
+            await gateway.send(
+                OutgoingMessage(
+                    text=text,
+                    chat_id=phone_number,
+                    channel="sms",
+                )
+            )
+        finally:
+            await gateway.close()
         return True
 
     @staticmethod
@@ -374,6 +401,121 @@ class VoiceToolAdapter:
                 "description": description,
             },
         )
+
+    async def _run_request_verification(self, arguments: dict[str, object]) -> dict[str, object]:
+        phone_number = str(arguments.get("phone") or self.metadata.from_phone or "")
+        if not phone_number:
+            return {"ok": False, "message": "I do not have a phone number to send the code to."}
+
+        challenge = await voice_verification_store.create(self.metadata.call_id, phone_number)
+        sent = await self._send_sms_message(
+            phone_number,
+            (
+                f"{self.metadata.business_name}: your verification code is {challenge.code}. "
+                "It expires in 5 minutes."
+            ),
+        )
+        if not sent:
+            return {
+                "ok": False,
+                "message": (
+                    "SMS verification is not available right now. "
+                    "I can request owner approval."
+                ),
+            }
+
+        if self.context is not None and self.context.voice_auth_state in {"none", "anonymous"}:
+            self.context.voice_auth_state = "verification_pending"
+
+        return {
+            "ok": True,
+            "message": (
+                "I sent a verification code by text. Please read the code back to continue."
+            ),
+        }
+
+    async def _run_verify_caller(self, arguments: dict[str, object]) -> dict[str, object]:
+        code = str(arguments.get("code") or "").strip()
+        if not code:
+            return {"ok": False, "message": "Please provide the verification code."}
+
+        verified = await voice_verification_store.verify(self.metadata.call_id, code)
+        if not verified:
+            return {
+                "ok": False,
+                "message": "That code did not match. I can resend it or request owner approval.",
+            }
+
+        if self.context is not None:
+            self.context.voice_auth_state = "verified_by_sms"
+            if not self.context.voice_phone_number:
+                self.context.voice_phone_number = self.metadata.from_phone
+
+        return {
+            "ok": True,
+            "message": "Thanks. The caller is now verified for this call.",
+        }
+
+    async def _run_handoff_to_owner(self, arguments: dict[str, object]) -> dict[str, object]:
+        reason = str(arguments.get("reason") or "caller requested a manual follow-up")
+        caller_name = str(
+            arguments.get("caller_name")
+            or (self.context.voice_contact_name if self.context else "")
+            or self.metadata.contact_name
+            or self.metadata.from_phone
+            or "unknown caller"
+        )
+        callback_number = self.metadata.from_phone or self.metadata.to_phone or ""
+        summary = (
+            "Voice handoff requested\n\n"
+            f"Caller: {caller_name}\n"
+            f"Phone: {callback_number or 'unknown'}\n"
+            f"Reason: {reason}"
+        )
+        sent = await self._send_telegram_message(text=summary, buttons=[])
+        if sent:
+            return {
+                "ok": True,
+                "message": "I notified the owner and asked for a manual follow-up.",
+            }
+
+        return await self._run_schedule_callback(
+            {
+                "caller_name": caller_name,
+                "callback_number": callback_number,
+                "reason": reason,
+            }
+        )
+
+    async def _run_schedule_callback(self, arguments: dict[str, object]) -> dict[str, object]:
+        caller_name = str(arguments.get("caller_name") or self.metadata.contact_name or "caller")
+        callback_number = str(arguments.get("callback_number") or self.metadata.from_phone or "")
+        reason = str(arguments.get("reason") or "Requested a callback from the owner.")
+        description = (
+            f"Call back {caller_name}"
+            f"{f' at {callback_number}' if callback_number else ''}. Reason: {reason}"
+        )
+        task_result = await self._run_skill(
+            "create_task",
+            description,
+            {
+                "task_title": f"Call back {caller_name}",
+                "description": description,
+            },
+        )
+        sms_sent = await self._send_sms_message(
+            callback_number,
+            (
+                f"{self.metadata.business_name}: we received your request and "
+                "will call you back as soon as possible."
+            ),
+        )
+        if sms_sent:
+            task_result["message"] = (
+                f"{task_result.get('message')}\n\n"
+                "I also sent the caller a callback confirmation by text."
+            )
+        return task_result
 
     async def _run_confirm_booking(self, arguments: dict[str, object]) -> dict[str, object]:
         if self.context is None:

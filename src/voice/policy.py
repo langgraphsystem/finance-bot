@@ -14,7 +14,13 @@ from src.voice.session_store import VoiceCallMetadata
 
 _LOW_RISK_TOOLS = {"receptionist", "find_available_slots", "take_message"}
 _MATCHED_CALLER_TOOLS = {"create_booking"}
-_OUTBOUND_ALLOWED_TOOLS = {"confirm_booking", "reschedule_booking"}
+_VERIFICATION_TOOLS = {
+    "request_verification",
+    "verify_caller",
+    "handoff_to_owner",
+    "schedule_callback",
+}
+_VERIFIED_CALLER_TOOLS = {"confirm_booking", "reschedule_booking", "cancel_booking"}
 _OWNER_APPROVAL_TOOLS = {
     "find_contact",
     "send_to_client",
@@ -22,7 +28,6 @@ _OWNER_APPROVAL_TOOLS = {
     "reschedule_event",
     "set_reminder",
     "create_task",
-    "cancel_booking",
 }
 
 
@@ -95,7 +100,7 @@ def evaluate_voice_policy(
     caller = context.voice_contact_name or context.voice_phone_number or "the caller"
     auth_state = context.voice_auth_state
 
-    if context.role != "owner" and tool_name in _OWNER_APPROVAL_TOOLS | _OUTBOUND_ALLOWED_TOOLS:
+    if context.role != "owner" and tool_name in _OWNER_APPROVAL_TOOLS | _VERIFIED_CALLER_TOOLS:
         return VoicePolicyDecision(
             allow=False,
             requires_approval=True,
@@ -104,11 +109,14 @@ def evaluate_voice_policy(
             risk_tier="owner_approval",
         )
 
+    if tool_name in _VERIFICATION_TOOLS:
+        return VoicePolicyDecision(allow=True, risk_tier="verification")
+
     if tool_name in _LOW_RISK_TOOLS:
         return VoicePolicyDecision(allow=True, risk_tier="public_info")
 
     if tool_name in _MATCHED_CALLER_TOOLS:
-        if auth_state == "matched_by_number":
+        if auth_state in {"matched_by_number", "verified_by_sms"}:
             return VoicePolicyDecision(allow=True, risk_tier="booking_safe")
         return VoicePolicyDecision(
             allow=False,
@@ -120,13 +128,17 @@ def evaluate_voice_policy(
             risk_tier="booking_safe",
         )
 
-    if tool_name in _OUTBOUND_ALLOWED_TOOLS:
+    if tool_name in _VERIFIED_CALLER_TOOLS:
         if metadata.call_type == "outbound":
             return VoicePolicyDecision(allow=True, risk_tier="booking_update")
+        if auth_state in {"matched_by_number", "verified_by_sms"}:
+            return VoicePolicyDecision(allow=True, risk_tier="booking_update_verified")
         return VoicePolicyDecision(
             allow=False,
             requires_approval=True,
-            message="I need owner approval before changing this booking over an inbound call.",
+            message=(
+                "I need to verify the caller or get owner approval before changing this booking."
+            ),
             summary=_build_summary(tool_name, arguments, metadata, caller),
             risk_tier="booking_update",
         )

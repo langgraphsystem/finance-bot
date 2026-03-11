@@ -39,6 +39,10 @@ def test_inbound_tools_has_required_functions():
     assert "create_booking" in names
     assert "find_available_slots" in names
     assert "take_message" in names
+    assert "request_verification" in names
+    assert "verify_caller" in names
+    assert "handoff_to_owner" in names
+    assert "schedule_callback" in names
 
 
 def test_outbound_tools_has_required_functions():
@@ -47,6 +51,8 @@ def test_outbound_tools_has_required_functions():
     names = {tool["name"] for tool in tools}
     assert "confirm_booking" in names
     assert "reschedule_booking" in names
+    assert "handoff_to_owner" in names
+    assert "schedule_callback" in names
 
 
 def test_inbound_tools_have_parameters():

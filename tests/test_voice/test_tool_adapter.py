@@ -114,3 +114,65 @@ async def test_execute_pending_voice_tool_runs_without_policy():
         )
 
     assert message == "Task created"
+
+
+async def test_request_verification_sends_sms_and_updates_auth_state():
+    context = _build_context()
+    context.voice_auth_state = "anonymous"
+    adapter = VoiceToolAdapter(context=context, metadata=_build_metadata())
+
+    with (
+        patch(
+            "src.voice.tool_adapter.voice_verification_store.create",
+            new_callable=AsyncMock,
+        ) as mock_create,
+        patch("src.voice.tool_adapter.SMSGateway") as mock_gateway_cls,
+    ):
+        mock_create.return_value = SimpleNamespace(code="123456")
+        mock_gateway = mock_gateway_cls.return_value
+        mock_gateway.is_configured = True
+        mock_gateway.send = AsyncMock()
+        mock_gateway.close = AsyncMock()
+
+        result = await adapter.handle_tool_call("request_verification", {})
+
+    assert result["ok"] is True
+    assert "verification code" in str(result["message"])
+    assert context.voice_auth_state == "verification_pending"
+    mock_gateway.send.assert_awaited_once()
+    mock_gateway.close.assert_awaited_once()
+
+
+async def test_verify_caller_promotes_auth_state():
+    context = _build_context()
+    context.voice_auth_state = "verification_pending"
+    adapter = VoiceToolAdapter(context=context, metadata=_build_metadata())
+
+    with patch(
+        "src.voice.tool_adapter.voice_verification_store.verify",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        result = await adapter.handle_tool_call("verify_caller", {"code": "123456"})
+
+    assert result["ok"] is True
+    assert context.voice_auth_state == "verified_by_sms"
+
+
+async def test_handoff_to_owner_falls_back_to_callback_task_when_telegram_unavailable():
+    adapter = VoiceToolAdapter(context=_build_context(), metadata=_build_metadata())
+
+    with (
+        patch.object(adapter, "_send_telegram_message", new_callable=AsyncMock, return_value=False),
+        patch.object(adapter, "_run_skill", new_callable=AsyncMock) as mock_run_skill,
+        patch.object(adapter, "_send_sms_message", new_callable=AsyncMock, return_value=True),
+    ):
+        mock_run_skill.return_value = {"ok": True, "message": "Task created"}
+        result = await adapter.handle_tool_call(
+            "handoff_to_owner",
+            {"reason": "Caller needs manual pricing"},
+        )
+
+    assert result["ok"] is True
+    assert "callback confirmation" in str(result["message"])
+    mock_run_skill.assert_awaited_once()

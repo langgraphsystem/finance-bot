@@ -259,6 +259,60 @@ def build_inbound_tools() -> list[dict[str, Any]]:
                 "required": ["task_title"],
             },
         },
+        {
+            "type": "function",
+            "name": "request_verification",
+            "description": "Send an SMS verification code to the caller",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "phone": {
+                        "type": "string",
+                        "description": "Phone number that should receive the code",
+                    }
+                },
+            },
+        },
+        {
+            "type": "function",
+            "name": "verify_caller",
+            "description": "Verify the caller with the SMS code they received",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "The verification code spoken by the caller",
+                    }
+                },
+                "required": ["code"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "handoff_to_owner",
+            "description": "Escalate the current call to the owner for manual follow-up",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string", "description": "Why escalation is needed"},
+                    "caller_name": {"type": "string", "description": "Caller name if known"},
+                },
+            },
+        },
+        {
+            "type": "function",
+            "name": "schedule_callback",
+            "description": "Create a callback task and optionally text the caller",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "caller_name": {"type": "string"},
+                    "callback_number": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+            },
+        },
     ]
 
 
@@ -303,6 +357,30 @@ def build_outbound_tools() -> list[dict[str, Any]]:
                     "description": {"type": "string", "description": "Message to send"},
                 },
                 "required": ["contact_name", "description"],
+            },
+        },
+        {
+            "type": "function",
+            "name": "handoff_to_owner",
+            "description": "Escalate the conversation to the owner for manual follow-up",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string", "description": "Why escalation is needed"},
+                },
+            },
+        },
+        {
+            "type": "function",
+            "name": "schedule_callback",
+            "description": "Create a callback task and optionally text the caller",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "caller_name": {"type": "string"},
+                    "callback_number": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
             },
         },
     ]
