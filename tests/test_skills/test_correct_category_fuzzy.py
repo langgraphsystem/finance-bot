@@ -68,9 +68,11 @@ async def test_fuzzy_match_grocery_to_groceries():
     mock_session.commit = AsyncMock()
 
     with (
-        patch("src.skills.correct_category.handler.get_session", return_value=mock_session),
+        patch("src.skills.correct_category.handler.get_session") as mock_get_session,
         patch("src.skills.correct_category.handler.log_action", new_callable=AsyncMock),
     ):
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=False)
         result = await skill.execute(msg, ctx, {"category": "Grocery"})
 
     # Should match "Groceries" via fuzzy, not fail
