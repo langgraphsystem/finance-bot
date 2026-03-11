@@ -526,6 +526,29 @@ async def on_message(incoming):
     if incoming.language:
         asyncio.create_task(_maybe_set_timezone_from_language(context.user_id, incoming.language))
 
+    # Heavy browser callbacks (taxi_select, taxi_confirm, taxi_back): send immediate ack
+    # and run the blocking browser automation in a background task so the webhook
+    # returns fast and the user sees feedback right away.
+    _HEAVY_CALLBACKS = {"taxi_select", "taxi_confirm", "taxi_back"}
+    if incoming.type == MessageType.callback and incoming.callback_data:
+        cb_action = incoming.callback_data.split(":")[0]
+        if cb_action in _HEAVY_CALLBACKS:
+            lang = context.language or "en"
+            ack = "⏳ Обрабатываю, подождите..." if lang == "ru" else "⏳ Processing, please wait..."
+            await gateway.send(OutgoingMessage(text=ack, chat_id=incoming.chat_id))
+
+            async def _run_heavy_callback(msg=incoming, ctx=context):
+                try:
+                    resp = await handle_message(msg, ctx)
+                    await gateway.send(resp)
+                except Exception:
+                    logger.exception("Error in heavy callback for user %s", ctx.user_id)
+                    err = "Произошла ошибка. Попробуйте ещё раз." if lang == "ru" else "An error occurred. Please try again."
+                    await gateway.send(OutgoingMessage(text=err, chat_id=msg.chat_id))
+
+            asyncio.create_task(_run_heavy_callback())
+            return
+
     typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
     try:
         response = await handle_message(incoming, context)

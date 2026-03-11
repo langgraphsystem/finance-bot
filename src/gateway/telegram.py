@@ -68,6 +68,9 @@ class TelegramGateway:
 
         @self.dp.callback_query()
         async def _on_callback(callback: types.CallbackQuery):
+            # Answer immediately so Telegram stops the button spinner right away.
+            # The actual response is sent asynchronously via gateway.send().
+            await callback.answer()
             incoming = IncomingMessage(
                 id=str(callback.id),
                 user_id=str(callback.from_user.id),
@@ -83,7 +86,6 @@ class TelegramGateway:
                     await callback.message.edit_reply_markup(reply_markup=None)
                 except Exception as e:
                     logger.debug("Failed to clear sched callback buttons: %s", e)
-            await callback.answer()
 
     async def send(self, message: OutgoingMessage) -> None:
         if self.bot is None:
