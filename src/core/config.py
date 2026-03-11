@@ -157,6 +157,16 @@ class Settings(BaseSettings):
     ff_post_gen_check: bool = True
     ff_browser_computer_use: bool = True
     ff_deep_agents: bool = False
+    release_default_cohort: str = "normal"
+    release_internal_user_ids: str = ""
+    release_trusted_user_ids: str = ""
+    release_beta_user_ids: str = ""
+    release_vip_user_ids: str = ""
+    release_sensitive_roles: str = "accountant,assistant"
+    release_rollout_name: str = ""
+    release_rollout_percent: int = 0
+    release_shadow_mode: bool = False
+    release_health_logging: bool = True
 
     @property
     def is_production(self) -> bool:

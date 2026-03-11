@@ -39,6 +39,7 @@ from src.core.models.transaction import Transaction
 from src.core.models.user_context import UserContext
 from src.core.pending_actions import store_pending_action
 from src.core.rate_limit import check_rate_limit
+from src.core.release import log_runtime_event
 from src.core.request_context import reset_family_context, set_family_context
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 from src.skills import create_registry
@@ -261,6 +262,16 @@ async def handle_message(
 ) -> OutgoingMessage:
     """Main message handler: intent detection → skill execution → response."""
     registry = get_registry()
+    log_runtime_event(
+        logger,
+        "info",
+        "router_handle_start",
+        user_id=context.user_id,
+        family_id=context.family_id,
+        channel=context.channel,
+        message_id=message.id,
+        message_type=message.type,
+    )
 
     try:
         rate_ok = await check_rate_limit(message.user_id)
@@ -268,6 +279,15 @@ async def handle_message(
         logger.warning("Rate limit check failed (Redis down?): %s — allowing message", e)
         rate_ok = True
     if not rate_ok:
+        log_runtime_event(
+            logger,
+            "warning",
+            "router_rate_limited",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            channel=context.channel,
+            message_id=message.id,
+        )
         return OutgoingMessage(
             text="Слишком много сообщений. Подождите минуту.",
             chat_id=message.chat_id,
@@ -282,7 +302,19 @@ async def handle_message(
         else None
     )
     try:
-        return await _dispatch_message(message, context, registry)
+        response = await _dispatch_message(message, context, registry)
+        log_runtime_event(
+            logger,
+            "info",
+            "router_handle_complete",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            channel=context.channel,
+            message_id=message.id,
+            has_response_text=bool(response.text),
+            has_buttons=bool(response.buttons),
+        )
+        return response
     finally:
         if token is not None:
             reset_family_context(token)
@@ -550,6 +582,18 @@ async def _dispatch_message(
             intent_name,
             result.confidence,
             context.user_id,
+        )
+        log_runtime_event(
+            logger,
+            "info",
+            "intent_resolved",
+            user_id=context.user_id,
+            family_id=context.family_id,
+            channel=context.channel,
+            message_id=message.id,
+            intent=intent_name,
+            confidence=round(result.confidence, 4),
+            source="intent_detector",
         )
 
         # Auto-save detected city to user profile (background)
@@ -2040,19 +2084,24 @@ async def _handle_callback(
 
         lang = context.language or "en"
         if not tz_name or not validate_timezone(tz_name):
-            _TZ_INVALID = {
-                "en": "Unknown timezone.", "ru": "Неверный часовой пояс.", "es": "Zona horaria inválida.",
+            tz_invalid = {
+                "en": "Unknown timezone.",
+                "ru": "Неверный часовой пояс.",
+                "es": "Zona horaria inválida.",
             }
-            return OutgoingMessage(text=_TZ_INVALID.get(lang, _TZ_INVALID["en"]), chat_id=message.chat_id)
+            return OutgoingMessage(
+                text=tz_invalid.get(lang, tz_invalid["en"]),
+                chat_id=message.chat_id,
+            )
 
         await maybe_update_timezone(context.user_id, tz_name, source="user_set")
         count = await _reschedule_pending_reminders(context.user_id, context.family_id, tz_name)
-        _TZ_OK = {
+        tz_ok = {
             "en": f"✅ Timezone: {tz_name}. {count} reminder(s) rescheduled.",
             "ru": f"✅ Часовой пояс: {tz_name}. Напоминания пересчитаны ({count} шт.).",
             "es": f"✅ Zona: {tz_name}. {count} recordatorio(s) reajustado(s).",
         }
-        return OutgoingMessage(text=_TZ_OK.get(lang, _TZ_OK["en"]), chat_id=message.chat_id)
+        return OutgoingMessage(text=tz_ok.get(lang, tz_ok["en"]), chat_id=message.chat_id)
 
     elif action == "undo":
         from src.core.undo import execute_undo
@@ -2685,7 +2734,10 @@ async def _handle_callback(
         code_desc = _extract_description(code)
         buttons = [
             {"text": "📄 Код" if lang == "ru" else "📄 Code", "callback": f"show_code:{prog_id}"},
-            {"text": "🔄 Запустить снова" if lang == "ru" else "🔄 Run again", "callback": f"run_program:{prog_id}"},
+            {
+                "text": "🔄 Запустить снова" if lang == "ru" else "🔄 Run again",
+                "callback": f"run_program:{prog_id}",
+            },
         ]
         result = _build_code_response(filename, code_desc, exec_result, buttons, lang=lang)
         return OutgoingMessage(

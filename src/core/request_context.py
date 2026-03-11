@@ -14,6 +14,18 @@ _current_family_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
 _current_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "_current_user_id", default=None
 )
+_current_request_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_request_id", default=None
+)
+_current_correlation_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_correlation_id", default=None
+)
+_current_rollout_cohort: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "_current_rollout_cohort", default=None
+)
+_current_release_flags: contextvars.ContextVar[dict[str, bool] | None] = contextvars.ContextVar(
+    "_current_release_flags", default=None
+)
 
 
 def get_current_family_id() -> str | None:
@@ -24,6 +36,26 @@ def get_current_family_id() -> str | None:
 def get_current_user_id() -> str | None:
     """Return the user_id bound to the current async context, or *None*."""
     return _current_user_id.get()
+
+
+def get_current_request_id() -> str | None:
+    """Return the request_id bound to the current async context, or *None*."""
+    return _current_request_id.get()
+
+
+def get_current_correlation_id() -> str | None:
+    """Return the correlation_id bound to the current async context, or *None*."""
+    return _current_correlation_id.get()
+
+
+def get_current_rollout_cohort() -> str | None:
+    """Return the rollout cohort bound to the current async context, or *None*."""
+    return _current_rollout_cohort.get()
+
+
+def get_current_release_flags() -> dict[str, bool] | None:
+    """Return the active release flags bound to the current async context, or *None*."""
+    return _current_release_flags.get()
 
 
 class _RLSToken:
@@ -67,3 +99,61 @@ def reset_family_context(token: _RLSToken | contextvars.Token[str | None]) -> No
     else:
         # Backward compat: bare contextvars.Token
         _current_family_id.reset(token)
+
+
+class _RequestToken:
+    """Holds reset tokens for request-scoped metadata."""
+
+    __slots__ = (
+        "request_token",
+        "correlation_token",
+        "cohort_token",
+        "release_flags_token",
+    )
+
+    def __init__(
+        self,
+        request_token: contextvars.Token[str | None],
+        correlation_token: contextvars.Token[str | None],
+        cohort_token: contextvars.Token[str | None],
+        release_flags_token: contextvars.Token[dict[str, bool] | None],
+    ):
+        self.request_token = request_token
+        self.correlation_token = correlation_token
+        self.cohort_token = cohort_token
+        self.release_flags_token = release_flags_token
+
+
+def set_request_context(
+    *,
+    request_id: str,
+    correlation_id: str,
+    rollout_cohort: str | None = None,
+    release_flags: dict[str, bool] | None = None,
+) -> _RequestToken:
+    """Bind request-scoped metadata for the current async context."""
+    rt = _current_request_id.set(request_id)
+    ct = _current_correlation_id.set(correlation_id)
+    cohort_t = _current_rollout_cohort.set(rollout_cohort)
+    flags_t = _current_release_flags.set(release_flags)
+    return _RequestToken(rt, ct, cohort_t, flags_t)
+
+
+def update_request_context(
+    *,
+    rollout_cohort: str | None = None,
+    release_flags: dict[str, bool] | None = None,
+) -> None:
+    """Update request-scoped rollout metadata for the current async context."""
+    if rollout_cohort is not None:
+        _current_rollout_cohort.set(rollout_cohort)
+    if release_flags is not None:
+        _current_release_flags.set(release_flags)
+
+
+def reset_request_context(token: _RequestToken) -> None:
+    """Restore the previous request-scoped metadata using a token."""
+    _current_request_id.reset(token.request_token)
+    _current_correlation_id.reset(token.correlation_token)
+    _current_rollout_cohort.reset(token.cohort_token)
+    _current_release_flags.reset(token.release_flags_token)

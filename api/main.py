@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import uuid
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -27,6 +28,12 @@ from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
 from src.core.models.workspace_membership import WorkspaceMembership
 from src.core.profiles import ProfileLoader
+from src.core.release import get_release_flag_snapshot, log_runtime_event, resolve_release_cohort
+from src.core.request_context import (
+    reset_request_context,
+    set_request_context,
+    update_request_context,
+)
 from src.core.router import handle_message
 from src.gateway.telegram import TelegramGateway
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
@@ -369,198 +376,214 @@ async def _typing_loop(gw, chat_id: str, interval: float = 4.0):
 
 async def on_message(incoming):
     """Main message handler called by Telegram gateway."""
-    context = await build_session_context(incoming.user_id)
-
-    if not context:
-        # Unregistered user — handle onboarding callbacks and FSM state
-        from src.core.models.enums import ConversationState
-        from src.core.router import (
-            _clear_onboarding_state,
-            _get_onboarding_language,
-            _get_onboarding_state,
-            _set_onboarding_language,
-            _set_onboarding_state,
-            get_registry,
+    request_token = set_request_context(
+        request_id=str(uuid.uuid4()),
+        correlation_id=f"{incoming.channel}:{incoming.chat_id}:{incoming.id}",
+    )
+    try:
+        context = await build_session_context(incoming.user_id)
+        update_request_context(
+            rollout_cohort=resolve_release_cohort(context),
+            release_flags=get_release_flag_snapshot(),
         )
-        from src.skills.onboarding.handler import (
-            ONBOARDING_TEXTS,
-            get_onboarding_texts,
+        log_runtime_event(
+            logger,
+            "info",
+            "incoming_message_received",
+            channel=incoming.channel,
+            chat_id=incoming.chat_id,
+            user_id=incoming.user_id,
+            message_id=incoming.id,
+            message_type=incoming.type,
         )
 
-        # Handle callback buttons (onboard:lang:XX / onboard:new / onboard:join)
-        if incoming.type == MessageType.callback and incoming.callback_data:
-            parts = incoming.callback_data.split(":")
-            if len(parts) >= 2 and parts[0] == "onboard":
-                if parts[1] == "lang" and len(parts) >= 3:
-                    # Language selection via button
-                    chosen_lang = parts[2]
-                    if chosen_lang not in ONBOARDING_TEXTS:
-                        chosen_lang = "en"
-                    await _set_onboarding_language(
-                        incoming.user_id, chosen_lang,
-                    )
-                    await _set_onboarding_state(
-                        incoming.user_id,
-                        ConversationState.onboarding_awaiting_choice,
-                    )
-                    t = await get_onboarding_texts(chosen_lang)
-                    await gateway.send(
-                        OutgoingMessage(
-                            text=t["welcome"],
-                            chat_id=incoming.chat_id,
-                            buttons=[
-                                {
-                                    "text": t["new_account"],
-                                    "callback": "onboard:new",
-                                },
-                                {
-                                    "text": t["join_family"],
-                                    "callback": "onboard:join",
-                                },
-                            ],
+        if not context:
+            # Unregistered user — handle onboarding callbacks and FSM state
+            from src.core.models.enums import ConversationState
+            from src.core.router import (
+                _clear_onboarding_state,
+                _get_onboarding_language,
+                _get_onboarding_state,
+                _set_onboarding_language,
+                _set_onboarding_state,
+                get_registry,
+            )
+            from src.skills.onboarding.handler import (
+                ONBOARDING_TEXTS,
+                get_onboarding_texts,
+            )
+
+            if incoming.type == MessageType.callback and incoming.callback_data:
+                parts = incoming.callback_data.split(":")
+                if len(parts) >= 2 and parts[0] == "onboard":
+                    if parts[1] == "lang" and len(parts) >= 3:
+                        chosen_lang = parts[2]
+                        if chosen_lang not in ONBOARDING_TEXTS:
+                            chosen_lang = "en"
+                        await _set_onboarding_language(incoming.user_id, chosen_lang)
+                        await _set_onboarding_state(
+                            incoming.user_id,
+                            ConversationState.onboarding_awaiting_choice,
                         )
-                    )
-                    return
+                        t = await get_onboarding_texts(chosen_lang)
+                        await gateway.send(
+                            OutgoingMessage(
+                                text=t["welcome"],
+                                chat_id=incoming.chat_id,
+                                buttons=[
+                                    {"text": t["new_account"], "callback": "onboard:new"},
+                                    {"text": t["join_family"], "callback": "onboard:join"},
+                                ],
+                            )
+                        )
+                        return
 
-                lang = await _get_onboarding_language(
+                    lang = await _get_onboarding_language(incoming.user_id) or "en"
+                    t = await get_onboarding_texts(lang)
+
+                    if parts[1] == "new":
+                        await _set_onboarding_state(
+                            incoming.user_id, ConversationState.onboarding_awaiting_activity
+                        )
+                        await gateway.send(
+                            OutgoingMessage(text=t["ask_activity"], chat_id=incoming.chat_id)
+                        )
+                        return
+                    if parts[1] == "join":
+                        await _set_onboarding_state(
+                            incoming.user_id,
+                            ConversationState.onboarding_awaiting_invite_code,
+                        )
+                        await gateway.send(
+                            OutgoingMessage(text=t["ask_invite"], chat_id=incoming.chat_id)
+                        )
+                        return
+
+            registry = get_registry()
+            onboarding = registry.get("onboarding")
+
+            onboarding_state = await _get_onboarding_state(incoming.user_id)
+            chosen_lang = await _get_onboarding_language(incoming.user_id)
+            tg_language = chosen_lang or incoming.language or "en"
+            intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
+
+            typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
+            try:
+                result = await onboarding.execute(
+                    incoming,
+                    SessionContext(
+                        user_id=incoming.user_id,
+                        family_id="",
+                        role="owner",
+                        language=tg_language,
+                        currency="USD",
+                        business_type=None,
+                        categories=[],
+                        merchant_mappings=[],
+                    ),
+                    intent_data,
+                )
+            finally:
+                typing_task.cancel()
+
+            text_raw = (incoming.text or "").strip()
+            if text_raw == "/start" or not onboarding_state:
+                await _set_onboarding_state(
                     incoming.user_id,
-                ) or "en"
+                    ConversationState.onboarding_awaiting_language,
+                )
+
+            onboarding_completed = not result.buttons and onboarding_state is not None
+            if onboarding_completed:
+                await _clear_onboarding_state(incoming.user_id)
+
+            await gateway.send(
+                OutgoingMessage(
+                    text=result.response_text,
+                    chat_id=incoming.chat_id,
+                    buttons=result.buttons,
+                )
+            )
+
+            if onboarding_completed:
+                lang = chosen_lang or incoming.language or "en"
                 t = await get_onboarding_texts(lang)
+                await gateway.send(
+                    OutgoingMessage(
+                        text=t["tz_location_prompt"],
+                        chat_id=incoming.chat_id,
+                        reply_keyboard=[
+                            {"text": t["share_location_btn"], "request_location": True},
+                        ],
+                    )
+                )
+                await gateway.send(
+                    OutgoingMessage(
+                        text=t["tz_skip_hint"],
+                        chat_id=incoming.chat_id,
+                        buttons=[{"text": t["tz_skip_btn"], "callback": "tz_skip"}],
+                    )
+                )
+            return
 
-                if parts[1] == "new":
-                    await _set_onboarding_state(
-                        incoming.user_id, ConversationState.onboarding_awaiting_activity
-                    )
-                    await gateway.send(
-                        OutgoingMessage(text=t["ask_activity"], chat_id=incoming.chat_id)
-                    )
-                    return
-                elif parts[1] == "join":
-                    await _set_onboarding_state(
-                        incoming.user_id, ConversationState.onboarding_awaiting_invite_code
-                    )
-                    await gateway.send(
-                        OutgoingMessage(text=t["ask_invite"], chat_id=incoming.chat_id)
-                    )
-                    return
+        if incoming.language:
+            asyncio.create_task(
+                _maybe_set_timezone_from_language(context.user_id, incoming.language)
+            )
 
-        registry = get_registry()
-        onboarding = registry.get("onboarding")
+        _heavy_callbacks = {"taxi_select", "taxi_confirm", "taxi_back"}
+        if incoming.type == MessageType.callback and incoming.callback_data:
+            cb_action = incoming.callback_data.split(":")[0]
+            if cb_action in _heavy_callbacks:
+                lang = context.language or "en"
+                ack = (
+                    "⏳ Обрабатываю, подождите..."
+                    if lang == "ru"
+                    else "⏳ Processing, please wait..."
+                )
+                await gateway.send(OutgoingMessage(text=ack, chat_id=incoming.chat_id))
 
-        onboarding_state = await _get_onboarding_state(incoming.user_id)
-        chosen_lang = await _get_onboarding_language(incoming.user_id)
-        tg_language = chosen_lang or incoming.language or "en"
-        intent_data = {"onboarding_state": onboarding_state} if onboarding_state else {}
+                async def _run_heavy_callback(msg=incoming, ctx=context):
+                    try:
+                        resp = await handle_message(msg, ctx)
+                        await gateway.send(resp)
+                    except Exception:
+                        logger.exception("Error in heavy callback for user %s", ctx.user_id)
+                        err = (
+                            "Произошла ошибка. Попробуйте ещё раз."
+                            if lang == "ru"
+                            else "An error occurred. Please try again."
+                        )
+                        await gateway.send(OutgoingMessage(text=err, chat_id=msg.chat_id))
+
+                asyncio.create_task(_run_heavy_callback())
+                return
 
         typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
         try:
-            result = await onboarding.execute(
-                incoming,
-                SessionContext(
-                    user_id=incoming.user_id,
-                    family_id="",
-                    role="owner",
-                    language=tg_language,
-                    currency="USD",
-                    business_type=None,
-                    categories=[],
-                    merchant_mappings=[],
-                ),
-                intent_data,
+            response = await handle_message(incoming, context)
+        except Exception:
+            logger.exception("Unhandled error in handle_message for user %s", incoming.user_id)
+            response = OutgoingMessage(
+                text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
+                chat_id=incoming.chat_id,
             )
         finally:
             typing_task.cancel()
-
-        # After /start or fresh entry: reset to awaiting_language
-        # so the user can type their preferred language.
-        # Always reset on /start to clear any stale state.
-        text_raw = (incoming.text or "").strip()
-        if text_raw == "/start" or not onboarding_state:
-            await _set_onboarding_state(
-                incoming.user_id,
-                ConversationState.onboarding_awaiting_language,
-            )
-
-        # Detect onboarding completion (no buttons = done)
-        onboarding_completed = not result.buttons and onboarding_state is not None
-        if onboarding_completed:
-            await _clear_onboarding_state(incoming.user_id)
-
-        # Send main response
-        await gateway.send(
-            OutgoingMessage(
-                text=result.response_text,
-                chat_id=incoming.chat_id,
-                buttons=result.buttons,
-            )
-        )
-
-        # After onboarding completion: send timezone location request
-        if onboarding_completed:
-            lang = chosen_lang or incoming.language or "en"
-            t = await get_onboarding_texts(lang)
-            # Message 1: location request with reply keyboard
-            await gateway.send(
-                OutgoingMessage(
-                    text=t["tz_location_prompt"],
-                    chat_id=incoming.chat_id,
-                    reply_keyboard=[
-                        {"text": t["share_location_btn"], "request_location": True},
-                    ],
-                )
-            )
-            # Message 2: skip option (inline button)
-            await gateway.send(
-                OutgoingMessage(
-                    text=t["tz_skip_hint"],
-                    chat_id=incoming.chat_id,
-                    buttons=[
-                        {"text": t["tz_skip_btn"], "callback": "tz_skip"},
-                    ],
-                )
-            )
-
-        return
-
-    # Background: auto-set timezone from Telegram language_code
-    if incoming.language:
-        asyncio.create_task(_maybe_set_timezone_from_language(context.user_id, incoming.language))
-
-    # Heavy browser callbacks (taxi_select, taxi_confirm, taxi_back): send immediate ack
-    # and run the blocking browser automation in a background task so the webhook
-    # returns fast and the user sees feedback right away.
-    _HEAVY_CALLBACKS = {"taxi_select", "taxi_confirm", "taxi_back"}
-    if incoming.type == MessageType.callback and incoming.callback_data:
-        cb_action = incoming.callback_data.split(":")[0]
-        if cb_action in _HEAVY_CALLBACKS:
-            lang = context.language or "en"
-            ack = "⏳ Обрабатываю, подождите..." if lang == "ru" else "⏳ Processing, please wait..."
-            await gateway.send(OutgoingMessage(text=ack, chat_id=incoming.chat_id))
-
-            async def _run_heavy_callback(msg=incoming, ctx=context):
-                try:
-                    resp = await handle_message(msg, ctx)
-                    await gateway.send(resp)
-                except Exception:
-                    logger.exception("Error in heavy callback for user %s", ctx.user_id)
-                    err = "Произошла ошибка. Попробуйте ещё раз." if lang == "ru" else "An error occurred. Please try again."
-                    await gateway.send(OutgoingMessage(text=err, chat_id=msg.chat_id))
-
-            asyncio.create_task(_run_heavy_callback())
-            return
-
-    typing_task = asyncio.create_task(_typing_loop(gateway, incoming.chat_id))
-    try:
-        response = await handle_message(incoming, context)
-    except Exception:
-        logger.exception("Unhandled error in handle_message for user %s", incoming.user_id)
-        response = OutgoingMessage(
-            text="Произошла ошибка. Попробуйте ещё раз через пару секунд.",
+        await gateway.send(response)
+        log_runtime_event(
+            logger,
+            "info",
+            "incoming_message_completed",
+            channel=incoming.channel,
             chat_id=incoming.chat_id,
+            user_id=incoming.user_id,
+            message_id=incoming.id,
+            has_response_text=bool(response.text),
+            has_buttons=bool(response.buttons),
         )
     finally:
-        typing_task.cancel()
-    await gateway.send(response)
+        reset_request_context(request_token)
 
 
 async def _process_channel_message(incoming, gw) -> None:
@@ -578,8 +601,26 @@ async def _process_channel_message(incoming, gw) -> None:
 async def _handle_channel_message(incoming, gw):
     """Handle a message from a non-Telegram channel (Slack, WhatsApp, SMS)."""
     typing_task = None
+    request_token = set_request_context(
+        request_id=str(uuid.uuid4()),
+        correlation_id=f"{incoming.channel}:{incoming.chat_id}:{incoming.id}",
+    )
     try:
         context = await build_context_from_channel(incoming.channel, incoming.channel_user_id)
+        update_request_context(
+            rollout_cohort=resolve_release_cohort(context),
+            release_flags=get_release_flag_snapshot(),
+        )
+        log_runtime_event(
+            logger,
+            "info",
+            "channel_message_received",
+            channel=incoming.channel,
+            chat_id=incoming.chat_id,
+            user_id=incoming.user_id,
+            message_id=incoming.id,
+            message_type=incoming.type,
+        )
 
         if not context:
             # Unregistered channel user — run onboarding (same as Telegram)
@@ -601,6 +642,17 @@ async def _handle_channel_message(incoming, gw):
         response.chat_id = incoming.chat_id
         response.channel = incoming.channel
         await gw.send(response)
+        log_runtime_event(
+            logger,
+            "info",
+            "channel_message_completed",
+            channel=incoming.channel,
+            chat_id=incoming.chat_id,
+            user_id=incoming.user_id,
+            message_id=incoming.id,
+            has_response_text=bool(response.text),
+            has_buttons=bool(response.buttons),
+        )
     except Exception:
         logger.exception(
             "Unhandled error while processing %s message for %s",
@@ -622,6 +674,7 @@ async def _handle_channel_message(incoming, gw):
     finally:
         if typing_task is not None:
             typing_task.cancel()
+        reset_request_context(request_token)
 
 
 async def _handle_channel_onboarding(incoming, gw):
