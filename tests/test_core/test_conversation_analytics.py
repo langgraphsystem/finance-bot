@@ -9,8 +9,11 @@ from src.core.conversation_analytics import (
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
     get_dataset_candidates,
+    get_golden_dialogues,
     get_review_queue_snapshot,
+    get_review_results,
     get_sampling_rule,
+    get_weekly_curation_snapshot,
     normalize_review_label,
     schedule_review_trace_capture,
     should_sample_analytics_event,
@@ -86,6 +89,8 @@ def test_emit_conversation_analytics_event_logs_sampled_payload():
     assert payload is not None
     assert payload["outcome"] == "error"
     assert payload["sampling_percent"] == 100
+    assert payload["message_preview"] == "Привет"
+    assert payload["response_preview"] == "Здравствуйте"
     assert mock_log.call_args.args[2] == "conversation_analytics_event"
 
 
@@ -127,6 +132,18 @@ async def test_get_dataset_candidates_returns_recent_items():
 
     assert candidates[0]["trace_key"] == "corr-1"
     assert candidates[0]["review"]["final_label"] == "wrong_route"
+
+
+async def test_get_review_results_returns_recent_items():
+    items = [
+        '{"trace_key":"corr-1","final_label":"wrong_route","action":"promote_to_dataset"}',
+    ]
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.lrange = AsyncMock(return_value=items)
+        results = await get_review_results(limit=1)
+
+    assert results[0]["trace_key"] == "corr-1"
+    assert results[0]["action"] == "promote_to_dataset"
 
 
 def test_schedule_review_trace_capture_is_safe_without_loop():
@@ -222,3 +239,84 @@ async def test_submit_trace_review_rejects_missing_rubric_fields():
             assert str(exc).startswith("missing_rubric_fields:")
         else:
             raise AssertionError("submit_trace_review should reject partial rubric")
+
+
+async def test_get_golden_dialogues_formats_candidates():
+    candidates = [
+        {
+            "trace_key": "corr-1",
+            "trace": {
+                "channel": "telegram",
+                "intent": "general_chat",
+                "message_preview": "Привет, что ты умеешь?",
+                "response_preview": "Могу помочь с задачами.",
+                "tags": ["multi_intent"],
+            },
+            "review": {
+                "final_label": "wrong_route",
+                "labels": ["routing"],
+                "notes": "Нужен более точный route.",
+                "rubric": {"intent_correct": False},
+                "source_outcome": "wrong_route",
+                "source_review_label": "wrong_route",
+                "reviewed_at": "2026-03-11T00:00:00+00:00",
+            },
+            "candidate_created_at": "2026-03-11T00:00:00+00:00",
+        }
+    ]
+    with patch(
+        "src.core.conversation_analytics.get_dataset_candidates",
+        AsyncMock(return_value=candidates),
+    ):
+        golden_dialogues = await get_golden_dialogues(limit=1)
+
+    assert golden_dialogues[0]["trace_key"] == "corr-1"
+    assert golden_dialogues[0]["scenario"] == "multi_intent"
+    assert golden_dialogues[0]["input_text"] == "Привет, что ты умеешь?"
+    assert golden_dialogues[0]["assistant_response"] == "Могу помочь с задачами."
+
+
+async def test_get_weekly_curation_snapshot_aggregates_reviews():
+    review_results = [
+        {"trace_key": "corr-1", "final_label": "wrong_route", "action": "promote_to_dataset"},
+        {"trace_key": "corr-2", "final_label": "tool_failure", "action": "follow_up"},
+    ]
+    dataset_candidates = [
+        {
+            "trace_key": "corr-1",
+            "trace": {
+                "channel": "telegram",
+                "intent": "general_chat",
+                "message_preview": "Привет",
+                "response_preview": "Здравствуйте",
+                "tags": [],
+            },
+            "review": {
+                "final_label": "wrong_route",
+                "labels": ["routing"],
+                "notes": "",
+                "rubric": {"intent_correct": False},
+                "source_outcome": "wrong_route",
+                "source_review_label": "wrong_route",
+                "reviewed_at": "2026-03-11T00:00:00+00:00",
+            },
+            "candidate_created_at": "2026-03-11T00:00:00+00:00",
+        }
+    ]
+    with (
+        patch(
+            "src.core.conversation_analytics.get_review_results",
+            AsyncMock(return_value=review_results),
+        ),
+        patch(
+            "src.core.conversation_analytics.get_dataset_candidates",
+            AsyncMock(return_value=dataset_candidates),
+        ),
+    ):
+        snapshot = await get_weekly_curation_snapshot(limit=5)
+
+    assert snapshot["review_result_size"] == 2
+    assert snapshot["dataset_candidate_size"] == 1
+    assert snapshot["review_label_counts"]["wrong_route"] == 1
+    assert snapshot["review_action_counts"]["follow_up"] == 1
+    assert snapshot["golden_dialogues"][0]["trace_key"] == "corr-1"

@@ -261,3 +261,62 @@ async def test_analytics_dataset_candidates_returns_snapshot(mock_dependencies):
     data = resp.json()
     assert data["dataset_candidate_size"] == 1
     assert data["dataset_candidates"][0]["trace_key"] == "corr-1"
+
+
+async def test_analytics_review_results_returns_snapshot(mock_dependencies):
+    results = [
+        {"trace_key": "corr-1", "final_label": "wrong_route", "action": "promote_to_dataset"},
+    ]
+    with (
+        patch("api.main.get_review_results", AsyncMock(return_value=results)),
+        patch(
+            "api.main.get_conversation_analytics_policy",
+            return_value={"review_actions": ["promote_to_dataset"]},
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/review-results?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["review_result_size"] == 1
+    assert data["review_results"][0]["trace_key"] == "corr-1"
+
+
+async def test_analytics_golden_dialogues_returns_snapshot(mock_dependencies):
+    golden_dialogues = [
+        {"trace_key": "corr-1", "scenario": "general", "input_text": "Привет"},
+    ]
+    with (
+        patch("api.main.get_golden_dialogues", AsyncMock(return_value=golden_dialogues)),
+        patch(
+            "api.main.get_conversation_analytics_policy",
+            return_value={"review_actions": ["promote_to_dataset"]},
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/golden-dialogues?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["golden_dialogue_size"] == 1
+    assert data["golden_dialogues"][0]["trace_key"] == "corr-1"
+
+
+async def test_analytics_weekly_curation_returns_snapshot(mock_dependencies):
+    snapshot = {
+        "review_result_size": 2,
+        "dataset_candidate_size": 1,
+        "review_label_counts": {"wrong_route": 1},
+        "review_action_counts": {"promote_to_dataset": 1},
+        "recent_reviews": [],
+        "golden_dialogues": [],
+    }
+    with patch("api.main.get_weekly_curation_snapshot", AsyncMock(return_value=snapshot)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/weekly-curation?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["review_result_size"] == 2
+    assert data["review_action_counts"]["promote_to_dataset"] == 1

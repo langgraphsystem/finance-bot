@@ -25,7 +25,10 @@ from src.core.conversation_analytics import (
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
     get_dataset_candidates,
+    get_golden_dialogues,
     get_review_queue_snapshot,
+    get_review_results,
+    get_weekly_curation_snapshot,
     submit_trace_review,
 )
 from src.core.db import async_session, redis
@@ -1125,6 +1128,37 @@ async def analytics_dataset_candidates(request: Request, limit: int = 25) -> dic
         "dataset_candidate_size": len(candidates),
         "dataset_candidates": candidates,
     }
+
+
+@app.get("/ops/analytics/review-results")
+async def analytics_review_results(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return recent structured review results."""
+    _require_ops_auth(request)
+    results = await get_review_results(limit=max(1, min(limit, 100)))
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "review_result_size": len(results),
+        "review_results": results,
+    }
+
+
+@app.get("/ops/analytics/golden-dialogues")
+async def analytics_golden_dialogues(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return reviewed production traces formatted as golden dialogues."""
+    _require_ops_auth(request)
+    golden_dialogues = await get_golden_dialogues(limit=max(1, min(limit, 100)))
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "golden_dialogue_size": len(golden_dialogues),
+        "golden_dialogues": golden_dialogues,
+    }
+
+
+@app.get("/ops/analytics/weekly-curation")
+async def analytics_weekly_curation(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return a weekly curation snapshot for trace review and dataset growth."""
+    _require_ops_auth(request)
+    return await get_weekly_curation_snapshot(limit=max(1, min(limit, 100)))
 
 
 # ------------------------------------------------------------------

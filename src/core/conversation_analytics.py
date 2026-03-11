@@ -82,6 +82,8 @@ _REVIEW_RUBRIC_FIELDS = [
     "formatting_correct",
     "latency_acceptable",
 ]
+_MESSAGE_PREVIEW_LIMIT = 500
+_RESPONSE_PREVIEW_LIMIT = 1000
 
 
 def get_conversation_analytics_policy() -> dict[str, Any]:
@@ -404,6 +406,86 @@ async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
     return parsed
 
 
+async def get_review_results(limit: int = 25) -> list[dict[str, Any]]:
+    """Return recent structured review results."""
+    try:
+        items = await redis.lrange(_REVIEW_RESULT_QUEUE_KEY, 0, max(limit - 1, 0))
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to fetch review results", exc_info=True)
+        return []
+    parsed: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            parsed.append(json.loads(item))
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return parsed
+
+
+def _build_golden_dialogue(candidate: dict[str, Any]) -> dict[str, Any]:
+    trace = candidate.get("trace") or {}
+    review = candidate.get("review") or {}
+    tags = list(trace.get("tags") or [])
+    scenario = (
+        "multi_intent"
+        if "multi_intent" in tags
+        else "memory"
+        if "memory_related" in tags
+        else "guardrails"
+        if review.get("final_label") in {"unsafe_block", "unsafe_allow"}
+        else "general"
+    )
+    return {
+        "id": candidate.get("trace_key"),
+        "trace_key": candidate.get("trace_key"),
+        "scenario": scenario,
+        "source": "production_review",
+        "channel": trace.get("channel"),
+        "intent": trace.get("intent"),
+        "review_label": review.get("final_label"),
+        "labels": list(review.get("labels") or []),
+        "input_text": trace.get("message_preview", ""),
+        "assistant_response": trace.get("response_preview", ""),
+        "review_notes": review.get("notes", ""),
+        "rubric": review.get("rubric", {}),
+        "metadata": {
+            "tags": tags,
+            "source_outcome": review.get("source_outcome"),
+            "source_review_label": review.get("source_review_label"),
+            "reviewed_at": review.get("reviewed_at"),
+            "candidate_created_at": candidate.get("candidate_created_at"),
+        },
+    }
+
+
+async def get_golden_dialogues(limit: int = 25) -> list[dict[str, Any]]:
+    """Return dataset candidates transformed into a golden-dialogue export format."""
+    candidates = await get_dataset_candidates(limit=limit)
+    return [_build_golden_dialogue(candidate) for candidate in candidates]
+
+
+async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
+    """Return a compact operator snapshot for weekly trace-to-dataset curation."""
+    review_results = await get_review_results(limit=limit)
+    dataset_candidates = await get_dataset_candidates(limit=limit)
+    label_counts: dict[str, int] = {}
+    action_counts: dict[str, int] = {}
+    for review in review_results:
+        label = str(review.get("final_label") or "unknown")
+        action = str(review.get("action") or "unknown")
+        label_counts[label] = label_counts.get(label, 0) + 1
+        action_counts[action] = action_counts.get(action, 0) + 1
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "review_result_size": len(review_results),
+        "dataset_candidate_size": len(dataset_candidates),
+        "review_label_counts": label_counts,
+        "review_action_counts": action_counts,
+        "recent_reviews": review_results,
+        "golden_dialogues": [_build_golden_dialogue(candidate) for candidate in dataset_candidates],
+    }
+
+
 async def get_review_queue_snapshot(limit: int = 25) -> dict[str, Any]:
     """Return a compact operator snapshot of review candidates and trace exports."""
     review_items = await get_review_queue(limit=limit)
@@ -457,6 +539,8 @@ def emit_conversation_analytics_event(
         "response_has_buttons": bool(response.buttons) if response else False,
         "response_length": len(response.text or "") if response else 0,
         "message_length": len(message.text or ""),
+        "message_preview": (message.text or "")[:_MESSAGE_PREVIEW_LIMIT],
+        "response_preview": (response.text or "")[:_RESPONSE_PREVIEW_LIMIT] if response else "",
     }
     if extra:
         payload.update(extra)
