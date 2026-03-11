@@ -29,8 +29,13 @@ DEFAULT_SESSION_TTL_DAYS = 30
 # Canonical domains for providers that use multiple subdomains for auth/booking.
 _CANONICAL_DOMAIN_SUFFIXES: dict[str, str] = {
     "uber.com": "uber.com",
+    "ubereats.com": "ubereats.com",
     "lyft.com": "lyft.com",
     "relay.amazon.com": "relay.amazon.com",
+    "doordash.com": "doordash.com",
+    "grubhub.com": "grubhub.com",
+    "deliveroo.com": "deliveroo.com",
+    "glovoapp.com": "glovoapp.com",
 }
 
 # Mapping of popular domains to their specific login page URLs
@@ -52,11 +57,13 @@ _LOGIN_URLS: dict[str, str] = {
     "ostrovok.ru": "https://ostrovok.ru/auth/signin/",
     "ozon.ru": "https://www.ozon.ru/login/",
     "wildberries.ru": "https://www.wildberries.ru/security/login",
-    "uber.com": (
-        "https://auth.uber.com/v2/"
-        "?next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome"
-    ),
+    "uber.com": ("https://auth.uber.com/v2/?next_url=https%3A%2F%2Fm.uber.com%2Fgo%2Fhome"),
     "lyft.com": "https://ride.lyft.com/",
+    "ubereats.com": "https://www.ubereats.com",
+    "doordash.com": "https://identity.doordash.com/auth/user/login",
+    "grubhub.com": "https://www.grubhub.com/login",
+    "deliveroo.com": "https://deliveroo.com/login",
+    "glovoapp.com": "https://glovoapp.com/login",
 }
 
 _PROVIDER_LABELS: dict[str, str] = {
@@ -310,9 +317,7 @@ async def execute_with_session(
                         cu_result["storage_state"],
                     )
                 except Exception as e:
-                    logger.warning(
-                        "Failed to save updated cookies after computer-use task: %s", e
-                    )
+                    logger.warning("Failed to save updated cookies after computer-use task: %s", e)
 
             cu_text = str(cu_result.get("result", ""))
             if cu_result.get("success") or cu_text in {"LOGIN_REQUIRED", "CAPTCHA_DETECTED"}:
@@ -436,4 +441,3 @@ async def execute_with_session(
             "result": f"Browser task failed: {e}",
             "engine": "browser_use",
         }
-

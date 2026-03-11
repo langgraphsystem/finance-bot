@@ -28,6 +28,154 @@ _PROVIDER_LABELS = {
     "lyft.com": "Lyft",
 }
 
+# ---------------------------------------------------------------------------
+# i18n strings (en / ru / es)
+# ---------------------------------------------------------------------------
+
+_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "need_provider": (
+            "Which taxi service should I use?\n\nExample: <i>Order an Uber to 123 Main St</i>"
+        ),
+        "need_destination": (
+            "Where should I order the {provider} ride?\n\n"
+            "Send the destination address or place name."
+        ),
+        "no_flow": "No active taxi request.",
+        "no_login_waiting": "No taxi login is waiting right now.",
+        "no_selection_waiting": "No ride options are waiting for selection.",
+        "no_confirm_waiting": "No taxi booking is waiting for confirmation.",
+        "invalid_option": "Invalid option. Choose 1-{count}.",
+        "login_needed": ("I need access to <b>{provider}</b> before I can show live ride options."),
+        "login_still_no_session": ("I still don't see a saved session for this provider."),
+        "login_instructions": (
+            "Tap the connect button below and log in in your browser.\n"
+            "When the login finishes, Finance Bot will save the session and return you to "
+            "Telegram automatically.\n\n"
+            "If this is your first browser setup, send /extension once."
+        ),
+        "captcha": (
+            "The provider asked for a CAPTCHA. Open the connect flow below, solve it in your "
+            "browser, and I will continue automatically when the session is ready."
+        ),
+        "options_header": "<b>{provider} ride options</b>",
+        "destination_label": "Destination: <b>{destination}</b>",
+        "pickup_label": "Pickup: <b>{pickup}</b>",
+        "choose_option": "Choose an option or send its number.",
+        "confirm_header": "<b>Confirm this ride?</b>",
+        "confirm_footer": "I will place the ride only after you confirm.",
+        "price_changed": "<b>The price changed before booking.</b>\n\n",
+        "ride_requested": "<b>Ride requested.</b>",
+        "no_rides": (
+            "I couldn't find available rides in {provider} for <b>{destination}</b> right now."
+        ),
+        "error_extract": (
+            "I couldn't extract ride options from the provider.\n\n<code>{raw}</code>"
+        ),
+        "error_review": (
+            "I couldn't prepare the final ride confirmation screen.\n\n<code>{raw}</code>"
+        ),
+        "error_booking": "I couldn't complete the ride request.\n\n<code>{notes}</code>",
+        "unavailable": ("{label} is no longer available.\n\nChoose another ride option."),
+        "btn_cancel": "Cancel",
+        "btn_confirm": "Confirm ride",
+        "btn_back": "Back to options",
+        "btn_ready": "Ready — continue",
+        "btn_confirm_updated": "Confirm updated price",
+        "cancelled": "Taxi booking cancelled.",
+    },
+    "ru": {
+        "need_provider": (
+            "Какой сервис такси использовать?\n\nПример: <i>Закажи Uber до 123 Main St</i>"
+        ),
+        "need_destination": ("Куда заказать {provider}?\n\nОтправьте адрес или название места."),
+        "no_flow": "Нет активного заказа такси.",
+        "no_login_waiting": "Нет ожидающего входа для такси.",
+        "no_selection_waiting": "Нет вариантов поездки для выбора.",
+        "no_confirm_waiting": "Нет заказа такси для подтверждения.",
+        "invalid_option": "Неверный вариант. Выберите 1-{count}.",
+        "login_needed": ("Мне нужен доступ к <b>{provider}</b> для показа актуальных вариантов."),
+        "login_still_no_session": ("Всё ещё не вижу сохранённой сессии для этого сервиса."),
+        "login_instructions": (
+            "Нажмите кнопку ниже и войдите в аккаунт в браузере.\n"
+            "После входа сессия сохранится автоматически."
+        ),
+        "captcha": (
+            "Сервис показал CAPTCHA. Откройте ссылку ниже, решите её, и я продолжу автоматически."
+        ),
+        "options_header": "<b>Варианты поездки {provider}</b>",
+        "destination_label": "Куда: <b>{destination}</b>",
+        "pickup_label": "Откуда: <b>{pickup}</b>",
+        "choose_option": "Выберите вариант или отправьте его номер.",
+        "confirm_header": "<b>Подтвердить поездку?</b>",
+        "confirm_footer": "Закажу поездку только после вашего подтверждения.",
+        "price_changed": "<b>Цена изменилась перед заказом.</b>\n\n",
+        "ride_requested": "<b>Поездка заказана.</b>",
+        "no_rides": ("Не нашёл доступных поездок {provider} до <b>{destination}</b> прямо сейчас."),
+        "error_extract": ("Не удалось извлечь варианты поездки.\n\n<code>{raw}</code>"),
+        "error_review": ("Не удалось подготовить экран подтверждения.\n\n<code>{raw}</code>"),
+        "error_booking": "Не удалось завершить заказ поездки.\n\n<code>{notes}</code>",
+        "unavailable": ("{label} больше недоступен.\n\nВыберите другой вариант."),
+        "btn_cancel": "Отмена",
+        "btn_confirm": "Подтвердить поездку",
+        "btn_back": "К вариантам",
+        "btn_ready": "Готово — продолжить",
+        "btn_confirm_updated": "Подтвердить новую цену",
+        "cancelled": "Заказ такси отменён.",
+    },
+    "es": {
+        "need_provider": (
+            "¿Qué servicio de taxi debo usar?\n\nEjemplo: <i>Pide un Uber a 123 Main St</i>"
+        ),
+        "need_destination": (
+            "¿A dónde pido el viaje de {provider}?\n\nEnvía la dirección o el nombre del lugar."
+        ),
+        "no_flow": "No hay solicitud de taxi activa.",
+        "no_login_waiting": "No hay inicio de sesión de taxi pendiente.",
+        "no_selection_waiting": "No hay opciones de viaje esperando selección.",
+        "no_confirm_waiting": "No hay reserva de taxi esperando confirmación.",
+        "invalid_option": "Opción inválida. Elige 1-{count}.",
+        "login_needed": ("Necesito acceso a <b>{provider}</b> para mostrar opciones de viaje."),
+        "login_still_no_session": ("Aún no veo una sesión guardada para este servicio."),
+        "login_instructions": (
+            "Presiona el botón y entra a tu cuenta en el navegador.\n"
+            "La sesión se guardará automáticamente."
+        ),
+        "captcha": (
+            "El servicio mostró un CAPTCHA. Abre el enlace, resuélvelo "
+            "y continuaré automáticamente."
+        ),
+        "options_header": "<b>Opciones de viaje {provider}</b>",
+        "destination_label": "Destino: <b>{destination}</b>",
+        "pickup_label": "Recogida: <b>{pickup}</b>",
+        "choose_option": "Elige una opción o envía su número.",
+        "confirm_header": "<b>¿Confirmar este viaje?</b>",
+        "confirm_footer": "Solo reservaré después de tu confirmación.",
+        "price_changed": "<b>El precio cambió antes de la reserva.</b>\n\n",
+        "ride_requested": "<b>Viaje solicitado.</b>",
+        "no_rides": (
+            "No encontré viajes disponibles en {provider} hacia <b>{destination}</b> ahora."
+        ),
+        "error_extract": ("No pude extraer opciones de viaje.\n\n<code>{raw}</code>"),
+        "error_review": ("No pude preparar la pantalla de confirmación.\n\n<code>{raw}</code>"),
+        "error_booking": "No pude completar la solicitud de viaje.\n\n<code>{notes}</code>",
+        "unavailable": ("{label} ya no está disponible.\n\nElige otra opción."),
+        "btn_cancel": "Cancelar",
+        "btn_confirm": "Confirmar viaje",
+        "btn_back": "Volver a opciones",
+        "btn_ready": "Listo — continuar",
+        "btn_confirm_updated": "Confirmar nuevo precio",
+        "cancelled": "Reserva de taxi cancelada.",
+    },
+}
+
+
+def _t(key: str, lang: str, **kwargs: Any) -> str:
+    strings = _STRINGS.get(lang, _STRINGS["en"])
+    template = strings.get(key, _STRINGS["en"].get(key, key))
+    return template.format(**kwargs) if kwargs else template
+
+
 _OPTIONS_PROMPT = """\
 Open {site_url} and prepare a ride search for the authenticated user.
 
@@ -182,9 +330,7 @@ def parse_taxi_request(task: str, site_hint: str | None = None) -> dict[str, Any
 
     for filler in ("uber", "lyft", "uber.com", "lyft.com"):
         if destination:
-            destination = re.sub(
-                rf"\b{re.escape(filler)}\b", "", destination, flags=re.IGNORECASE
-            )
+            destination = re.sub(rf"\b{re.escape(filler)}\b", "", destination, flags=re.IGNORECASE)
             destination = re.sub(r"\s{2,}", " ", destination).strip(" ,.")
         if pickup:
             pickup = re.sub(rf"\b{re.escape(filler)}\b", "", pickup, flags=re.IGNORECASE)
@@ -212,10 +358,7 @@ async def start_flow(
     if not provider:
         return {
             "action": "need_provider",
-            "text": (
-                "Which taxi service should I use?\n\n"
-                "Example: <i>Order an Uber to 123 Main St</i>"
-            ),
+            "text": _t("need_provider", language),
         }
 
     flow_id = str(uuid.uuid4())
@@ -236,12 +379,9 @@ async def start_flow(
         await _set_state(user_id, state)
         return {
             "action": "need_destination",
-            "text": (
-                f"Where should I order the {_provider_label(provider)} ride?\n\n"
-                "Send the destination address or place name."
-            ),
+            "text": _t("need_destination", language, provider=_provider_label(provider)),
             "buttons": [
-                {"text": "Cancel", "callback": f"taxi_cancel:{flow_id}"},
+                {"text": _t("btn_cancel", language), "callback": f"taxi_cancel:{flow_id}"},
             ],
         }
 
@@ -255,7 +395,7 @@ async def check_auth_and_fetch_options(user_id: str) -> dict[str, Any]:
 
     state = await get_taxi_state(user_id)
     if not state:
-        return {"action": "no_flow", "text": "No active taxi request."}
+        return {"action": "no_flow", "text": _t("no_flow", "en")}
 
     provider = state["provider"]
     storage_state = await browser_service.get_storage_state(user_id, provider)
@@ -274,14 +414,16 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
 
     state = await get_taxi_state(user_id)
     if not state or state.get("step") != "awaiting_login":
-        return {"action": "no_flow", "text": "No taxi login is waiting right now."}
+        lang = state.get("language", "en") if state else "en"
+        return {"action": "no_flow", "text": _t("no_login_waiting", lang)}
 
     provider = state["provider"]
     storage_state = await browser_service.get_storage_state(user_id, provider)
     if not storage_state:
+        lang = state.get("language", "en")
         return await _build_login_prompt(
             state,
-            prefix="I still don't see a saved session for this provider.",
+            prefix=_t("login_still_no_session", lang),
         )
 
     state["step"] = "fetching_options"
@@ -294,11 +436,13 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
 
     state = await get_taxi_state(user_id)
     if not state or state.get("step") != "awaiting_selection":
-        return {"action": "no_flow", "text": "No ride options are waiting for selection."}
+        lang = state.get("language", "en") if state else "en"
+        return {"action": "no_flow", "text": _t("no_selection_waiting", lang)}
 
+    lang = state.get("language", "en")
     options = state.get("options", [])
     if index < 0 or index >= len(options):
-        return {"action": "error", "text": f"Invalid option. Choose 1-{len(options)}."}
+        return {"action": "error", "text": _t("invalid_option", lang, count=len(options))}
 
     selected = options[index]
     provider = state["provider"]
@@ -333,37 +477,32 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
         connect_url = await _get_connect_url(state)
         return {
             "action": "captcha",
-            "text": (
-                "The provider showed a CAPTCHA. Open the connect flow below, solve it in your "
-                "browser, and I will continue automatically when the session is ready."
-            ),
+            "text": _t("captcha", lang),
             "buttons": [
                 {
                     "text": f"Connect {_provider_label(provider)}",
                     "url": connect_url,
                 },
-                {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
-                {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
+                {"text": _t("btn_ready", lang), "callback": f"taxi_login_ready:{state['flow_id']}"},
+                {"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{state['flow_id']}"},
             ],
         }
 
     if status == "UNAVAILABLE":
         return {
             "action": "unavailable",
-            "text": (
-                f"{selected.get('label', 'That option')} is no longer available.\n\n"
-                "Choose another ride option."
+            "text": _t(
+                "unavailable",
+                lang,
+                label=_escape_html(selected.get("label", "That option")),
             ),
-            "buttons": _build_option_buttons(options, state["flow_id"]),
+            "buttons": _build_option_buttons(options, state["flow_id"], lang),
         }
 
     if not review:
         return {
             "action": "error",
-            "text": (
-                "I couldn't prepare the final ride confirmation screen.\n\n"
-                f"Raw result: <code>{_escape_html(raw[:300])}</code>"
-            ),
+            "text": _t("error_review", lang, raw=_escape_html(raw[:300])),
         }
 
     state["selected_option"] = selected
@@ -374,9 +513,9 @@ async def handle_option_selection(user_id: str, index: int) -> dict[str, Any]:
         "action": "confirming",
         "text": _format_review_text(state),
         "buttons": [
-            {"text": "Confirm ride", "callback": f"taxi_confirm:{state['flow_id']}"},
-            {"text": "Back to options", "callback": f"taxi_back:{state['flow_id']}"},
-            {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
+            {"text": _t("btn_confirm", lang), "callback": f"taxi_confirm:{state['flow_id']}"},
+            {"text": _t("btn_back", lang), "callback": f"taxi_back:{state['flow_id']}"},
+            {"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{state['flow_id']}"},
         ],
     }
 
@@ -386,8 +525,10 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
 
     state = await get_taxi_state(user_id)
     if not state or state.get("step") != "confirming":
-        return {"action": "no_flow", "text": "No taxi booking is waiting for confirmation."}
+        lang = state.get("language", "en") if state else "en"
+        return {"action": "no_flow", "text": _t("no_confirm_waiting", lang)}
 
+    lang = state.get("language", "en")
     review = state.get("review", {})
     selected = state.get("selected_option", {})
     provider = state["provider"]
@@ -424,17 +565,14 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
         await _set_state(user_id, state)
         return {
             "action": "price_changed",
-            "text": (
-                "<b>The price changed before booking.</b>\n\n"
-                f"{_format_review_text(state)}"
-            ),
+            "text": _t("price_changed", lang) + _format_review_text(state),
             "buttons": [
                 {
-                    "text": "Confirm updated price",
+                    "text": _t("btn_confirm_updated", lang),
                     "callback": f"taxi_confirm:{state['flow_id']}",
                 },
-                {"text": "Back to options", "callback": f"taxi_back:{state['flow_id']}"},
-                {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
+                {"text": _t("btn_back", lang), "callback": f"taxi_back:{state['flow_id']}"},
+                {"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{state['flow_id']}"},
             ],
         }
 
@@ -443,10 +581,7 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
         await _clear_state(user_id)
         return {
             "action": "failed",
-            "text": (
-                "I couldn't complete the ride request.\n\n"
-                f"<code>{_escape_html(notes)}</code>"
-            ),
+            "text": _t("error_booking", lang, notes=_escape_html(notes)),
         }
 
     await _clear_state(user_id)
@@ -459,8 +594,10 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
 async def handle_back_to_options(user_id: str) -> dict[str, Any]:
     state = await get_taxi_state(user_id)
     if not state or not state.get("options"):
-        return {"action": "no_flow", "text": "No ride options are available."}
+        lang = state.get("language", "en") if state else "en"
+        return {"action": "no_flow", "text": _t("no_flow", lang)}
 
+    lang = state.get("language", "en")
     state["step"] = "awaiting_selection"
     state.pop("review", None)
     state.pop("selected_option", None)
@@ -468,7 +605,7 @@ async def handle_back_to_options(user_id: str) -> dict[str, Any]:
     return {
         "action": "results",
         "text": _format_options_text(state),
-        "buttons": _build_option_buttons(state["options"], state["flow_id"]),
+        "buttons": _build_option_buttons(state["options"], state["flow_id"], lang),
     }
 
 
@@ -524,8 +661,9 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
 
     state = await get_taxi_state(user_id)
     if not state:
-        return {"action": "no_flow", "text": "No active taxi request."}
+        return {"action": "no_flow", "text": _t("no_flow", "en")}
 
+    lang = state.get("language", "en")
     provider = state["provider"]
     prompt = _OPTIONS_PROMPT.format(
         site_url=f"https://{provider}",
@@ -555,17 +693,14 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
         connect_url = await _get_connect_url(state)
         return {
             "action": "captcha",
-            "text": (
-                "The provider asked for a CAPTCHA. Open the connect flow below, solve it in your "
-                "browser, and I will continue automatically when the session is ready."
-            ),
+            "text": _t("captcha", lang),
             "buttons": [
                 {
                     "text": f"Connect {_provider_label(provider)}",
                     "url": connect_url,
                 },
-                {"text": "Ready — continue", "callback": f"taxi_login_ready:{state['flow_id']}"},
-                {"text": "Cancel", "callback": f"taxi_cancel:{state['flow_id']}"},
+                {"text": _t("btn_ready", lang), "callback": f"taxi_login_ready:{state['flow_id']}"},
+                {"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{state['flow_id']}"},
             ],
         }
 
@@ -573,9 +708,11 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
         await _clear_state(user_id)
         return {
             "action": "no_rides",
-            "text": (
-                f"I couldn't find available rides in {_provider_label(provider)} for "
-                f"<b>{_escape_html(state.get('destination', 'this route'))}</b> right now."
+            "text": _t(
+                "no_rides",
+                lang,
+                provider=_provider_label(provider),
+                destination=_escape_html(state.get("destination", "")),
             ),
         }
 
@@ -584,10 +721,7 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
         await _clear_state(user_id)
         return {
             "action": "error",
-            "text": (
-                "I couldn't extract ride options from the provider.\n\n"
-                f"<code>{_escape_html(raw[:300])}</code>"
-            ),
+            "text": _t("error_extract", lang, raw=_escape_html(raw[:300])),
         }
 
     state["step"] = "awaiting_selection"
@@ -596,7 +730,7 @@ async def _execute_options_search(user_id: str) -> dict[str, Any]:
     return {
         "action": "results",
         "text": _format_options_text(state),
-        "buttons": _build_option_buttons(state["options"], state["flow_id"]),
+        "buttons": _build_option_buttons(state["options"], state["flow_id"], lang),
     }
 
 
@@ -606,25 +740,18 @@ async def _build_login_prompt(
 ) -> dict[str, Any]:
     connect_url = await _get_connect_url(state)
 
+    lang = state.get("language", "en")
     provider = state["provider"]
     flow_id = state["flow_id"]
     provider_label = _provider_label(provider)
-    intro = prefix or (
-        f"I need access to <b>{provider_label}</b> before I can show live ride options."
-    )
+    intro = prefix or _t("login_needed", lang, provider=provider_label)
     return {
         "action": "need_login",
-        "text": (
-            f"{intro}\n\n"
-            "Tap the connect button below and log in in your browser.\n"
-            "When the login finishes, Finance Bot will save the session and return you to "
-            "Telegram automatically.\n\n"
-            "If this is your first browser setup, send /extension once."
-        ),
+        "text": f"{intro}\n\n{_t('login_instructions', lang)}",
         "buttons": [
             {"text": f"Connect {provider_label}", "url": connect_url},
-            {"text": "Ready — continue", "callback": f"taxi_login_ready:{flow_id}"},
-            {"text": "Cancel", "callback": f"taxi_cancel:{flow_id}"},
+            {"text": _t("btn_ready", lang), "callback": f"taxi_login_ready:{flow_id}"},
+            {"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{flow_id}"},
         ],
     }
 
@@ -643,7 +770,9 @@ async def _get_connect_url(state: dict[str, Any]) -> str:
     return browser_service.get_connect_url(provider)
 
 
-def _build_option_buttons(options: list[dict[str, Any]], flow_id: str) -> list[dict[str, str]]:
+def _build_option_buttons(
+    options: list[dict[str, Any]], flow_id: str, lang: str = "en"
+) -> list[dict[str, str]]:
     buttons = []
     for index, option in enumerate(options[:MAX_OPTIONS]):
         label = option.get("label") or f"Option {index + 1}"
@@ -654,21 +783,22 @@ def _build_option_buttons(options: list[dict[str, Any]], flow_id: str) -> list[d
         if suffix:
             text = f"{text} {suffix}"
         buttons.append({"text": text[:64], "callback": f"taxi_select:{flow_id}:{index}"})
-    buttons.append({"text": "Cancel", "callback": f"taxi_cancel:{flow_id}"})
+    buttons.append({"text": _t("btn_cancel", lang), "callback": f"taxi_cancel:{flow_id}"})
     return buttons
 
 
 def _format_options_text(state: dict[str, Any]) -> str:
+    lang = state.get("language", "en")
     provider = _provider_label(state["provider"])
     destination = _escape_html(state.get("destination", ""))
     pickup = state.get("pickup")
     lines = [
-        f"<b>{provider} ride options</b>",
+        _t("options_header", lang, provider=provider),
         "",
-        f"Destination: <b>{destination}</b>",
+        _t("destination_label", lang, destination=destination),
     ]
     if pickup:
-        lines.append(f"Pickup: <b>{_escape_html(pickup)}</b>")
+        lines.append(_t("pickup_label", lang, pickup=_escape_html(pickup)))
     lines.append("")
     for index, option in enumerate(state.get("options", []), start=1):
         bits = [f"<b>{index}. {_escape_html(option.get('label', 'Option'))}</b>"]
@@ -687,15 +817,16 @@ def _format_options_text(state: dict[str, Any]) -> str:
             bits.append(_escape_html(option["notes"]))
         lines.append("\n".join(bits))
         lines.append("")
-    lines.append("Choose an option or send its number.")
+    lines.append(_t("choose_option", lang))
     return "\n".join(lines).strip()
 
 
 def _format_review_text(state: dict[str, Any]) -> str:
+    lang = state.get("language", "en")
     review = state.get("review", {})
     label = review.get("label") or state.get("selected_option", {}).get("label", "Ride")
     lines = [
-        "<b>Confirm this ride?</b>",
+        _t("confirm_header", lang),
         "",
         f"Service: <b>{_escape_html(label)}</b>",
     ]
@@ -711,14 +842,15 @@ def _format_review_text(state: dict[str, Any]) -> str:
     if review.get("notes"):
         lines.append(f"Notes: {_escape_html(review['notes'])}")
     lines.append("")
-    lines.append("I will place the ride only after you confirm.")
+    lines.append(_t("confirm_footer", lang))
     return "\n".join(lines)
 
 
 def _format_booking_success(state: dict[str, Any], booked: dict[str, Any]) -> str:
+    lang = state.get("language", "en")
     label = booked.get("label") or state.get("selected_option", {}).get("label", "Ride")
     lines = [
-        "<b>Ride requested.</b>",
+        _t("ride_requested", lang),
         "",
         f"Service: <b>{_escape_html(label)}</b>",
     ]
@@ -831,14 +963,4 @@ def _extract_json_array(text: str) -> list[dict[str, Any]] | None:
 
 
 def _escape_html(text: str) -> str:
-    return (
-        (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-
-
-
-
+    return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

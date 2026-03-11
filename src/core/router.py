@@ -2744,7 +2744,114 @@ async def _handle_callback(
         from src.tools import taxi_booking
 
         await taxi_booking.cancel_flow(context.user_id)
-        return OutgoingMessage(text="Taxi booking cancelled.", chat_id=message.chat_id)
+        _taxi_cancel = {
+            "en": "Taxi booking cancelled.",
+            "ru": "Заказ такси отменён.",
+            "es": "Reserva de taxi cancelada.",
+        }
+        return OutgoingMessage(
+            text=_taxi_cancel.get(context.language or "en", _taxi_cancel["en"]),
+            chat_id=message.chat_id,
+        )
+
+    # ── Food ordering flow callbacks ──
+
+    elif action == "food_platform":
+        from src.tools import food_ordering
+
+        platform = parts[2] if len(parts) > 2 else ""
+        result = await food_ordering.handle_platform_selection(context.user_id, platform)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_login_ready":
+        from src.tools import food_ordering
+
+        result = await food_ordering.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_select":
+        from src.tools import food_ordering
+
+        index = int(parts[2]) if len(parts) > 2 else 0
+        result = await food_ordering.handle_restaurant_selection(context.user_id, index)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_item":
+        from src.tools import food_ordering
+
+        index = int(parts[2]) if len(parts) > 2 else 0
+        result = await food_ordering.handle_menu_item_toggle(context.user_id, index)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_done":
+        from src.tools import food_ordering
+
+        result = await food_ordering.handle_done_selecting(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_confirm":
+        from src.tools import food_ordering
+
+        result = await food_ordering.confirm_order(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_back":
+        from src.tools import food_ordering
+
+        result = await food_ordering.handle_back_to_restaurants(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_back_menu":
+        from src.tools import food_ordering
+
+        result = await food_ordering.handle_back_to_menu(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", ""),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    elif action == "food_cancel":
+        from src.tools import food_ordering
+
+        await food_ordering.cancel_flow(context.user_id)
+        _food_cancel = {
+            "en": "Food order cancelled.",
+            "ru": "Заказ еды отменён.",
+            "es": "Pedido de comida cancelado.",
+        }
+        return OutgoingMessage(
+            text=_food_cancel.get(context.language or "en", _food_cancel["en"]),
+            chat_id=message.chat_id,
+        )
 
     # ── Hotel booking flow callbacks ──
 
@@ -2834,7 +2941,15 @@ async def _handle_callback(
         from src.tools import browser_booking
 
         await browser_booking.cancel_flow(context.user_id)
-        return OutgoingMessage(text="Hotel search cancelled.", chat_id=message.chat_id)
+        _hotel_cancel = {
+            "en": "Hotel search cancelled.",
+            "ru": "Поиск отеля отменён.",
+            "es": "Búsqueda de hotel cancelada.",
+        }
+        return OutgoingMessage(
+            text=_hotel_cancel.get(context.language or "en", _hotel_cancel["en"]),
+            chat_id=message.chat_id,
+        )
 
     elif action == "show_code":
         from src.core.db import redis

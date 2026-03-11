@@ -28,6 +28,7 @@ from src.tools import (
     browser_booking,
     browser_login,
     browser_service,
+    food_ordering,
     remote_browser_connect,
     taxi_booking,
 )
@@ -53,24 +54,86 @@ class BrowserActionSkill:
     model = "claude-sonnet-4-6"
 
     _BOOKING_DOMAINS = (
-        "booking.com", "airbnb.com", "hotels.com", "expedia.com",
-        "agoda.com", "trivago.com", "kayak.com", "aviasales.ru",
-        "skyscanner.com", "ostrovok.ru",
+        "booking.com",
+        "airbnb.com",
+        "hotels.com",
+        "expedia.com",
+        "agoda.com",
+        "trivago.com",
+        "kayak.com",
+        "aviasales.ru",
+        "skyscanner.com",
+        "ostrovok.ru",
     )
     _BOOKING_VERBS = (
-        "забронир", "бронир", "book ", "reserve", "заказа", "order ",
-        "купи", "buy ",
+        "забронир",
+        "бронир",
+        "book ",
+        "reserve",
+        "заказа",
+        "order ",
+        "купи",
+        "buy ",
     )
     _HOTEL_KEYWORDS = (
-        "отель", "гостиниц", "hotel", "hostel", "хостел",
-        "жильё", "жилье", "accommodation", "lodging",
-        "найди отель", "find a hotel", "найти отель",
-        "search hotel", "ищу отель", "нужен отель",
+        "отель",
+        "гостиниц",
+        "hotel",
+        "hostel",
+        "хостел",
+        "жильё",
+        "жилье",
+        "accommodation",
+        "lodging",
+        "найди отель",
+        "find a hotel",
+        "найти отель",
+        "search hotel",
+        "ищу отель",
+        "нужен отель",
     )
 
     _TAXI_KEYWORDS = (
-        "taxi", "uber", "lyft", "такси", "поездк", "ride",
-        "вызови такси", "закажи такси", "order a ride", "book a ride",
+        "taxi",
+        "uber",
+        "lyft",
+        "такси",
+        "поездк",
+        "ride",
+        "вызови такси",
+        "закажи такси",
+        "order a ride",
+        "book a ride",
+    )
+
+    _FOOD_KEYWORDS = (
+        "uber eats",
+        "ubereats",
+        "doordash",
+        "grubhub",
+        "deliveroo",
+        "glovo",
+        "food delivery",
+        "order food",
+        "доставка еды",
+        "закажи еду",
+        "pizza delivery",
+        "доставка пиццы",
+        "закажи пиццу",
+        "доставка суши",
+        "закажи суши",
+        "доставка из",
+        "pedido de comida",
+        "pedir comida",
+        "entrega de comida",
+    )
+    _FOOD_DOMAINS = (
+        "ubereats.com",
+        "doordash.com",
+        "grubhub.com",
+        "deliveroo.com",
+        "glovoapp.com",
+        "postmates.com",
     )
 
     def get_system_prompt(self, context: SessionContext) -> str:
@@ -95,36 +158,37 @@ class BrowserActionSkill:
         if not task:
             lang = context.language or "en"
             if lang == "ru":
-                return SkillResult(
-                    response_text="Что нужно сделать? Укажите сайт и задачу."
-                )
+                return SkillResult(response_text="Что нужно сделать? Укажите сайт и задачу.")
             elif lang == "es":
-                return SkillResult(
-                    response_text="¿Qué necesitas? Indica el sitio web y la tarea."
-                )
+                return SkillResult(response_text="¿Qué necesitas? Indica el sitio web y la tarea.")
             return SkillResult(
-                response_text="What would you like me to do? "
-                "Tell me the website and the task."
+                response_text="What would you like me to do? Tell me the website and the task."
             )
 
         # 1. Check for active hotel booking flow — handle text input
         booking_state = await browser_booking.get_booking_state(context.user_id)
         if booking_state:
-            result = await browser_booking.handle_text_input(
-                context.user_id, message.text or ""
-            )
+            result = await browser_booking.handle_text_input(context.user_id, message.text or "")
             if result:
                 return SkillResult(
                     response_text=result["text"],
                     buttons=result.get("buttons"),
                 )
 
-        # 2. Check for active taxi booking flow — handle text input
+        # 2. Check for active food ordering flow — handle text input
+        food_state = await food_ordering.get_food_state(context.user_id)
+        if food_state:
+            result = await food_ordering.handle_text_input(context.user_id, message.text or "")
+            if result:
+                return SkillResult(
+                    response_text=result["text"],
+                    buttons=result.get("buttons"),
+                )
+
+        # 3. Check for active taxi booking flow — handle text input
         taxi_state = await taxi_booking.get_taxi_state(context.user_id)
         if taxi_state:
-            result = await taxi_booking.handle_text_input(
-                context.user_id, message.text or ""
-            )
+            result = await taxi_booking.handle_text_input(context.user_id, message.text or "")
             if result:
                 return SkillResult(
                     response_text=result["text"],
@@ -169,7 +233,22 @@ class BrowserActionSkill:
                 buttons=search_result.get("buttons"),
             )
 
-        # 6. Taxi / ride-hailing request → dedicated multi-step flow
+        # 6. Food delivery request → dedicated multi-step flow
+        # Check BEFORE taxi — "uber eats" contains "uber"
+        if self._is_food_request(task, domain):
+            food_result = await food_ordering.start_flow(
+                user_id=context.user_id,
+                family_id=context.family_id,
+                task=task,
+                language=context.language or "en",
+                site_hint=domain or site,
+            )
+            return SkillResult(
+                response_text=food_result["text"],
+                buttons=food_result.get("buttons"),
+            )
+
+        # 7. Taxi / ride-hailing request → dedicated multi-step flow
         if self._is_taxi_request(task, domain):
             ride_result = await taxi_booking.start_flow(
                 user_id=context.user_id,
@@ -220,9 +299,7 @@ class BrowserActionSkill:
             )
 
         # 7. Check for saved session
-        storage_state = await browser_service.get_storage_state(
-            context.user_id, domain
-        )
+        storage_state = await browser_service.get_storage_state(context.user_id, domain)
 
         if storage_state:
             result = await browser_service.execute_with_session(
@@ -252,9 +329,7 @@ class BrowserActionSkill:
                     buttons=[{"text": f"🔗 Log in to {provider_label}", "url": connect_url}],
                 )
 
-            return SkillResult(
-                response_text=f"Browser task failed: {result['result']}"
-            )
+            return SkillResult(response_text=f"Browser task failed: {result['result']}")
 
         # 8. No saved session — auto-generate connect URL for login
         connect_url = await remote_browser_connect.create_connect_url(
@@ -359,9 +434,7 @@ class BrowserActionSkill:
         screenshot = result.get("screenshot_bytes")
 
         if action == "no_flow":
-            return SkillResult(
-                response_text="No active login flow. What would you like to do?"
-            )
+            return SkillResult(response_text="No active login flow. What would you like to do?")
 
         if action == "login_success":
             return SkillResult(response_text=text)
@@ -394,8 +467,12 @@ class BrowserActionSkill:
         task_lower = task.lower()
 
         shopping_domains = (
-            "amazon.com", "ebay.com", "aliexpress.com", "ozon.ru",
-            "wildberries.ru", "walmart.com",
+            "amazon.com",
+            "ebay.com",
+            "aliexpress.com",
+            "ozon.ru",
+            "wildberries.ru",
+            "walmart.com",
         )
         is_shopping_site = any(d in domain for d in shopping_domains)
 
@@ -405,13 +482,15 @@ class BrowserActionSkill:
             words = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task)
             words = re.sub(
                 r"\b(купи|закажи|найди|buy|order|get|на|on|from|с)\b",
-                "", words, flags=re.IGNORECASE,
+                "",
+                words,
+                flags=re.IGNORECASE,
             )
             if len(words.strip()) < 3:
                 return (
                     f"What would you like me to find on <b>{domain}</b>?\n\n"
-                    "Example: <i>\"купи наушники Sony WH-1000XM5 "
-                    "на amazon.com\"</i>"
+                    'Example: <i>"купи наушники Sony WH-1000XM5 '
+                    'на amazon.com"</i>'
                 )
 
         return None
@@ -432,10 +511,27 @@ class BrowserActionSkill:
             return True
         if any(keyword in task_lower for keyword in self._TAXI_KEYWORDS):
             ride_verbs = (
-                "закажи", "вызови", "book", "order", "call", "request", "ride", "поездк",
+                "закажи",
+                "вызови",
+                "book",
+                "order",
+                "call",
+                "request",
+                "ride",
+                "поездк",
             )
             return any(verb in task_lower for verb in ride_verbs)
         return False
+
+    def _is_food_request(self, task: str, domain: str) -> bool:
+        """Check if this is a food delivery request.
+
+        Checked BEFORE _is_taxi_request because "uber eats" contains "uber".
+        """
+        task_lower = task.lower()
+        if domain and any(d in domain for d in self._FOOD_DOMAINS):
+            return True
+        return any(kw in task_lower for kw in self._FOOD_KEYWORDS)
 
     def _is_payment_task(self, task: str) -> bool:
         """Check if the task involves payment/purchase."""
@@ -444,10 +540,12 @@ class BrowserActionSkill:
         if any(kw in task_lower for kw in ru_payment):
             return True
         text_no_domains = re.sub(r"[a-zA-Z0-9-]+\.\w{2,}", "", task_lower)
-        return bool(re.search(
-            r"\b(pay|payment|checkout|purchase|buy|book|reserve|order)\b",
-            text_no_domains,
-        ))
+        return bool(
+            re.search(
+                r"\b(pay|payment|checkout|purchase|buy|book|reserve|order)\b",
+                text_no_domains,
+            )
+        )
 
     def _extract_site_from_task(self, task: str) -> str | None:
         """Try to extract a website domain from the task text."""
@@ -465,6 +563,11 @@ class BrowserActionSkill:
             return domain_match.group(1)
 
         alias_map = {
+            "uber eats": "ubereats.com",
+            "ubereats": "ubereats.com",
+            "doordash": "doordash.com",
+            "grubhub": "grubhub.com",
+            "deliveroo": "deliveroo.com",
             "uber": "uber.com",
             "lyft": "lyft.com",
             "amazon relay": "relay.amazon.com",
@@ -480,6 +583,3 @@ class BrowserActionSkill:
 
 
 skill = BrowserActionSkill()
-
-
-
