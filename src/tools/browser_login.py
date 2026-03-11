@@ -205,11 +205,13 @@ async def _handle_email_step(
         return {"action": "error", "text": "Browser session expired. Try again."}
 
     page = session_data["page"]
+    context = session_data["context"]
 
     try:
-        # Try common email/username input selectors
+        # Try common email/username input selectors (Google uses #identifierId)
         typed = False
         for selector in [
+            "#identifierId",  # Google login
             'input[type="email"]',
             'input[name="email"]',
             'input[name="username"]',
@@ -233,9 +235,80 @@ async def _handle_email_step(
             await page.keyboard.press("Tab")
             await page.keyboard.type(email, delay=50)
 
+        # Listen for popup (OAuth popup windows like Google/Apple)
+        popup_page = None
+
+        async def _on_popup(p: Any) -> None:
+            nonlocal popup_page
+            popup_page = p
+
+        context.on("page", _on_popup)
+
         # Try to submit / click next
         await _click_next_button(page)
-        await asyncio.sleep(2)
+
+        # Wait for navigation (networkidle is safer than fixed sleep)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=6000)
+        except Exception:
+            await asyncio.sleep(2.5)
+
+        context.remove_listener("page", _on_popup)
+
+        # OAuth popup detected — switch to handling the popup page
+        if popup_page:
+            try:
+                await popup_page.wait_for_load_state("domcontentloaded", timeout=8000)
+            except Exception:
+                pass
+            session_data["page"] = popup_page
+            state["oauth_popup"] = True
+            state["step"] = "awaiting_password"
+            await _set_login_state(user_id, state)
+            screenshot = await popup_page.screenshot(type="png")
+            url = popup_page.url
+            hint = ""
+            if "google.com" in url:
+                hint = "\n\nThis is <b>Google login</b>. Enter your Google password:"
+            elif "apple.com" in url:
+                hint = "\n\nThis is <b>Apple login</b>. Enter your Apple ID password:"
+            return {
+                "action": "ask_password",
+                "text": (
+                    "OAuth login page opened. Enter your <b>password</b>."
+                    f"{hint}\n\nYour message will be <b>deleted immediately</b>."
+                ),
+                "screenshot_bytes": screenshot,
+            }
+
+        # Check if the page redirected to a known OAuth provider
+        current_url = page.url
+        if "accounts.google.com" in current_url:
+            state["step"] = "awaiting_password"
+            state["oauth_provider"] = "google"
+            await _set_login_state(user_id, state)
+            screenshot = await page.screenshot(type="png")
+            return {
+                "action": "ask_password",
+                "text": (
+                    "Redirected to <b>Google login</b>. Enter your Google password:\n\n"
+                    "Your message will be <b>deleted immediately</b>."
+                ),
+                "screenshot_bytes": screenshot,
+            }
+        if "appleid.apple.com" in current_url:
+            state["step"] = "awaiting_password"
+            state["oauth_provider"] = "apple"
+            await _set_login_state(user_id, state)
+            screenshot = await page.screenshot(type="png")
+            return {
+                "action": "ask_password",
+                "text": (
+                    "Redirected to <b>Apple login</b>. Enter your Apple ID password:\n\n"
+                    "Your message will be <b>deleted immediately</b>."
+                ),
+                "screenshot_bytes": screenshot,
+            }
 
         screenshot = await page.screenshot(type="png")
 

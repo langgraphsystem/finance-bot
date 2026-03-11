@@ -221,10 +221,35 @@ async def ensure_session(token: str, *, user_agent: str | None = None) -> Remote
             created_at=now,
             updated_at=now,
         )
+
+        # Auto-follow popups (Google OAuth, Apple Sign-in, etc.).
+        # When a button opens a new window/popup, switch session.page to it
+        # so screenshots and subsequent clicks target the popup.
+        def _on_new_page(new_page: Any) -> None:
+            asyncio.ensure_future(_follow_popup(session, new_page))
+
+        context.on("page", _on_new_page)
+
         await _refresh_session_snapshot(session)
         await _maybe_complete_login(session)
         _active_sessions[token] = session
         return session
+
+
+async def _follow_popup(session: RemoteBrowserSession, new_page: Any) -> None:
+    """Switch session to a popup page (e.g. Google/Apple OAuth window)."""
+    try:
+        await new_page.wait_for_load_state("domcontentloaded", timeout=10_000)
+    except Exception:
+        pass
+    # Only follow the popup if the session is still active
+    if session.status != "active":
+        return
+    session.page = new_page
+    logger.info(
+        "browser-connect %s: switched to popup %s", session.token[:8], new_page.url
+    )
+    await _refresh_session_snapshot(session)
 
 
 async def _cleanup_stale_sessions() -> None:
@@ -375,11 +400,12 @@ async def apply_action(
         elif action == "refresh":
             await page.reload(wait_until="domcontentloaded")
 
+        # Wait for navigation after click/keypress; give extra time for SPAs/OAuth redirects
         try:
-            await page.wait_for_load_state("domcontentloaded", timeout=5000)
+            await page.wait_for_load_state("domcontentloaded", timeout=6000)
         except Exception:
             pass
-        await asyncio.sleep(0.7)
+        await asyncio.sleep(1.2)
 
         await _refresh_session_snapshot(session)
         await _maybe_complete_login(session)
