@@ -10,9 +10,11 @@ const saveApiBtnEl = document.getElementById('saveApiBtn');
 const checkConnectionBtnEl = document.getElementById('checkConnectionBtn');
 const connectionInfoEl = document.getElementById('connectionInfo');
 const savedListEl = document.getElementById('savedList');
+const connectAmazonRelayBtnEl = document.getElementById('connectAmazonRelayBtn');
 
 let currentDomain = '';
 let currentCookies = [];
+const AMAZON_RELAY_PROVIDER = 'relay.amazon.com';
 
 const COOKIE_DOMAIN_ALIASES = {
   'relay.amazon.com': ['relay.amazon.com', 'amazon.com'],
@@ -86,6 +88,25 @@ function setConnectionInfo(text) {
   connectionInfoEl.textContent = text;
 }
 
+async function openConnectFlow(provider, label) {
+  clearStatus();
+  const settings = await chrome.storage.sync.get(['apiUrl', 'token']);
+  const apiUrl = normalizeApiUrl(settings.apiUrl || '');
+  const token = (settings.token || '').trim();
+
+  if (!apiUrl || !token) {
+    showStatus('Set API URL and token first', 'error');
+    return;
+  }
+
+  const connectUrl = apiUrl + '/api/ext/connect?provider=' + encodeURIComponent(provider);
+  await chrome.tabs.create({ url: connectUrl, active: true });
+  showStatus(
+    label + ' opened. Finish login in Chrome and the session will save automatically.',
+    'success'
+  );
+}
+
 // Load saved settings
 chrome.storage.sync.get(['apiUrl', 'token'], (data) => {
   if (data.apiUrl) apiUrlEl.value = data.apiUrl;
@@ -114,6 +135,10 @@ saveApiBtnEl.addEventListener('click', () => {
 
 checkConnectionBtnEl.addEventListener('click', () => {
   checkConnection();
+});
+
+connectAmazonRelayBtnEl.addEventListener('click', () => {
+  openConnectFlow(AMAZON_RELAY_PROVIDER, 'Amazon Relay');
 });
 
 // Get current tab and its cookies
