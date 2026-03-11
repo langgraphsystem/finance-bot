@@ -31,23 +31,49 @@ class RealtimeSession:
         self.tools = tools or []
         self.on_tool_call = on_tool_call
         self.model = model or voice_config.openai_realtime_model
+        self.fallback_model = voice_config.openai_realtime_fallback_model
         self._ws: Any = None
         self._closed = False
 
     async def connect(self) -> None:
         """Open the websocket and configure the realtime session."""
-        url = f"{OPENAI_REALTIME_URL}?model={self.model}"
         headers = {"Authorization": f"Bearer {voice_config.openai_api_key}"}
-        self._ws = await websockets.connect(url, additional_headers=headers)
-        await self._ws.send(json.dumps(self._build_session_update()))
-        logger.info("OpenAI realtime session configured for model %s", self.model)
+        models_to_try = [self.model]
+        if self.fallback_model and self.fallback_model != self.model:
+            models_to_try.append(self.fallback_model)
+
+        last_error: Exception | None = None
+        for idx, candidate_model in enumerate(models_to_try):
+            try:
+                url = f"{OPENAI_REALTIME_URL}?model={candidate_model}"
+                self._ws = await websockets.connect(url, additional_headers=headers)
+                self.model = candidate_model
+                await self._ws.send(json.dumps(self._build_session_update()))
+                logger.info("OpenAI realtime session configured for model %s", self.model)
+                return
+            except Exception as exc:  # pragma: no cover - exact transport errors vary by env
+                last_error = exc
+                if idx == len(models_to_try) - 1:
+                    break
+                logger.warning(
+                    "Realtime connect failed for model %s; retrying with fallback %s: %s",
+                    candidate_model,
+                    models_to_try[idx + 1],
+                    exc,
+                )
+
+        if last_error is not None:
+            raise last_error
 
     def _build_session_update(self) -> dict[str, Any]:
         """Build the GA `session.update` event for telephony audio."""
         return {
             "type": "session.update",
             "session": {
+                "type": "realtime",
+                "model": self.model,
                 "instructions": self.system_prompt,
+                "output_modalities": ["audio"],
                 "audio": {
                     "input": {
                         "format": {"type": "audio/pcmu"},
@@ -63,7 +89,6 @@ class RealtimeSession:
                         "voice": voice_config.openai_realtime_voice,
                     },
                 },
-                "modalities": ["text", "audio"],
                 "tool_choice": "auto",
                 "tools": self.tools,
             },
