@@ -18,6 +18,7 @@ from src.core.conversation_analytics import (
     derive_conversation_tags,
     emit_conversation_analytics_event,
     merge_analytics_tags,
+    schedule_review_trace_capture,
 )
 from src.core.db import async_session
 from src.core.db import redis as redis_client
@@ -186,6 +187,22 @@ async def _run_intent_shadow_compare(
             shadow_confidence=shadow_result.confidence,
             intents_match=intents_match,
         )
+        if not intents_match:
+            schedule_review_trace_capture(
+                {
+                    "outcome": "wrong_route",
+                    "review_label": "wrong_route",
+                    "queued_for_review": True,
+                    "request_id": None,
+                    "correlation_id": None,
+                    "trace_key": None,
+                    "intent": primary_result.intent,
+                    "shadow_intent": shadow_result.intent,
+                    "primary_detector": primary_detector_name,
+                    "shadow_detector": shadow_detector_name,
+                    "tags": ["shadow_mismatch", "routing_risk"],
+                }
+            )
     except Exception:
         await record_release_event("shadow_compare_failed_total")
         log_runtime_event(

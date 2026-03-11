@@ -182,3 +182,19 @@ async def test_analytics_policy_returns_sampling_rules(mock_dependencies):
             resp = await client.get("/ops/analytics/policy")
     assert resp.status_code == 200
     assert resp.json()["sample_rates"]["default_success"] == 10
+
+
+async def test_analytics_review_queue_returns_snapshot(mock_dependencies):
+    snapshot = {
+        "review_queue_size": 1,
+        "trace_export_size": 1,
+        "review_queue": [],
+        "trace_exports": [],
+    }
+    with patch("api.main.get_review_queue_snapshot", AsyncMock(return_value=snapshot)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/review-queue?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["review_queue_size"] == 1

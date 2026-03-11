@@ -23,6 +23,7 @@ from src.core.context import SessionContext
 from src.core.conversation_analytics import (
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
+    get_review_queue_snapshot,
 )
 from src.core.db import async_session, redis
 from src.core.models.category import Category
@@ -1071,6 +1072,13 @@ async def analytics_policy(request: Request) -> dict[str, Any]:
     """Return the active analytics sampling policy."""
     _require_ops_auth(request)
     return get_conversation_analytics_policy()
+
+
+@app.get("/ops/analytics/review-queue")
+async def analytics_review_queue(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return recent review candidates and exported traces."""
+    _require_ops_auth(request)
+    return await get_review_queue_snapshot(limit=max(1, min(limit, 100)))
 
 
 # ------------------------------------------------------------------
