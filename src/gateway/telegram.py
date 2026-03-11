@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 
 try:
     from aiogram import Bot, Dispatcher, types
-    from aiogram.types import BufferedInputFile
+    from aiogram.types import BufferedInputFile, MenuButtonWebApp, WebAppInfo
     from aiogram.utils.keyboard import InlineKeyboardBuilder
 
     _AIOGRAM_AVAILABLE = True
@@ -181,6 +181,20 @@ class TelegramGateway:
             await self.bot.delete_webhook()
             await self.bot.set_webhook(self.webhook_url)
             logger.info("Webhook set to %s", self.webhook_url)
+
+            # Set Menu Button → Mini App
+            base_url = self.webhook_url.rsplit("/", 1)[0]
+            miniapp_url = f"{base_url}/miniapp"
+            try:
+                await self.bot.set_chat_menu_button(
+                    menu_button=MenuButtonWebApp(
+                        text="Open App",
+                        web_app=WebAppInfo(url=miniapp_url),
+                    )
+                )
+                logger.info("Menu button set to %s", miniapp_url)
+            except Exception as e:
+                logger.warning("Failed to set menu button: %s", e)
         else:
             logger.info("No webhook URL, use feed_update() for webhook mode")
 
