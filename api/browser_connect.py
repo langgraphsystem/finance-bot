@@ -492,7 +492,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
       touchLast = null;
 
       if (Math.abs(deltaY) > 18 || Math.abs(deltaX) > 18) {{
-        await postAction({{ action: 'scroll', delta_y: deltaY * 2.4 }});
+        await doAction({{ action: 'scroll', delta_y: deltaY * 2.4 }});
         return;
       }}
 
