@@ -29,7 +29,7 @@ _ROLE_EMOJI = {
 class ManageMemberSkill:
     name = "manage_member"
     intents = ["manage_member"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,

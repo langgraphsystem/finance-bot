@@ -29,7 +29,7 @@ _ROLE_EMOJI = {
 class ListMembersSkill:
     name = "list_members"
     intents = ["list_members"]
-    model = "gpt-5.4-2026-03-05"
+    model = "gpt-5.2"
 
     async def execute(
         self,
