@@ -31,6 +31,7 @@ from src.core.profiles import ProfileLoader
 from src.core.release import (
     get_release_flag_snapshot,
     get_release_health_snapshot,
+    get_release_ops_overview,
     log_runtime_event,
     record_release_event,
     resolve_release_cohort,
@@ -76,6 +77,14 @@ LANGUAGE_TIMEZONE_MAP = {
     "kk": "Asia/Almaty",
     "uz": "Asia/Tashkent",
 }
+
+
+def _require_ops_auth(request: Request) -> None:
+    """Protect operator-facing endpoints when HEALTH_SECRET is configured."""
+    if settings.health_secret:
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ") != settings.health_secret:
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 async def _maybe_set_timezone_from_language(user_id: str, language_code: str) -> None:
@@ -403,6 +412,8 @@ async def on_message(incoming):
             message_type=incoming.type,
         )
         await record_release_event("requests_total")
+        if settings.release_shadow_mode:
+            await record_release_event("shadow_requests_total")
 
         if not context:
             # Unregistered user — handle onboarding callbacks and FSM state
@@ -633,6 +644,8 @@ async def _handle_channel_message(incoming, gw):
             message_type=incoming.type,
         )
         await record_release_event("requests_total")
+        if settings.release_shadow_mode:
+            await record_release_event("shadow_requests_total")
 
         if not context:
             # Unregistered channel user — run onboarding (same as Telegram)
@@ -938,10 +951,7 @@ async def health_detailed(request: Request):
 
     Protected by HEALTH_SECRET when configured: pass Authorization: Bearer <token>.
     """
-    if settings.health_secret:
-        auth = request.headers.get("Authorization", "")
-        if not auth.startswith("Bearer ") or auth.removeprefix("Bearer ") != settings.health_secret:
-            raise HTTPException(status_code=401, detail="Unauthorized")
+    _require_ops_auth(request)
     checks: dict[str, Any] = {"api": "ok"}
 
     # Redis
@@ -994,6 +1004,13 @@ async def health_detailed(request: Request):
     core_checks = {k: v for k, v in checks.items() if k in ("api", "redis", "database")}
     status = "ok" if all(v == "ok" for v in core_checks.values()) else "degraded"
     return {"status": status, **checks}
+
+
+@app.get("/ops/release/overview")
+async def release_ops_overview(request: Request) -> dict[str, Any]:
+    """Return operator-facing release switches, flags, and health snapshot."""
+    _require_ops_auth(request)
+    return await get_release_ops_overview()
 
 
 # ------------------------------------------------------------------

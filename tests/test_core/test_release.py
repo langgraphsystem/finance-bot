@@ -4,6 +4,8 @@ from src.core.context import SessionContext
 from src.core.release import (
     get_release_flag_snapshot,
     get_release_health_snapshot,
+    get_release_ops_overview,
+    get_release_switches,
     record_release_event,
     resolve_release_cohort,
 )
@@ -68,12 +70,13 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
     metrics = {
         "rollout_name": "canary-a",
         "rollout_percent": "5",
-        "shadow_mode": "0",
+        "shadow_mode": "1",
         "requests_total": "100",
         "completed_total": "90",
         "errors_total": "8",
         "no_reply_total": "3",
         "rate_limited_total": "1",
+        "shadow_requests_total": "20",
     }
     with patch("src.core.release.redis") as mock_redis:
         mock_redis.hgetall = AsyncMock(return_value=metrics)
@@ -82,3 +85,27 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
     assert snapshot["status"] == "rollback_recommended"
     assert snapshot["recommended_action"] == "rollback"
     assert snapshot["rates"]["error_rate"] == 0.08
+    assert snapshot["rates"]["shadow_request_rate"] == 0.2
+
+
+def test_release_switches_hide_raw_user_ids(monkeypatch):
+    monkeypatch.setattr("src.core.release.settings.release_internal_user_ids", "1,2")
+    monkeypatch.setattr("src.core.release.settings.release_sensitive_roles", "accountant,assistant")
+
+    switches = get_release_switches()
+
+    assert switches["configured_cohorts"]["internal"] == 2
+    assert switches["configured_cohorts"]["sensitive_roles"] == ["accountant", "assistant"]
+    assert "release_internal_user_ids" not in switches
+
+
+async def test_release_ops_overview_combines_switches_flags_and_health():
+    with patch(
+        "src.core.release.get_release_health_snapshot",
+        AsyncMock(return_value={"status": "healthy", "recommended_action": "continue"}),
+    ):
+        overview = await get_release_ops_overview()
+
+    assert "switches" in overview
+    assert "flags" in overview
+    assert overview["health"]["status"] == "healthy"

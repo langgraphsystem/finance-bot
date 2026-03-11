@@ -46,6 +46,22 @@ def get_release_runtime_state() -> dict[str, Any]:
     }
 
 
+def get_release_switches() -> dict[str, Any]:
+    """Return operator-facing rollout switches without exposing raw user IDs."""
+    return {
+        **get_release_runtime_state(),
+        "health_logging": settings.release_health_logging,
+        "default_cohort": settings.release_default_cohort,
+        "configured_cohorts": {
+            "internal": len(_parse_csv(settings.release_internal_user_ids)),
+            "trusted": len(_parse_csv(settings.release_trusted_user_ids)),
+            "beta": len(_parse_csv(settings.release_beta_user_ids)),
+            "vip": len(_parse_csv(settings.release_vip_user_ids)),
+            "sensitive_roles": sorted(_parse_csv(settings.release_sensitive_roles)),
+        },
+    }
+
+
 def resolve_release_cohort(context: SessionContext | None) -> str:
     """Assign a rollout cohort for the current user/context."""
     if context is None:
@@ -147,10 +163,12 @@ async def get_release_health_snapshot() -> dict[str, Any]:
     errors_total = _parse_int(metrics, "errors_total")
     no_reply_total = _parse_int(metrics, "no_reply_total")
     rate_limited_total = _parse_int(metrics, "rate_limited_total")
+    shadow_requests_total = _parse_int(metrics, "shadow_requests_total")
 
     error_rate = _safe_rate(errors_total, requests_total)
     no_reply_rate = _safe_rate(no_reply_total, completed_total)
     rate_limited_rate = _safe_rate(rate_limited_total, requests_total)
+    shadow_request_rate = _safe_rate(shadow_requests_total, requests_total)
 
     status = "healthy"
     recommended_action = "continue"
@@ -177,15 +195,26 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "errors_total": errors_total,
             "no_reply_total": no_reply_total,
             "rate_limited_total": rate_limited_total,
+            "shadow_requests_total": shadow_requests_total,
         },
         "rates": {
             "error_rate": error_rate,
             "no_reply_rate": no_reply_rate,
             "rate_limited_rate": rate_limited_rate,
+            "shadow_request_rate": shadow_request_rate,
         },
         "thresholds": {
             "error_rate": settings.release_health_error_rate_threshold,
             "no_reply_rate": settings.release_health_no_reply_rate_threshold,
             "rate_limited_rate": settings.release_health_rate_limited_threshold,
         },
+    }
+
+
+async def get_release_ops_overview() -> dict[str, Any]:
+    """Return a compact operator-facing release overview."""
+    return {
+        "switches": get_release_switches(),
+        "flags": get_release_flag_snapshot(),
+        "health": await get_release_health_snapshot(),
     }

@@ -129,3 +129,27 @@ async def test_health_detailed_includes_release_health(mock_dependencies):
     data = resp.json()
     assert data["release_health"]["status"] == "degraded"
     assert data["release_health"]["recommended_action"] == "hold"
+
+
+async def test_release_ops_overview_returns_snapshot(mock_dependencies):
+    overview = {
+        "switches": {"rollout_name": "canary-a", "shadow_mode": True},
+        "flags": {"ff_post_gen_check": True},
+        "health": {"status": "healthy", "recommended_action": "continue"},
+    }
+    with patch("api.main.get_release_ops_overview", AsyncMock(return_value=overview)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/release/overview")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["switches"]["shadow_mode"] is True
+    assert data["health"]["status"] == "healthy"
+
+
+async def test_release_ops_overview_requires_auth_when_secret_set(mock_dependencies):
+    with patch("api.main.settings.health_secret", "secret-token"):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/release/overview")
+    assert resp.status_code == 401
