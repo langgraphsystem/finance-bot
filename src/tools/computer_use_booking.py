@@ -1,22 +1,21 @@
-"""GPT-5.4 Computer Use integration for hotel booking on booking.com.
+"""Gemini Computer Use integration for hotel booking on booking.com.
 
 Flow:
 1. Launch Playwright with user's saved session
 2. Navigate to booking.com search URL
-3. Take screenshot → send to GPT-5.4 with computer tool
-4. GPT-5.4 returns actions (click/type/scroll/keypress)
+3. Take screenshot → send to Gemini with computer_use tool
+4. Gemini returns function_calls (click_at/type_text_at/scroll/etc.)
 5. Execute actions via Playwright → take new screenshot → repeat
-6. Extract structured hotel list when GPT-5.4 is done
+6. Extract structured hotel list when Gemini is done
 7. For booking: stop before final payment confirmation
 
-GPT-5.4 sees the real browser UI — handles popups, CAPTCHAs,
+Gemini sees the real browser UI — handles popups, CAPTCHAs,
 dynamic layouts that JS extraction misses.
 
-Viewport: 1440×900 (OpenAI recommended for computer use)
+Viewport: 1440×900
 """
 
 import asyncio
-import base64
 import json
 import logging
 import re
@@ -97,71 +96,9 @@ If login needed: {"status": "LOGIN_REQUIRED"}
 # ── Core Computer Use Loop ────────────────────────────────────────────────────
 
 
-async def _take_screenshot(page: Any) -> str:
-    """Capture page screenshot and return as base64 PNG string."""
-    png_bytes = await page.screenshot(type="png", full_page=False)
-    return base64.b64encode(png_bytes).decode("utf-8")
-
-
-async def _execute_actions(page: Any, actions: list) -> None:
-    """Execute a list of computer_call actions on the Playwright page.
-
-    Actions are plain dicts: {"type": "click", "x": 100, "y": 200, ...}
-    """
-    for action in actions:
-        # Actions come as dicts from the API
-        if isinstance(action, dict):
-            action_type = action.get("type")
-        else:
-            action_type = getattr(action, "type", None)
-            action = action if not hasattr(action, "items") else dict(action)
-
-        def _get(key: str, default=0):
-            if isinstance(action, dict):
-                return action.get(key, default)
-            return getattr(action, key, default)
-
-        try:
-            if action_type == "click":
-                await page.mouse.click(
-                    _get("x"), _get("y"),
-                    button=_get("button", "left"),
-                )
-            elif action_type == "double_click":
-                await page.mouse.dblclick(
-                    _get("x"), _get("y"),
-                    button=_get("button", "left"),
-                )
-            elif action_type == "scroll":
-                await page.mouse.move(_get("x"), _get("y"))
-                await page.mouse.wheel(
-                    _get("scrollX", _get("scroll_x", 0)),
-                    _get("scrollY", _get("scroll_y", 0)),
-                )
-            elif action_type == "type":
-                await page.keyboard.type(_get("text", ""))
-            elif action_type == "keypress":
-                keys = _get("keys", [])
-                if not isinstance(keys, list):
-                    keys = [keys]
-                for key in keys:
-                    await page.keyboard.press(" " if key == "SPACE" else key)
-            elif action_type == "drag":
-                await page.mouse.move(_get("startX"), _get("startY"))
-                await page.mouse.down()
-                await page.mouse.move(_get("endX"), _get("endY"))
-                await page.mouse.up()
-            elif action_type == "wait":
-                await asyncio.sleep(2.0)
-            elif action_type == "screenshot":
-                pass  # loop will take screenshot automatically
-            else:
-                logger.debug("Unknown action type: %s — %s", action_type, action)
-
-        except Exception as e:
-            logger.warning("Action %s failed: %s", action_type, e)
-
-    await asyncio.sleep(ACTION_PAUSE)
+async def _take_screenshot(page: Any) -> bytes:
+    """Capture page screenshot as raw PNG bytes."""
+    return await page.screenshot(type="png", full_page=False)
 
 
 async def _run_computer_use_loop(
@@ -172,113 +109,115 @@ async def _run_computer_use_loop(
     max_steps: int = MAX_STEPS,
     timeout: float = STEP_TIMEOUT,
 ) -> str:
-    """Core GPT-5.4 Computer Use loop.
+    """Core Gemini Computer Use loop for booking tasks.
 
-    Takes a screenshot → sends to GPT-5.4 → executes actions → repeat.
-    Returns the model's final text output when it stops issuing computer_calls.
+    Takes a screenshot → sends to Gemini → executes actions → repeat.
+    Returns the model's final text output when it stops issuing function_calls.
     """
-    from src.core.llm.clients import openai_client
+    from google.genai import types
 
-    client = openai_client()
-    current_model = model or settings.openai_computer_use_model
-    start_time = time.monotonic()
-
-    # Initial screenshot
-    screenshot_b64 = await _take_screenshot(page)
-
-    # First request: task + screenshot
-    response = await client.responses.create(
-        model=current_model,
-        tools=[{"type": "computer"}],
-        reasoning={"effort": "medium"},
-        input=[
-            {"role": "developer", "content": system_prompt},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "input_text", "text": task},
-                    {
-                        "type": "input_image",
-                        "image_url": f"data:image/png;base64,{screenshot_b64}",
-                        "detail": "auto",
-                    },
-                ],
-            },
-        ],
+    from src.core.llm.clients import google_client
+    from src.tools.gemini_computer_use import (
+        _execute_action,
+        _extract_function_calls,
+        _extract_text,
+        _prune_screenshot_history,
     )
 
+    client = google_client()
+    current_model = model or settings.gemini_computer_use_model
+    start_time = time.monotonic()
+
+    config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=[
+            types.Tool(
+                computer_use=types.ComputerUse(
+                    environment=types.Environment.ENVIRONMENT_BROWSER,
+                )
+            )
+        ],
+        thinking_config=types.ThinkingConfig(include_thoughts=True),
+    )
+
+    screenshot_bytes = await _take_screenshot(page)
+
+    contents: list[Any] = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_text(text=task),
+                types.Part.from_bytes(data=screenshot_bytes, mime_type="image/png"),
+            ],
+        )
+    ]
+
+    response = None
     for step in range(max_steps):
         elapsed = time.monotonic() - start_time
         if elapsed > timeout:
-            logger.warning("Computer use loop timed out after %.1fs", elapsed)
+            logger.warning("Gemini CU booking loop timed out after %.1fs", elapsed)
             break
 
-        # Find computer_call in output
-        computer_call = next(
-            (item for item in response.output if item.type == "computer_call"),
-            None,
-        )
-
-        if computer_call is None:
-            # No more actions — model is done
-            logger.info("Computer use finished after %d steps", step)
-            break
-
-        logger.debug(
-            "CU step %d/%d: %d actions",
-            step + 1, max_steps,
-            len(computer_call.actions),
-        )
-
-        # Execute actions
-        await _execute_actions(page, computer_call.actions)
-
-        # Wait for page to settle after navigation-triggering actions
-        navigation_actions = {"click", "keypress", "double_click"}
-        has_nav_action = any(
-            (a.get("type") if isinstance(a, dict) else getattr(a, "type", ""))
-            in navigation_actions
-            for a in computer_call.actions
-        )
-        if has_nav_action:
+        try:
+            response = await client.aio.models.generate_content(
+                model=current_model,
+                contents=contents,
+                config=config,
+            )
+        except Exception as e:
+            logger.warning("Gemini CU booking API error on step %d: %s", step, e)
+            await asyncio.sleep(2.0)
             try:
-                await page.wait_for_load_state("domcontentloaded", timeout=8000)
-            except Exception:
-                pass
-            await asyncio.sleep(AFTER_NAVIGATE_PAUSE)
+                response = await client.aio.models.generate_content(
+                    model=current_model,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as e2:
+                logger.error("Gemini CU booking API retry failed: %s", e2)
+                break
 
-        # Capture new screenshot
-        screenshot_b64 = await _take_screenshot(page)
+        candidate = response.candidates[0] if response.candidates else None
+        if candidate and candidate.content:
+            contents.append(candidate.content)
 
-        # Send screenshot back
-        response = await client.responses.create(
-            model=current_model,
-            tools=[{"type": "computer"}],
-            reasoning={"effort": "medium"},
-            previous_response_id=response.id,
-            input=[
-                {
-                    "type": "computer_call_output",
-                    "call_id": computer_call.call_id,
-                    "output": {
-                        "type": "computer_screenshot",
-                        "image_url": f"data:image/png;base64,{screenshot_b64}",
-                        "detail": "auto",
-                    },
-                }
-            ],
-        )
+        calls = _extract_function_calls(response)
+        if not calls:
+            logger.info("Gemini CU booking finished after %d steps", step)
+            break
 
-    # Extract final text from response
-    text_items = [
-        item for item in response.output
-        if getattr(item, "type", "") == "text"
-    ]
-    if text_items:
-        return text_items[-1].text or ""
+        logger.debug("Gemini CU booking step %d/%d: %d actions", step + 1, max_steps, len(calls))
 
-    # Fallback: try output_text
-    return getattr(response, "output_text", "") or ""
+        action_results: list[tuple[str, dict]] = []
+        for name, args in calls:
+            args.pop("safety_decision", None)
+            result = await _execute_action(page, name, args, VIEWPORT_W, VIEWPORT_H)
+            action_results.append((name, result))
+
+            if name in {"click_at", "type_text_at", "key_combination"}:
+                try:
+                    await page.wait_for_load_state("domcontentloaded", timeout=8000)
+                except Exception:
+                    pass
+                await asyncio.sleep(AFTER_NAVIGATE_PAUSE)
+
+        await asyncio.sleep(0.5)
+        screenshot_bytes = await _take_screenshot(page)
+
+        fn_parts: list[types.Part] = []
+        for name, result in action_results:
+            fn_parts.append(
+                types.Part.from_function_response(name=name, response={"url": page.url, **result})
+            )
+        fn_parts.append(types.Part.from_bytes(data=screenshot_bytes, mime_type="image/png"))
+        contents.append(types.Content(role="user", parts=fn_parts))
+
+        _prune_screenshot_history(contents, keep=3)
+
+    if response is None:
+        return ""
+    return _extract_text(response)
 
 
 # ── Search ────────────────────────────────────────────────────────────────────

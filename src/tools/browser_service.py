@@ -288,31 +288,17 @@ async def execute_with_session(
     domain = extract_domain(site)
     storage_state = await get_storage_state(user_id, domain)
 
-    if settings.ff_browser_computer_use:
-        engine = settings.computer_use_engine
-        if engine == "gemini" and settings.google_ai_api_key:
-            from src.tools import gemini_computer_use
+    if settings.ff_browser_computer_use and settings.google_ai_api_key:
+        from src.tools import gemini_computer_use
 
-            cu_result = await gemini_computer_use.execute_task(
-                storage_state=storage_state,
-                site=domain,
-                task=task,
-                model=settings.gemini_computer_use_model,
-                max_steps=max(max_steps, 25),
-                timeout=max(timeout, 180),
-            )
-        elif settings.openai_api_key:
-            from src.tools import computer_use_service
-
-            cu_result = await computer_use_service.execute_task(
-                storage_state=storage_state,
-                site=domain,
-                task=task,
-                max_steps=max(max_steps, 25),
-                timeout=max(timeout, 180),
-            )
-        else:
-            cu_result = None
+        cu_result = await gemini_computer_use.execute_task(
+            storage_state=storage_state,
+            site=domain,
+            task=task,
+            model=settings.gemini_computer_use_model,
+            max_steps=max(max_steps, 25),
+            timeout=max(timeout, 180),
+        )
 
         if cu_result is not None:
             if cu_result.get("storage_state"):
