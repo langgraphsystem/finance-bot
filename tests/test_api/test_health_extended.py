@@ -388,6 +388,31 @@ async def test_analytics_review_results_returns_snapshot(mock_dependencies):
     assert data["review_results"][0]["trace_key"] == "corr-1"
 
 
+async def test_analytics_review_batches_returns_snapshot(mock_dependencies):
+    batches = [
+        {
+            "batch_id": "review-batch:1",
+            "reviewer": "qa-1",
+            "applied_count": 2,
+            "failed_count": 0,
+        }
+    ]
+    with (
+        patch("api.main.get_review_batches", AsyncMock(return_value=batches)),
+        patch(
+            "api.main.get_conversation_analytics_policy",
+            return_value={"review_batch_limit": 200},
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/review-batches?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["review_batch_size"] == 1
+    assert data["review_batches"][0]["batch_id"] == "review-batch:1"
+
+
 async def test_analytics_golden_dialogues_returns_snapshot(mock_dependencies):
     golden_dialogues = [
         {"trace_key": "corr-1", "scenario": "general", "input_text": "Привет"},
@@ -412,9 +437,11 @@ async def test_analytics_weekly_curation_returns_snapshot(mock_dependencies):
     snapshot = {
         "review_result_size": 2,
         "dataset_candidate_size": 1,
+        "review_batch_size": 1,
         "review_label_counts": {"wrong_route": 1},
         "review_action_counts": {"promote_to_dataset": 1},
         "recent_reviews": [],
+        "recent_review_batches": [{"batch_id": "review-batch:1"}],
         "golden_dialogues": [],
     }
     with patch("api.main.get_weekly_curation_snapshot", AsyncMock(return_value=snapshot)):
@@ -424,4 +451,5 @@ async def test_analytics_weekly_curation_returns_snapshot(mock_dependencies):
     assert resp.status_code == 200
     data = resp.json()
     assert data["review_result_size"] == 2
+    assert data["review_batch_size"] == 1
     assert data["review_action_counts"]["promote_to_dataset"] == 1

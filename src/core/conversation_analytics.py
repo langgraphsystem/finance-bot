@@ -58,6 +58,8 @@ _REVIEW_RESULT_QUEUE_KEY = "analytics:review_results"
 _REVIEW_RESULT_INDEX_KEY = "analytics:review_results:index"
 _DATASET_CANDIDATE_QUEUE_KEY = "analytics:dataset_candidates"
 _DATASET_CANDIDATE_INDEX_KEY = "analytics:dataset_candidates:index"
+_REVIEW_BATCH_QUEUE_KEY = "analytics:review_batches"
+_REVIEW_BATCH_INDEX_KEY = "analytics:review_batches:index"
 _REVIEW_LABELS = [
     "success",
     "wrong_route",
@@ -117,6 +119,7 @@ def get_conversation_analytics_policy() -> dict[str, Any]:
         "trace_export_queue_limit": settings.analytics_trace_export_queue_limit,
         "review_result_limit": settings.analytics_review_result_limit,
         "dataset_candidate_limit": settings.analytics_dataset_candidate_limit,
+        "review_batch_limit": settings.analytics_review_batch_limit,
     }
 
 
@@ -413,6 +416,25 @@ async def _push_queue_item(key: str, payload: dict[str, Any], *, limit: int) -> 
     serialized = json.dumps(payload, ensure_ascii=False, default=str)
     await redis.lpush(key, serialized)
     await redis.ltrim(key, 0, max(limit - 1, 0))
+
+
+async def _store_review_batch_record(payload: dict[str, Any]) -> None:
+    """Persist review batch audit records without breaking the main flow."""
+    try:
+        batch_id = str(payload.get("batch_id") or "")
+        if batch_id:
+            await redis.hset(
+                _REVIEW_BATCH_INDEX_KEY,
+                batch_id,
+                json.dumps(payload, ensure_ascii=False, default=str),
+            )
+        await _push_queue_item(
+            _REVIEW_BATCH_QUEUE_KEY,
+            payload,
+            limit=settings.analytics_review_batch_limit,
+        )
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to store review batch record", exc_info=True)
 
 
 async def _store_trace_artifacts(payload: dict[str, Any]) -> None:
@@ -778,14 +800,39 @@ async def apply_trace_review_suggestions_batch(
         except ValueError as exc:
             failed.append({"trace_key": trace_key, "error": str(exc)})
 
-    return {
+    batch_result = {
+        "batch_id": f"review-batch:{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}",
+        "reviewer": reviewer,
         "requested": len(normalized_keys),
         "applied_count": len(applied),
         "failed_count": len(failed),
         "applied": applied,
         "failed": failed,
         "selection": selection_summary,
+        "notes": notes.strip(),
+        "labels": list(labels or []),
+        "final_label_override": final_label,
+        "action_override": action,
+        "created_at": datetime.now(UTC).isoformat(),
     }
+    await _store_review_batch_record(batch_result)
+    return batch_result
+
+
+async def get_review_batches(limit: int = 25) -> list[dict[str, Any]]:
+    """Return recent batch review operations for operator audit/history."""
+    try:
+        items = await redis.lrange(_REVIEW_BATCH_QUEUE_KEY, 0, max(limit - 1, 0))
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to fetch review batches", exc_info=True)
+        return []
+    parsed: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            parsed.append(json.loads(item))
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return parsed
 
 
 async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
@@ -866,6 +913,7 @@ async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
     """Return a compact operator snapshot for weekly trace-to-dataset curation."""
     review_results = await get_review_results(limit=limit)
     dataset_candidates = await get_dataset_candidates(limit=limit)
+    review_batches = await get_review_batches(limit=limit)
     label_counts: dict[str, int] = {}
     action_counts: dict[str, int] = {}
     for review in review_results:
@@ -877,9 +925,11 @@ async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
         "policy": get_conversation_analytics_policy(),
         "review_result_size": len(review_results),
         "dataset_candidate_size": len(dataset_candidates),
+        "review_batch_size": len(review_batches),
         "review_label_counts": label_counts,
         "review_action_counts": action_counts,
         "recent_reviews": review_results,
+        "recent_review_batches": review_batches,
         "golden_dialogues": [_build_golden_dialogue(candidate) for candidate in dataset_candidates],
     }
 

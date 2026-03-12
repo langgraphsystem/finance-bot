@@ -176,6 +176,7 @@ class Settings(BaseSettings):
     analytics_trace_export_queue_limit: int = 500
     analytics_review_result_limit: int = 500
     analytics_dataset_candidate_limit: int = 200
+    analytics_review_batch_limit: int = 200
 
     @property
     def is_production(self) -> bool:

@@ -28,6 +28,7 @@ from src.core.conversation_analytics import (
     get_conversation_analytics_policy,
     get_dataset_candidates,
     get_golden_dialogues,
+    get_review_batches,
     get_review_queue_snapshot,
     get_review_results,
     get_weekly_curation_snapshot,
@@ -1267,6 +1268,18 @@ async def analytics_review_results(request: Request, limit: int = 25) -> dict[st
         "policy": get_conversation_analytics_policy(),
         "review_result_size": len(results),
         "review_results": results,
+    }
+
+
+@app.get("/ops/analytics/review-batches")
+async def analytics_review_batches(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return recent batch review actions for audit and weekly reporting."""
+    _require_ops_auth(request)
+    batches = await get_review_batches(limit=max(1, min(limit, 100)))
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "review_batch_size": len(batches),
+        "review_batches": batches,
     }
 
 

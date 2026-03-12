@@ -14,6 +14,7 @@ from src.core.conversation_analytics import (
     get_conversation_analytics_policy,
     get_dataset_candidates,
     get_golden_dialogues,
+    get_review_batches,
     get_review_queue_snapshot,
     get_review_results,
     get_sampling_rule,
@@ -212,6 +213,18 @@ async def test_get_review_results_returns_recent_items():
     assert results[0]["action"] == "promote_to_dataset"
 
 
+async def test_get_review_batches_returns_recent_items():
+    items = [
+        '{"batch_id":"review-batch:1","reviewer":"qa-batch","applied_count":2}',
+    ]
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.lrange = AsyncMock(return_value=items)
+        batches = await get_review_batches(limit=1)
+
+    assert batches[0]["batch_id"] == "review-batch:1"
+    assert batches[0]["applied_count"] == 2
+
+
 def test_schedule_review_trace_capture_is_safe_without_loop():
     schedule_review_trace_capture({"review_label": "tool_failure"})
 
@@ -334,20 +347,26 @@ async def test_apply_trace_review_suggestion_uses_prefill():
 
 
 async def test_apply_trace_review_suggestions_batch_summarizes_results():
-    with patch(
-        "src.core.conversation_analytics.apply_trace_review_suggestion",
-        AsyncMock(
-            side_effect=[
-                {
-                    "review": {
-                        "trace_key": "corr-ok",
-                        "final_label": "memory_failure",
+    with (
+        patch(
+            "src.core.conversation_analytics.apply_trace_review_suggestion",
+            AsyncMock(
+                side_effect=[
+                    {
+                        "review": {
+                            "trace_key": "corr-ok",
+                            "final_label": "memory_failure",
+                        },
+                        "dataset_candidate_created": True,
                     },
-                    "dataset_candidate_created": True,
-                },
-                ValueError("trace_not_found"),
-            ]
+                    ValueError("trace_not_found"),
+                ]
+            ),
         ),
+        patch(
+            "src.core.conversation_analytics._store_review_batch_record",
+            AsyncMock(),
+        ) as mock_store_batch,
     ):
         result = await apply_trace_review_suggestions_batch(
             trace_keys=["corr-ok", "corr-missing"],
@@ -362,6 +381,9 @@ async def test_apply_trace_review_suggestions_batch_summarizes_results():
     assert result["applied"][0]["trace_key"] == "corr-ok"
     assert result["failed"][0]["trace_key"] == "corr-missing"
     assert result["failed"][0]["error"] == "trace_not_found"
+    assert result["batch_id"].startswith("review-batch:")
+    assert result["reviewer"] == "qa-batch"
+    mock_store_batch.assert_awaited_once_with(result)
 
 
 async def test_apply_trace_review_suggestions_batch_selects_from_queue():
@@ -521,6 +543,14 @@ async def test_get_weekly_curation_snapshot_aggregates_reviews():
             "candidate_created_at": "2026-03-11T00:00:00+00:00",
         }
     ]
+    review_batches = [
+        {
+            "batch_id": "review-batch:1",
+            "reviewer": "qa-1",
+            "applied_count": 2,
+            "failed_count": 0,
+        }
+    ]
     with (
         patch(
             "src.core.conversation_analytics.get_review_results",
@@ -530,11 +560,17 @@ async def test_get_weekly_curation_snapshot_aggregates_reviews():
             "src.core.conversation_analytics.get_dataset_candidates",
             AsyncMock(return_value=dataset_candidates),
         ),
+        patch(
+            "src.core.conversation_analytics.get_review_batches",
+            AsyncMock(return_value=review_batches),
+        ),
     ):
         snapshot = await get_weekly_curation_snapshot(limit=5)
 
     assert snapshot["review_result_size"] == 2
     assert snapshot["dataset_candidate_size"] == 1
+    assert snapshot["review_batch_size"] == 1
     assert snapshot["review_label_counts"]["wrong_route"] == 1
     assert snapshot["review_action_counts"]["follow_up"] == 1
+    assert snapshot["recent_review_batches"][0]["batch_id"] == "review-batch:1"
     assert snapshot["golden_dialogues"][0]["trace_key"] == "corr-1"
