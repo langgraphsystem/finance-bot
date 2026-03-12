@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuBtn = document.querySelector(".mobile-menu-btn");
     const navLinks = document.querySelector(".nav-links");
     const revealItems = document.querySelectorAll(".reveal");
-    const showcaseBoard = document.querySelector(".showcase-board");
+    const productBoard = document.querySelector(".product-board");
 
     const syncNavbarState = () => {
         if (!navbar) {
@@ -53,22 +53,22 @@ document.addEventListener("DOMContentLoaded", () => {
         revealItems.forEach((item) => observer.observe(item));
     }
 
-    if (showcaseBoard) {
+    if (productBoard) {
         const resetCursor = () => {
-            showcaseBoard.style.setProperty("--cursor-x", "50%");
-            showcaseBoard.style.setProperty("--cursor-y", "50%");
+            productBoard.style.setProperty("--cursor-x", "50%");
+            productBoard.style.setProperty("--cursor-y", "50%");
         };
 
         resetCursor();
 
-        showcaseBoard.addEventListener("pointermove", (event) => {
-            const rect = showcaseBoard.getBoundingClientRect();
+        productBoard.addEventListener("pointermove", (event) => {
+            const rect = productBoard.getBoundingClientRect();
             const x = ((event.clientX - rect.left) / rect.width) * 100;
             const y = ((event.clientY - rect.top) / rect.height) * 100;
-            showcaseBoard.style.setProperty("--cursor-x", `${x}%`);
-            showcaseBoard.style.setProperty("--cursor-y", `${y}%`);
+            productBoard.style.setProperty("--cursor-x", `${x}%`);
+            productBoard.style.setProperty("--cursor-y", `${y}%`);
         });
 
-        showcaseBoard.addEventListener("pointerleave", resetCursor);
+        productBoard.addEventListener("pointerleave", resetCursor);
     }
 });

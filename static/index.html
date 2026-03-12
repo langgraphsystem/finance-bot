@@ -3,19 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | Autonomous Life Ops</title>
+    <title>Finance Bot | Autonomous Operations in Chat</title>
     <meta
         name="description"
-        content="Finance Bot orchestrates receipts, reporting, calendar, and messaging from one AI control layer."
+        content="Finance Bot turns chat into an operating layer for receipts, reminders, reporting, calendar prep, and follow-through."
     >
     <link
         rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2308131f'/%3E%3Cpath d='M20 20h24v6H27v9h14v6H27v13h-7z' fill='%23eef5ff'/%3E%3C/svg%3E"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1726'/%3E%3Cpath d='M20 20h24v6H27v9h14v6H27v13h-7z' fill='%23f4f7fb'/%3E%3C/svg%3E"
     >
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Sora:wght@500;600;700;800&display=swap"
         rel="stylesheet"
     >
     <link rel="stylesheet" href="style.css">
@@ -23,18 +23,18 @@
 <body>
     <div class="page-noise" aria-hidden="true"></div>
     <div class="page-grid" aria-hidden="true"></div>
-    <div class="page-orb orb-left" aria-hidden="true"></div>
-    <div class="page-orb orb-right" aria-hidden="true"></div>
+    <div class="page-wash" aria-hidden="true"></div>
 
     <nav class="navbar">
-        <a href="/" class="brand">
+        <a href="/" class="brand" aria-label="Finance Bot home">
             <span class="brand-mark">F</span>
             <span>Finance Bot</span>
         </a>
 
         <div class="nav-links">
-            <a href="#showcase">Showcase</a>
+            <a href="#showcase">Product</a>
             <a href="#system">System</a>
+            <a href="#proof">Use Cases</a>
             <a href="#contact">Contact</a>
         </div>
 
@@ -49,108 +49,114 @@
 
     <main>
         <section class="hero reveal">
-            <div class="eyebrow">AUTONOMOUS FINANCE OPERATIONS</div>
-            <h1 class="hero-title">
-                One bot at the <span class="text-highlight">center.</span>
-                Every workflow <span class="text-gradient">moving around it.</span>
-            </h1>
-            <p class="hero-copy">
-                Finance Bot routes receipts, reminders, reports, inbox work, and calendar ops from a
-                single AI layer so you stop jumping between apps.
-            </p>
-            <div class="hero-actions">
-                <a href="https://t.me/YourBotName" class="btn btn-primary">Start With Finance Bot</a>
-                <a href="#showcase" class="btn btn-secondary">View Live Layout</a>
-            </div>
+            <div class="hero-grid">
+                <div class="hero-copy">
+                    <div class="eyebrow">AUTONOMOUS OPERATIONS IN CHAT</div>
+                    <h1 class="hero-title">
+                        Chat becomes the operating layer for
+                        <span class="text-accent">money, calendar, and follow-through.</span>
+                    </h1>
+                    <p class="hero-body">
+                        Finance Bot consolidates receipts, reminders, reports, inbox actions, and daily
+                        planning into one command surface that feels calm, fast, and accountable.
+                    </p>
 
-            <div class="channel-strip" id="channels">
-                <span>Telegram</span>
-                <span>WhatsApp</span>
-                <span>Gmail</span>
-                <span>Calendar</span>
-                <span>Slack</span>
-                <span>SMS</span>
-                <span>Receipt OCR</span>
+                    <div class="hero-actions">
+                        <a href="https://t.me/YourBotName" class="btn btn-primary">Open Finance Bot</a>
+                        <a href="#showcase" class="btn btn-secondary">View the Product</a>
+                    </div>
+
+                    <div class="hero-ledger" id="channels">
+                        <span>Telegram-first</span>
+                        <span>Receipts</span>
+                        <span>Calendar prep</span>
+                        <span>Reporting</span>
+                        <span>Reminders</span>
+                        <span>Follow-ups</span>
+                    </div>
+                </div>
+
+                <aside class="hero-proof">
+                    <div class="hero-proof-head">
+                        <span class="proof-label">Built for real operational work</span>
+                        <span class="proof-state">Live orchestration</span>
+                    </div>
+
+                    <div class="hero-proof-list">
+                        <div class="hero-proof-row">
+                            <strong>Weekly finance digest</strong>
+                            <span>Receipts grouped, categorized, and summarized</span>
+                        </div>
+                        <div class="hero-proof-row">
+                            <strong>Morning brief</strong>
+                            <span>Tomorrow's meetings, reminders, and follow-ups prepared</span>
+                        </div>
+                        <div class="hero-proof-row">
+                            <strong>Connected delivery</strong>
+                            <span>Telegram, Gmail, Calendar, and OCR on one rail</span>
+                        </div>
+                    </div>
+
+                    <div class="hero-proof-meta">
+                        <div>
+                            <span>Primary</span>
+                            <strong>claude-sonnet-4-6</strong>
+                        </div>
+                        <div>
+                            <span>Fast</span>
+                            <strong>gpt-5.2</strong>
+                        </div>
+                        <div>
+                            <span>Vision</span>
+                            <strong>gemini-3.1-pro-preview</strong>
+                        </div>
+                    </div>
+                </aside>
             </div>
         </section>
 
-        <section class="showcase reveal" id="showcase">
-            <div class="section-heading">
-                <div class="eyebrow">WATCH FINANCE BOT IN MOTION</div>
-                <h2>
-                    The phone is the command surface.
-                    <span class="text-gradient">Everything else orbits around it.</span>
-                </h2>
+        <section class="product reveal" id="showcase">
+            <div class="section-intro">
+                <div class="eyebrow">PRODUCT</div>
+                <h2>A control surface, not another assistant tab.</h2>
                 <p>
-                    A centered Finance Bot device, operational side rails, and tool-state animations
-                    that read like Claude Code for life and business workflows.
+                    The interface stays quiet. Routing, execution, channel work, and memory remain legible
+                    around it, so the product feels trustworthy before it feels impressive.
                 </p>
             </div>
 
-            <div class="showcase-board">
-                <div class="connector connector-left" aria-hidden="true"></div>
-                <div class="connector connector-right" aria-hidden="true"></div>
+            <div class="product-board">
+                <div class="board-column board-left">
+                    <article class="board-card board-card-plan drift-slow">
+                        <div class="card-label">request_plan</div>
+                        <h3>The ask is decomposed before anything is executed.</h3>
 
-                <div class="stage-column stage-left">
-                    <article class="stage-card stage-card-search drift-slow">
-                        <div class="card-label">finance_route_intent</div>
-                        <div class="search-line">resolve weekly operations...</div>
-                        <div class="tool-row">
-                            <span>RECEIPT_SCAN_OCR</span>
-                            <small>parse merchant + tax</small>
-                        </div>
-                        <div class="tool-row">
-                            <span>CASHFLOW_WEEKLY_DIGEST</span>
-                            <small>group by category + week</small>
-                        </div>
-                        <div class="tool-row">
-                            <span>CALENDAR_MORNING_BRIEF</span>
-                            <small>tomorrow 08:00 sendout</small>
-                        </div>
-                        <div class="card-meta">
-                            <div>
-                                <strong>Plan</strong>
-                                <span>1 Authenticate channels</span>
-                                <span>2 Execute report graph</span>
+                        <div class="board-stack">
+                            <div class="stack-row">
+                                <strong>1. Parse the request</strong>
+                                <span>weekly spend + tomorrow prep + delivery target</span>
                             </div>
-                            <div>
-                                <strong>Warnings</strong>
-                                <span>! Verify tax category</span>
-                                <span>! Confirm delivery target</span>
+                            <div class="stack-row">
+                                <strong>2. Route the work</strong>
+                                <span>OCR, calendar sync, reminder queue, outbound brief</span>
+                            </div>
+                            <div class="stack-row">
+                                <strong>3. Hold review if needed</strong>
+                                <span>tax category and invoice follow-up can pause for confirmation</span>
                             </div>
                         </div>
                     </article>
 
-                    <article class="stage-card stage-card-cta drift-medium">
-                        <div class="card-label">watch_finance_bot</div>
-                        <h3>Daily brief is already assembling.</h3>
-                        <a href="https://t.me/YourBotName" class="ghost-cta">ADD TO MY ROUTINE</a>
-                    </article>
-
-                    <article class="stage-card stage-card-sandbox drift-fast">
-                        <div class="card-head">
-                            <span class="card-label">finance_sandbox</span>
-                            <span class="status-pill">python 3.12</span>
-                        </div>
-                        <div class="sandbox-run">
-                            <div>
-                                <span>instance-0</span>
-                                <small>completed</small>
-                            </div>
-                            <p>receipt_parser.py --family weekly_gas_spend</p>
-                        </div>
-                        <div class="sandbox-run">
-                            <div>
-                                <span>instance-1</span>
-                                <small>live</small>
-                            </div>
-                            <p>brief_builder.py --tomorrow --send telegram</p>
-                        </div>
+                    <article class="board-card board-card-review drift-medium">
+                        <div class="card-label">human_review</div>
+                        <p class="board-note">
+                            One open review item: confirm tax treatment before the digest is final.
+                        </p>
+                        <div class="board-chip">Awaiting operator confirmation</div>
                     </article>
                 </div>
 
                 <div class="device-stage">
-                    <div class="device-glow-ring" aria-hidden="true"></div>
                     <div class="device-shell">
                         <div class="device-notch" aria-hidden="true"></div>
                         <div class="device-header">
@@ -164,11 +170,12 @@
 
                         <div class="chat-thread">
                             <div class="message message-user">
-                                Собери расходы за неделю, проверь завтрашние встречи и подготовь утренний бриф.
+                                Pull weekly spending, prep tomorrow, and send me the brief before 8.
                             </div>
 
                             <div class="message message-bot">
-                                Уже синхронизирую Telegram, Gmail, Calendar и чековые данные. Отчет почти готов.
+                                Running receipt parsing, calendar sync, and reminder checks now. I will send
+                                the digest to Telegram.
                             </div>
 
                             <div class="message-cluster">
@@ -187,7 +194,7 @@
                             </div>
 
                             <div class="message message-user message-user-compact">
-                                Отправь сводку в Telegram и напомни про invoice follow-up.
+                                Flag anything that needs review before it goes out.
                             </div>
                         </div>
 
@@ -203,123 +210,212 @@
                     </div>
                 </div>
 
-                <div class="stage-column stage-right">
-                    <article class="stage-card stage-card-connections drift-medium">
-                        <div class="card-label">finance_manage_connections</div>
+                <div class="board-column board-right">
+                    <article class="board-card board-card-connections drift-fast">
+                        <div class="card-head">
+                            <span class="card-label">connected_channels</span>
+                            <span class="status-pill">4 active</span>
+                        </div>
+
                         <div class="connection-row">
                             <div>
                                 <strong>Telegram</strong>
-                                <small>bot session</small>
+                                <small>primary delivery</small>
                             </div>
                             <span class="connection-status is-live">live</span>
                         </div>
                         <div class="connection-row">
                             <div>
                                 <strong>Gmail</strong>
-                                <small>OAuth 2.0</small>
+                                <small>follow-up scan</small>
                             </div>
                             <span class="connection-status">ready</span>
                         </div>
                         <div class="connection-row">
                             <div>
-                                <strong>Google Calendar</strong>
-                                <small>2-way sync</small>
+                                <strong>Calendar</strong>
+                                <small>next-day prep</small>
+                            </div>
+                            <span class="connection-status">ready</span>
+                        </div>
+                        <div class="connection-row">
+                            <div>
+                                <strong>Receipt OCR</strong>
+                                <small>merchant extraction</small>
                             </div>
                             <span class="connection-status">ready</span>
                         </div>
                     </article>
 
-                    <article class="stage-card stage-card-exec drift-fast">
+                    <article class="board-card board-card-exec drift-slow">
                         <div class="card-head">
-                            <span class="card-label">finance_execute_skill</span>
-                            <span class="status-pill">session active</span>
+                            <span class="card-label">execution_state</span>
+                            <span class="status-pill">in flight</span>
                         </div>
+
                         <div class="exec-main">
-                            <div class="exec-badge">QUERY_REPORT</div>
+                            <div class="exec-badge">MORNING_BRIEF</div>
                             <div class="exec-grid">
                                 <div>
                                     <span>scope</span>
-                                    <strong>weekly expenses</strong>
+                                    <strong>calendar + reminders</strong>
                                 </div>
                                 <div>
-                                    <span>deliver</span>
-                                    <strong>telegram digest</strong>
+                                    <span>delivery</span>
+                                    <strong>telegram briefing</strong>
                                 </div>
                             </div>
-                            <div class="exec-result">200 OK · summary delivered</div>
+                            <div class="exec-result">2 actions resolved · 1 review still open</div>
                         </div>
                     </article>
 
-                    <article class="stage-card stage-card-config drift-slow">
-                        <div class="card-label">agent_config</div>
-                        <div class="config-row">
-                            <span>AGENT</span>
-                            <strong>Finance Bot</strong>
+                    <article class="board-card board-card-memory drift-medium">
+                        <div class="card-label">memory_state</div>
+                        <div class="stack-row">
+                            <strong>Recurring pattern</strong>
+                            <span>Thursday morning brief before 08:00</span>
                         </div>
-                        <div class="config-row">
-                            <span>PRIMARY</span>
-                            <strong>claude-sonnet-4-6</strong>
+                        <div class="stack-row">
+                            <strong>Delivery preference</strong>
+                            <span>Telegram first, concise summary, review flags at top</span>
                         </div>
-                        <div class="config-row">
-                            <span>FAST</span>
-                            <strong>gpt-5.2</strong>
-                        </div>
-                        <div class="config-row">
-                            <span>VISION</span>
-                            <strong>gemini-3.1-pro-preview</strong>
+                        <div class="stack-row">
+                            <strong>Escalation rule</strong>
+                            <span>Pause for confirmation on ambiguous tax or invoice items</span>
                         </div>
                     </article>
                 </div>
             </div>
         </section>
 
-        <section class="system-grid reveal" id="system">
-            <article class="system-card system-card-orchestration">
-                <div class="card-label">orchestration</div>
-                <h3>Intent routing that feels immediate</h3>
-                <p>
-                    The assistant decides whether a message belongs to receipts, reminders, reporting,
-                    booking, or inbox work without forcing the user through menus.
-                </p>
-            </article>
+        <section class="system reveal" id="system">
+            <div class="system-layout">
+                <div class="system-copy">
+                    <div class="eyebrow">SYSTEM</div>
+                    <h2>Built like software infrastructure, not a novelty chatbot.</h2>
+                    <p>
+                        Trust comes from visible boundaries: what gets routed, what gets executed, what gets
+                        remembered, and what still needs a person.
+                    </p>
 
-            <article class="system-card system-card-memory">
-                <div class="card-label">memory</div>
-                <h3>Phone-native, but operationally deep</h3>
-                <p>
-                    Keep the phone at the center of the composition while the surrounding system cards
-                    communicate ongoing auth, execution, and context retention.
-                </p>
-            </article>
+                    <div class="system-principle">
+                        <strong>Good automation feels calm because the structure is explicit.</strong>
+                        <span>
+                            That clarity is what makes the product feel premium. Not effects. Not slogans.
+                        </span>
+                    </div>
+                </div>
 
-            <article class="system-card system-card-delivery">
-                <div class="card-label">delivery</div>
-                <h3>Two-sided motion with real product cues</h3>
+                <div class="system-grid">
+                    <article class="system-card system-card-large">
+                        <div class="card-label">operating_model</div>
+                        <ol class="system-steps">
+                            <li>
+                                <strong>Classify</strong>
+                                <span>Separate finance, scheduling, reminders, and delivery before execution starts.</span>
+                            </li>
+                            <li>
+                                <strong>Execute</strong>
+                                <span>Run only the channels and tools needed for the task in front of the user.</span>
+                            </li>
+                            <li>
+                                <strong>Deliver</strong>
+                                <span>Return a brief, a review flag, or a resolved state instead of system noise.</span>
+                            </li>
+                        </ol>
+                    </article>
+
+                    <article class="system-card">
+                        <div class="card-label">routing</div>
+                        <h3>Intent is routed before tools run.</h3>
+                        <p>
+                            Expense logging, booking, reminders, reporting, and inbox work do not compete in a
+                            single fuzzy loop.
+                        </p>
+                    </article>
+
+                    <article class="system-card">
+                        <div class="card-label">memory</div>
+                        <h3>Preferences stay useful.</h3>
+                        <p>
+                            Recurring habits and preferences are retained so the product feels personal without
+                            becoming messy.
+                        </p>
+                    </article>
+
+                    <article class="system-card">
+                        <div class="card-label">review</div>
+                        <h3>Risky steps wait for confirmation.</h3>
+                        <p>
+                            That boundary makes the experience more trustworthy than pretending every action
+                            should run unattended.
+                        </p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="proof reveal" id="proof">
+            <div class="section-intro proof-intro">
+                <div class="eyebrow">USE CASES</div>
+                <h2>Designed for real operational routines.</h2>
                 <p>
-                    Both rails animate independently so the page feels alive even before the user
-                    interacts, without turning into decorative noise.
+                    The product becomes credible when the page speaks in concrete workflows instead of
+                    generic AI promises.
                 </p>
-            </article>
+            </div>
+
+            <div class="proof-grid">
+                <article class="proof-card">
+                    <div class="proof-index">01</div>
+                    <h3>Weekly finance close</h3>
+                    <p>
+                        Group receipts, summarize spend, surface anomalies, and deliver a clean digest without
+                        spreadsheet gymnastics.
+                    </p>
+                </article>
+
+                <article class="proof-card">
+                    <div class="proof-index">02</div>
+                    <h3>Morning operational brief</h3>
+                    <p>
+                        Prepare meetings, reminders, and open threads before the day starts, with review flags
+                        where judgment still matters.
+                    </p>
+                </article>
+
+                <article class="proof-card">
+                    <div class="proof-index">03</div>
+                    <h3>Follow-through that does not disappear</h3>
+                    <p>
+                        Delivery preferences, recurring habits, and unresolved items stay visible, so the
+                        system feels dependable over time.
+                    </p>
+                </article>
+            </div>
         </section>
     </main>
 
     <footer class="footer reveal" id="contact">
-        <div>
+        <div class="footer-block">
             <div class="brand footer-brand">
                 <span class="brand-mark">F</span>
                 <span>Finance Bot</span>
             </div>
-            <p class="footer-copy">Autonomous life and business assistance across chat, finance, and scheduling.</p>
+            <p class="footer-copy">
+                Autonomous operations in chat for receipts, reminders, reporting, scheduling, and follow-through.
+            </p>
         </div>
 
         <div class="footer-links">
-            <a href="#showcase">Showcase</a>
+            <a href="#showcase">Product</a>
             <a href="#system">System</a>
+            <a href="#proof">Use Cases</a>
             <a href="privacy.html">Privacy</a>
             <a href="terms.html">Terms</a>
         </div>
 
-        <a href="https://t.me/YourBotName" class="nav-cta footer-cta">Launch Finance Bot</a>
+        <a href="https://t.me/YourBotName" class="footer-cta">Launch Finance Bot</a>
     </footer>
 
     <script src="script.js"></script>
