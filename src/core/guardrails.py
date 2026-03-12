@@ -18,6 +18,8 @@ _REFUSAL_MARKERS = [
     "Sorry, I can't",
 ]
 
+_BLOCK_ANSWERS = ("yes", "да", "block", "blocked")
+
 SAFETY_CHECK_PROMPT = """Your task is to check if the user message below complies with the policy.
 
 Policy:
@@ -54,6 +56,12 @@ def _is_refusal(response_text: str) -> bool:
     """Check if the response text is a guardrails refusal."""
     lower = response_text.lower()
     return any(marker.lower() in lower for marker in _REFUSAL_MARKERS)
+
+
+def _should_block_answer(answer: str) -> bool:
+    """Interpret compact LLM safety answers like 'Yes', 'yes.', or 'да'."""
+    normalized = answer.strip().lower().rstrip(".!?:;")
+    return any(normalized.startswith(marker) for marker in _BLOCK_ANSWERS)
 
 
 _PERSONALIZATION_PATTERNS: list[str] = [
@@ -123,7 +131,7 @@ async def check_input(text: str) -> tuple[bool, str | None]:
         )
         answer = (response.text or "").strip().lower()
 
-        if answer.startswith("yes"):
+        if _should_block_answer(answer):
             logger.info("Guardrails blocked input: %r", text[:100])
             return False, REFUSAL_MESSAGE
 

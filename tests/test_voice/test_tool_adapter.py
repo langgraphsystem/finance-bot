@@ -47,7 +47,16 @@ async def test_handle_tool_call_invokes_registered_skill():
     mock_registry = MagicMock()
     mock_registry.get.return_value = mock_skill
 
-    with patch("src.core.router.get_registry", return_value=mock_registry):
+    with (
+        patch("src.core.router.get_registry", return_value=mock_registry),
+        patch.multiple(
+            "src.voice.policy.voice_config",
+            enabled=True,
+            allow_write_tools=True,
+            receptionist_only=False,
+            force_callback_mode=False,
+        ),
+    ):
         result = await adapter.handle_tool_call(
             "receptionist",
             {"question": "What are your business hours?", "receptionist_topic": "hours"},
@@ -66,6 +75,13 @@ async def test_handle_tool_call_sends_telegram_confirmation_for_pending_action()
     with (
         patch("src.voice.tool_adapter.store_pending_action", new_callable=AsyncMock) as mock_store,
         patch("api.main.gateway", mock_gateway),
+        patch.multiple(
+            "src.voice.policy.voice_config",
+            enabled=True,
+            allow_write_tools=True,
+            receptionist_only=False,
+            force_callback_mode=False,
+        ),
     ):
         mock_store.return_value = "abc123"
         result = await adapter.handle_tool_call(
@@ -127,6 +143,13 @@ async def test_request_verification_sends_sms_and_updates_auth_state():
             new_callable=AsyncMock,
         ) as mock_create,
         patch("src.voice.tool_adapter.SMSGateway") as mock_gateway_cls,
+        patch.multiple(
+            "src.voice.policy.voice_config",
+            enabled=True,
+            allow_write_tools=True,
+            receptionist_only=False,
+            force_callback_mode=False,
+        ),
     ):
         mock_create.return_value = SimpleNamespace(code="123456")
         mock_gateway = mock_gateway_cls.return_value
@@ -152,6 +175,12 @@ async def test_verify_caller_promotes_auth_state():
         "src.voice.tool_adapter.voice_verification_store.verify",
         new_callable=AsyncMock,
         return_value=True,
+    ), patch.multiple(
+        "src.voice.policy.voice_config",
+        enabled=True,
+        allow_write_tools=True,
+        receptionist_only=False,
+        force_callback_mode=False,
     ):
         result = await adapter.handle_tool_call("verify_caller", {"code": "123456"})
 
@@ -166,6 +195,13 @@ async def test_handoff_to_owner_falls_back_to_callback_task_when_telegram_unavai
         patch.object(adapter, "_send_telegram_message", new_callable=AsyncMock, return_value=False),
         patch.object(adapter, "_run_skill", new_callable=AsyncMock) as mock_run_skill,
         patch.object(adapter, "_send_sms_message", new_callable=AsyncMock, return_value=True),
+        patch.multiple(
+            "src.voice.policy.voice_config",
+            enabled=True,
+            allow_write_tools=True,
+            receptionist_only=False,
+            force_callback_mode=False,
+        ),
     ):
         mock_run_skill.return_value = {"ok": True, "message": "Task created"}
         result = await adapter.handle_tool_call(

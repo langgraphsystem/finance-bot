@@ -24,7 +24,11 @@ async def test_inbound_voice_webhook_returns_twiml():
 
     with (
         patch("src.voice.routes.voice_session_store.save", new_callable=AsyncMock) as mock_save,
-        patch("src.voice.routes.voice_config.ws_base_url", "wss://example.com"),
+        patch.multiple(
+            "src.voice.routes.voice_config",
+            enabled=True,
+            ws_base_url="wss://example.com",
+        ),
     ):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
@@ -56,7 +60,12 @@ async def test_outbound_voice_webhook_uses_stored_session():
             new_callable=AsyncMock,
             return_value=metadata,
         ),
-        patch("src.voice.routes.voice_config.ws_base_url", "wss://example.com"),
+        patch.multiple(
+            "src.voice.routes.voice_config",
+            enabled=True,
+            allow_outbound=True,
+            ws_base_url="wss://example.com",
+        ),
     ):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post("/webhook/voice/outbound/call-123")

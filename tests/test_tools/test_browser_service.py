@@ -139,7 +139,7 @@ async def test_execute_with_session_prefers_computer_use_backend():
 
     with (
         patch.object(browser_service.settings, "ff_browser_computer_use", True),
-        patch.object(browser_service.settings, "openai_api_key", "sk-test"),
+        patch.object(browser_service.settings, "google_ai_api_key", "test-key"),
         patch(
             "src.tools.browser_service.get_storage_state",
             new_callable=AsyncMock,
@@ -154,12 +154,12 @@ async def test_execute_with_session_prefers_computer_use_backend():
             new_callable=AsyncMock,
         ) as mock_log,
         patch(
-            "src.tools.computer_use_service.execute_task",
+            "src.tools.gemini_computer_use.execute_task",
             new_callable=AsyncMock,
             return_value={
                 "success": True,
                 "result": "Order placed successfully.",
-                "engine": "openai_computer_use",
+                "engine": "gemini_computer_use",
                 "storage_state": {"cookies": [{"name": "session", "value": "new"}]},
                 "url": "https://amazon.com/checkout/complete",
             },
@@ -173,7 +173,7 @@ async def test_execute_with_session_prefers_computer_use_backend():
         )
 
     assert result["success"] is True
-    assert result["engine"] == "openai_computer_use"
+    assert result["engine"] == "gemini_computer_use"
     mock_cu.assert_awaited_once()
     mock_save.assert_awaited_once()
     mock_log.assert_awaited_once()
