@@ -34,9 +34,11 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
-# Install Playwright Chromium at build time (used by browser-use + playwright fallback)
+# Install Playwright browsers at build time
+# chrome = real Google Chrome (WAF bypass via channel='chrome')
+# chromium = fallback if chrome unavailable
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/.playwright
-RUN .venv/bin/python -m playwright install chromium
+RUN .venv/bin/python -m playwright install chrome chromium
 
 # --- Runtime stage ---
 FROM base AS runtime
