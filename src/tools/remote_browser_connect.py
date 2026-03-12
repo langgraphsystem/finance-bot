@@ -207,16 +207,11 @@ async def ensure_session(token: str, *, user_agent: str | None = None) -> Remote
             "--no-first-run",
             "--no-default-browser-check",
         ]
-        try:
-            browser = await playwright.chromium.launch(
-                channel="chrome",
-                headless=True,
-                args=_args,
-            )
-            logger.info("Launched Google Chrome (channel='chrome')")
-        except Exception as exc:
-            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-            browser = await playwright.chromium.launch(headless=True, args=_args)
+        browser = await playwright.chromium.launch(
+            channel="chrome",
+            headless=True,
+            args=_args,
+        )
         profile = _build_client_profile(user_agent)
         context = await browser.new_context(
             viewport=profile.viewport,

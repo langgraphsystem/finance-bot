@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl wget gnupg \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
     libffi-dev libcairo2 libpq5 \
-    # Chromium runtime deps for Playwright / Browser-Use
+    # Chrome runtime deps for Playwright channel='chrome'
     libnss3 libnspr4 libdbus-1-3 libxkbcommon0 libgbm1 \
     libasound2 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
@@ -37,15 +37,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
-# Install Playwright Chromium (fallback browser; Chrome is installed via apt above)
-ENV PLAYWRIGHT_BROWSERS_PATH=/app/.playwright
-RUN .venv/bin/python -m playwright install chromium
-
 # --- Runtime stage ---
 FROM base AS runtime
 
 COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/.playwright /app/.playwright
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/api /app/api
 COPY --from=builder /app/config /app/config
@@ -56,8 +51,7 @@ COPY --from=builder /app/static /app/static
 
 RUN chmod +x /app/scripts/entrypoint.sh
 
-ENV PATH="/app/.venv/bin:$PATH" \
-    PLAYWRIGHT_BROWSERS_PATH=/app/.playwright
+ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 

@@ -93,6 +93,13 @@ def get_conversation_analytics_policy() -> dict[str, Any]:
         "review_labels": list(_REVIEW_LABELS),
         "review_actions": list(_REVIEW_ACTIONS),
         "review_rubric": list(_REVIEW_RUBRIC_FIELDS),
+        "review_suggestion_fields": [
+            "suggested_final_label",
+            "suggested_action",
+            "suggested_rubric",
+            "suggested_labels",
+            "rationale",
+        ],
         "sample_rates": {
             "multi_intent": 30,
             "memory_related": 25,
@@ -204,6 +211,110 @@ def should_queue_review_candidate(review_label: str, tags: list[str] | None = No
         return True
     tag_set = set(tags or [])
     return "multi_intent" in tag_set or "memory_related" in tag_set
+
+
+def _default_review_rubric() -> dict[str, bool]:
+    return {field: True for field in _REVIEW_RUBRIC_FIELDS}
+
+
+def build_review_suggestion(
+    *,
+    review_label: str,
+    outcome: str,
+    tags: list[str] | None = None,
+    source: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a prefilled review suggestion for operators."""
+    tag_set = set(tags or [])
+    metadata = dict(metadata or {})
+    rubric = _default_review_rubric()
+    suggested_action = "close" if review_label == "success" else "follow_up"
+    suggested_labels: list[str] = []
+    rationale_parts = [f"outcome={outcome}", f"review_label={review_label}"]
+
+    if review_label == "wrong_route":
+        rubric.update(
+            {
+                "intent_correct": False,
+                "response_useful": False,
+                "action_completed": False,
+                "clarification_appropriate": False,
+            }
+        )
+        suggested_labels.append("routing")
+        rationale_parts.append("route mismatch heuristics")
+    elif review_label == "memory_failure":
+        rubric.update(
+            {
+                "response_useful": False,
+                "action_completed": False,
+                "memory_applied": False,
+            }
+        )
+        suggested_labels.append("memory")
+        rationale_parts.append("memory-related failure heuristics")
+    elif review_label == "tool_failure":
+        rubric.update(
+            {
+                "response_useful": False,
+                "action_completed": False,
+            }
+        )
+        suggested_labels.append("tooling")
+        rationale_parts.append("tool execution or fallback heuristics")
+    elif review_label == "unsafe_block":
+        rubric.update(
+            {
+                "response_useful": False,
+                "action_completed": False,
+                "clarification_appropriate": False,
+            }
+        )
+        suggested_labels.append("guardrails")
+        rationale_parts.append("guardrail block should be reviewed")
+    elif review_label == "unsafe_allow":
+        rubric.update(
+            {
+                "response_useful": False,
+                "action_completed": False,
+                "safe": False,
+            }
+        )
+        suggested_labels.append("guardrails")
+        rationale_parts.append("unsafe allow requires safety review")
+
+    if "multi_intent" in tag_set:
+        suggested_labels.append("multi_intent")
+    if "memory_related" in tag_set and "memory" not in suggested_labels:
+        suggested_labels.append("memory")
+    if "shadow_mismatch" in tag_set and "routing" not in suggested_labels:
+        suggested_labels.append("routing")
+
+    reference_rubric = metadata.get("reference_rubric")
+    if isinstance(reference_rubric, dict) and reference_rubric.get("passed") is False:
+        rubric["response_useful"] = False
+        rubric["action_completed"] = False
+        rationale_parts.append(
+            f"reference mismatch ({reference_rubric.get('verdict', 'unknown')})"
+        )
+
+    is_golden_replay = source == "test_bot_live_golden_replay" or "golden_replay" in tag_set
+    if is_golden_replay:
+        suggested_labels.append("golden_replay")
+        if review_label in {"wrong_route", "memory_failure", "tool_failure"}:
+            suggested_action = "promote_to_dataset"
+        rationale_parts.append("golden replay failure")
+    elif review_label == "success":
+        suggested_action = "close"
+
+    return {
+        "suggested_final_label": review_label,
+        "suggested_action": suggested_action,
+        "suggested_rubric": rubric,
+        "suggested_labels": sorted(set(suggested_labels)),
+        "rationale": "; ".join(rationale_parts),
+    }
 
 
 async def _push_queue_item(key: str, payload: dict[str, Any], *, limit: int) -> None:
@@ -364,6 +475,13 @@ async def ingest_review_trace(payload: dict[str, Any]) -> dict[str, Any]:
         "metadata": metadata,
         "captured_at": str(payload.get("captured_at") or datetime.now(UTC).isoformat()),
     }
+    normalized_payload["review_suggestion"] = build_review_suggestion(
+        review_label=review_label,
+        outcome=outcome,
+        tags=tags,
+        source=normalized_payload["source"],
+        metadata=metadata,
+    )
     await _store_trace_artifacts(normalized_payload)
     return normalized_payload
 
@@ -576,6 +694,16 @@ def emit_conversation_analytics_event(
     merged_tags = merge_analytics_tags(tags)
     sampling = get_sampling_rule(outcome, merged_tags)
     review_label = normalize_review_label(outcome, merged_tags, extra)
+    metadata = (
+        dict(extra.get("metadata") or {})
+        if isinstance(extra, dict)
+        else {}
+    )
+    source = (
+        str(extra.get("source") or "runtime_event")
+        if isinstance(extra, dict)
+        else "runtime_event"
+    )
     subject_key = (
         f"{context.user_id if context else message.user_id}:{message.id}:{intent_name or 'unknown'}"
     )
@@ -602,10 +730,19 @@ def emit_conversation_analytics_event(
         "message_length": len(message.text or ""),
         "message_preview": (message.text or "")[:_MESSAGE_PREVIEW_LIMIT],
         "response_preview": (response.text or "")[:_RESPONSE_PREVIEW_LIMIT] if response else "",
+        "source": source,
+        "metadata": metadata,
     }
     if extra:
         payload.update(extra)
     payload["queued_for_review"] = should_queue_review_candidate(review_label, merged_tags)
+    payload["review_suggestion"] = build_review_suggestion(
+        review_label=review_label,
+        outcome=outcome,
+        tags=merged_tags,
+        source=str(payload.get("source") or source),
+        metadata=dict(payload.get("metadata") or {}),
+    )
 
     log_runtime_event(
         logger,

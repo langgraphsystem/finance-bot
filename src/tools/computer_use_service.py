@@ -499,16 +499,11 @@ async def execute_task(
             "--no-first-run",
             "--no-default-browser-check",
         ]
-        try:
-            browser = await playwright.chromium.launch(
-                channel="chrome",
-                headless=True,
-                args=_args,
-            )
-            logger.info("Launched Google Chrome (channel='chrome')")
-        except Exception as exc:
-            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-            browser = await playwright.chromium.launch(headless=True, args=_args)
+        browser = await playwright.chromium.launch(
+            channel="chrome",
+            headless=True,
+            args=_args,
+        )
         try:
             context = await browser.new_context(
                 storage_state=storage_state,

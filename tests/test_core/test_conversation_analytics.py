@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
+    build_review_suggestion,
     derive_conversation_tags,
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
@@ -92,6 +93,7 @@ def test_emit_conversation_analytics_event_logs_sampled_payload():
     assert payload["sampling_percent"] == 100
     assert payload["message_preview"] == "Привет"
     assert payload["response_preview"] == "Здравствуйте"
+    assert payload["review_suggestion"]["suggested_final_label"] == "tool_failure"
     assert mock_log.call_args.args[2] == "conversation_analytics_event"
 
 
@@ -100,6 +102,7 @@ def test_policy_exposes_sample_rates():
     assert "sample_rates" in policy
     assert policy["sample_rates"]["default_success"] == 10
     assert "review_rubric" in policy
+    assert "review_suggestion_fields" in policy
     assert "promote_to_dataset" in policy["review_actions"]
 
 
@@ -109,9 +112,24 @@ def test_normalize_review_label_maps_memory_and_guardrails():
     assert normalize_review_label("wrong_route", ["shadow_mismatch"]) == "wrong_route"
 
 
+def test_build_review_suggestion_prefills_golden_replay_failure():
+    suggestion = build_review_suggestion(
+        review_label="memory_failure",
+        outcome="wrong_route",
+        tags=["golden_replay", "memory_related"],
+        source="test_bot_live_golden_replay",
+        metadata={"reference_rubric": {"passed": False, "verdict": "weak_match"}},
+    )
+
+    assert suggestion["suggested_final_label"] == "memory_failure"
+    assert suggestion["suggested_action"] == "promote_to_dataset"
+    assert suggestion["suggested_rubric"]["memory_applied"] is False
+    assert "golden_replay" in suggestion["suggested_labels"]
+
+
 async def test_get_review_queue_snapshot_returns_review_and_trace_items():
     items = [
-        '{"review_label":"wrong_route","queued_for_review":true}',
+        '{"review_label":"wrong_route","queued_for_review":true,"review_suggestion":{"suggested_final_label":"wrong_route"}}',
         '{"review_label":"tool_failure","queued_for_review":true}',
     ]
     with patch("src.core.conversation_analytics.redis") as mock_redis:
@@ -121,6 +139,10 @@ async def test_get_review_queue_snapshot_returns_review_and_trace_items():
     assert snapshot["review_queue_size"] == 2
     assert snapshot["trace_export_size"] == 2
     assert snapshot["review_queue"][0]["review_label"] == "wrong_route"
+    assert (
+        snapshot["review_queue"][0]["review_suggestion"]["suggested_final_label"]
+        == "wrong_route"
+    )
 
 
 async def test_get_dataset_candidates_returns_recent_items():
@@ -249,6 +271,7 @@ async def test_ingest_review_trace_stores_external_candidate():
     assert payload["review_label"] == "wrong_route"
     assert payload["queued_for_review"] is True
     assert payload["metadata"]["source_trace_key"] == "corr-1"
+    assert payload["review_suggestion"]["suggested_action"] == "promote_to_dataset"
 
 
 async def test_submit_trace_review_rejects_missing_rubric_fields():

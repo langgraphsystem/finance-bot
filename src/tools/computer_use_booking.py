@@ -283,16 +283,11 @@ async def execute_computer_use_search(
             "--no-first-run",
             "--no-default-browser-check",
         ]
-        try:
-            browser = await p.chromium.launch(
-                channel="chrome",
-                headless=True,
-                args=_args,
-            )
-            logger.info("Launched Google Chrome (channel='chrome')")
-        except Exception as exc:
-            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-            browser = await p.chromium.launch(headless=True, args=_args)
+        browser = await p.chromium.launch(
+            channel="chrome",
+            headless=True,
+            args=_args,
+        )
         try:
             context = await browser.new_context(
                 storage_state=storage_state,
@@ -433,16 +428,11 @@ async def execute_computer_use_booking(
             "--no-first-run",
             "--no-default-browser-check",
         ]
-        try:
-            browser = await p.chromium.launch(
-                channel="chrome",
-                headless=True,
-                args=_args,
-            )
-            logger.info("Launched Google Chrome (channel='chrome')")
-        except Exception as exc:
-            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-            browser = await p.chromium.launch(headless=True, args=_args)
+        browser = await p.chromium.launch(
+            channel="chrome",
+            headless=True,
+            args=_args,
+        )
         try:
             context = await browser.new_context(
                 storage_state=storage_state,

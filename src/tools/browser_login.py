@@ -102,12 +102,7 @@ async def start_login(
                 "--disable-infobars",
             ],
         }
-        try:
-            browser = await pw.chromium.launch(channel="chrome", **_launch_args)
-            logger.info("Launched Google Chrome (channel='chrome')")
-        except Exception as exc:
-            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-            browser = await pw.chromium.launch(**_launch_args)
+        browser = await pw.chromium.launch(channel="chrome", **_launch_args)
         context = await browser.new_context(
             user_agent=(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

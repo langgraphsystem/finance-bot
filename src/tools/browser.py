@@ -211,14 +211,9 @@ class BrowserTool:
             from playwright_stealth import Stealth
 
             async with Stealth().use_async(async_playwright()) as pw:
-                try:
-                    browser = await pw.chromium.launch(
-                        channel="chrome", headless=True, args=_STEALTH_ARGS,
-                    )
-                    logger.info("Launched Google Chrome (channel='chrome')")
-                except Exception as exc:
-                    logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
-                    browser = await pw.chromium.launch(headless=True, args=_STEALTH_ARGS)
+                browser = await pw.chromium.launch(
+                    channel="chrome", headless=True, args=_STEALTH_ARGS,
+                )
                 context = await browser.new_context(user_agent=_REALISTIC_UA)
                 page = await context.new_page()
                 await page.goto(start_url, wait_until="domcontentloaded", timeout=timeout_ms)
