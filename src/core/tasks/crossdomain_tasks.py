@@ -271,7 +271,9 @@ async def _store_insights(user_id: str, insights: list[str]) -> int:
             await add_memory(
                 content=f"[Cross-domain insight] {insight}",
                 user_id=user_id,
-                metadata={"category": "life_insights", "source": "crossdomain_cron"},
+                source="crossdomain_cron",
+                category="life_insights",
+                memory_type="crossdomain_insight",
                 domain=MemoryDomain.life,
             )
             stored += 1

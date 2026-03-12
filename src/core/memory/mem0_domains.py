@@ -37,9 +37,12 @@ CATEGORY_DOMAIN_MAP: dict[str, MemoryDomain] = {
     "life_note": MemoryDomain.life,
     "life_pattern": MemoryDomain.life,
     "life_preference": MemoryDomain.life,
+    "life_digest": MemoryDomain.life,
+    "life_insights": MemoryDomain.life,
     "contact": MemoryDomain.contacts,
     "document_preference": MemoryDomain.documents,
     "writing_style": MemoryDomain.content,
+    "content": MemoryDomain.content,
     "task_habit": MemoryDomain.tasks,
     "calendar_preference": MemoryDomain.calendar,
     "research_interest": MemoryDomain.research,
@@ -54,6 +57,8 @@ CATEGORY_DOMAIN_MAP: dict[str, MemoryDomain] = {
     "project_goal": MemoryDomain.projects,
     "project_status": MemoryDomain.projects,
     "project_fact": MemoryDomain.projects,
+    # Program / code-generation memory
+    "program_artifact": MemoryDomain.core,
 }
 
 # Map QUERY_CONTEXT_MAP "mem" values to which domains to search

@@ -65,7 +65,14 @@ async def async_mem0_update(user_id: str, message: str, metadata: dict | None = 
             except Exception as e:
                 logger.warning("Immediate identity update failed: %s", e)
 
-        result = await add_memory(message, user_id=user_id, metadata=metadata)
+        result = await add_memory(
+            message,
+            user_id=user_id,
+            metadata=metadata,
+            source=(metadata or {}).get("source") or "async_mem0_update",
+            category=(metadata or {}).get("category"),
+            memory_type=(metadata or {}).get("type") or "implicit",
+        )
         persisted_or_queued = bool(result)
         if result.get("queued"):
             logger.info("Mem0 queued for retry for user %s (category=%s)", user_id, category)

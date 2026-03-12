@@ -278,7 +278,9 @@ async def _mem0_save_project(user_id: str, project_name: str) -> None:
         await add_memory(
             f"User project: {project_name}",
             user_id=user_id,
-            metadata={"category": "user_project"},
+            source="project_manager",
+            category="user_project",
+            memory_type="project_reference",
         )
     except Exception as e:
         logger.warning("Mem0 project save failed: %s", e)

@@ -131,6 +131,9 @@ async def retry_failed_memories(user_id: str) -> int:
                 item["content"],
                 user_id=item["user_id"],
                 metadata=item.get("metadata"),
+                source=(item.get("metadata") or {}).get("source") or "mem0_dlq_retry",
+                category=(item.get("metadata") or {}).get("category"),
+                memory_type=(item.get("metadata") or {}).get("type"),
             )
             success_count += 1
         except Exception as e:

@@ -139,6 +139,8 @@ async def store_patterns(family_id: str, patterns: dict) -> None:
         await add_memory(
             content=content,
             user_id=f"family:{family_id}",
-            metadata={"type": "spending_pattern", "source": "weekly_analysis"},
+            source="weekly_analysis",
+            category="spending_pattern",
+            memory_type="weekly_pattern_snapshot",
         )
         logger.info("Stored %d pattern items for family %s", len(summary_parts), family_id)

@@ -330,7 +330,10 @@ class GenerateProgramSkill:
                 await add_memory(
                     content=mem_text,
                     user_id=context.user_id,
-                    metadata={"type": "program", "language": language or "auto"},
+                    source="generate_program",
+                    category="program_artifact",
+                    memory_type="program",
+                    metadata={"language": language or "auto"},
                 )
             except Exception as e:
                 logger.warning("Mem0 storage for program failed: %s", e)

@@ -407,6 +407,9 @@ async def _sync_procedures_to_mem0(
             await add_memory(
                 rule,
                 user_id=user_id,
+                source="procedural_sync",
+                category="procedure",
+                memory_type="procedure_rule",
                 metadata={
                     "category": "procedure",
                     "domain": domain,

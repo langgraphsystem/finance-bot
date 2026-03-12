@@ -156,7 +156,10 @@ class ModifyProgramSkill:
                 await add_memory(
                     content=f"Modified program: {changes}",
                     user_id=context.user_id,
-                    metadata={"type": "program_modify", "model": model},
+                    source="modify_program",
+                    category="program_artifact",
+                    memory_type="program_modify",
+                    metadata={"model": model},
                 )
             except Exception as e:
                 logger.warning("Mem0 storage for modification failed: %s", e)

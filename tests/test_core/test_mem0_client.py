@@ -38,6 +38,7 @@ from src.core.memory.mem0_client import (  # noqa: E402
     _all_namespace_user_ids,
     _build_pgvector_url,
     _PatchedConnectionPool,
+    add_memory,
     delete_memory,
     search_memories_multi_domain,
 )
@@ -196,3 +197,96 @@ async def test_delete_memory_requires_user_ownership():
         await delete_memory("mem-1", "user-1")
 
     assert delete_calls == [{"memory_id": "mem-1"}]
+
+
+async def test_add_memory_applies_governed_write_metadata():
+    class _Circuit:
+        def can_execute(self):
+            return True
+
+        def record_success(self):
+            return None
+
+        def record_failure(self):
+            return None
+
+    class _Memory:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def add(self, content, **kwargs):
+            self.calls.append({"content": content, **kwargs})
+            return {"id": "mem-1"}
+
+    memory = _Memory()
+
+    with (
+        patch("src.core.memory.mem0_client.get_circuit", return_value=_Circuit()),
+        patch("src.core.memory.mem0_client.get_memory", return_value=memory),
+        patch(
+            "src.core.memory.mem0_client._detect_and_resolve_contradiction",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await add_memory(
+            "Remember this note",
+            "user-1",
+            source="quick_capture",
+            category="life_note",
+            memory_type="note",
+            metadata={"tags": ["idea"]},
+        )
+
+    assert len(memory.calls) == 1
+    call = memory.calls[0]
+    assert call["content"] == "Remember this note"
+    metadata = call["metadata"]
+    assert metadata["source"] == "quick_capture"
+    assert metadata["category"] == "life_note"
+    assert metadata["type"] == "note"
+    assert metadata["domain"] == "life"
+    assert metadata["write_path"] == "governed_mem0"
+    assert metadata["schema_version"] == 1
+    assert "written_at" in metadata
+
+
+async def test_add_memory_infers_category_from_legacy_type_alias():
+    class _Circuit:
+        def can_execute(self):
+            return True
+
+        def record_success(self):
+            return None
+
+        def record_failure(self):
+            return None
+
+    class _Memory:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def add(self, content, **kwargs):
+            self.calls.append({"content": content, **kwargs})
+            return {"id": "mem-1"}
+
+    memory = _Memory()
+
+    with (
+        patch("src.core.memory.mem0_client.get_circuit", return_value=_Circuit()),
+        patch("src.core.memory.mem0_client.get_memory", return_value=memory),
+        patch(
+            "src.core.memory.mem0_client._detect_and_resolve_contradiction",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await add_memory(
+            "Saved video: https://example.com/watch",
+            "user-1",
+            metadata={"type": "saved_video"},
+            source="video_session",
+        )
+
+    metadata = memory.calls[0]["metadata"]
+    assert metadata["category"] == "content"
+    assert metadata["domain"] == "content"
+    assert metadata["source"] == "video_session"

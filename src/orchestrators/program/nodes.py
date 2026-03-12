@@ -293,7 +293,10 @@ async def mem0_background(state: ProgramState) -> None:
         await add_memory(
             content=mem_text,
             user_id=state["user_id"],
-            metadata={"type": "program", "language": lang, "orchestrator": "program"},
+            source="program_orchestrator",
+            category="program_artifact",
+            memory_type="program",
+            metadata={"language": lang, "orchestrator": "program"},
         )
     except Exception as e:
         logger.warning("Mem0 background task failed: %s", e)

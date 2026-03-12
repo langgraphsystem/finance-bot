@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from src.core.memory.mem0_domains import get_domain_for_category
@@ -12,6 +13,22 @@ DEFAULT_MEMORY_SOURCE = "memory_system"
 DEFAULT_RETENTION_CLASS = "long_term"
 DEFAULT_SENSITIVITY = "personal"
 DEFAULT_CONFIDENCE = 0.7
+MEMORY_SCHEMA_VERSION = 1
+
+LEGACY_TYPE_CATEGORY_MAP = {
+    "note": "life_note",
+    "spending_pattern": "spending_pattern",
+    "weekly_digest": "life_digest",
+    "saved_video": "content",
+    "saved_content": "content",
+    "program": "program_artifact",
+    "program_modify": "program_artifact",
+}
+
+
+def normalize_memory_content(content: str | None) -> str:
+    """Normalize free-form memory content before persistence."""
+    return str(content or "").strip()
 
 
 def normalize_memory_metadata(
@@ -26,9 +43,11 @@ def normalize_memory_metadata(
 ) -> dict[str, Any]:
     """Normalize memory metadata into a stable, governance-friendly shape."""
     meta = dict(metadata or {})
+    legacy_type = str(meta.get("type") or memory_type or "").strip()
 
     category = str(
         meta.get("category")
+        or LEGACY_TYPE_CATEGORY_MAP.get(legacy_type)
         or default_category
         or DEFAULT_MEMORY_CATEGORY
     ).strip()
@@ -60,6 +79,48 @@ def normalize_memory_metadata(
         meta["domain"] = get_domain_for_category(category).value
 
     return meta
+
+
+def prepare_memory_write(
+    content: str | None,
+    metadata: dict[str, Any] | None = None,
+    *,
+    source: str | None = None,
+    memory_type: str | None = None,
+    category: str | None = None,
+    confidence: float | None = None,
+    sensitivity: str | None = None,
+    retention_class: str | None = None,
+    domain: str | None = None,
+    source_ref: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Prepare content + metadata for a governed memory write."""
+    normalized_content = normalize_memory_content(content)
+    if not normalized_content:
+        raise ValueError("memory content is empty")
+
+    meta = dict(metadata or {})
+    if domain and "domain" not in meta:
+        meta["domain"] = domain
+    if source_ref and "source_ref" not in meta:
+        meta["source_ref"] = source_ref
+    if "schema_version" not in meta:
+        meta["schema_version"] = MEMORY_SCHEMA_VERSION
+    if "written_at" not in meta:
+        meta["written_at"] = datetime.now(UTC).isoformat()
+    if "write_path" not in meta:
+        meta["write_path"] = "governed_mem0"
+
+    normalized_meta = normalize_memory_metadata(
+        meta,
+        source=source,
+        memory_type=memory_type,
+        default_category=category,
+        confidence=confidence,
+        sensitivity=sensitivity,
+        retention_class=retention_class,
+    )
+    return normalized_content, normalized_meta
 
 
 def extract_memory_metadata(

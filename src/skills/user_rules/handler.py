@@ -51,8 +51,11 @@ class UserRuleSkill(BaseSkill):
             await immediate_identity_update(user_id, "bot_identity", rule_text)
             # Also save to Mem0 for long-term
             await add_memory(
-                rule_text, user_id=user_id,
-                metadata={"category": "bot_identity"},
+                rule_text,
+                user_id=user_id,
+                source="user_rules",
+                category="bot_identity",
+                memory_type="explicit",
             )
             bot_name = _extract_name(rule_text)
             return SkillResult(
@@ -62,8 +65,11 @@ class UserRuleSkill(BaseSkill):
         if rule_type == "user_name":
             await immediate_identity_update(user_id, "user_identity", rule_text)
             await add_memory(
-                rule_text, user_id=user_id,
-                metadata={"category": "user_identity"},
+                rule_text,
+                user_id=user_id,
+                source="user_rules",
+                category="user_identity",
+                memory_type="explicit",
             )
             user_name = _extract_name(rule_text)
             return SkillResult(
@@ -77,8 +83,11 @@ class UserRuleSkill(BaseSkill):
 
         await immediate_identity_update(user_id, "user_rule", rule_text)
         await add_memory(
-            rule_text, user_id=user_id,
-            metadata={"category": "user_rule"},
+            rule_text,
+            user_id=user_id,
+            source="user_rules",
+            category="user_rule",
+            memory_type="explicit",
         )
 
         current_rules = await get_user_rules(user_id)

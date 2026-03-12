@@ -166,7 +166,9 @@ async def weekly_life_digest() -> None:
                 await add_memory(
                     content=digest_text,
                     user_id=user_id,
-                    metadata={"type": "weekly_digest", "category": "life_digest"},
+                    source="life_weekly_digest",
+                    category="life_digest",
+                    memory_type="weekly_digest",
                 )
             except Exception as e:
                 logger.warning("Mem0 digest storage failed: %s", e)

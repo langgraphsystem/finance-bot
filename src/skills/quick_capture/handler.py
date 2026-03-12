@@ -60,7 +60,10 @@ class QuickCaptureSkill:
                 await add_memory(
                     content=text,
                     user_id=context.user_id,
-                    metadata={"type": "note", "event_id": str(event.id), "tags": tags},
+                    source="quick_capture",
+                    category="life_note",
+                    memory_type="note",
+                    metadata={"event_id": str(event.id), "tags": tags},
                 )
             except Exception as e:
                 logger.warning("Mem0 storage failed: %s", e)

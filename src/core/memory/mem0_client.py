@@ -115,6 +115,7 @@ from src.core.config import settings  # noqa: E402
 from src.core.memory.governance import (  # noqa: E402
     extract_memory_metadata,
     normalize_memory_metadata,
+    prepare_memory_write,
 )
 
 if TYPE_CHECKING:
@@ -506,7 +507,11 @@ async def _detect_and_resolve_contradiction(
                 memory.add(
                     f"[Superseded] {old_text}",
                     user_id=scoped_uid,
-                    metadata=archive_meta,
+                    metadata=normalize_memory_metadata(
+                        archive_meta,
+                        source="contradiction_resolver",
+                        memory_type="system_archive",
+                    ),
                 )
 
                 # Delete the old contradicting fact
@@ -562,7 +567,15 @@ async def _archive_superseded_fact(
         }
         memory = get_memory()
         scoped_uid = _resolve_user_id(user_id, domain)
-        memory.add(f"[Archived] {old_text}", user_id=scoped_uid, metadata=archive_meta)
+        memory.add(
+            f"[Archived] {old_text}",
+            user_id=scoped_uid,
+            metadata=normalize_memory_metadata(
+                archive_meta,
+                source="temporal_archive",
+                memory_type="system_archive",
+            ),
+        )
     except Exception as e:
         logger.debug("Temporal archive failed (non-critical): %s", e)
 
@@ -585,6 +598,10 @@ _CATEGORY_PRIORITY: dict[str, str] = {
     "life_note": "normal",
     "life_pattern": "normal",
     "life_preference": "normal",
+    "life_digest": "normal",
+    "life_insights": "important",
+    "content": "normal",
+    "program_artifact": "normal",
 }
 
 
@@ -611,14 +628,39 @@ async def add_memory(
     user_id: str,
     metadata: dict[str, Any] | None = None,
     domain: MemoryDomain | None = None,
+    *,
+    source: str | None = None,
+    category: str | None = None,
+    memory_type: str | None = None,
+    confidence: float | None = None,
+    sensitivity: str | None = None,
+    retention_class: str | None = None,
+    source_ref: str | None = None,
 ) -> dict:
-    """Add a memory to Mem0.
+    """Canonical governed entrypoint for Mem0 writes.
 
     When *domain* is set, stores in that domain's namespace.
     If not set, auto-derives domain from metadata category.
     Temporal tracking: archives superseded facts for updatable categories.
     Phase 7: Enriches metadata with priority and updated_at.
     """
+    try:
+        content, metadata = prepare_memory_write(
+            content,
+            metadata,
+            source=source,
+            memory_type=memory_type,
+            category=category,
+            confidence=confidence,
+            sensitivity=sensitivity,
+            retention_class=retention_class,
+            domain=domain.value if domain else None,
+            source_ref=source_ref,
+        )
+    except ValueError:
+        logger.debug("Skipping empty memory write for user %s", user_id)
+        return {}
+
     metadata = _enrich_metadata(metadata)
     cb = get_circuit("mem0")
     if not cb.can_execute():
