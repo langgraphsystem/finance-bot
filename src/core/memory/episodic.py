@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import select
 
 from src.core.db import async_session
+from src.core.memory.user_context import get_current_session_id
 from src.core.models.session_summary import SessionSummary
 from src.core.observability import observe
 
@@ -71,22 +72,42 @@ async def store_episode(
     family_id: str,
     intent: str,
     result_metadata: dict[str, Any] | None = None,
+    session_id: str | None = None,
 ) -> None:
-    """Store episode metadata on the most recent session summary.
+    """Store episode metadata on the active session summary.
 
     Called after successful execution of generative skills.
     """
     try:
         async with async_session() as session:
+            session_uuid = (
+                uuid.UUID(session_id)
+                if session_id
+                else await get_current_session_id(session, user_id)
+            )
+            if session_uuid is None:
+                return
+
             result = await session.execute(
                 select(SessionSummary)
-                .where(SessionSummary.user_id == uuid.UUID(user_id))
-                .order_by(SessionSummary.updated_at.desc())
+                .where(
+                    SessionSummary.user_id == uuid.UUID(user_id),
+                    SessionSummary.session_id == session_uuid,
+                )
                 .limit(1)
             )
             summary = result.scalar_one_or_none()
             if not summary:
-                return
+                summary = SessionSummary(
+                    user_id=uuid.UUID(user_id),
+                    family_id=uuid.UUID(family_id),
+                    session_id=session_uuid,
+                    summary="",
+                    message_count=0,
+                    token_count=0,
+                )
+                session.add(summary)
+                await session.flush()
 
             episode_data = {
                 "intent": intent,

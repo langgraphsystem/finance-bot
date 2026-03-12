@@ -1,5 +1,6 @@
 """Tests for Episodic Memory (Phase 3.2)."""
 
+import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,18 +15,30 @@ from src.core.memory.episodic import (
 )
 
 
+def _make_user_context(session_id: uuid.UUID) -> MagicMock:
+    ctx = MagicMock()
+    ctx.session_id = session_id
+    ctx.updated_at = datetime.now(UTC)
+    ctx.message_count = 1
+    return ctx
+
+
 # ---------------------------------------------------------------------------
 # store_episode
 # ---------------------------------------------------------------------------
 class TestStoreEpisode:
     async def test_stores_on_existing_summary(self):
+        session_id = uuid.uuid4()
         mock_summary = MagicMock()
         mock_summary.episode_metadata = {}
 
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_summary
-        mock_session.execute.return_value = mock_result
+        mock_session.add = MagicMock()
+        mock_ctx_result = MagicMock()
+        mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        mock_summary_result = MagicMock()
+        mock_summary_result.scalar_one_or_none.return_value = mock_summary
+        mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__.return_value = mock_session
@@ -44,14 +57,18 @@ class TestStoreEpisode:
         mock_session.commit.assert_called_once()
 
     async def test_appends_to_existing_episodes(self):
+        session_id = uuid.uuid4()
         existing_ep = {"intent": "draft_message", "timestamp": "2026-03-01", "result": {}}
         mock_summary = MagicMock()
         mock_summary.episode_metadata = {"episodes": [existing_ep]}
 
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_summary
-        mock_session.execute.return_value = mock_result
+        mock_session.add = MagicMock()
+        mock_ctx_result = MagicMock()
+        mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        mock_summary_result = MagicMock()
+        mock_summary_result.scalar_one_or_none.return_value = mock_summary
+        mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__.return_value = mock_session
@@ -66,11 +83,16 @@ class TestStoreEpisode:
         episodes = mock_summary.episode_metadata["episodes"]
         assert len(episodes) == 2
 
-    async def test_no_summary_graceful(self):
+    async def test_creates_placeholder_summary_when_missing(self):
+        session_id = uuid.uuid4()
+        family_id = str(uuid.uuid4())
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = None
-        mock_session.execute.return_value = mock_result
+        mock_session.add = MagicMock()
+        mock_ctx_result = MagicMock()
+        mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        mock_summary_result = MagicMock()
+        mock_summary_result.scalar_one_or_none.return_value = None
+        mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__.return_value = mock_session
@@ -79,27 +101,36 @@ class TestStoreEpisode:
         uid = "00000000-0000-0000-0000-000000000001"
 
         with patch("src.core.memory.episodic.async_session", return_value=mock_ctx):
-            await store_episode(uid, "fam-1", "test")
-        mock_session.commit.assert_not_called()
+            await store_episode(uid, family_id, "test")
+
+        mock_session.add.assert_called_once()
+        created_summary = mock_session.add.call_args.args[0]
+        assert created_summary.session_id == session_id
+        mock_session.commit.assert_called_once()
 
     async def test_caps_at_10_episodes(self):
+        session_id = uuid.uuid4()
         old_eps = [{"intent": f"intent_{i}", "result": {}} for i in range(10)]
         mock_summary = MagicMock()
         mock_summary.episode_metadata = {"episodes": old_eps}
 
         mock_session = AsyncMock()
-        mock_result = MagicMock()
-        mock_result.scalar_one_or_none.return_value = mock_summary
-        mock_session.execute.return_value = mock_result
+        mock_session.add = MagicMock()
+        mock_ctx_result = MagicMock()
+        mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        mock_summary_result = MagicMock()
+        mock_summary_result.scalar_one_or_none.return_value = mock_summary
+        mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
         mock_ctx = AsyncMock()
         mock_ctx.__aenter__.return_value = mock_session
         mock_ctx.__aexit__.return_value = False
 
         uid = "00000000-0000-0000-0000-000000000001"
+        family_id = str(uuid.uuid4())
 
         with patch("src.core.memory.episodic.async_session", return_value=mock_ctx):
-            await store_episode(uid, "fam-1", "new_intent")
+            await store_episode(uid, family_id, "new_intent")
 
         episodes = mock_summary.episode_metadata["episodes"]
         assert len(episodes) == 10
@@ -111,7 +142,7 @@ class TestStoreEpisode:
 
         uid = "00000000-0000-0000-0000-000000000001"
         with patch("src.core.memory.episodic.async_session", return_value=mock_ctx):
-            await store_episode(uid, "fam-1", "test")
+            await store_episode(uid, str(uuid.uuid4()), "test")
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +173,36 @@ class TestSearchEpisodes:
 
         assert len(result) == 1
         assert result[0]["intent"] == "generate_presentation"
+
+    async def test_store_episode_uses_current_session_summary(self):
+        session_id = uuid.uuid4()
+        mock_summary = MagicMock()
+        mock_summary.episode_metadata = {}
+
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+
+        async def _mock_execute(stmt):
+            query = str(stmt)
+            result = MagicMock()
+            if "FROM user_context" in query:
+                result.scalar_one_or_none.return_value = _make_user_context(session_id)
+            else:
+                result.scalar_one_or_none.return_value = mock_summary
+            return result
+
+        mock_session.execute = AsyncMock(side_effect=_mock_execute)
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        uid = "00000000-0000-0000-0000-000000000001"
+        fid = "00000000-0000-0000-0000-000000000002"
+        with patch("src.core.memory.episodic.async_session", return_value=mock_ctx):
+            await store_episode(uid, fid, "write_post", {"topic": "AI"})
+
+        summary_query = mock_session.execute.await_args_list[1].args[0]
+        assert "session_summaries.session_id" in str(summary_query)
 
     async def test_finds_by_topic_in_result(self):
         ep = {"intent": "write_post", "result": {"topic": "machine learning"}}

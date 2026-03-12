@@ -246,24 +246,13 @@ async def _persist_message(
     intent: str | None = None,
 ) -> None:
     """Persist a conversation message to PostgreSQL with retry."""
+    from src.core.memory.user_context import ensure_active_session
+
     max_retries = 2
     for attempt in range(max_retries + 1):
         try:
             async with async_session() as session:
-                ctx_result = await session.execute(
-                    select(UserContext).where(UserContext.user_id == uuid.UUID(user_id)).limit(1)
-                )
-                user_ctx = ctx_result.scalar_one_or_none()
-                if user_ctx is None:
-                    user_ctx = UserContext(
-                        user_id=uuid.UUID(user_id),
-                        family_id=uuid.UUID(family_id),
-                        session_id=uuid.uuid4(),
-                        conversation_state=ConversationState.normal,
-                        message_count=0,
-                    )
-                    session.add(user_ctx)
-                    await session.flush()
+                user_ctx = await ensure_active_session(session, user_id, family_id)
 
                 user_ctx.message_count = int(user_ctx.message_count or 0) + 1
                 msg = ConversationMessage(
@@ -435,6 +424,13 @@ async def handle_message(
         else None
     )
     try:
+        try:
+            from src.core.memory.user_context import ensure_active_user_session
+
+            await ensure_active_user_session(context.user_id, context.family_id)
+        except Exception as e:
+            logger.warning("Failed to ensure active user session: %s", e)
+
         response = await _dispatch_message(message, context, registry)
         resolved_tags = get_current_analytics_tags() or []
         resolved_intent = get_current_request_intent()
@@ -1487,6 +1483,12 @@ async def _run_post_skill_side_effects(
     Returns the (possibly mutated) SkillResult with undo/suggestion buttons.
     """
     from src.core.memory import sliding_window
+    from src.core.memory.user_context import ensure_active_user_session
+
+    try:
+        await ensure_active_user_session(context.user_id, context.family_id)
+    except Exception as e:
+        logger.warning("Failed to ensure active callback session: %s", e)
 
     # Post-gen rule check (Phase 13)
     if skill_result.response_text and settings.ff_post_gen_check:

@@ -1,7 +1,8 @@
 """Layer 5 — Incremental dialog summarization.
 
-Triggers when message_count > 15. Uses Gemini 3 Flash for cheap, fast
-summarization. Stores results in session_summaries table.
+Triggers when message_count > 15 inside the active conversation session.
+Uses Gemini 3 Flash for cheap, fast summarization and stores results in
+session_summaries.
 """
 
 import logging
@@ -12,6 +13,7 @@ from sqlalchemy import func, select
 
 from src.core.db import async_session
 from src.core.llm.clients import google_client
+from src.core.memory.user_context import get_current_session_id
 from src.core.models.conversation import ConversationMessage
 from src.core.models.session_summary import SessionSummary
 from src.core.observability import observe
@@ -51,14 +53,27 @@ TOKEN_THRESHOLD = 25_000  # Primary trigger: token-based (Phase 3.1)
 
 
 @observe(name="summarize_dialog")
-async def summarize_dialog(user_id: str, family_id: str) -> str | None:
-    """Create or update incremental dialog summary if message count > threshold."""
+async def summarize_dialog(
+    user_id: str,
+    family_id: str,
+    session_id: str | None = None,
+) -> str | None:
+    """Create or update an incremental summary for the active session."""
     try:
         async with async_session() as session:
+            session_uuid = (
+                uuid.UUID(session_id)
+                if session_id
+                else await get_current_session_id(session, user_id)
+            )
+            if session_uuid is None:
+                return None
+
             # Count recent messages
             count_result = await session.execute(
                 select(func.count(ConversationMessage.id)).where(
-                    ConversationMessage.user_id == uuid.UUID(user_id)
+                    ConversationMessage.user_id == uuid.UUID(user_id),
+                    ConversationMessage.session_id == session_uuid,
                 )
             )
             msg_count = count_result.scalar() or 0
@@ -79,7 +94,10 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
 
                     obs_query = (
                         select(ConversationMessage)
-                        .where(ConversationMessage.user_id == uuid.UUID(user_id))
+                        .where(
+                            ConversationMessage.user_id == uuid.UUID(user_id),
+                            ConversationMessage.session_id == session_uuid,
+                        )
                         .order_by(ConversationMessage.created_at.desc())
                         .limit(msg_count)
                     )
@@ -113,12 +131,16 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
             # Get existing summary
             sum_result = await session.execute(
                 select(SessionSummary)
-                .where(SessionSummary.user_id == uuid.UUID(user_id))
-                .order_by(SessionSummary.updated_at.desc())
+                .where(
+                    SessionSummary.user_id == uuid.UUID(user_id),
+                    SessionSummary.session_id == session_uuid,
+                )
                 .limit(1)
             )
             existing = sum_result.scalar_one_or_none()
-            existing_text = existing.summary if existing else "Нет предыдущего саммари."
+            existing_text = (
+                existing.summary if existing and existing.summary else "Нет предыдущего саммари."
+            )
             last_count = existing.message_count if existing else 0
 
             # Skip if no new messages since last summary
@@ -129,7 +151,10 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
             # Get new messages since last summary
             query = (
                 select(ConversationMessage)
-                .where(ConversationMessage.user_id == uuid.UUID(user_id))
+                .where(
+                    ConversationMessage.user_id == uuid.UUID(user_id),
+                    ConversationMessage.session_id == session_uuid,
+                )
                 .order_by(ConversationMessage.created_at.desc())
                 .limit(new_count)
             )
@@ -199,7 +224,7 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
                 target_summary = SessionSummary(
                     user_id=uuid.UUID(user_id),
                     family_id=uuid.UUID(family_id),
-                    session_id=uuid.uuid4(),
+                    session_id=session_uuid,
                     summary=summary_text,
                     message_count=msg_count,
                     token_count=len(summary_text.split()),
@@ -249,13 +274,18 @@ async def summarize_dialog(user_id: str, family_id: str) -> str | None:
 
 
 async def get_session_summary(user_id: str) -> SessionSummary | None:
-    """Retrieve the most recent session summary for a user."""
+    """Retrieve the summary for the active conversation session."""
     try:
         async with async_session() as session:
+            session_uuid = await get_current_session_id(session, user_id)
+            if session_uuid is None:
+                return None
             result = await session.execute(
                 select(SessionSummary)
-                .where(SessionSummary.user_id == uuid.UUID(user_id))
-                .order_by(SessionSummary.updated_at.desc())
+                .where(
+                    SessionSummary.user_id == uuid.UUID(user_id),
+                    SessionSummary.session_id == session_uuid,
+                )
                 .limit(1)
             )
             return result.scalar_one_or_none()

@@ -32,6 +32,14 @@ def _make_summary(summary_text: str, message_count: int) -> MagicMock:
     return s
 
 
+def _make_user_context(session_id: uuid.UUID, message_count: int = 0) -> MagicMock:
+    ctx = MagicMock()
+    ctx.session_id = session_id
+    ctx.message_count = message_count
+    ctx.updated_at = datetime.now(UTC)
+    return ctx
+
+
 # ---------------------------------------------------------------------------
 # Tests for summarize_dialog
 # ---------------------------------------------------------------------------
@@ -42,14 +50,17 @@ async def test_summarize_below_threshold_returns_none():
     """When message_count < 15, summarize_dialog should return None."""
     user_id = str(uuid.uuid4())
     family_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     # Mock the DB session
     mock_session = AsyncMock()
+    mock_ctx_result = MagicMock()
+    mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
 
     # count query returns 10 (below threshold of 15)
     mock_count_result = MagicMock()
     mock_count_result.scalar.return_value = 10
-    mock_session.execute = AsyncMock(return_value=mock_count_result)
+    mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_count_result])
     mock_session.commit = AsyncMock()
 
     mock_session_ctx = AsyncMock()
@@ -69,6 +80,7 @@ async def test_summarize_creates_new_summary():
     """When no existing summary and msg_count > 15, create a new summary."""
     user_id = str(uuid.uuid4())
     family_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     messages = [
         _make_message(MessageRole.user, "Потратил 5000 на продукты"),
@@ -83,12 +95,14 @@ async def test_summarize_creates_new_summary():
         call_count += 1
         result = MagicMock()
         if call_count == 1:
+            result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        elif call_count == 2:
             # count query
             result.scalar.return_value = 20
-        elif call_count == 2:
+        elif call_count == 3:
             # existing summary query
             result.scalar_one_or_none.return_value = None
-        elif call_count == 3:
+        elif call_count == 4:
             # messages query
             result.scalars.return_value.all.return_value = messages
         return result
@@ -119,6 +133,8 @@ async def test_summarize_creates_new_summary():
     assert result == "## Финансовые данные\n- Расход 5000 RUB на продукты"
     mock_session.add.assert_called_once()
     mock_session.commit.assert_awaited_once()
+    created_summary = mock_session.add.call_args.args[0]
+    assert created_summary.session_id == session_id
 
 
 @pytest.mark.asyncio
@@ -126,6 +142,7 @@ async def test_summarize_updates_existing_summary():
     """When an existing summary exists, it should be updated in place."""
     user_id = str(uuid.uuid4())
     family_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     existing = _make_summary("## Финансовые данные\n- Расход 3000 RUB", message_count=16)
     new_messages = [
@@ -141,12 +158,14 @@ async def test_summarize_updates_existing_summary():
         call_count += 1
         result = MagicMock()
         if call_count == 1:
+            result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        elif call_count == 2:
             # count query
             result.scalar.return_value = 20
-        elif call_count == 2:
+        elif call_count == 3:
             # existing summary query
             result.scalar_one_or_none.return_value = existing
-        elif call_count == 3:
+        elif call_count == 4:
             # messages query
             result.scalars.return_value.all.return_value = new_messages
         return result
@@ -185,6 +204,7 @@ async def test_summarize_no_new_messages_returns_existing():
     """When msg_count equals last_count, return existing summary text."""
     user_id = str(uuid.uuid4())
     family_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     existing = _make_summary("Existing summary", message_count=20)
 
@@ -196,9 +216,11 @@ async def test_summarize_no_new_messages_returns_existing():
         call_count += 1
         result = MagicMock()
         if call_count == 1:
+            result.scalar_one_or_none.return_value = _make_user_context(session_id)
+        elif call_count == 2:
             # count query — same as existing.message_count
             result.scalar.return_value = 20
-        elif call_count == 2:
+        elif call_count == 3:
             # existing summary query
             result.scalar_one_or_none.return_value = existing
         return result
@@ -227,14 +249,17 @@ async def test_summarize_no_new_messages_returns_existing():
 
 @pytest.mark.asyncio
 async def test_get_session_summary_returns_existing():
-    """get_session_summary should return the most recent summary."""
+    """get_session_summary should return the active session summary."""
     user_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
     existing = _make_summary("Test summary", message_count=20)
 
     mock_session = AsyncMock()
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = existing
-    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_ctx_result = MagicMock()
+    mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+    mock_summary_result = MagicMock()
+    mock_summary_result.scalar_one_or_none.return_value = existing
+    mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
     mock_session_ctx = AsyncMock()
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
@@ -251,13 +276,16 @@ async def test_get_session_summary_returns_existing():
 
 @pytest.mark.asyncio
 async def test_get_session_summary_returns_none_when_empty():
-    """get_session_summary should return None when no summaries exist."""
+    """get_session_summary should return None when no summary exists for the active session."""
     user_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     mock_session = AsyncMock()
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
-    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_ctx_result = MagicMock()
+    mock_ctx_result.scalar_one_or_none.return_value = _make_user_context(session_id)
+    mock_summary_result = MagicMock()
+    mock_summary_result.scalar_one_or_none.return_value = None
+    mock_session.execute = AsyncMock(side_effect=[mock_ctx_result, mock_summary_result])
 
     mock_session_ctx = AsyncMock()
     mock_session_ctx.__aenter__ = AsyncMock(return_value=mock_session)
@@ -296,6 +324,7 @@ async def test_summarize_handles_gemini_error():
     """summarize_dialog should return None if Gemini call fails."""
     user_id = str(uuid.uuid4())
     family_id = str(uuid.uuid4())
+    session_id = uuid.uuid4()
 
     messages = [_make_message(MessageRole.user, "Test message")]
 
@@ -307,10 +336,12 @@ async def test_summarize_handles_gemini_error():
         call_count += 1
         result = MagicMock()
         if call_count == 1:
-            result.scalar.return_value = 20
+            result.scalar_one_or_none.return_value = _make_user_context(session_id)
         elif call_count == 2:
-            result.scalar_one_or_none.return_value = None
+            result.scalar.return_value = 20
         elif call_count == 3:
+            result.scalar_one_or_none.return_value = None
+        elif call_count == 4:
             result.scalars.return_value.all.return_value = messages
         return result
 
