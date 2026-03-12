@@ -240,6 +240,33 @@ async def test_analytics_submit_review_returns_result(mock_dependencies):
     assert data["review"]["final_label"] == "wrong_route"
 
 
+async def test_analytics_apply_review_suggestion_returns_result(mock_dependencies):
+    result = {
+        "review": {
+            "trace_key": "corr-1",
+            "reviewer": "qa-1",
+            "final_label": "memory_failure",
+            "action": "promote_to_dataset",
+        },
+        "dataset_candidate_created": True,
+        "trace": {"trace_key": "corr-1"},
+    }
+    payload = {
+        "trace_key": "corr-1",
+        "reviewer": "qa-1",
+        "notes": "confirmed",
+        "labels": ["weekly_review"],
+    }
+    with patch("api.main.apply_trace_review_suggestion", AsyncMock(return_value=result)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/ops/analytics/reviews/apply-suggestion", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["dataset_candidate_created"] is True
+    assert data["review"]["action"] == "promote_to_dataset"
+
+
 async def test_analytics_ingest_review_candidate_returns_trace(mock_dependencies):
     trace = {
         "trace_key": "replay-1",

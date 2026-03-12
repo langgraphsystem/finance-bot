@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
+    apply_trace_review_suggestion,
     build_review_suggestion,
     derive_conversation_tags,
     emit_conversation_analytics_event,
@@ -245,6 +246,49 @@ async def test_submit_trace_review_promotes_dataset_candidate():
     assert result["review"]["final_label"] == "wrong_route"
     assert result["review"]["rubric"]["intent_correct"] is False
     assert result["trace"]["trace_key"] == trace_payload["trace_key"]
+
+
+async def test_apply_trace_review_suggestion_uses_prefill():
+    trace_payload = {
+        "trace_key": "corr-123",
+        "review_label": "memory_failure",
+        "outcome": "wrong_route",
+        "review_suggestion": {
+            "suggested_final_label": "memory_failure",
+            "suggested_action": "promote_to_dataset",
+            "suggested_rubric": {
+                "intent_correct": True,
+                "response_useful": False,
+                "action_completed": False,
+                "clarification_appropriate": True,
+                "memory_applied": False,
+                "safe": True,
+                "language_correct": True,
+                "formatting_correct": True,
+                "latency_acceptable": True,
+            },
+            "suggested_labels": ["memory", "golden_replay"],
+            "rationale": "golden replay failure",
+        },
+    }
+    serialized_trace = json.dumps(trace_payload)
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.hget = AsyncMock(return_value=serialized_trace)
+        mock_redis.hset = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+        result = await apply_trace_review_suggestion(
+            trace_key="corr-123",
+            reviewer="qa-2",
+            notes="confirmed by operator",
+            labels=["weekly_review"],
+        )
+
+    assert result["review"]["final_label"] == "memory_failure"
+    assert result["review"]["action"] == "promote_to_dataset"
+    assert "golden replay failure" in result["review"]["notes"]
+    assert "confirmed by operator" in result["review"]["notes"]
+    assert "weekly_review" in result["review"]["labels"]
 
 
 async def test_ingest_review_trace_stores_external_candidate():

@@ -569,6 +569,53 @@ async def submit_trace_review(
     }
 
 
+async def apply_trace_review_suggestion(
+    *,
+    trace_key: str,
+    reviewer: str,
+    notes: str = "",
+    final_label: str | None = None,
+    action: str | None = None,
+    labels: list[str] | None = None,
+) -> dict[str, Any]:
+    """Apply the prefilled review suggestion for a trace with optional overrides."""
+    trace_payload = await get_trace_by_key(trace_key.strip())
+    if not trace_payload:
+        raise ValueError("trace_not_found")
+
+    suggestion = dict(trace_payload.get("review_suggestion") or {})
+    if not suggestion:
+        raise ValueError("review_suggestion_missing")
+
+    suggested_rubric = dict(suggestion.get("suggested_rubric") or {})
+    if not suggested_rubric:
+        raise ValueError("review_suggestion_missing_rubric")
+
+    resolved_final_label = str(
+        final_label.strip() if final_label else suggestion.get("suggested_final_label") or ""
+    )
+    resolved_action = str(
+        action.strip() if action else suggestion.get("suggested_action") or ""
+    )
+    merged_labels = list(
+        dict.fromkeys(
+            list(suggestion.get("suggested_labels") or []) + list(labels or [])
+        )
+    )
+    rationale = str(suggestion.get("rationale") or "").strip()
+    combined_notes = "; ".join(part for part in [rationale, notes.strip()] if part)
+
+    return await submit_trace_review(
+        trace_key=trace_key,
+        reviewer=reviewer,
+        final_label=resolved_final_label,
+        action=resolved_action,
+        rubric=suggested_rubric,
+        notes=combined_notes,
+        labels=merged_labels,
+    )
+
+
 async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
     """Return recent reviewed traces promoted to dataset candidates."""
     try:

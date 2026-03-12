@@ -22,6 +22,7 @@ from src.core.access import filter_scope_items
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
+    apply_trace_review_suggestion,
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
     get_dataset_candidates,
@@ -119,6 +120,15 @@ class TraceCandidateSubmission(BaseModel):
     queued_for_review: bool | None = None
     source: str = "external_trace"
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TraceSuggestionApproval(BaseModel):
+    trace_key: str
+    reviewer: str
+    notes: str = ""
+    final_label: str | None = None
+    action: str | None = None
+    labels: list[str] = Field(default_factory=list)
 
 
 def _require_ops_auth(request: Request) -> None:
@@ -1132,6 +1142,26 @@ async def analytics_submit_review(
             action=submission.action,
             rubric=submission.rubric,
             notes=submission.notes,
+            labels=submission.labels,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/ops/analytics/reviews/apply-suggestion")
+async def analytics_apply_review_suggestion(
+    request: Request,
+    submission: TraceSuggestionApproval,
+) -> dict[str, Any]:
+    """Apply a stored review suggestion with optional operator overrides."""
+    _require_ops_auth(request)
+    try:
+        return await apply_trace_review_suggestion(
+            trace_key=submission.trace_key,
+            reviewer=submission.reviewer,
+            notes=submission.notes,
+            final_label=submission.final_label,
+            action=submission.action,
             labels=submission.labels,
         )
     except ValueError as exc:
