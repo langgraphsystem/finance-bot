@@ -12,7 +12,7 @@ import logging
 import re
 import uuid
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -278,14 +278,79 @@ def _memory_preview(text: str, limit: int = 120) -> str:
     return cleaned[:limit]
 
 
-def _trace_memory_candidates(layer: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Build compact trace entries for the selected memory candidates."""
+MEMORY_LAYER_PRECEDENCE: dict[str, int] = {
+    "core_identity": 0,
+    "user_rules": 5,
+    "project_context": 10,
+    "session_buffer": 20,
+    "procedures": 30,
+    "episodes": 40,
+    "graph": 50,
+    "mem0": 60,
+    "sql": 70,
+    "summary": 80,
+    "history": 90,
+}
+
+TRACE_REASON_DEFAULTS: dict[str, str] = {
+    "core_identity": "always_include_identity",
+    "user_rules": "always_include_rules",
+    "project_context": "active_project_context",
+    "session_buffer": "recent_session_fact",
+    "procedures": "learned_procedure",
+    "episodes": "episodic_example",
+    "graph": "relationship_context",
+    "mem0": "semantic_match",
+    "sql": "analytics_context",
+    "summary": "session_summary",
+    "history": "recent_history",
+}
+
+
+def _layer_precedence(layer: str) -> int:
+    return MEMORY_LAYER_PRECEDENCE.get(layer, 999)
+
+
+def _trace_layer_block(
+    layer: str,
+    content: str,
+    *,
+    status: str = "selected",
+    reason: str | None = None,
+    count: int | None = None,
+) -> dict[str, Any]:
+    """Build an audit entry for a rendered context block."""
+    entry: dict[str, Any] = {
+        "layer": layer,
+        "status": status,
+        "reason": reason or TRACE_REASON_DEFAULTS.get(layer, "context_block"),
+        "precedence": _layer_precedence(layer),
+        "preview": _memory_preview(content),
+        "tokens": count_tokens(content),
+    }
+    if count is not None:
+        entry["count"] = count
+    return entry
+
+
+def _trace_memory_candidates(
+    layer: str,
+    items: list[dict[str, Any]],
+    *,
+    status: str = "selected",
+    reason: str | None = None,
+    overridden_by: str | None = None,
+) -> list[dict[str, Any]]:
+    """Build compact trace entries for memory candidates and their outcome."""
     trace: list[dict[str, Any]] = []
     for item in items:
         text = str(item.get("memory") or item.get("text") or item.get("fact") or "").strip()
         metadata = item.get("metadata") or {}
         entry: dict[str, Any] = {
             "layer": layer,
+            "status": status,
+            "reason": reason or TRACE_REASON_DEFAULTS.get(layer, "selected"),
+            "precedence": _layer_precedence(layer),
             "preview": _memory_preview(text),
         }
         if item.get("id") is not None:
@@ -294,13 +359,108 @@ def _trace_memory_candidates(layer: str, items: list[dict[str, Any]]) -> list[di
             entry["category"] = metadata.get("category") or item.get("category")
         if metadata.get("domain"):
             entry["domain"] = metadata["domain"]
+        if metadata.get("source"):
+            entry["source"] = metadata["source"]
+        if metadata.get("type"):
+            entry["type"] = metadata["type"]
         if item.get("score") is not None:
             try:
                 entry["score"] = round(float(item["score"]), 4)
             except (TypeError, ValueError):
                 pass
+        if text:
+            entry["tokens"] = count_tokens(text)
+        if overridden_by:
+            entry["overridden_by"] = overridden_by
         trace.append(entry)
     return trace
+
+
+def _normalize_memory_fingerprint(
+    text: str,
+    *,
+    category: str = "",
+    domain: str = "",
+) -> str:
+    normalized = re.sub(r"\s+", " ", (text or "").strip().lower())
+    return f"{domain}|{category}|{normalized}"
+
+
+def _parse_memory_timestamp(value: Any) -> float:
+    if not value:
+        return 0.0
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        try:
+            dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            return 0.0
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.timestamp()
+
+
+def _memory_context_sort_key(memory: dict[str, Any]) -> tuple[float, float, float, float, float]:
+    """Score a Mem0 candidate for prompt injection quality."""
+    metadata = memory.get("metadata") or {}
+    priority = _PRIORITY_RANK.get(str(metadata.get("priority") or "normal"), 2)
+    explicit_boost = 1.0 if metadata.get("write_policy") == "explicit" else 0.0
+    confidence = float(metadata.get("confidence") or 0.0)
+    semantic_score = float(memory.get("score") or 0.0)
+    recency = _parse_memory_timestamp(
+        metadata.get("updated_at") or metadata.get("written_at") or metadata.get("created_at")
+    )
+
+    return (
+        -priority,
+        explicit_boost,
+        confidence,
+        semantic_score,
+        recency,
+    )
+
+
+def _apply_session_buffer_precedence(
+    memories: list[dict[str, Any]],
+    buffer_facts: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Suppress stale Mem0 facts when session buffer has fresher equivalents."""
+    if not memories or not buffer_facts:
+        return memories, []
+
+    from src.core.memory.mem0_domains import UPDATABLE_CATEGORIES
+
+    buffer_fingerprints: set[str] = set()
+    overridden_categories: set[tuple[str, str]] = set()
+    for fact in buffer_facts:
+        fact_text = str(fact.get("fact") or fact.get("text") or "").strip()
+        category = str(fact.get("category") or "").strip()
+        domain = str(fact.get("domain") or "").strip()
+        if fact_text:
+            buffer_fingerprints.add(
+                _normalize_memory_fingerprint(fact_text, category=category, domain=domain)
+            )
+        if category and category in UPDATABLE_CATEGORIES:
+            overridden_categories.add((domain, category))
+
+    selected: list[dict[str, Any]] = []
+    suppressed: list[dict[str, Any]] = []
+    for memory in memories:
+        metadata = memory.get("metadata") or {}
+        text = str(memory.get("memory") or memory.get("text") or "").strip()
+        category = str(metadata.get("category") or memory.get("category") or "").strip()
+        domain = str(metadata.get("domain") or "").strip()
+        fingerprint = _normalize_memory_fingerprint(text, category=category, domain=domain)
+        if fingerprint in buffer_fingerprints:
+            suppressed.append(memory)
+            continue
+        if category and (domain, category) in overridden_categories:
+            suppressed.append(memory)
+            continue
+        selected.append(memory)
+
+    return selected, suppressed
 
 
 # ---------------------------------------------------------------------------
@@ -693,21 +853,33 @@ def _format_memories_block(memories: list[dict]) -> str:
     return "\n\n## Что я знаю о вас:\n" + "\n".join(lines)
 
 
-def _trim_memories(memories: list[dict], max_tokens: int) -> list[dict]:
-    """Trim memories list to fit within token budget (keep top-K relevant)."""
+def _trim_memories_with_drops(
+    memories: list[dict],
+    max_tokens: int,
+) -> tuple[list[dict], list[dict]]:
+    """Trim memories list to fit within token budget and return dropped items."""
     if not memories:
-        return []
+        return [], []
 
+    ordered = sorted(memories, key=_memory_context_sort_key, reverse=True)
     result: list[dict] = []
+    dropped: list[dict] = []
     used = count_tokens("\n\n## Что я знаю о вас:\n")
-    for m in memories:
+    for m in ordered:
         line = f"- {m.get('memory', m.get('text', ''))}"
         line_tokens = count_tokens(line + "\n")
         if used + line_tokens > max_tokens:
-            break
+            dropped.append(m)
+            continue
         result.append(m)
         used += line_tokens
-    return result
+    return result, dropped
+
+
+def _trim_memories(memories: list[dict], max_tokens: int) -> list[dict]:
+    """Trim memories list to fit within token budget (keep top-K relevant)."""
+    kept, _ = _trim_memories_with_drops(memories, max_tokens)
+    return kept
 
 
 # ---------------------------------------------------------------------------
@@ -962,6 +1134,7 @@ async def assemble_context(
     # 2. Core Identity (Priority 0 — NEVER drop, loaded before system prompt)
     # ------------------------------------------------------------------
     identity_block = ""
+    identity: dict[str, Any] = {}
     try:
         from src.core.identity import format_identity_block, get_core_identity
 
@@ -972,12 +1145,21 @@ async def assemble_context(
     if identity_block:
         # Prepend identity to system prompt (inside cache prefix)
         system_prompt = identity_block + "\n" + system_prompt
+        memory_trace.append(
+            _trace_layer_block(
+                "core_identity",
+                identity_block,
+                reason="always_include_identity",
+                count=len(identity),
+            )
+        )
     token_usage["identity"] = count_tokens(identity_block) if identity_block else 0
 
     # ------------------------------------------------------------------
     # 2a. User Rules (Priority 0.5 — NEVER drop, loaded after identity)
     # ------------------------------------------------------------------
     rules_block = ""
+    user_rules: list[str] = []
     try:
         from src.core.identity import format_rules_block, get_user_rules
 
@@ -988,6 +1170,14 @@ async def assemble_context(
     if rules_block:
         # Append rules right after identity block (inside cache prefix)
         system_prompt = system_prompt + "\n" + rules_block
+        memory_trace.append(
+            _trace_layer_block(
+                "user_rules",
+                rules_block,
+                reason="always_include_rules",
+                count=len(user_rules),
+            )
+        )
     token_usage["user_rules"] = count_tokens(rules_block) if rules_block else 0
 
     # ------------------------------------------------------------------
@@ -1002,6 +1192,14 @@ async def assemble_context(
         logger.debug("Project context load failed: %s", e)
     if project_block:
         system_prompt = system_prompt + "\n" + project_block
+        memory_trace.append(
+            _trace_layer_block(
+                "project_context",
+                project_block,
+                reason="active_project_context",
+                count=1,
+            )
+        )
     token_usage["project_context"] = count_tokens(project_block) if project_block else 0
 
     # ------------------------------------------------------------------
@@ -1023,6 +1221,7 @@ async def assemble_context(
     # 3b. Session buffer (Priority 2.5 — fresh facts from current session)
     # ------------------------------------------------------------------
     buffer_block = ""
+    buffer_facts: list[dict[str, Any]] = []
     try:
         from src.core.memory.session_buffer import format_buffer_block, get_session_buffer
 
@@ -1030,7 +1229,13 @@ async def assemble_context(
         buffer_facts = await get_session_buffer(user_id, domains=buffer_domains)
         buffer_block = format_buffer_block(buffer_facts)
         if buffer_facts:
-            memory_trace.extend(_trace_memory_candidates("session_buffer", buffer_facts))
+            memory_trace.extend(
+                _trace_memory_candidates(
+                    "session_buffer",
+                    buffer_facts,
+                    reason="recent_session_fact",
+                )
+            )
     except Exception as e:
         logger.debug("Session buffer load failed: %s", e)
     token_usage["session_buffer"] = count_tokens(buffer_block) if buffer_block else 0
@@ -1039,6 +1244,7 @@ async def assemble_context(
     # 3c. Behavioral observations (for analytics/forecast intents)
     # ------------------------------------------------------------------
     observations_block = ""
+    observations: list[str] = []
     try:
         from src.core.memory.observational import (
             OBSERVATION_INTENTS,
@@ -1049,6 +1255,15 @@ async def assemble_context(
         if intent in OBSERVATION_INTENTS:
             observations = await load_user_observations(user_id)
             observations_block = format_observations_block(observations)
+            if observations_block:
+                memory_trace.append(
+                    _trace_layer_block(
+                        "observations",
+                        observations_block,
+                        reason="behavioral_patterns",
+                        count=len(observations),
+                    )
+                )
     except Exception as e:
         logger.debug("Observations load failed: %s", e)
     token_usage["observations"] = (
@@ -1059,6 +1274,7 @@ async def assemble_context(
     # 3d. Procedural memory (learned rules from corrections)
     # ------------------------------------------------------------------
     procedures_block = ""
+    procedures: list[str] = []
     try:
         from src.core.memory.procedural import (
             PROCEDURAL_INTENTS,
@@ -1075,6 +1291,15 @@ async def assemble_context(
             rt_procedures = await get_realtime_procedures(user_id, domain=proc_domain)
             procedures = rt_procedures + procedures
             procedures_block = format_procedures_block(procedures)
+            if procedures_block:
+                memory_trace.append(
+                    _trace_layer_block(
+                        "procedures",
+                        procedures_block,
+                        reason="learned_procedure",
+                        count=len(procedures),
+                    )
+                )
     except Exception as e:
         logger.debug("Procedures load failed: %s", e)
     token_usage["procedures"] = (
@@ -1096,7 +1321,13 @@ async def assemble_context(
             episodes = await search_episodes(user_id, topic=intent, limit=3)
             episodes_block = format_episodes_block(episodes)
             if episodes:
-                memory_trace.extend(_trace_memory_candidates("episodes", episodes))
+                memory_trace.extend(
+                    _trace_memory_candidates(
+                        "episodes",
+                        episodes,
+                        reason="episodic_example",
+                    )
+                )
     except Exception as e:
         logger.debug("Episodes load failed: %s", e)
     token_usage["episodes"] = count_tokens(episodes_block) if episodes_block else 0
@@ -1121,7 +1352,13 @@ async def assemble_context(
             )
             graph_block = format_graph_block(edges)
             if edges:
-                memory_trace.extend(_trace_memory_candidates("graph", edges))
+                memory_trace.extend(
+                    _trace_memory_candidates(
+                        "graph",
+                        edges,
+                        reason="relationship_context",
+                    )
+                )
     except Exception as e:
         logger.debug("Graph memory load failed: %s", e)
     token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
@@ -1131,6 +1368,8 @@ async def assemble_context(
     # ------------------------------------------------------------------
     memories: list[dict] = []
     mem_block = ""
+    suppressed_memories: list[dict[str, Any]] = []
+    pretrimmed_memories: list[dict[str, Any]] = []
     if ctx_config["mem"]:
         try:
             memories = await asyncio.wait_for(
@@ -1141,10 +1380,37 @@ async def assemble_context(
             logger.warning("Mem0 load timed out after 5s for user %s", user_id)
             memories = []
         if memories:
+            memories, suppressed_memories = _apply_session_buffer_precedence(memories, buffer_facts)
             # Pre-trim to per-layer budget
-            memories = _trim_memories(memories, budget_mem)
+            memories, pretrimmed_memories = _trim_memories_with_drops(memories, budget_mem)
             mem_block = _format_memories_block(memories)
-            memory_trace.extend(_trace_memory_candidates("mem0", memories))
+            if suppressed_memories:
+                memory_trace.extend(
+                    _trace_memory_candidates(
+                        "mem0",
+                        suppressed_memories,
+                        status="suppressed",
+                        reason="overridden_by_session_buffer",
+                        overridden_by="session_buffer",
+                    )
+                )
+            if pretrimmed_memories:
+                memory_trace.extend(
+                    _trace_memory_candidates(
+                        "mem0",
+                        pretrimmed_memories,
+                        status="trimmed",
+                        reason="pretrimmed_for_budget",
+                    )
+                )
+            if memories:
+                memory_trace.extend(
+                    _trace_memory_candidates(
+                        "mem0",
+                        memories,
+                        reason="semantic_match",
+                    )
+                )
     token_usage["mem0"] = count_tokens(mem_block) if mem_block else 0
 
     # ------------------------------------------------------------------
@@ -1164,6 +1430,15 @@ async def assemble_context(
             sql_block = "\n\n## Финансовая сводка:\n" + _format_sql_block(sql_stats)
             if count_tokens(sql_block) > budget_sql:
                 sql_block = _truncate_to_budget(sql_block, budget_sql)
+            if sql_block:
+                memory_trace.append(
+                    _trace_layer_block(
+                        "sql",
+                        sql_block,
+                        reason="analytics_context",
+                        count=1,
+                    )
+                )
         except Exception as e:
             logger.warning("SQL stats load failed: %s", e)
     token_usage["sql"] = count_tokens(sql_block) if sql_block else 0
@@ -1179,6 +1454,15 @@ async def assemble_context(
                 summary_block = f"\n\n## Ранее в диалоге:\n{summary.summary}"
                 if count_tokens(summary_block) > budget_summary:
                     summary_block = _truncate_to_budget(summary_block, budget_summary)
+                if summary_block:
+                    memory_trace.append(
+                        _trace_layer_block(
+                            "summary",
+                            summary_block,
+                            reason="session_summary",
+                            count=1,
+                        )
+                    )
         except Exception as e:
             logger.warning("Session summary load failed: %s", e)
     token_usage["summary"] = count_tokens(summary_block) if summary_block else 0
@@ -1228,6 +1512,7 @@ async def assemble_context(
     if total_used > total_budget:
         before_trim = {
             "mem0": mem_block,
+            "mem0_count": len(memories),
             "sql": sql_block,
             "summary": summary_block,
             "history_count": len(history_messages),
@@ -1269,20 +1554,87 @@ async def assemble_context(
         token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
         if before_trim["mem0"] and not mem_block:
             trimmed_layers.append("mem0")
+            memory_trace.append(
+                _trace_layer_block(
+                    "mem0",
+                    before_trim["mem0"],
+                    status="trimmed",
+                    reason="token_budget",
+                    count=before_trim["mem0_count"],
+                )
+            )
         if before_trim["sql"] and not sql_block:
             trimmed_layers.append("sql")
+            memory_trace.append(
+                _trace_layer_block(
+                    "sql",
+                    before_trim["sql"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
         if before_trim["summary"] and not summary_block:
             trimmed_layers.append("summary")
+            memory_trace.append(
+                _trace_layer_block(
+                    "summary",
+                    before_trim["summary"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
         if before_trim["history_count"] > len(history_messages):
             trimmed_layers.append("history")
+            memory_trace.append(
+                {
+                    "layer": "history",
+                    "status": "trimmed",
+                    "reason": "token_budget",
+                    "precedence": _layer_precedence("history"),
+                    "count_before": before_trim["history_count"],
+                    "count_after": len(history_messages),
+                }
+            )
         if before_trim["observations"] and not observations_block:
             trimmed_layers.append("observations")
+            memory_trace.append(
+                _trace_layer_block(
+                    "observations",
+                    before_trim["observations"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
         if before_trim["procedures"] and not procedures_block:
             trimmed_layers.append("procedures")
+            memory_trace.append(
+                _trace_layer_block(
+                    "procedures",
+                    before_trim["procedures"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
         if before_trim["episodes"] and not episodes_block:
             trimmed_layers.append("episodes")
+            memory_trace.append(
+                _trace_layer_block(
+                    "episodes",
+                    before_trim["episodes"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
         if before_trim["graph"] and not graph_block:
             trimmed_layers.append("graph")
+            memory_trace.append(
+                _trace_layer_block(
+                    "graph",
+                    before_trim["graph"],
+                    status="trimmed",
+                    reason="token_budget",
+                )
+            )
 
     token_usage["total"] = (
         token_usage["system_prompt"]

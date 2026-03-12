@@ -122,6 +122,29 @@ class TestTrimMemories:
         result = _trim_memories(memories, 1000)
         assert len(result) == 1
 
+    def test_prefers_explicit_critical_memories_when_budget_is_tight(self):
+        memories = [
+            {
+                "memory": "older low-priority filler",
+                "metadata": {"priority": "normal", "write_policy": "implicit"},
+                "score": 0.9,
+            },
+            {
+                "memory": "critical explicit fact",
+                "metadata": {
+                    "priority": "critical",
+                    "write_policy": "explicit",
+                    "confidence": 1.0,
+                },
+                "score": 0.5,
+            },
+        ]
+
+        result = _trim_memories(memories, 14)
+
+        assert len(result) == 1
+        assert result[0]["memory"] == "critical explicit fact"
+
 
 # ---------------------------------------------------------------------------
 # _format_memories_block
@@ -530,6 +553,65 @@ class TestAssembleContext:
         # With domain segmentation, uses multi_domain search
         mock_deps["mem0"].search_memories_multi_domain.assert_called_once()
         assert len(result.memories) == 1
+
+    @pytest.mark.asyncio
+    async def test_session_buffer_suppresses_conflicting_mem0_and_traces_it(self, mock_deps):
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
+            {
+                "id": "mem-old-income",
+                "memory": "Salary is 5000",
+                "metadata": {"category": "income", "domain": "finance", "source": "mem0"},
+                "score": 0.95,
+            },
+            {
+                "id": "mem-budget",
+                "memory": "Budget for groceries is 1200",
+                "metadata": {"category": "budget_limit", "domain": "finance"},
+                "score": 0.8,
+            },
+        ]
+
+        with patch(
+            "src.core.memory.session_buffer.get_session_buffer",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "fact": "Salary is now 6000",
+                    "category": "income",
+                    "domain": "finance",
+                }
+            ],
+        ):
+            result = await assemble_context(
+                user_id="user-1",
+                family_id="family-1",
+                current_message="compare my salary and grocery budget",
+                intent="complex_query",
+                system_prompt="prompt",
+                context_config_override={"sql": False, "sum": False, "hist": 0},
+            )
+
+        memory_ids = {item.get("id") for item in result.memories}
+        assert "mem-old-income" not in memory_ids
+        assert "mem-budget" in memory_ids
+
+        suppressed = [
+            entry for entry in result.memory_trace
+            if entry.get("layer") == "mem0" and entry.get("status") == "suppressed"
+        ]
+        assert any(
+            entry.get("id") == "mem-old-income"
+            and entry.get("reason") == "overridden_by_session_buffer"
+            and entry.get("overridden_by") == "session_buffer"
+            for entry in suppressed
+        )
+
+        session_entries = [
+            entry for entry in result.memory_trace
+            if entry.get("layer") == "session_buffer" and entry.get("status") == "selected"
+        ]
+        assert session_entries
+        assert session_entries[0]["precedence"] < suppressed[0]["precedence"]
 
     @pytest.mark.asyncio
     async def test_unknown_intent_falls_back_to_general_chat(self, mock_deps):
