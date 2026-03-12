@@ -95,37 +95,69 @@ class BrowserActionSkill:
 
     _TAXI_KEYWORDS = (
         "taxi",
-        "uber",
         "lyft",
         "такси",
-        "поездк",
-        "ride",
         "вызови такси",
         "закажи такси",
         "order a ride",
         "book a ride",
+        "call a cab",
+        "вызови машину",
+        "закажи машину",
+        "pedir taxi",
+        "pedir un taxi",
     )
 
+    # Food-specific brand keywords — checked BEFORE taxi
     _FOOD_KEYWORDS = (
+        # Brands
         "uber eats",
         "ubereats",
         "doordash",
         "grubhub",
         "deliveroo",
         "glovo",
+        # EN
         "food delivery",
         "order food",
+        "deliver food",
+        "pizza delivery",
+        "get me food",
+        "i want to eat",
+        "order a meal",
+        # RU — заказ еды
         "доставка еды",
         "закажи еду",
-        "pizza delivery",
+        "заказать еду",
         "доставка пиццы",
         "закажи пиццу",
+        "заказать пиццу",
         "доставка суши",
         "закажи суши",
+        "заказать суши",
         "доставка из",
+        "закажи бургер",
+        "заказать бургер",
+        "хочу есть",
+        "хочу пиццу",
+        "хочу суши",
+        "хочу бургер",
+        "заказать из ресторана",
+        "закажи из ресторана",
+        "доставка ресторан",
+        "доставка из ресторан",
+        "заказать обед",
+        "заказать ужин",
+        "заказать завтрак",
+        "закажи обед",
+        "закажи ужин",
+        # ES
         "pedido de comida",
         "pedir comida",
         "entrega de comida",
+        "quiero comer",
+        "pedir pizza",
+        "pedir sushi",
     )
     _FOOD_DOMAINS = (
         "ubereats.com",
@@ -505,33 +537,69 @@ class BrowserActionSkill:
         return any(v in task_lower for v in self._BOOKING_VERBS)
 
     def _is_taxi_request(self, task: str, domain: str) -> bool:
-        """Check if this is a taxi / ride-hailing request."""
+        """Check if this is a taxi / ride-hailing request.
+
+        Note: "uber" alone is ambiguous — could be ride OR food.
+        We only match taxi when ride-context words are present.
+        Food flow is checked BEFORE this method, so "uber eats" won't reach here.
+        """
         task_lower = task.lower()
         if domain in ("uber.com", "lyft.com"):
             return True
+        # Direct taxi keyword match
         if any(keyword in task_lower for keyword in self._TAXI_KEYWORDS):
-            ride_verbs = (
-                "закажи",
-                "вызови",
-                "book",
-                "order",
-                "call",
-                "request",
+            return True
+        # "uber" alone needs ride-context words (поездка, ride, отвези, etc.)
+        if "uber" in task_lower or "убер" in task_lower:
+            ride_context = (
                 "ride",
                 "поездк",
+                "отвез",
+                "довез",
+                "подвез",
+                "ехать",
+                "поехал",
+                "drive",
+                "trip",
+                "viaje",
             )
-            return any(verb in task_lower for verb in ride_verbs)
+            return any(word in task_lower for word in ride_context)
         return False
 
     def _is_food_request(self, task: str, domain: str) -> bool:
         """Check if this is a food delivery request.
 
         Checked BEFORE _is_taxi_request because "uber eats" contains "uber".
+        Also handles "uber" + food-context (e.g., "закажи через убер пиццу").
         """
         task_lower = task.lower()
         if domain and any(d in domain for d in self._FOOD_DOMAINS):
             return True
-        return any(kw in task_lower for kw in self._FOOD_KEYWORDS)
+        if any(kw in task_lower for kw in self._FOOD_KEYWORDS):
+            return True
+        # "uber"/"убер" + food-context → food, not taxi
+        if "uber" in task_lower or "убер" in task_lower:
+            food_context = (
+                "еду",
+                "еда",
+                "пицц",
+                "суши",
+                "бургер",
+                "ресторан",
+                "обед",
+                "ужин",
+                "завтрак",
+                "food",
+                "pizza",
+                "sushi",
+                "burger",
+                "restaurant",
+                "meal",
+                "eat",
+                "comida",
+            )
+            return any(word in task_lower for word in food_context)
+        return False
 
     def _is_payment_task(self, task: str) -> bool:
         """Check if the task involves payment/purchase."""
