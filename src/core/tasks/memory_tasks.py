@@ -138,7 +138,11 @@ async def async_update_merchant_mapping(
 
         # Create or strengthen graph relationship: merchant → category
         try:
-            from src.core.memory.graph_memory import add_relationship, strengthen_relationship
+            from src.core.memory.graph_memory import (
+                add_relationship,
+                build_graph_metadata,
+                strengthen_relationship,
+            )
 
             # add_relationship already strengthens if edge exists, but
             # strengthen_relationship is cheaper (single UPDATE, no SELECT+INSERT)
@@ -159,7 +163,7 @@ async def async_update_merchant_mapping(
                     relation="frequent_merchant",
                     object_type="category",
                     object_id=category_id,
-                    metadata={"scope": scope},
+                    metadata=build_graph_metadata({"scope": scope}, visibility="work_shared"),
                 )
         except Exception as graph_err:
             logger.debug("Graph edge creation failed (non-critical): %s", graph_err)

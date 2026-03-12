@@ -2,7 +2,7 @@
 
 import sys
 import types
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 for module_name in (
     "psycopg_pool",
@@ -38,6 +38,7 @@ from src.core.memory.mem0_client import (  # noqa: E402
     _all_namespace_user_ids,
     _build_pgvector_url,
     _PatchedConnectionPool,
+    delete_memory,
     search_memories_multi_domain,
 )
 from src.core.memory.mem0_domains import MemoryDomain  # noqa: E402
@@ -164,3 +165,34 @@ async def test_multi_domain_timeout_returns_partial_results():
         )
 
     assert results == [{"memory": "core result", "metadata": {}}]
+
+
+async def test_delete_memory_requires_user_ownership():
+    class _Circuit:
+        def can_execute(self):
+            return True
+
+        def record_success(self):
+            return None
+
+        def record_failure(self):
+            return None
+
+    delete_calls: list[dict[str, str]] = []
+
+    class _Memory:
+        def delete(self, **kwargs):
+            delete_calls.append(kwargs)
+
+    with (
+        patch("src.core.memory.mem0_client.get_circuit", return_value=_Circuit()),
+        patch("src.core.memory.mem0_client.get_memory", return_value=_Memory()),
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[{"id": "mem-1", "memory": "owned"}],
+        ),
+    ):
+        await delete_memory("mem-1", "user-1")
+
+    assert delete_calls == [{"memory_id": "mem-1"}]

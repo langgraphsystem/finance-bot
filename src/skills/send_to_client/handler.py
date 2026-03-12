@@ -85,7 +85,11 @@ class SendToClientSkill:
             return SkillResult(response_text=f"{contact.name} has no phone number on file.")
 
         try:
-            from src.core.memory.graph_memory import add_relationship, relation_for_contact_role
+            from src.core.memory.graph_memory import (
+                add_relationship,
+                build_graph_metadata,
+                relation_for_contact_role,
+            )
 
             await add_relationship(
                 context.family_id,
@@ -94,11 +98,15 @@ class SendToClientSkill:
                 relation=relation_for_contact_role(getattr(contact.role, "value", contact.role)),
                 object_type="contact",
                 object_id=str(contact.id),
-                metadata={
-                    "role": getattr(contact.role, "value", contact.role) or "other",
-                    "name": contact.name,
-                    "channel": "phone",
-                },
+                metadata=build_graph_metadata(
+                    {
+                        "role": getattr(contact.role, "value", contact.role) or "other",
+                        "name": contact.name,
+                        "channel": "phone",
+                    },
+                    user_id=context.user_id,
+                    visibility="private_user",
+                ),
             )
         except Exception as e:
             logger.debug("Send-to-client graph write failed: %s", e)

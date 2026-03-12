@@ -64,7 +64,11 @@ class AddContactSkill:
             await session.commit()
 
         try:
-            from src.core.memory.graph_memory import add_relationship, relation_for_contact_role
+            from src.core.memory.graph_memory import (
+                add_relationship,
+                build_graph_metadata,
+                relation_for_contact_role,
+            )
 
             contact_id = str(contact.id)
             role_value = role.value
@@ -76,7 +80,11 @@ class AddContactSkill:
                 relation=relation_for_contact_role(role_value),
                 object_type="contact",
                 object_id=contact_id,
-                metadata={"role": role_value, "name": name},
+                metadata=build_graph_metadata(
+                    {"role": role_value, "name": name},
+                    user_id=context.user_id,
+                    visibility="private_user",
+                ),
             )
         except Exception as e:
             logger.debug("Primary contact graph write failed: %s", e)
@@ -84,7 +92,7 @@ class AddContactSkill:
         company = intent_data.get("contact_company")
         if company:
             try:
-                from src.core.memory.graph_memory import add_relationship
+                from src.core.memory.graph_memory import add_relationship, build_graph_metadata
 
                 await add_relationship(
                     context.family_id,
@@ -93,7 +101,11 @@ class AddContactSkill:
                     relation="works_at",
                     object_type="company",
                     object_id=str(company).strip(),
-                    metadata={"name": name},
+                    metadata=build_graph_metadata(
+                        {"name": name},
+                        user_id=context.user_id,
+                        visibility="private_user",
+                    ),
                 )
             except Exception as e:
                 logger.debug("Contact company graph write failed: %s", e)

@@ -1,7 +1,6 @@
 """Search documents skill — hybrid search (pg_trgm + pgvector RRF)."""
 
 import logging
-import uuid
 from typing import Any
 
 from sqlalchemy import or_, select
@@ -57,7 +56,12 @@ class SearchDocumentsSkill:
             )
 
         # Try hybrid search first (semantic + lexical)
-        hybrid_results = await self._hybrid_search(query, context.family_id)
+        hybrid_results = await self._hybrid_search(
+            query,
+            context.family_id,
+            context.user_id,
+            context.role,
+        )
         if hybrid_results:
             return self._format_hybrid_results(query, hybrid_results, context.language or "en")
 
@@ -65,13 +69,23 @@ class SearchDocumentsSkill:
         return await self._ilike_search(query, context)
 
     async def _hybrid_search(
-        self, query: str, family_id: str
+        self,
+        query: str,
+        family_id: str,
+        user_id: str,
+        role: str,
     ) -> list[dict[str, Any]]:
         """Attempt hybrid semantic + lexical search."""
         try:
             from src.core.memory.document_vectors import search_documents_semantic
 
-            return await search_documents_semantic(query, family_id, limit=10)
+            return await search_documents_semantic(
+                query,
+                family_id,
+                limit=10,
+                user_id=user_id,
+                role=role,
+            )
         except Exception as e:
             logger.debug("Hybrid search unavailable, falling back to ILIKE: %s", e)
             return []
@@ -107,7 +121,6 @@ class SearchDocumentsSkill:
         async with async_session() as session:
             stmt = (
                 select(Document)
-                .where(Document.family_id == uuid.UUID(context.family_id))
                 .where(
                     or_(
                         Document.extracted_text.ilike(search_pattern),
@@ -118,6 +131,7 @@ class SearchDocumentsSkill:
                 .order_by(Document.created_at.desc())
                 .limit(10)
             )
+            stmt = context.filter_query(stmt, Document)
             result = await session.execute(stmt)
             docs = result.scalars().all()
 

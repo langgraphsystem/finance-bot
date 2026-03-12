@@ -260,6 +260,49 @@ def needs_heavy_context(message: str, intent: str) -> bool:
     return True
 
 
+def _resolve_context_config(
+    intent: str,
+    override: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve requested and effective context configs for an intent."""
+    requested = dict(QUERY_CONTEXT_MAP.get(intent, QUERY_CONTEXT_MAP["general_chat"]))
+    if override:
+        requested.update({key: value for key, value in override.items() if value is not None})
+
+    effective = dict(requested)
+    return requested, effective
+
+
+def _memory_preview(text: str, limit: int = 120) -> str:
+    cleaned = " ".join((text or "").split())
+    return cleaned[:limit]
+
+
+def _trace_memory_candidates(layer: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build compact trace entries for the selected memory candidates."""
+    trace: list[dict[str, Any]] = []
+    for item in items:
+        text = str(item.get("memory") or item.get("text") or item.get("fact") or "").strip()
+        metadata = item.get("metadata") or {}
+        entry: dict[str, Any] = {
+            "layer": layer,
+            "preview": _memory_preview(text),
+        }
+        if item.get("id") is not None:
+            entry["id"] = str(item["id"])
+        if metadata.get("category") or item.get("category"):
+            entry["category"] = metadata.get("category") or item.get("category")
+        if metadata.get("domain"):
+            entry["domain"] = metadata["domain"]
+        if item.get("score") is not None:
+            try:
+                entry["score"] = round(float(item["score"]), 4)
+            except (TypeError, ValueError):
+                pass
+        trace.append(entry)
+    return trace
+
+
 # ---------------------------------------------------------------------------
 # Token counting
 # ---------------------------------------------------------------------------
@@ -292,6 +335,10 @@ class AssembledContext:
     memories: list[dict] = field(default_factory=list)
     sql_stats: dict[str, Any] | None = None
     token_usage: dict[str, int] = field(default_factory=dict)
+    context_config: dict[str, Any] = field(default_factory=dict)
+    requested_context_config: dict[str, Any] = field(default_factory=dict)
+    trimmed_layers: list[str] = field(default_factory=list)
+    memory_trace: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -875,13 +922,16 @@ async def assemble_context(
     max_tokens: int = MAX_CONTEXT_TOKENS,
     role: str = "owner",
     intent_data: dict[str, Any] | None = None,
+    context_config_override: dict[str, Any] | None = None,
 ) -> AssembledContext:
     """Assemble full context for LLM call from all memory layers.
 
     Respects token budget: S + M + A + H + U <= max_tokens * 0.75.
     Applies overflow priority trimming and Lost-in-the-Middle positioning.
     """
-    ctx_config = QUERY_CONTEXT_MAP.get(intent, QUERY_CONTEXT_MAP["general_chat"])
+    requested_ctx_config, ctx_config = _resolve_context_config(intent, context_config_override)
+    memory_trace: list[dict[str, Any]] = []
+    trimmed_layers: list[str] = []
 
     # Phase 3.5 — Progressive Context Disclosure
     # Only skip heavy layers (Mem0/SQL/summary). NEVER reduce history —
@@ -979,6 +1029,8 @@ async def assemble_context(
         buffer_domains = _buffer_domains_for_intent(intent, ctx_config["mem"])
         buffer_facts = await get_session_buffer(user_id, domains=buffer_domains)
         buffer_block = format_buffer_block(buffer_facts)
+        if buffer_facts:
+            memory_trace.extend(_trace_memory_candidates("session_buffer", buffer_facts))
     except Exception as e:
         logger.debug("Session buffer load failed: %s", e)
     token_usage["session_buffer"] = count_tokens(buffer_block) if buffer_block else 0
@@ -1043,6 +1095,8 @@ async def assemble_context(
         if intent in EPISODIC_INTENTS:
             episodes = await search_episodes(user_id, topic=intent, limit=3)
             episodes_block = format_episodes_block(episodes)
+            if episodes:
+                memory_trace.extend(_trace_memory_candidates("episodes", episodes))
     except Exception as e:
         logger.debug("Episodes load failed: %s", e)
     token_usage["episodes"] = count_tokens(episodes_block) if episodes_block else 0
@@ -1057,8 +1111,17 @@ async def assemble_context(
         if intent in GRAPH_INTENTS:
             from src.core.memory.graph_memory import get_relationships
 
-            edges = await get_relationships(family_id, "person", user_id, limit=10)
+            edges = await get_relationships(
+                family_id,
+                "person",
+                user_id,
+                limit=10,
+                requester_user_id=user_id,
+                requester_role=role,
+            )
             graph_block = format_graph_block(edges)
+            if edges:
+                memory_trace.extend(_trace_memory_candidates("graph", edges))
     except Exception as e:
         logger.debug("Graph memory load failed: %s", e)
     token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
@@ -1081,6 +1144,7 @@ async def assemble_context(
             # Pre-trim to per-layer budget
             memories = _trim_memories(memories, budget_mem)
             mem_block = _format_memories_block(memories)
+            memory_trace.extend(_trace_memory_candidates("mem0", memories))
     token_usage["mem0"] = count_tokens(mem_block) if mem_block else 0
 
     # ------------------------------------------------------------------
@@ -1162,6 +1226,16 @@ async def assemble_context(
     )
 
     if total_used > total_budget:
+        before_trim = {
+            "mem0": mem_block,
+            "sql": sql_block,
+            "summary": summary_block,
+            "history_count": len(history_messages),
+            "observations": observations_block,
+            "procedures": procedures_block,
+            "episodes": episodes_block,
+            "graph": graph_block,
+        }
         (
             mem_block, sql_block, summary_block, history_messages, memories,
             observations_block, procedures_block, episodes_block, graph_block,
@@ -1193,6 +1267,22 @@ async def assemble_context(
         token_usage["procedures"] = count_tokens(procedures_block) if procedures_block else 0
         token_usage["episodes"] = count_tokens(episodes_block) if episodes_block else 0
         token_usage["graph"] = count_tokens(graph_block) if graph_block else 0
+        if before_trim["mem0"] and not mem_block:
+            trimmed_layers.append("mem0")
+        if before_trim["sql"] and not sql_block:
+            trimmed_layers.append("sql")
+        if before_trim["summary"] and not summary_block:
+            trimmed_layers.append("summary")
+        if before_trim["history_count"] > len(history_messages):
+            trimmed_layers.append("history")
+        if before_trim["observations"] and not observations_block:
+            trimmed_layers.append("observations")
+        if before_trim["procedures"] and not procedures_block:
+            trimmed_layers.append("procedures")
+        if before_trim["episodes"] and not episodes_block:
+            trimmed_layers.append("episodes")
+        if before_trim["graph"] and not graph_block:
+            trimmed_layers.append("graph")
 
     token_usage["total"] = (
         token_usage["system_prompt"]
@@ -1286,4 +1376,8 @@ async def assemble_context(
         memories=memories,
         sql_stats=sql_stats,
         token_usage=token_usage,
+        context_config=ctx_config,
+        requested_context_config=requested_ctx_config,
+        trimmed_layers=trimmed_layers,
+        memory_trace=memory_trace,
     )

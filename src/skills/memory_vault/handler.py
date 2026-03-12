@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any
 
+from src.core.memory.governance import explicit_memory_metadata
 from src.core.observability import observe
 from src.core.personalization import (
     has_all_marker,
@@ -150,6 +151,29 @@ def _looks_like_calendar_delete_request(query: str) -> bool:
     """Guard against misrouting calendar deletions into memory deletion."""
     lower = query.lower().strip()
     return has_forget_command(query) and any(hint in lower for hint in _CALENDAR_DELETE_HINTS)
+
+
+async def clear_all_user_memory(user_id: str) -> dict[str, int]:
+    """Clear long-term user-controlled memory across vector and profile stores."""
+    from src.core.identity import clear_identity_fields, clear_user_rules, get_core_identity
+    from src.core.memory.mem0_client import delete_all_memories, get_all_memories
+
+    memories = await get_all_memories(user_id)
+    await delete_all_memories(user_id)
+
+    rules_cleared = await clear_user_rules(user_id)
+    identity = await get_core_identity(user_id)
+    cleared_identity = (
+        await clear_identity_fields(user_id, list(identity.keys()))
+        if identity
+        else []
+    )
+
+    return {
+        "memories": len(memories),
+        "rules": rules_cleared,
+        "identity_fields": len(cleared_identity),
+    }
 
 
 class MemoryVaultSkill:
@@ -332,7 +356,7 @@ class MemoryVaultSkill:
             return SkillResult(response_text=_mv("rule_remove_fail", lang, rule=matched_rule))
 
         if _is_clear_all_memory_request(query):
-            await delete_all_memories(context.user_id)
+            await clear_all_user_memory(context.user_id)
             return SkillResult(response_text=_mv("all_cleared", lang))
 
         # Semantic search — limit to 3 to avoid over-deletion
@@ -399,10 +423,14 @@ class MemoryVaultSkill:
         if not content:
             return SkillResult(response_text=_mv("save_ask", lang))
 
+        category = _infer_explicit_memory_category(content)
         await add_memory(
             content=content,
             user_id=context.user_id,
-            metadata={"type": "explicit", "source": "memory_vault"},
+            metadata=explicit_memory_metadata(
+                source="memory_vault",
+                category=category,
+            ),
         )
         return SkillResult(response_text=_mv("saved", lang, text=content[:100]))
 
@@ -425,6 +453,7 @@ class MemoryVaultSkill:
             top = matches[0]
             mem_id = top.get("id")
             old_text = top.get("memory", top.get("text", ""))
+            category = _infer_explicit_memory_category(content, top)
             if mem_id:
                 try:
                     await delete_memory(mem_id, context.user_id)
@@ -434,16 +463,24 @@ class MemoryVaultSkill:
             await add_memory(
                 content=content,
                 user_id=context.user_id,
-                metadata={"type": "explicit", "source": "memory_update"},
+                metadata=explicit_memory_metadata(
+                    source="memory_update",
+                    category=category,
+                    existing_memory=top,
+                ),
             )
             return SkillResult(
                 response_text=_mv("updated", lang, old=old_text[:80], new=content[:80])
             )
 
+        category = _infer_explicit_memory_category(content)
         await add_memory(
             content=content,
             user_id=context.user_id,
-            metadata={"type": "explicit", "source": "memory_update"},
+            metadata=explicit_memory_metadata(
+                source="memory_update",
+                category=category,
+            ),
         )
         return SkillResult(response_text=_mv("saved_new", lang, text=content[:100]))
 
@@ -458,6 +495,30 @@ skill = MemoryVaultSkill()
 def _normalize_memory_text(text: str) -> str:
     return text.strip().strip("\"'`“”‘’.,!? ").lower()
 
+
+
+def _infer_explicit_memory_category(
+    text: str,
+    existing_memory: dict[str, Any] | None = None,
+) -> str:
+    if existing_memory:
+        metadata = existing_memory.get("metadata") or {}
+        existing_category = metadata.get("category") or existing_memory.get("category")
+        if isinstance(existing_category, str) and existing_category.strip():
+            return existing_category.strip()
+
+    lower = text.lower()
+    if any(marker in lower for marker in ("меня зовут", "my name is", "моё имя", "мое имя")):
+        return "user_identity"
+    if any(marker in lower for marker in ("зови себя", "your name is", "тебя зовут")):
+        return "bot_identity"
+    if any(marker in lower for marker in ("без эмодзи", "отвечай", "reply in", "always respond")):
+        return "user_rule"
+    if any(
+        marker in lower for marker in ("предпочитаю", "i prefer", "люблю", "i like", "нравится")
+    ):
+        return "user_preference"
+    return "life_note"
 
 
 def _is_clear_all_memory_request(query: str) -> bool:

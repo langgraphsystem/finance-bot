@@ -250,10 +250,26 @@ async def _persist_message(
     for attempt in range(max_retries + 1):
         try:
             async with async_session() as session:
+                ctx_result = await session.execute(
+                    select(UserContext).where(UserContext.user_id == uuid.UUID(user_id)).limit(1)
+                )
+                user_ctx = ctx_result.scalar_one_or_none()
+                if user_ctx is None:
+                    user_ctx = UserContext(
+                        user_id=uuid.UUID(user_id),
+                        family_id=uuid.UUID(family_id),
+                        session_id=uuid.uuid4(),
+                        conversation_state=ConversationState.normal,
+                        message_count=0,
+                    )
+                    session.add(user_ctx)
+                    await session.flush()
+
+                user_ctx.message_count = int(user_ctx.message_count or 0) + 1
                 msg = ConversationMessage(
                     user_id=uuid.UUID(user_id),
                     family_id=uuid.UUID(family_id),
-                    session_id=uuid.uuid4(),
+                    session_id=user_ctx.session_id,
                     role=role,
                     content=content,
                     intent=intent,
@@ -963,14 +979,6 @@ async def _dispatch_message(
             from src.billing.usage_tracker import log_usage
 
             tu = assembled.token_usage
-            overflow_dropped = []
-            if tu.get("mem0", 0) == 0 and "mem" in str(
-                intent_data.get("_context_config", "")
-            ):
-                overflow_dropped.append("mem0")
-            if tu.get("sql", 0) == 0 and intent_data.get("_context_config_sql"):
-                overflow_dropped.append("sql")
-
             asyncio.create_task(
                 log_usage(
                     user_id=context.user_id,
@@ -982,7 +990,7 @@ async def _dispatch_message(
                     tokens_output=0,
                     cache_read_tokens=tu.get("identity", 0),
                     overflow_layers_dropped=(
-                        ",".join(overflow_dropped) if overflow_dropped else None
+                        ",".join(assembled.trimmed_layers) if assembled.trimmed_layers else None
                     ),
                 )
             )
@@ -2280,9 +2288,9 @@ async def _handle_callback(
         # Memory Vault callback (clear_all)
         sub_action = parts[1] if len(parts) > 1 else ""
         if sub_action == "clear_all":
-            from src.core.memory.mem0_client import delete_all_memories
+            from src.skills.memory_vault.handler import clear_all_user_memory
 
-            await delete_all_memories(context.user_id)
+            await clear_all_user_memory(context.user_id)
             return OutgoingMessage(text="All memories cleared.", chat_id=message.chat_id)
         return OutgoingMessage(text="Memory action handled.", chat_id=message.chat_id)
 

@@ -251,9 +251,13 @@ class AgentRouter:
                 system_prompt=prompt,
                 role=context.role,
                 intent_data=intent_data,
+                context_config_override=agent.context_config if agent else None,
             )
             system_prompt = assembled.system_prompt if assembled else prompt
             messages = assembled.messages if assembled else []
+            if assembled:
+                intent_data["_assembled"] = assembled
+                intent_data["_context_config"] = assembled.context_config
         except Exception as e:
             logger.warning("Tool agent context assembly failed: %s", e)
             system_prompt = prompt
@@ -372,10 +376,12 @@ class AgentRouter:
                     system_prompt=prompt,
                     role=context.role,
                     intent_data=intent_data,
+                    context_config_override=agent.context_config,
                 )
                 intent_data["_assembled"] = assembled
                 intent_data["_agent"] = agent.name
                 intent_data["_model"] = agent.default_model
+                intent_data["_context_config"] = assembled.context_config
                 logger.debug(
                     "Agent %s assembled context for intent=%s",
                     agent.name,
@@ -432,7 +438,9 @@ class AgentRouter:
                     system_prompt=system_prompt,
                     role=context.role,
                     intent_data=intent_data,
+                    context_config_override=getattr(self.get_agent(intent), "context_config", None),
                 )
                 intent_data["_assembled"] = assembled
+                intent_data["_context_config"] = assembled.context_config
             except Exception as e:
                 logger.warning("Fallback context assembly also failed: %s", e)

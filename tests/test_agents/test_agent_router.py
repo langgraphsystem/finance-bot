@@ -207,6 +207,22 @@ class TestRouteCallsCorrectSkill:
         assert intent_data.get("_model") == "gpt-5.2"
 
     @pytest.mark.asyncio
+    async def test_route_passes_agent_context_override(
+        self, agent_router, text_message, sample_context, monkeypatch
+    ):
+        mock_assemble = AsyncMock(return_value=MagicMock(context_config={"hist": 5}))
+        monkeypatch.setattr("src.agents.base.assemble_context", mock_assemble)
+        monkeypatch.setattr(
+            "src.core.llm.clients.generate_text_with_tools",
+            AsyncMock(side_effect=RuntimeError("mocked")),
+        )
+
+        await agent_router.route("add_expense", text_message, sample_context, {})
+
+        call_kwargs = mock_assemble.call_args.kwargs
+        assert call_kwargs["context_config_override"]["hist"] == 5
+
+    @pytest.mark.asyncio
     async def test_route_set_reminder_skips_tool_augmented_path(
         self, agent_router, text_message, sample_context, monkeypatch
     ):

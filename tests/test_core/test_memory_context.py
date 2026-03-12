@@ -453,6 +453,8 @@ class TestAssembleContext:
         assert result.messages[0]["role"] == "system"
         assert result.messages[-1]["role"] == "user"
         assert result.messages[-1]["content"] == "hello"
+        assert result.context_config
+        assert result.requested_context_config
 
     @pytest.mark.asyncio
     async def test_token_usage_tracked(self, mock_deps):
@@ -494,6 +496,24 @@ class TestAssembleContext:
         mock_deps["mem0"].search_memories.assert_not_called()
         mock_deps["mem0"].search_memories_multi_domain.assert_not_called()
         mock_deps["mem0"].get_all_memories.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_context_override_can_restore_history_for_general_chat(self, mock_deps):
+        mock_deps["sliding_window"].get_recent_messages.return_value = [
+            {"role": "assistant", "content": "previous reply"},
+        ]
+
+        result = await assemble_context(
+            user_id="user-1",
+            family_id="family-1",
+            current_message="hello again",
+            intent="general_chat",
+            system_prompt="prompt",
+            context_config_override={"hist": 1, "mem": False, "sql": False, "sum": False},
+        )
+
+        assert result.context_config["hist"] == 1
+        assert len(result.messages) == 3
 
     @pytest.mark.asyncio
     async def test_add_expense_loads_mappings(self, mock_deps):

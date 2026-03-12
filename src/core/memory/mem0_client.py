@@ -112,6 +112,10 @@ from mem0 import Memory  # noqa: E402
 
 from src.core.circuit_breaker import get_circuit  # noqa: E402
 from src.core.config import settings  # noqa: E402
+from src.core.memory.governance import (  # noqa: E402
+    extract_memory_metadata,
+    normalize_memory_metadata,
+)
 
 if TYPE_CHECKING:
     from src.core.memory.mem0_domains import MemoryDomain
@@ -273,6 +277,7 @@ def _resolve_user_id(user_id: str, domain: MemoryDomain | None) -> str:
 
     return scoped_user_id(user_id, domain)
 
+
 def _all_namespace_user_ids(user_id: str) -> list[str]:
     """Return legacy + domain-scoped Mem0 namespaces for the user."""
     from src.core.memory.mem0_domains import MemoryDomain, scoped_user_id
@@ -287,7 +292,17 @@ def _normalize_mem0_results(results: Any) -> list[dict]:
         normalized = results.get("results", [])
     else:
         normalized = results
-    return normalized if isinstance(normalized, list) else []
+    if not isinstance(normalized, list):
+        return []
+
+    records: list[dict] = []
+    for memory in normalized:
+        if not isinstance(memory, dict):
+            continue
+        record = dict(memory)
+        record["metadata"] = extract_memory_metadata(record)
+        records.append(record)
+    return records
 
 
 def _dedupe_memories(memories: list[dict]) -> list[dict]:
@@ -330,7 +345,7 @@ async def search_memories(
             kwargs["filters"] = filters
         results = memory.search(**kwargs)
         cb.record_success()
-        return results.get("results", []) if isinstance(results, dict) else results
+        return _normalize_mem0_results(results)
     except Exception as e:
         logger.error("Mem0 search failed: %s", e)
         cb.record_failure()
@@ -404,7 +419,7 @@ async def search_memories_multi_domain(
         except Exception as exc:
             results.append(exc)
     merged: list[dict] = []
-    seen_texts: list[str] = []
+    seen_texts: list[tuple[str, int]] = []
     for r in results:
         if isinstance(r, list):
             for mem in r:
@@ -412,9 +427,17 @@ async def search_memories_multi_domain(
                 if not text:
                     merged.append(mem)
                     continue
-                if not any(is_similar(text, s) for s in seen_texts):
-                    seen_texts.append(text)
+                for seen, merged_idx in seen_texts:
+                    if not is_similar(text, seen):
+                        continue
+                    existing = merged[merged_idx]
+                    if float(mem.get("score", 0.0)) > float(existing.get("score", 0.0)):
+                        merged[merged_idx] = mem
+                    break
+                else:
                     merged.append(mem)
+                    seen_texts.append((text, len(merged) - 1))
+    merged.sort(key=lambda mem: float(mem.get("score", 0.0)), reverse=True)
     return merged
 
 
@@ -580,7 +603,7 @@ def _enrich_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     if "updated_at" not in meta:
         meta["updated_at"] = date.today().isoformat()
 
-    return meta
+    return normalize_memory_metadata(meta)
 
 
 async def add_memory(
@@ -685,6 +708,10 @@ async def delete_memory(memory_id: str, user_id: str) -> None:
         logger.warning("Mem0 circuit OPEN, skipping delete")
         return
     try:
+        owned_memories = await get_all_memories(user_id)
+        if not any(str(memory.get("id")) == str(memory_id) for memory in owned_memories):
+            raise ValueError(f"Memory {memory_id} is not accessible for user {user_id}")
+
         memory = get_memory()
         memory.delete(memory_id=memory_id)
         cb.record_success()

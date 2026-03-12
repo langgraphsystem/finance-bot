@@ -30,6 +30,37 @@ DEFAULT_HYBRID_LIMIT = 10
 RRF_K = 60  # RRF constant (standard value)
 
 
+def _build_document_visibility_clause(
+    role: str | None,
+    user_id: str | None,
+) -> tuple[str, dict[str, Any]]:
+    """Build a raw SQL visibility filter consistent with app-layer access rules."""
+    if not role or not user_id:
+        return "", {}
+
+    from src.core.access import can_view_visibility
+
+    try:
+        request_user_id = str(uuid.UUID(user_id))
+    except (TypeError, ValueError, AttributeError):
+        request_user_id = user_id
+
+    conditions = [
+        "(d.visibility = 'private_user' AND d.user_id = :request_user_id)",
+        "(d.visibility IS NULL AND d.user_id = :request_user_id)",
+    ]
+    params: dict[str, Any] = {"request_user_id": request_user_id}
+
+    for idx, visibility in enumerate(("family_shared", "work_shared")):
+        if not can_view_visibility(role, visibility, ownership="other"):
+            continue
+        key = f"shared_visibility_{idx}"
+        conditions.append(f"d.visibility = :{key}")
+        params[key] = visibility
+
+    return " AND (" + " OR ".join(conditions) + ")", params
+
+
 def chunk_text(text_content: str) -> list[str]:
     """Split text into overlapping chunks for embedding."""
     if not text_content or len(text_content) < MIN_TEXT_LENGTH:
@@ -145,6 +176,8 @@ async def search_documents_semantic(
     query: str,
     family_id: str,
     limit: int = DEFAULT_HYBRID_LIMIT,
+    user_id: str | None = None,
+    role: str | None = None,
 ) -> list[dict[str, Any]]:
     """Hybrid search: pg_trgm (lexical) + pgvector (semantic) with RRF.
 
@@ -154,6 +187,7 @@ async def search_documents_semantic(
     from src.core.db import async_session
 
     fid = uuid.UUID(family_id)
+    visibility_clause, visibility_params = _build_document_visibility_clause(role, user_id)
 
     # Get query embedding
     query_embedding = await _get_embedding(query)
@@ -166,7 +200,7 @@ async def search_documents_semantic(
             semantic_rows: list[Any] = []
             if query_embedding:
                 semantic_result = await session.execute(
-                    text("""
+                    text(f"""
                         SELECT
                             de.document_id,
                             de.chunk_text,
@@ -178,6 +212,7 @@ async def search_documents_semantic(
                         FROM document_embeddings de
                         JOIN documents d ON d.id = de.document_id
                         WHERE de.family_id = :family_id
+                          {visibility_clause}
                           AND de.embedding IS NOT NULL
                         ORDER BY de.embedding <=> :embedding::vector
                         LIMIT :limit
@@ -186,6 +221,7 @@ async def search_documents_semantic(
                         "embedding": str(query_embedding),
                         "family_id": str(fid),
                         "limit": DEFAULT_SEMANTIC_LIMIT,
+                        **visibility_params,
                     },
                 )
                 semantic_rows = list(semantic_result.fetchall())
@@ -193,7 +229,7 @@ async def search_documents_semantic(
             # --- Lexical search (pg_trgm via ILIKE on documents table) ---
             search_pattern = f"%{query}%"
             lexical_result = await session.execute(
-                text("""
+                text(f"""
                     SELECT
                         d.id AS document_id,
                         d.title,
@@ -202,11 +238,12 @@ async def search_documents_semantic(
                         d.created_at
                     FROM documents d
                     WHERE d.family_id = :family_id
+                      {visibility_clause}
                       AND (
                           d.extracted_text ILIKE :pattern
                           OR d.title ILIKE :pattern
                           OR d.file_name ILIKE :pattern
-                      )
+                    )
                     ORDER BY d.created_at DESC
                     LIMIT :limit
                 """),
@@ -214,6 +251,7 @@ async def search_documents_semantic(
                     "family_id": str(fid),
                     "pattern": search_pattern,
                     "limit": DEFAULT_SEMANTIC_LIMIT,
+                    **visibility_params,
                 },
             )
             lexical_rows = list(lexical_result.fetchall())

@@ -208,6 +208,31 @@ class TestGetRelationships:
 
         assert result == []
 
+    async def test_filters_private_edges_for_other_users(self):
+        edge = MagicMock()
+        edge.id = 1
+        edge.subject_type = "person"
+        edge.subject_id = "john"
+        edge.relation = "works_at"
+        edge.object_type = "company"
+        edge.object_id = "acme"
+        edge.strength = 3.0
+        edge.graph_metadata = {"user_id": "owner-1", "visibility": "private_user"}
+
+        mock_ctx, _ = _mock_db_session(scalars_result=[edge])
+
+        fid = "00000000-0000-0000-0000-000000000001"
+        with patch("src.core.db.async_session", return_value=mock_ctx):
+            result = await get_relationships(
+                fid,
+                "person",
+                "john",
+                requester_user_id="other-user",
+                requester_role="owner",
+            )
+
+        assert result == []
+
 
 # ---------------------------------------------------------------------------
 # strengthen_relationship

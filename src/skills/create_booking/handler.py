@@ -149,7 +149,7 @@ class CreateBookingSkill:
 
         if contact_id:
             try:
-                from src.core.memory.graph_memory import add_relationship
+                from src.core.memory.graph_memory import add_relationship, build_graph_metadata
 
                 booking_title = service_type or title
                 await add_relationship(
@@ -159,7 +159,11 @@ class CreateBookingSkill:
                     relation="related_to",
                     object_type="contact",
                     object_id=str(contact_id),
-                    metadata={"name": contact_name, "source": "booking"},
+                    metadata=build_graph_metadata(
+                        {"name": contact_name, "source": "booking"},
+                        user_id=context.user_id,
+                        visibility="private_user",
+                    ),
                 )
                 await add_relationship(
                     context.family_id,
@@ -168,7 +172,11 @@ class CreateBookingSkill:
                     relation="prefers",
                     object_type="service",
                     object_id=booking_title,
-                    metadata={"source": "booking"},
+                    metadata=build_graph_metadata(
+                        {"source": "booking"},
+                        user_id=context.user_id,
+                        visibility="private_user",
+                    ),
                 )
             except Exception as e:
                 logger.debug("Booking graph write failed: %s", e)

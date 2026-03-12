@@ -165,6 +165,7 @@ async def test_memory_save():
     call_kwargs = mock_add.call_args.kwargs
     assert call_kwargs["content"] == "I love sushi"
     assert call_kwargs["metadata"]["type"] == "explicit"
+    assert call_kwargs["metadata"]["category"] == "life_note"
 
 
 async def test_memory_save_empty():
@@ -232,7 +233,11 @@ async def test_memory_forget_no_matches():
 async def test_memory_forget_all():
     ctx = _MockContext()
     with (
-        patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[{"id": "m1", "memory": "remember this"}],
+        ),
         patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
         patch(
             "src.core.memory.mem0_client.search_memories_all_namespaces",
@@ -244,6 +249,17 @@ async def test_memory_forget_all():
             new_callable=AsyncMock,
         ) as mock_del_all,
         patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
+        patch(
+            "src.core.identity.get_core_identity",
+            new_callable=AsyncMock,
+            return_value={"name": "Alice", "bot_name": "Memo"},
+        ),
+        patch("src.core.identity.clear_user_rules", new_callable=AsyncMock, return_value=1),
+        patch(
+            "src.core.identity.clear_identity_fields",
+            new_callable=AsyncMock,
+            return_value=["name", "bot_name"],
+        ) as mock_clear_identity,
     ):
         result = await skill.execute(
             _MockMessage(text="forget everything"),
@@ -252,6 +268,39 @@ async def test_memory_forget_all():
         )
     assert "all memories cleared" in result.response_text.lower()
     mock_del_all.assert_called_once()
+    mock_clear_identity.assert_called_once()
+
+
+async def test_memory_update_preserves_existing_category():
+    ctx = _MockContext()
+    matches = [
+        {
+            "id": "m1",
+            "memory": "My name is Alice",
+            "metadata": {"category": "user_identity", "source": "memory_vault"},
+        }
+    ]
+
+    with (
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add,
+        patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            new_callable=AsyncMock,
+            return_value=matches,
+        ),
+        patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+    ):
+        result = await skill.execute(
+            _MockMessage(text="My name is Alicia"),
+            ctx,
+            {"_intent": "memory_update", "memory_query": "My name is Alicia"},
+        )
+
+    assert "updated" in result.response_text.lower()
+    call_kwargs = mock_add.call_args.kwargs
+    assert call_kwargs["metadata"]["category"] == "user_identity"
 
 
 async def test_memory_forget_ignores_misrouted_calendar_delete_request():

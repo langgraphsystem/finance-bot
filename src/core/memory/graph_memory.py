@@ -17,6 +17,7 @@ from typing import Any
 
 from sqlalchemy import and_, func, or_, select, update
 
+from src.core.access import can_view_visibility
 from src.core.observability import observe
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,40 @@ CONTACT_ROLE_RELATION_MAP: dict[str, str] = {
     "doctor": "related_to",
     "other": "related_to",
 }
+
+
+def build_graph_metadata(
+    metadata: dict[str, Any] | None = None,
+    *,
+    user_id: str | None = None,
+    visibility: str | None = None,
+) -> dict[str, Any]:
+    """Attach ownership metadata so graph reads can enforce visibility."""
+    result = dict(metadata or {})
+    if user_id and "user_id" not in result:
+        result["user_id"] = user_id
+    if visibility and "visibility" not in result:
+        result["visibility"] = visibility
+    return result
+
+
+def _can_view_graph_edge(
+    metadata: dict[str, Any] | None,
+    requester_user_id: str | None,
+    requester_role: str | None,
+) -> bool:
+    if not requester_user_id or not requester_role:
+        return True
+
+    meta = metadata or {}
+    owner_id = str(meta.get("user_id") or "").strip()
+    visibility = str(meta.get("visibility") or "").strip()
+    if not visibility:
+        return not owner_id or owner_id == requester_user_id
+
+    ownership = "self" if owner_id == requester_user_id else "other"
+    return can_view_visibility(requester_role, visibility, ownership=ownership)
+
 
 # Intents that benefit from graph context
 GRAPH_INTENTS: frozenset[str] = frozenset({
@@ -161,6 +196,8 @@ async def get_relationships(
     relation: str | None = None,
     direction: str = "both",
     limit: int = MAX_RELATIONSHIPS,
+    requester_user_id: str | None = None,
+    requester_role: str | None = None,
 ) -> list[dict[str, Any]]:
     """Get relationships for an entity.
 
@@ -211,6 +248,16 @@ async def get_relationships(
             )
             edges = list(result.scalars().all())
 
+        visible_edges = [
+            e
+            for e in edges
+            if _can_view_graph_edge(
+                e.graph_metadata,
+                requester_user_id,
+                requester_role,
+            )
+        ]
+
         return [
             {
                 "id": e.id,
@@ -222,7 +269,7 @@ async def get_relationships(
                 "strength": e.strength,
                 "metadata": e.graph_metadata or {},
             }
-            for e in edges
+            for e in visible_edges
         ]
     except Exception as e:
         logger.debug("Get relationships failed: %s", e)
