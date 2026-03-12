@@ -2,7 +2,14 @@ import json
 
 import pytest
 
-from scripts.test_bot_live import load_golden_scenario_map, resolve_scenario_map
+from scripts.test_bot_live import (
+    TestResult,
+    apply_reference_rubric,
+    compute_stats,
+    evaluate_reference_response,
+    load_golden_scenario_map,
+    resolve_scenario_map,
+)
 
 
 def test_load_golden_scenario_map_groups_by_scenario(tmp_path):
@@ -82,3 +89,68 @@ def test_load_golden_scenario_map_rejects_missing_input_text(tmp_path):
 
     with pytest.raises(ValueError, match="missing input_text"):
         load_golden_scenario_map(golden_file)
+
+
+def test_evaluate_reference_response_marks_strong_match():
+    rubric = evaluate_reference_response(
+        "Запомнил бюджет и не буду слать уведомления после 21 00",
+        "Хорошо, запомнил бюджет и не буду отправлять уведомления после 21:00.",
+    )
+
+    assert rubric.passed is True
+    assert rubric.verdict == "strong_match"
+    assert rubric.coverage >= 0.8
+
+
+def test_apply_reference_rubric_downgrades_golden_mismatch():
+    result = TestResult(
+        category="memory_related",
+        description="golden dialogue — memory_related",
+        expected_intent="memory_related",
+        message_sent="Запомни мой бюджет",
+        response_text="Я не могу помочь с этим вопросом.",
+        has_response=True,
+        status="pass",
+        expected_response_text="Запомнил бюджет и учту его дальше.",
+        source="golden",
+    )
+
+    apply_reference_rubric(result, min_coverage=0.5)
+
+    assert result.reference_rubric is not None
+    assert result.reference_rubric.passed is False
+    assert result.status == "error"
+    assert "Reference mismatch" in result.error
+
+
+def test_compute_stats_includes_reference_metrics():
+    passed = TestResult(
+        category="memory_related",
+        description="golden ok",
+        expected_intent="memory_related",
+        message_sent="Запомни бюджет",
+        response_text="Запомнил бюджет.",
+        has_response=True,
+        status="pass",
+        expected_response_text="Запомнил бюджет.",
+        source="golden",
+    )
+    failed = TestResult(
+        category="tool_failure",
+        description="golden fail",
+        expected_intent="tool_failure",
+        message_sent="Покажи почту",
+        response_text="Не понимаю запрос.",
+        has_response=True,
+        status="pass",
+        expected_response_text="Не удалось получить почту.",
+        source="golden",
+    )
+
+    apply_reference_rubric(passed, min_coverage=0.5)
+    apply_reference_rubric(failed, min_coverage=0.5)
+    stats = compute_stats([passed, failed])
+
+    assert stats.reference_evaluated == 2
+    assert stats.reference_passed == 1
+    assert stats.avg_reference_coverage > 0

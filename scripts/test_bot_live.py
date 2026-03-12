@@ -124,6 +124,17 @@ class LLMScores(BaseModel):
     average: float
 
 
+class ReferenceRubric(BaseModel):
+    """Deterministic comparison against a reviewed golden response."""
+
+    coverage: float
+    overlap: float
+    matched_terms: list[str]
+    missing_terms: list[str]
+    verdict: str
+    passed: bool
+
+
 class TestResult(BaseModel):
     """Single test case result."""
 
@@ -142,6 +153,7 @@ class TestResult(BaseModel):
     llm_scores: LLMScores | None = None
     error: str | None = None
     expected_response_text: str | None = None
+    reference_rubric: ReferenceRubric | None = None
     source: str = "builtin"
     trace_key: str | None = None
 
@@ -172,6 +184,10 @@ class AggregateStats(BaseModel):
     avg_tone: float = 0.0
     avg_completeness: float = 0.0
     avg_overall: float = 0.0
+    reference_evaluated: int = 0
+    reference_passed: int = 0
+    avg_reference_coverage: float = 0.0
+    avg_reference_overlap: float = 0.0
 
 
 class TestRunReport(BaseModel):
@@ -422,6 +438,55 @@ Score the bot response on these dimensions (1=terrible, 5=excellent):
 
 Return JSON with keys: relevance, correctness, tone, completeness (ints), reasoning (str)."""
 
+_COMPARE_STOPWORDS = {
+    "и",
+    "или",
+    "что",
+    "это",
+    "как",
+    "для",
+    "при",
+    "без",
+    "под",
+    "над",
+    "про",
+    "мне",
+    "мой",
+    "моя",
+    "моё",
+    "мои",
+    "твой",
+    "твоя",
+    "его",
+    "ее",
+    "её",
+    "она",
+    "они",
+    "если",
+    "чтобы",
+    "нужно",
+    "надо",
+    "было",
+    "будет",
+    "уже",
+    "ещё",
+    "очень",
+    "просто",
+    "the",
+    "and",
+    "for",
+    "with",
+    "that",
+    "this",
+    "from",
+    "your",
+    "have",
+    "will",
+    "just",
+    "into",
+    "about",
+}
+
 
 async def score_response(
     user_message: str,
@@ -474,6 +539,113 @@ async def score_response(
 def parse_expected_intent(description: str) -> str:
     """Extract expected intent from 'add_expense — desc' format."""
     return description.split("—")[0].strip().split(" ")[0].strip()
+
+
+def _normalize_compare_text(text: str) -> str:
+    """Normalize text for deterministic response/reference comparison."""
+    normalized = strip_html(text).lower()
+    normalized = re.sub(r"[^\w\s]", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _extract_compare_terms(text: str) -> list[str]:
+    """Extract semantically relevant tokens from a reference answer."""
+    terms: list[str] = []
+    seen: set[str] = set()
+    for token in _normalize_compare_text(text).split():
+        if token.isdigit() or len(token) < 3 or token in _COMPARE_STOPWORDS:
+            continue
+        if token not in seen:
+            seen.add(token)
+            terms.append(token)
+    return terms
+
+
+def evaluate_reference_response(
+    expected_response: str,
+    actual_response: str,
+    *,
+    min_coverage: float = 0.5,
+) -> ReferenceRubric:
+    """Compare an actual bot response against a reviewed golden response."""
+    expected_normalized = _normalize_compare_text(expected_response)
+    actual_normalized = _normalize_compare_text(actual_response)
+    if not expected_normalized or not actual_normalized:
+        return ReferenceRubric(
+            coverage=0.0,
+            overlap=0.0,
+            matched_terms=[],
+            missing_terms=[],
+            verdict="missing_reference",
+            passed=False,
+        )
+
+    expected_terms = _extract_compare_terms(expected_response)
+    actual_terms = set(_extract_compare_terms(actual_response))
+    substring_match = expected_normalized in actual_normalized
+
+    if not expected_terms:
+        passed = substring_match or expected_normalized == actual_normalized
+        verdict = "strong_match" if passed else "no_match"
+        coverage = 1.0 if passed else 0.0
+        return ReferenceRubric(
+            coverage=coverage,
+            overlap=coverage,
+            matched_terms=[],
+            missing_terms=[] if passed else [expected_normalized],
+            verdict=verdict,
+            passed=passed,
+        )
+
+    matched_terms = [term for term in expected_terms if term in actual_terms]
+    missing_terms = [term for term in expected_terms if term not in actual_terms]
+    coverage = len(matched_terms) / len(expected_terms)
+    union_terms = set(expected_terms) | actual_terms
+    overlap = len(set(matched_terms)) / len(union_terms) if union_terms else 0.0
+
+    min_term_matches = 1 if len(expected_terms) <= 2 else 2
+    passed = substring_match or (
+        coverage >= min_coverage and len(matched_terms) >= min_term_matches
+    )
+    if substring_match or coverage >= 0.8:
+        verdict = "strong_match"
+    elif passed:
+        verdict = "partial_match"
+    elif matched_terms:
+        verdict = "weak_match"
+    else:
+        verdict = "no_match"
+
+    return ReferenceRubric(
+        coverage=round(coverage, 2),
+        overlap=round(overlap, 2),
+        matched_terms=matched_terms,
+        missing_terms=missing_terms,
+        verdict=verdict,
+        passed=passed,
+    )
+
+
+def apply_reference_rubric(
+    result: TestResult,
+    *,
+    min_coverage: float = 0.5,
+) -> None:
+    """Attach reference comparison results and fail golden cases on mismatch."""
+    if not result.expected_response_text or not result.response_text:
+        return
+
+    rubric = evaluate_reference_response(
+        result.expected_response_text,
+        result.response_text,
+        min_coverage=min_coverage,
+    )
+    result.reference_rubric = rubric
+    if result.source == "golden" and result.status == "pass" and not rubric.passed:
+        result.status = "error"
+        result.error = (
+            f"Reference mismatch ({rubric.verdict}, coverage={rubric.coverage:.2f})"
+        )
 
 
 def _score_color(val: int) -> str:
@@ -541,6 +713,21 @@ def print_test_result(result: TestResult) -> None:
                 f"comp={_score_color(s.completeness)} "
                 f"{DIM}avg={s.average:.1f}{RESET}"
             )
+        if result.reference_rubric:
+            rubric = result.reference_rubric
+            coverage_pct = int(rubric.coverage * 100)
+            overlap_pct = int(rubric.overlap * 100)
+            verdict_color = GREEN if rubric.passed else YELLOW if rubric.matched_terms else RED
+            print(
+                f"      {DIM}Reference:{RESET} "
+                f"{verdict_color}{rubric.verdict}{RESET} "
+                f"{DIM}coverage={coverage_pct}% overlap={overlap_pct}%{RESET}"
+            )
+            if rubric.missing_terms:
+                missing = ", ".join(rubric.missing_terms[:5])
+                print(f"      {DIM}Missing:{RESET} {missing}")
+        if result.error and result.status == "error":
+            print(f"      {RED}Error: {result.error}{RESET}")
     elif result.error:
         print(f"      {RED}Error: {result.error}{RESET}")
     else:
@@ -559,6 +746,12 @@ def print_summary(stats: AggregateStats, results: list[TestResult]) -> None:
         print(f"  {RED}Timed out:{RESET} {stats.timed_out}")
     if stats.errors:
         print(f"  {YELLOW}Errors:{RESET} {stats.errors}")
+    if stats.reference_evaluated:
+        print(
+            f"  {BOLD}Reference checks:{RESET} "
+            f"{stats.reference_passed}/{stats.reference_evaluated} passed "
+            f"({stats.avg_reference_coverage:.0%} avg coverage)"
+        )
 
     # Timing
     responded = [r for r in results if r.has_response and r.response_time_ms > 0]
@@ -621,6 +814,11 @@ def print_summary(stats: AggregateStats, results: list[TestResult]) -> None:
                     f" — {DIM}{s.reasoning[:80]}{RESET}"
                 )
 
+    if stats.reference_evaluated:
+        print(f"\n  {BOLD}Golden reference rubric:{RESET}")
+        print(f"    Coverage:    {stats.avg_reference_coverage:.2f}")
+        print(f"    Overlap:     {stats.avg_reference_overlap:.2f}")
+
     print()
 
 
@@ -647,6 +845,18 @@ def compute_stats(results: list[TestResult]) -> AggregateStats:
     avg_tone = sum(r.llm_scores.tone for r in scored) / len(scored) if scored else 0
     avg_comp = sum(r.llm_scores.completeness for r in scored) / len(scored) if scored else 0
     avg_overall = sum(r.llm_scores.average for r in scored) / len(scored) if scored else 0
+    reference_checked = [r for r in results if r.reference_rubric]
+    reference_passed = sum(1 for r in reference_checked if r.reference_rubric.passed)
+    avg_reference_coverage = (
+        sum(r.reference_rubric.coverage for r in reference_checked) / len(reference_checked)
+        if reference_checked
+        else 0
+    )
+    avg_reference_overlap = (
+        sum(r.reference_rubric.overlap for r in reference_checked) / len(reference_checked)
+        if reference_checked
+        else 0
+    )
 
     return AggregateStats(
         total=total,
@@ -660,6 +870,10 @@ def compute_stats(results: list[TestResult]) -> AggregateStats:
         avg_tone=round(avg_tone, 1),
         avg_completeness=round(avg_comp, 1),
         avg_overall=round(avg_overall, 1),
+        reference_evaluated=len(reference_checked),
+        reference_passed=reference_passed,
+        avg_reference_coverage=round(avg_reference_coverage, 2),
+        avg_reference_overlap=round(avg_reference_overlap, 2),
     )
 
 
@@ -825,6 +1039,7 @@ async def run_direct_test(
     categories: list[str],
     *,
     scenario_map: dict[str, list[ScenarioCase]],
+    golden_min_coverage: float = 0.5,
     skip_scoring: bool = False,
     delay: float = 2.0,
 ) -> list[TestResult]:
@@ -901,6 +1116,7 @@ async def run_direct_test(
                 result.has_chart = bool(response.chart_url)
                 result.has_document = bool(response.document)
                 result.status = "pass" if response.text else "error"
+                apply_reference_rubric(result, min_coverage=golden_min_coverage)
 
                 # LLM quality scoring
                 if result.has_response and not skip_scoring:
@@ -1007,6 +1223,7 @@ async def run_telegram_test(
     categories: list[str],
     *,
     scenario_map: dict[str, list[ScenarioCase]],
+    golden_min_coverage: float = 0.5,
     skip_scoring: bool = False,
     delay: float = 3.0,
     timeout: int = 60,
@@ -1147,6 +1364,7 @@ async def run_telegram_test(
                         if extra_texts:
                             result.response_text += "\n---\n" + "\n---\n".join(extra_texts)
                             result.response_length = len(result.response_text)
+                    apply_reference_rubric(result, min_coverage=golden_min_coverage)
                 else:
                     result.status = "timeout"
                     result.response_time_ms = int((t1 - t0) * 1000)
@@ -1216,6 +1434,12 @@ def main():
     parser.add_argument(
         "--timeout", type=int, default=60, help="Max wait for bot reply in seconds (default: 60)"
     )
+    parser.add_argument(
+        "--golden-min-coverage",
+        type=float,
+        default=0.5,
+        help="Minimum keyword coverage for golden reference checks (default: 0.5)",
+    )
 
     args = parser.parse_args()
 
@@ -1279,6 +1503,7 @@ def main():
                 args.chat_id,
                 selected_categories,
                 scenario_map=scenario_map,
+                golden_min_coverage=max(0.1, min(args.golden_min_coverage, 1.0)),
                 skip_scoring=args.no_scoring,
                 delay=args.delay,
                 timeout=args.timeout,
@@ -1299,6 +1524,7 @@ def main():
                 args.chat_id,
                 selected_categories,
                 scenario_map=scenario_map,
+                golden_min_coverage=max(0.1, min(args.golden_min_coverage, 1.0)),
                 skip_scoring=args.no_scoring,
                 delay=args.delay,
             )
