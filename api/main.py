@@ -23,6 +23,7 @@ from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
     apply_trace_review_suggestion,
+    apply_trace_review_suggestions_batch,
     emit_conversation_analytics_event,
     get_conversation_analytics_policy,
     get_dataset_candidates,
@@ -124,6 +125,15 @@ class TraceCandidateSubmission(BaseModel):
 
 class TraceSuggestionApproval(BaseModel):
     trace_key: str
+    reviewer: str
+    notes: str = ""
+    final_label: str | None = None
+    action: str | None = None
+    labels: list[str] = Field(default_factory=list)
+
+
+class TraceSuggestionBatchApproval(BaseModel):
+    trace_keys: list[str]
     reviewer: str
     notes: str = ""
     final_label: str | None = None
@@ -1158,6 +1168,26 @@ async def analytics_apply_review_suggestion(
     try:
         return await apply_trace_review_suggestion(
             trace_key=submission.trace_key,
+            reviewer=submission.reviewer,
+            notes=submission.notes,
+            final_label=submission.final_label,
+            action=submission.action,
+            labels=submission.labels,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/ops/analytics/reviews/apply-suggestions-batch")
+async def analytics_apply_review_suggestions_batch(
+    request: Request,
+    submission: TraceSuggestionBatchApproval,
+) -> dict[str, Any]:
+    """Apply stored review suggestions for multiple traces in one operator action."""
+    _require_ops_auth(request)
+    try:
+        return await apply_trace_review_suggestions_batch(
+            trace_keys=submission.trace_keys,
             reviewer=submission.reviewer,
             notes=submission.notes,
             final_label=submission.final_label,

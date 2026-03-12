@@ -267,6 +267,34 @@ async def test_analytics_apply_review_suggestion_returns_result(mock_dependencie
     assert data["review"]["action"] == "promote_to_dataset"
 
 
+async def test_analytics_apply_review_suggestions_batch_returns_summary(mock_dependencies):
+    result = {
+        "requested": 2,
+        "applied_count": 1,
+        "failed_count": 1,
+        "applied": [{"trace_key": "corr-1"}],
+        "failed": [{"trace_key": "corr-2", "error": "trace_not_found"}],
+    }
+    payload = {
+        "trace_keys": ["corr-1", "corr-2"],
+        "reviewer": "qa-1",
+        "notes": "weekly review",
+        "labels": ["weekly_review"],
+    }
+    with patch("api.main.apply_trace_review_suggestions_batch", AsyncMock(return_value=result)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post(
+                "/ops/analytics/reviews/apply-suggestions-batch",
+                json=payload,
+            )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["requested"] == 2
+    assert data["applied_count"] == 1
+    assert data["failed_count"] == 1
+
+
 async def test_analytics_ingest_review_candidate_returns_trace(mock_dependencies):
     trace = {
         "trace_key": "replay-1",

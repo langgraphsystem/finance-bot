@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
     apply_trace_review_suggestion,
+    apply_trace_review_suggestions_batch,
     build_review_suggestion,
     derive_conversation_tags,
     emit_conversation_analytics_event,
@@ -289,6 +290,37 @@ async def test_apply_trace_review_suggestion_uses_prefill():
     assert "golden replay failure" in result["review"]["notes"]
     assert "confirmed by operator" in result["review"]["notes"]
     assert "weekly_review" in result["review"]["labels"]
+
+
+async def test_apply_trace_review_suggestions_batch_summarizes_results():
+    with patch(
+        "src.core.conversation_analytics.apply_trace_review_suggestion",
+        AsyncMock(
+            side_effect=[
+                {
+                    "review": {
+                        "trace_key": "corr-ok",
+                        "final_label": "memory_failure",
+                    },
+                    "dataset_candidate_created": True,
+                },
+                ValueError("trace_not_found"),
+            ]
+        ),
+    ):
+        result = await apply_trace_review_suggestions_batch(
+            trace_keys=["corr-ok", "corr-missing"],
+            reviewer="qa-batch",
+            notes="weekly review",
+            labels=["weekly_review"],
+        )
+
+    assert result["requested"] == 2
+    assert result["applied_count"] == 1
+    assert result["failed_count"] == 1
+    assert result["applied"][0]["trace_key"] == "corr-ok"
+    assert result["failed"][0]["trace_key"] == "corr-missing"
+    assert result["failed"][0]["error"] == "trace_not_found"
 
 
 async def test_ingest_review_trace_stores_external_candidate():

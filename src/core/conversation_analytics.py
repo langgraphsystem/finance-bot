@@ -616,6 +616,57 @@ async def apply_trace_review_suggestion(
     )
 
 
+async def apply_trace_review_suggestions_batch(
+    *,
+    trace_keys: list[str],
+    reviewer: str,
+    notes: str = "",
+    final_label: str | None = None,
+    action: str | None = None,
+    labels: list[str] | None = None,
+) -> dict[str, Any]:
+    """Apply stored review suggestions for multiple traces and summarize results."""
+    normalized_keys: list[str] = []
+    seen: set[str] = set()
+    for trace_key in trace_keys:
+        key = trace_key.strip()
+        if key and key not in seen:
+            seen.add(key)
+            normalized_keys.append(key)
+    if not normalized_keys:
+        raise ValueError("trace_keys_required")
+
+    applied: list[dict[str, Any]] = []
+    failed: list[dict[str, str]] = []
+    for trace_key in normalized_keys:
+        try:
+            result = await apply_trace_review_suggestion(
+                trace_key=trace_key,
+                reviewer=reviewer,
+                notes=notes,
+                final_label=final_label,
+                action=action,
+                labels=labels,
+            )
+            applied.append(
+                {
+                    "trace_key": trace_key,
+                    "dataset_candidate_created": result["dataset_candidate_created"],
+                    "review": result["review"],
+                }
+            )
+        except ValueError as exc:
+            failed.append({"trace_key": trace_key, "error": str(exc)})
+
+    return {
+        "requested": len(normalized_keys),
+        "applied_count": len(applied),
+        "failed_count": len(failed),
+        "applied": applied,
+        "failed": failed,
+    }
+
+
 async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
     """Return recent reviewed traces promoted to dataset candidates."""
     try:
