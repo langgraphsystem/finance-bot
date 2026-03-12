@@ -133,12 +133,19 @@ class TraceSuggestionApproval(BaseModel):
 
 
 class TraceSuggestionBatchApproval(BaseModel):
-    trace_keys: list[str]
+    trace_keys: list[str] = Field(default_factory=list)
     reviewer: str
     notes: str = ""
     final_label: str | None = None
     action: str | None = None
     labels: list[str] = Field(default_factory=list)
+    selection_limit: int = 100
+    max_selected: int = 50
+    review_label: str | None = None
+    suggested_action: str | None = None
+    suggested_final_label: str | None = None
+    tag: str | None = None
+    source: str | None = None
 
 
 def _require_ops_auth(request: Request) -> None:
@@ -1131,10 +1138,27 @@ async def analytics_policy(request: Request) -> dict[str, Any]:
 
 
 @app.get("/ops/analytics/review-queue")
-async def analytics_review_queue(request: Request, limit: int = 25) -> dict[str, Any]:
+async def analytics_review_queue(
+    request: Request,
+    limit: int = 25,
+    review_label: str | None = None,
+    suggested_action: str | None = None,
+    suggested_final_label: str | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+    max_selected: int = 50,
+) -> dict[str, Any]:
     """Return recent review candidates and exported traces."""
     _require_ops_auth(request)
-    return await get_review_queue_snapshot(limit=max(1, min(limit, 100)))
+    return await get_review_queue_snapshot(
+        limit=max(1, min(limit, 100)),
+        review_label=review_label,
+        suggested_action=suggested_action,
+        suggested_final_label=suggested_final_label,
+        tag=tag,
+        source=source,
+        max_selected=max(1, min(max_selected, 100)),
+    )
 
 
 @app.post("/ops/analytics/reviews")
@@ -1193,6 +1217,13 @@ async def analytics_apply_review_suggestions_batch(
             final_label=submission.final_label,
             action=submission.action,
             labels=submission.labels,
+            selection_limit=max(1, min(submission.selection_limit, 100)),
+            review_label=submission.review_label,
+            suggested_action=submission.suggested_action,
+            suggested_final_label=submission.suggested_final_label,
+            tag=submission.tag,
+            source=submission.source,
+            max_selected=max(1, min(submission.max_selected, 100)),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

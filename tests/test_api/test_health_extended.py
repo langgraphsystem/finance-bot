@@ -187,17 +187,28 @@ async def test_analytics_policy_returns_sampling_rules(mock_dependencies):
 async def test_analytics_review_queue_returns_snapshot(mock_dependencies):
     snapshot = {
         "review_queue_size": 1,
+        "filtered_review_queue_size": 1,
         "trace_export_size": 1,
+        "selected_trace_keys": ["trace-1"],
         "review_queue": [],
         "trace_exports": [],
     }
-    with patch("api.main.get_review_queue_snapshot", AsyncMock(return_value=snapshot)):
+    with patch(
+        "api.main.get_review_queue_snapshot",
+        AsyncMock(return_value=snapshot),
+    ) as mock_snapshot:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            resp = await client.get("/ops/analytics/review-queue?limit=10")
+            resp = await client.get(
+                "/ops/analytics/review-queue?limit=10"
+                "&tag=golden_replay&suggested_action=promote_to_dataset&max_selected=25"
+            )
     assert resp.status_code == 200
     data = resp.json()
     assert data["review_queue_size"] == 1
+    assert data["selected_trace_keys"] == ["trace-1"]
+    assert mock_snapshot.await_args.kwargs["tag"] == "golden_replay"
+    assert mock_snapshot.await_args.kwargs["suggested_action"] == "promote_to_dataset"
 
 
 async def test_analytics_submit_review_returns_result(mock_dependencies):
@@ -274,14 +285,21 @@ async def test_analytics_apply_review_suggestions_batch_returns_summary(mock_dep
         "failed_count": 1,
         "applied": [{"trace_key": "corr-1"}],
         "failed": [{"trace_key": "corr-2", "error": "trace_not_found"}],
+        "selection": {"selected_trace_keys": ["corr-1", "corr-2"]},
     }
     payload = {
-        "trace_keys": ["corr-1", "corr-2"],
+        "trace_keys": [],
         "reviewer": "qa-1",
         "notes": "weekly review",
         "labels": ["weekly_review"],
+        "tag": "golden_replay",
+        "suggested_action": "promote_to_dataset",
+        "source": "test_bot_live_golden_replay",
     }
-    with patch("api.main.apply_trace_review_suggestions_batch", AsyncMock(return_value=result)):
+    with patch(
+        "api.main.apply_trace_review_suggestions_batch",
+        AsyncMock(return_value=result),
+    ) as mock_batch:
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
@@ -293,6 +311,9 @@ async def test_analytics_apply_review_suggestions_batch_returns_summary(mock_dep
     assert data["requested"] == 2
     assert data["applied_count"] == 1
     assert data["failed_count"] == 1
+    assert data["selection"]["selected_trace_keys"] == ["corr-1", "corr-2"]
+    assert mock_batch.await_args.kwargs["tag"] == "golden_replay"
+    assert mock_batch.await_args.kwargs["suggested_action"] == "promote_to_dataset"
 
 
 async def test_analytics_ingest_review_candidate_returns_trace(mock_dependencies):

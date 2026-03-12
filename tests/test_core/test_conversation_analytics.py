@@ -10,6 +10,7 @@ from src.core.conversation_analytics import (
     build_review_suggestion,
     derive_conversation_tags,
     emit_conversation_analytics_event,
+    filter_review_queue_items,
     get_conversation_analytics_policy,
     get_dataset_candidates,
     get_golden_dialogues,
@@ -129,22 +130,62 @@ def test_build_review_suggestion_prefills_golden_replay_failure():
     assert "golden_replay" in suggestion["suggested_labels"]
 
 
+def test_filter_review_queue_items_selects_golden_promote_candidates():
+    items = [
+        {
+            "trace_key": "trace-1",
+            "review_label": "memory_failure",
+            "tags": ["golden_replay", "memory_related"],
+            "source": "test_bot_live_golden_replay",
+            "review_suggestion": {
+                "suggested_action": "promote_to_dataset",
+                "suggested_final_label": "memory_failure",
+            },
+        },
+        {
+            "trace_key": "trace-2",
+            "review_label": "tool_failure",
+            "tags": ["tool_failure"],
+            "source": "runtime_event",
+            "review_suggestion": {
+                "suggested_action": "follow_up",
+                "suggested_final_label": "tool_failure",
+            },
+        },
+    ]
+
+    filtered = filter_review_queue_items(
+        items,
+        tag="golden_replay",
+        suggested_action="promote_to_dataset",
+        source="test_bot_live_golden_replay",
+    )
+
+    assert [item["trace_key"] for item in filtered] == ["trace-1"]
+
+
 async def test_get_review_queue_snapshot_returns_review_and_trace_items():
     items = [
-        '{"review_label":"wrong_route","queued_for_review":true,"review_suggestion":{"suggested_final_label":"wrong_route"}}',
+        '{"trace_key":"trace-1","review_label":"wrong_route","tags":["golden_replay"],"source":"test_bot_live_golden_replay","queued_for_review":true,"review_suggestion":{"suggested_final_label":"wrong_route","suggested_action":"promote_to_dataset"}}',
         '{"review_label":"tool_failure","queued_for_review":true}',
     ]
     with patch("src.core.conversation_analytics.redis") as mock_redis:
         mock_redis.lrange = AsyncMock(side_effect=[items, items])
-        snapshot = await get_review_queue_snapshot(limit=2)
+        snapshot = await get_review_queue_snapshot(
+            limit=2,
+            tag="golden_replay",
+            suggested_action="promote_to_dataset",
+        )
 
     assert snapshot["review_queue_size"] == 2
+    assert snapshot["filtered_review_queue_size"] == 1
     assert snapshot["trace_export_size"] == 2
     assert snapshot["review_queue"][0]["review_label"] == "wrong_route"
     assert (
         snapshot["review_queue"][0]["review_suggestion"]["suggested_final_label"]
         == "wrong_route"
     )
+    assert snapshot["selected_trace_keys"] == ["trace-1"]
 
 
 async def test_get_dataset_candidates_returns_recent_items():
@@ -321,6 +362,57 @@ async def test_apply_trace_review_suggestions_batch_summarizes_results():
     assert result["applied"][0]["trace_key"] == "corr-ok"
     assert result["failed"][0]["trace_key"] == "corr-missing"
     assert result["failed"][0]["error"] == "trace_not_found"
+
+
+async def test_apply_trace_review_suggestions_batch_selects_from_queue():
+    queue_items = [
+        {
+            "trace_key": "trace-1",
+            "review_label": "memory_failure",
+            "tags": ["golden_replay", "memory_related"],
+            "source": "test_bot_live_golden_replay",
+            "review_suggestion": {
+                "suggested_action": "promote_to_dataset",
+                "suggested_final_label": "memory_failure",
+            },
+        },
+        {
+            "trace_key": "trace-2",
+            "review_label": "tool_failure",
+            "tags": ["tool_failure"],
+            "source": "runtime_event",
+            "review_suggestion": {
+                "suggested_action": "follow_up",
+                "suggested_final_label": "tool_failure",
+            },
+        },
+    ]
+    with (
+        patch(
+            "src.core.conversation_analytics.get_review_queue",
+            AsyncMock(return_value=queue_items),
+        ),
+        patch(
+            "src.core.conversation_analytics.apply_trace_review_suggestion",
+            AsyncMock(
+                return_value={
+                    "review": {"trace_key": "trace-1", "final_label": "memory_failure"},
+                    "dataset_candidate_created": True,
+                }
+            ),
+        ),
+    ):
+        result = await apply_trace_review_suggestions_batch(
+            trace_keys=[],
+            reviewer="qa-batch",
+            tag="golden_replay",
+            suggested_action="promote_to_dataset",
+            source="test_bot_live_golden_replay",
+        )
+
+    assert result["requested"] == 1
+    assert result["applied_count"] == 1
+    assert result["selection"]["selected_trace_keys"] == ["trace-1"]
 
 
 async def test_ingest_review_trace_stores_external_candidate():

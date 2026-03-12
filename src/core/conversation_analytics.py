@@ -100,6 +100,13 @@ def get_conversation_analytics_policy() -> dict[str, Any]:
             "suggested_labels",
             "rationale",
         ],
+        "review_queue_filter_fields": [
+            "review_label",
+            "suggested_action",
+            "suggested_final_label",
+            "tag",
+            "source",
+        ],
         "sample_rates": {
             "multi_intent": 30,
             "memory_related": 25,
@@ -211,6 +218,91 @@ def should_queue_review_candidate(review_label: str, tags: list[str] | None = No
         return True
     tag_set = set(tags or [])
     return "multi_intent" in tag_set or "memory_related" in tag_set
+
+
+def _normalize_filter_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def filter_review_queue_items(
+    items: list[dict[str, Any]],
+    *,
+    review_label: str | None = None,
+    suggested_action: str | None = None,
+    suggested_final_label: str | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+) -> list[dict[str, Any]]:
+    """Filter review-queue items using operator-facing selection criteria."""
+    normalized_review_label = _normalize_filter_value(review_label)
+    normalized_suggested_action = _normalize_filter_value(suggested_action)
+    normalized_suggested_final_label = _normalize_filter_value(suggested_final_label)
+    normalized_tag = _normalize_filter_value(tag)
+    normalized_source = _normalize_filter_value(source)
+
+    filtered: list[dict[str, Any]] = []
+    for item in items:
+        if (
+            normalized_review_label
+            and str(item.get("review_label") or "") != normalized_review_label
+        ):
+            continue
+        suggestion = dict(item.get("review_suggestion") or {})
+        if (
+            normalized_suggested_action
+            and str(suggestion.get("suggested_action") or "") != normalized_suggested_action
+        ):
+            continue
+        if (
+            normalized_suggested_final_label
+            and str(suggestion.get("suggested_final_label") or "")
+            != normalized_suggested_final_label
+        ):
+            continue
+        if normalized_tag and normalized_tag not in {str(tag) for tag in item.get("tags") or []}:
+            continue
+        if normalized_source and str(item.get("source") or "") != normalized_source:
+            continue
+        filtered.append(item)
+    return filtered
+
+
+def build_review_queue_selection_summary(
+    items: list[dict[str, Any]],
+    *,
+    max_selected: int = 50,
+    review_label: str | None = None,
+    suggested_action: str | None = None,
+    suggested_final_label: str | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+) -> dict[str, Any]:
+    """Build a stable trace-key selection from filtered review-queue items."""
+    selected_trace_keys: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        trace_key = str(item.get("trace_key") or "").strip()
+        if not trace_key or trace_key in seen:
+            continue
+        seen.add(trace_key)
+        selected_trace_keys.append(trace_key)
+        if len(selected_trace_keys) >= max(1, max_selected):
+            break
+
+    return {
+        "selection_filters": {
+            "review_label": _normalize_filter_value(review_label),
+            "suggested_action": _normalize_filter_value(suggested_action),
+            "suggested_final_label": _normalize_filter_value(suggested_final_label),
+            "tag": _normalize_filter_value(tag),
+            "source": _normalize_filter_value(source),
+        },
+        "selected_trace_key_count": len(selected_trace_keys),
+        "selected_trace_keys": selected_trace_keys,
+    }
 
 
 def _default_review_rubric() -> dict[str, bool]:
@@ -624,6 +716,13 @@ async def apply_trace_review_suggestions_batch(
     final_label: str | None = None,
     action: str | None = None,
     labels: list[str] | None = None,
+    selection_limit: int = 100,
+    review_label: str | None = None,
+    suggested_action: str | None = None,
+    suggested_final_label: str | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+    max_selected: int = 50,
 ) -> dict[str, Any]:
     """Apply stored review suggestions for multiple traces and summarize results."""
     normalized_keys: list[str] = []
@@ -633,6 +732,27 @@ async def apply_trace_review_suggestions_batch(
         if key and key not in seen:
             seen.add(key)
             normalized_keys.append(key)
+    selection_summary: dict[str, Any] | None = None
+    if not normalized_keys:
+        queue_items = await get_review_queue(limit=max(1, selection_limit))
+        filtered_items = filter_review_queue_items(
+            queue_items,
+            review_label=review_label,
+            suggested_action=suggested_action,
+            suggested_final_label=suggested_final_label,
+            tag=tag,
+            source=source,
+        )
+        selection_summary = build_review_queue_selection_summary(
+            filtered_items,
+            max_selected=max_selected,
+            review_label=review_label,
+            suggested_action=suggested_action,
+            suggested_final_label=suggested_final_label,
+            tag=tag,
+            source=source,
+        )
+        normalized_keys = list(selection_summary["selected_trace_keys"])
     if not normalized_keys:
         raise ValueError("trace_keys_required")
 
@@ -664,6 +784,7 @@ async def apply_trace_review_suggestions_batch(
         "failed_count": len(failed),
         "applied": applied,
         "failed": failed,
+        "selection": selection_summary,
     }
 
 
@@ -763,16 +884,44 @@ async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
     }
 
 
-async def get_review_queue_snapshot(limit: int = 25) -> dict[str, Any]:
+async def get_review_queue_snapshot(
+    limit: int = 25,
+    *,
+    review_label: str | None = None,
+    suggested_action: str | None = None,
+    suggested_final_label: str | None = None,
+    tag: str | None = None,
+    source: str | None = None,
+    max_selected: int = 50,
+) -> dict[str, Any]:
     """Return a compact operator snapshot of review candidates and trace exports."""
     review_items = await get_review_queue(limit=limit)
+    filtered_review_items = filter_review_queue_items(
+        review_items,
+        review_label=review_label,
+        suggested_action=suggested_action,
+        suggested_final_label=suggested_final_label,
+        tag=tag,
+        source=source,
+    )
     trace_exports = await get_trace_exports(limit=limit)
+    selection = build_review_queue_selection_summary(
+        filtered_review_items,
+        max_selected=max_selected,
+        review_label=review_label,
+        suggested_action=suggested_action,
+        suggested_final_label=suggested_final_label,
+        tag=tag,
+        source=source,
+    )
     return {
         "policy": get_conversation_analytics_policy(),
         "review_queue_size": len(review_items),
+        "filtered_review_queue_size": len(filtered_review_items),
         "trace_export_size": len(trace_exports),
-        "review_queue": review_items,
+        "review_queue": filtered_review_items,
         "trace_exports": trace_exports,
+        **selection,
     }
 
 
