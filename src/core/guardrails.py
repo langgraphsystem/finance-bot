@@ -1,7 +1,7 @@
 """Input guardrails — lightweight safety check via direct LLM call.
 
 Replaces the heavy NeMo Guardrails `generate_async()` (4-5 LLM calls, 6-9s)
-with a single OpenAI GPT-5.4 call (~0.5s) using the same safety prompt.
+with a single Gemini Flash Lite call (~0.3s) using the same safety prompt.
 """
 
 import logging
@@ -96,7 +96,7 @@ def _is_personalization(text: str) -> bool:
 async def check_input(text: str) -> tuple[bool, str | None]:
     """Check if input passes safety guardrails.
 
-    Uses a single OpenAI GPT-5.4 call instead of NeMo's full pipeline.
+    Uses a single Gemini Flash Lite call instead of NeMo's full pipeline.
     Personalization messages are fast-tracked (never sent to LLM) to avoid
     false positives like "тебя зовут Хюррем" being blocked as impersonation.
 
@@ -109,16 +109,19 @@ async def check_input(text: str) -> tuple[bool, str | None]:
         return True, None
 
     try:
-        from src.core.llm.clients import get_openai_client
+        from google.genai import types
 
-        client = get_openai_client()
-        response = await client.responses.create(
-            model="gpt-5.4",
-            input=SAFETY_CHECK_PROMPT.format(user_input=text),
-            max_output_tokens=10,
-            reasoning={"effort": "none"},
+        from src.core.llm.clients import google_client
+
+        client = google_client()
+        response = await client.aio.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=SAFETY_CHECK_PROMPT.format(user_input=text),
+            config=types.GenerateContentConfig(
+                max_output_tokens=16,
+            ),
         )
-        answer = (response.output_text or "").strip().lower()
+        answer = (response.text or "").strip().lower()
 
         if answer.startswith("yes"):
             logger.info("Guardrails blocked input: %r", text[:100])
