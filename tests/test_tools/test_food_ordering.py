@@ -73,9 +73,12 @@ async def test_start_flow_with_platform_checks_auth():
             return_value=None,
         ),
         patch(
-            "src.tools.food_ordering._get_connect_url",
+            "src.tools.browser_login.start_login",
             new_callable=AsyncMock,
-            return_value="https://example.com",
+            return_value={
+                "action": "ask_email",
+                "text": "Enter your email for Uber Eats:",
+            },
         ),
     ):
         mock_get.return_value = {
@@ -98,7 +101,7 @@ async def test_start_flow_with_platform_checks_auth():
             language="en",
         )
     assert result["action"] == "need_login"
-    assert "Uber Eats" in result["text"]
+    assert "email" in result["text"].lower()
 
 
 async def test_start_flow_russian_locale():

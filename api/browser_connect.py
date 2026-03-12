@@ -462,10 +462,43 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
 
     let _actionInFlight = false;
 
+    function showSpinner() {{
+      let el = document.getElementById('action-spinner');
+      if (!el) {{
+        el = document.createElement('div');
+        el.id = 'action-spinner';
+        el.innerHTML = '<div class="spin-ring"></div>';
+        Object.assign(el.style, {{
+          position:'fixed',top:'0',left:'0',width:'100%',height:'100%',
+          display:'flex',alignItems:'center',justifyContent:'center',
+          background:'rgba(0,0,0,0.25)',zIndex:'9999'
+        }});
+        const ring = el.querySelector('.spin-ring');
+        Object.assign(ring.style, {{
+          width:'40px',height:'40px',border:'4px solid rgba(255,255,255,0.3)',
+          borderTop:'4px solid #fff',borderRadius:'50%',
+          animation:'spin .7s linear infinite'
+        }});
+        if (!document.getElementById('spin-css')) {{
+          const s = document.createElement('style');
+          s.id = 'spin-css';
+          s.textContent = '@keyframes spin{{from{{transform:rotate(0)}}'
+            + 'to{{transform:rotate(360deg)}}}}';
+          document.head.appendChild(s);
+        }}
+        document.body.appendChild(el);
+      }}
+      el.style.display = 'flex';
+    }}
+    function hideSpinner() {{
+      const el = document.getElementById('action-spinner');
+      if (el) el.style.display = 'none';
+    }}
+
     async function doAction(payload) {{
       if (_actionInFlight) return;
       _actionInFlight = true;
-      screenEl.style.opacity = '0.55';
+      showSpinner();
       screenEl.style.pointerEvents = 'none';
       try {{
         await postAction(payload);
@@ -474,7 +507,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
         statusEl.textContent = 'Action failed: ' + err.message + '. Try again.';
       }} finally {{
         _actionInFlight = false;
-        screenEl.style.opacity = '1';
+        hideSpinner();
         screenEl.style.pointerEvents = '';
       }}
     }}
@@ -641,7 +674,7 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
         statusEl.classList.add('visible');
         statusEl.textContent = 'Connection issue. Pull to refresh the page and try again.';
       }}
-    }}, 2500);
+    }}, 1200);
   </script>
 </body>
 </html>"""
@@ -726,7 +759,7 @@ async def browser_connect_screenshot(token: str) -> Response:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return Response(content=image, media_type="image/png")
+    return Response(content=image, media_type="image/jpeg")
 
 
 @router.post("/{token}/action", response_model=BrowserConnectStateResponse)

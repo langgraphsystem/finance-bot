@@ -29,7 +29,6 @@ from src.tools import (
     browser_login,
     browser_service,
     food_ordering,
-    remote_browser_connect,
     taxi_booking,
 )
 
@@ -227,7 +226,7 @@ class BrowserActionSkill:
                     buttons=result.get("buttons"),
                 )
 
-        # 3. Check for active login flow — handle the next step
+        # 4. Check for active login flow — handle the next step
         login_state = await browser_login.get_login_state(context.user_id)
         if login_state:
             result = await browser_login.handle_step(
@@ -240,7 +239,7 @@ class BrowserActionSkill:
             )
             return self._login_step_to_result(result)
 
-        # 4. Extract domain from task if not provided
+        # 5. Extract domain from task if not provided
         if not site:
             site = self._extract_site_from_task(task)
 
@@ -250,7 +249,7 @@ class BrowserActionSkill:
 
         domain = browser_service.extract_domain(site) if site else ""
 
-        # 5. Hotel search / booking request → multi-step flow
+        # 6. Hotel search / booking request → multi-step flow
         if self._is_hotel_request(task, domain):
             pre_parsed = self._build_hotel_pre_parsed(intent_data)
             search_result = await browser_booking.start_flow(
@@ -265,7 +264,7 @@ class BrowserActionSkill:
                 buttons=search_result.get("buttons"),
             )
 
-        # 6. Food delivery request → dedicated multi-step flow
+        # 7. Food delivery request → dedicated multi-step flow
         # Check BEFORE taxi — "uber eats" contains "uber"
         if self._is_food_request(task, domain):
             food_result = await food_ordering.start_flow(
@@ -280,7 +279,7 @@ class BrowserActionSkill:
                 buttons=food_result.get("buttons"),
             )
 
-        # 7. Taxi / ride-hailing request → dedicated multi-step flow
+        # 8. Taxi / ride-hailing request → dedicated multi-step flow
         if self._is_taxi_request(task, domain):
             ride_result = await taxi_booking.start_flow(
                 user_id=context.user_id,
@@ -312,12 +311,12 @@ class BrowserActionSkill:
                 "Please include the site name (e.g., booking.com)."
             )
 
-        # 5. Check if task is too vague (shopping sites only now)
+        # 9. Check if task is too vague (shopping sites only now)
         missing = self._check_missing_details(task, domain)
         if missing:
             return SkillResult(response_text=missing)
 
-        # 6. Check if this is a payment task requiring approval (non-booking sites)
+        # 10. Check if this is a payment task requiring approval (non-booking sites)
         if self._is_payment_task(task):
             return await approval_manager.request_approval(
                 user_id=context.user_id,
@@ -330,7 +329,7 @@ class BrowserActionSkill:
                 ),
             )
 
-        # 7. Check for saved session
+        # 11. Check for saved session
         storage_state = await browser_service.get_storage_state(context.user_id, domain)
 
         if storage_state:
@@ -347,55 +346,23 @@ class BrowserActionSkill:
             error_text = result.get("result", "").lower()
             if "login" in error_text or "sign in" in error_text or "auth" in error_text:
                 await browser_service.delete_session(context.user_id, domain)
-                connect_url = await remote_browser_connect.create_connect_url(
+                return await self._start_login_flow(
                     user_id=context.user_id,
                     family_id=context.family_id,
-                    provider=domain,
-                )
-                provider_label = browser_service.get_provider_label(domain)
-                return SkillResult(
-                    response_text=(
-                        f"Session expired for <b>{provider_label}</b>.\n\n"
-                        "Tap the button to log in again."
-                    ),
-                    buttons=[{"text": f"🔗 Log in to {provider_label}", "url": connect_url}],
+                    site=domain,
+                    task=task,
+                    language=context.language or "en",
                 )
 
             return SkillResult(response_text=f"Browser task failed: {result['result']}")
 
-        # 8. No saved session — auto-generate connect URL for login
-        connect_url = await remote_browser_connect.create_connect_url(
+        # 12. No saved session — start chat-based login flow
+        return await self._start_login_flow(
             user_id=context.user_id,
             family_id=context.family_id,
-            provider=domain,
-        )
-        provider_label = browser_service.get_provider_label(domain)
-        lang = context.language or "en"
-        if lang == "ru":
-            text = (
-                f"Нет сохранённой сессии для <b>{provider_label}</b>.\n\n"
-                "Нажмите кнопку ниже, чтобы войти в аккаунт. "
-                "После входа я сохраню сессию и смогу работать автоматически."
-            )
-            btn_text = f"🔗 Войти в {provider_label}"
-        elif lang == "es":
-            text = (
-                f"No hay sesión guardada para <b>{provider_label}</b>.\n\n"
-                "Presiona el botón para iniciar sesión. "
-                "Después guardaré la sesión y podré trabajar automáticamente."
-            )
-            btn_text = f"🔗 Iniciar sesión en {provider_label}"
-        else:
-            text = (
-                f"No saved session for <b>{provider_label}</b>.\n\n"
-                "Tap the button below to log in. "
-                "Once done, I'll save the session and can work automatically."
-            )
-            btn_text = f"🔗 Log in to {provider_label}"
-
-        return SkillResult(
-            response_text=text,
-            buttons=[{"text": btn_text, "url": connect_url}],
+            site=domain,
+            task=task,
+            language=context.language or "en",
         )
 
     @staticmethod
@@ -440,18 +407,34 @@ class BrowserActionSkill:
         return False
 
     async def _start_login_flow(
-        self, user_id: str, family_id: str, site: str, task: str
+        self,
+        user_id: str,
+        family_id: str,
+        site: str,
+        task: str,
+        language: str = "en",
     ) -> SkillResult:
-        """Initiate the interactive login flow."""
+        """Initiate the interactive chat-based login flow."""
         result = await browser_login.start_login(
             user_id=user_id,
             family_id=family_id,
             site=site,
             task=task,
+            language=language,
         )
 
         if result["action"] == "error":
             return SkillResult(response_text=result["text"])
+
+        # CAPTCHA fallback — show browser-connect URL button
+        if result["action"] == "captcha":
+            return SkillResult(
+                response_text=result["text"],
+                buttons=[{
+                    "text": result.get("btn_text", "Open browser"),
+                    "url": result["connect_url"],
+                }],
+            )
 
         screenshot_bytes = result.get("screenshot_bytes")
         return SkillResult(
@@ -470,6 +453,16 @@ class BrowserActionSkill:
 
         if action == "login_success":
             return SkillResult(response_text=text)
+
+        # CAPTCHA fallback — show browser-connect URL
+        if action == "captcha" and result.get("connect_url"):
+            return SkillResult(
+                response_text=text,
+                buttons=[{
+                    "text": result.get("btn_text", "Open browser"),
+                    "url": result["connect_url"],
+                }],
+            )
 
         return SkillResult(
             response_text=text,

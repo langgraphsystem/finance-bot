@@ -21,6 +21,11 @@ _no_login = patch(
     new_callable=AsyncMock,
     return_value=None,
 )
+_no_food = patch(
+    "src.skills.browser_action.handler.food_ordering.get_food_state",
+    new_callable=AsyncMock,
+    return_value=None,
+)
 
 
 def test_browser_action_skill_attributes():
@@ -40,7 +45,7 @@ def test_browser_action_system_prompt(sample_context):
 async def test_browser_action_empty_message(sample_context):
     skill = BrowserActionSkill()
     msg = IncomingMessage(id="1", user_id="u1", chat_id="c1", type=MessageType.text, text="")
-    with _no_booking, _no_taxi, _no_login:
+    with _no_booking, _no_taxi, _no_login, _no_food:
         result = await skill.execute(msg, sample_context, {})
     text = result.response_text.lower()
     assert (
@@ -66,6 +71,7 @@ async def test_browser_action_vague_booking_asks_details(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
             new_callable=AsyncMock,
@@ -97,6 +103,7 @@ async def test_browser_action_detailed_booking_starts_flow(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
             new_callable=AsyncMock,
@@ -127,6 +134,7 @@ async def test_browser_action_hotel_keyword_starts_flow(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_booking.start_flow",
             new_callable=AsyncMock,
@@ -153,6 +161,7 @@ async def test_browser_action_payment_needs_approval(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch("src.skills.browser_action.handler.approval_manager") as mock_approval,
     ):
         mock_approval.request_approval = AsyncMock(
@@ -176,6 +185,7 @@ async def test_browser_action_with_session_executes(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
             new_callable=AsyncMock,
@@ -196,8 +206,8 @@ async def test_browser_action_with_session_executes(sample_context):
     assert "march 15" in result.response_text.lower()
 
 
-async def test_browser_action_no_session_suggests_extension(sample_context):
-    """No saved session should auto-generate connect URL with login button."""
+async def test_browser_action_no_session_starts_chat_login(sample_context):
+    """No saved session should start chat-based login flow."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
@@ -211,26 +221,29 @@ async def test_browser_action_no_session_suggests_extension(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
             new_callable=AsyncMock,
             return_value=None,
         ),
         patch(
-            "src.skills.browser_action.handler.remote_browser_connect.create_connect_url",
+            "src.skills.browser_action.handler.browser_login.start_login",
             new_callable=AsyncMock,
-            return_value="https://app.test/api/browser-connect/tok123",
+            return_value={
+                "action": "ask_email",
+                "text": "Enter your email for booking.com:",
+                "screenshot_bytes": b"screenshot",
+            },
         ),
     ):
         result = await skill.execute(msg, sample_context, intent_data)
-    # Response language depends on context.language (ru in sample_context)
-    assert "session" in result.response_text.lower() or "сессии" in result.response_text.lower()
-    assert result.buttons
-    assert "url" in result.buttons[0]
+    assert "email" in result.response_text.lower()
+    assert result.photo_bytes == b"screenshot"
 
 
-async def test_browser_action_expired_session_suggests_extension(sample_context):
-    """Expired session should clear cookies and offer re-login button."""
+async def test_browser_action_expired_session_starts_chat_login(sample_context):
+    """Expired session should clear cookies and start chat-based login."""
     skill = BrowserActionSkill()
     msg = IncomingMessage(
         id="1", user_id="u1", chat_id="c1", type=MessageType.text,
@@ -244,6 +257,7 @@ async def test_browser_action_expired_session_suggests_extension(sample_context)
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
             new_callable=AsyncMock,
@@ -259,16 +273,17 @@ async def test_browser_action_expired_session_suggests_extension(sample_context)
             new_callable=AsyncMock,
         ) as mock_delete,
         patch(
-            "src.skills.browser_action.handler.remote_browser_connect.create_connect_url",
+            "src.skills.browser_action.handler.browser_login.start_login",
             new_callable=AsyncMock,
-            return_value="https://app.test/api/browser-connect/tok456",
+            return_value={
+                "action": "ask_email",
+                "text": "Enter your email for booking.com:",
+            },
         ),
     ):
         result = await skill.execute(msg, sample_context, intent_data)
     mock_delete.assert_called_once()
-    assert "expired" in result.response_text.lower()
-    assert result.buttons
-    assert "url" in result.buttons[0]
+    assert "email" in result.response_text.lower()
 
 
 async def test_browser_action_vague_shopping_asks_product(sample_context):
@@ -282,7 +297,7 @@ async def test_browser_action_vague_shopping_asks_product(sample_context):
         "browser_task": "купи",
         "browser_target_site": "amazon.com",
     }
-    with _no_booking, _no_taxi, _no_login:
+    with _no_booking, _no_taxi, _no_login, _no_food:
         result = await skill.execute(msg, sample_context, intent_data)
     assert "amazon.com" in result.response_text
     assert "find" in result.response_text.lower()
@@ -303,6 +318,7 @@ async def test_browser_action_read_only_on_booking_site_skips_search(sample_cont
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.browser_service.get_storage_state",
             new_callable=AsyncMock,
@@ -339,6 +355,7 @@ async def test_browser_action_taxi_request_starts_flow(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.taxi_booking.start_flow",
             new_callable=AsyncMock,
@@ -367,6 +384,7 @@ async def test_browser_action_extracts_uber_alias(sample_context):
         _no_booking,
         _no_taxi,
         _no_login,
+        _no_food,
         patch(
             "src.skills.browser_action.handler.taxi_booking.start_flow",
             new_callable=AsyncMock,

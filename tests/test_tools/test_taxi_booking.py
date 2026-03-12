@@ -62,16 +62,19 @@ async def test_check_auth_and_fetch_options_prompts_login_when_session_missing()
             return_value=None,
         ),
         patch(
-            "src.tools.remote_browser_connect.create_connect_url",
+            "src.tools.browser_login.start_login",
             new_callable=AsyncMock,
-            return_value="https://bot.example.com/api/browser-connect/token-1",
+            return_value={
+                "action": "ask_phone",
+                "text": "Enter your phone number for Uber:",
+                "screenshot_bytes": b"screenshot",
+            },
         ),
     ):
         result = await taxi_booking.check_auth_and_fetch_options(_TEST_USER_ID)
-    mock_set.assert_awaited_once()
+    mock_set.assert_awaited()
     assert result["action"] == "need_login"
-    assert "/api/browser-connect/token-1" in result["buttons"][0]["url"]
-    assert "return you to Telegram automatically" in result["text"]
+    assert "phone" in result["text"].lower()
 
 
 async def test_handle_option_selection_prepares_confirmation():

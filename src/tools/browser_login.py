@@ -16,6 +16,8 @@ Security:
 import asyncio
 import json
 import logging
+import secrets
+import time
 from typing import Any
 
 from src.core.db import redis
@@ -29,6 +31,178 @@ _REDIS_PREFIX = "browser_login"
 # In-memory browser sessions for active login flows
 # key: user_id, value: {"browser": ..., "context": ..., "page": ...}
 _active_sessions: dict[str, Any] = {}
+
+# ---------------------------------------------------------------------------
+# Site-specific login configuration
+# ---------------------------------------------------------------------------
+
+_SITE_LOGIN_CONFIG: dict[str, dict[str, Any]] = {
+    "uber.com": {
+        "credential_type": "phone",
+        "input_selectors": [
+            'input[name="phoneNumber"]',
+            'input[id="PHONE_NUMBER_or_EMAIL_ADDRESS"]',
+            'input[type="tel"]',
+            'input[type="text"]',
+        ],
+    },
+    "ubereats.com": {
+        "credential_type": "phone",
+        "input_selectors": [
+            'input[name="phoneNumber"]',
+            'input[id="PHONE_NUMBER_or_EMAIL_ADDRESS"]',
+            'input[type="tel"]',
+            'input[type="text"]',
+        ],
+    },
+    "doordash.com": {
+        "credential_type": "email",
+    },
+    "grubhub.com": {
+        "credential_type": "email",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# i18n
+# ---------------------------------------------------------------------------
+
+_STRINGS: dict[str, dict[str, str]] = {
+    "en": {
+        "ask_email": "I need to log you into <b>{site}</b>.\n\nPlease enter your email/username:",
+        "ask_phone": "I need to log you into <b>{site}</b>.\n\nPlease enter your phone number:",
+        "ask_password": (
+            "Now enter your <b>password</b>.\n\n"
+            "Your message will be <b>deleted immediately</b> for security."
+        ),
+        "ask_password_google": (
+            "This is <b>Google login</b>. Enter your Google password:\n\n"
+            "Your message will be <b>deleted immediately</b>."
+        ),
+        "ask_password_apple": (
+            "This is <b>Apple login</b>. Enter your Apple ID password:\n\n"
+            "Your message will be <b>deleted immediately</b>."
+        ),
+        "ask_password_oauth": (
+            "OAuth login page opened. Enter your <b>password</b>.\n\n"
+            "Your message will be <b>deleted immediately</b>."
+        ),
+        "ask_2fa": "Two-factor authentication required. Enter the code:",
+        "login_success": (
+            "Logged in to <b>{site}</b> successfully! "
+            "Session saved.\n\nNow executing your task..."
+        ),
+        "login_failed": (
+            "Login failed. Please check your credentials and try again.\n"
+            "Your password was not stored anywhere."
+        ),
+        "2fa_failed": "2FA verification failed. Please try again.",
+        "captcha_detected": (
+            "CAPTCHA detected. Open the browser below to solve it, "
+            "then I'll continue automatically."
+        ),
+        "session_expired": "Browser session expired. Try again.",
+        "open_failed": "Could not open {site}: {error}",
+        "playwright_missing": "Playwright is not available for login flow.",
+        "btn_solve_captcha": "Open browser",
+    },
+    "ru": {
+        "ask_email": (
+            "Нужно войти в <b>{site}</b>.\n\nВведите email или имя пользователя:"
+        ),
+        "ask_phone": "Нужно войти в <b>{site}</b>.\n\nВведите номер телефона:",
+        "ask_password": (
+            "Теперь введите <b>пароль</b>.\n\n"
+            "Сообщение будет <b>удалено сразу</b> для безопасности."
+        ),
+        "ask_password_google": (
+            "Это <b>вход через Google</b>. Введите пароль Google:\n\n"
+            "Сообщение будет <b>удалено сразу</b>."
+        ),
+        "ask_password_apple": (
+            "Это <b>вход через Apple</b>. Введите пароль Apple ID:\n\n"
+            "Сообщение будет <b>удалено сразу</b>."
+        ),
+        "ask_password_oauth": (
+            "Открыта страница OAuth. Введите <b>пароль</b>.\n\n"
+            "Сообщение будет <b>удалено сразу</b>."
+        ),
+        "ask_2fa": "Требуется двухфакторная аутентификация. Введите код:",
+        "login_success": (
+            "Вход в <b>{site}</b> выполнен! "
+            "Сессия сохранена.\n\nВыполняю задачу..."
+        ),
+        "login_failed": (
+            "Вход не удался. Проверьте данные и попробуйте снова.\n"
+            "Пароль нигде не сохранён."
+        ),
+        "2fa_failed": "Проверка 2FA не пройдена. Попробуйте ещё раз.",
+        "captcha_detected": (
+            "Обнаружена CAPTCHA. Откройте браузер ниже, чтобы решить её, "
+            "а я продолжу автоматически."
+        ),
+        "session_expired": "Сессия браузера истекла. Попробуйте снова.",
+        "open_failed": "Не удалось открыть {site}: {error}",
+        "playwright_missing": "Playwright недоступен.",
+        "btn_solve_captcha": "Открыть браузер",
+    },
+    "es": {
+        "ask_email": (
+            "Necesito iniciar sesión en <b>{site}</b>.\n\n"
+            "Ingresa tu email o nombre de usuario:"
+        ),
+        "ask_phone": (
+            "Necesito iniciar sesión en <b>{site}</b>.\n\n"
+            "Ingresa tu número de teléfono:"
+        ),
+        "ask_password": (
+            "Ahora ingresa tu <b>contraseña</b>.\n\n"
+            "Tu mensaje será <b>eliminado inmediatamente</b> por seguridad."
+        ),
+        "ask_password_google": (
+            "Inicio de sesión con <b>Google</b>. Ingresa tu contraseña de Google:\n\n"
+            "Tu mensaje será <b>eliminado inmediatamente</b>."
+        ),
+        "ask_password_apple": (
+            "Inicio de sesión con <b>Apple</b>. Ingresa tu contraseña de Apple ID:\n\n"
+            "Tu mensaje será <b>eliminado inmediatamente</b>."
+        ),
+        "ask_password_oauth": (
+            "Página OAuth abierta. Ingresa tu <b>contraseña</b>.\n\n"
+            "Tu mensaje será <b>eliminado inmediatamente</b>."
+        ),
+        "ask_2fa": "Se requiere autenticación de dos factores. Ingresa el código:",
+        "login_success": (
+            "Sesión en <b>{site}</b> iniciada con éxito! "
+            "Sesión guardada.\n\nEjecutando tu tarea..."
+        ),
+        "login_failed": (
+            "Inicio de sesión fallido. Verifica tus datos e intenta de nuevo.\n"
+            "Tu contraseña no fue almacenada."
+        ),
+        "2fa_failed": "Verificación 2FA fallida. Intenta de nuevo.",
+        "captcha_detected": (
+            "CAPTCHA detectado. Abre el navegador a continuación para resolverlo, "
+            "y continuaré automáticamente."
+        ),
+        "session_expired": "Sesión del navegador expirada. Intenta de nuevo.",
+        "open_failed": "No se pudo abrir {site}: {error}",
+        "playwright_missing": "Playwright no está disponible.",
+        "btn_solve_captcha": "Abrir navegador",
+    },
+}
+
+
+def _t(key: str, lang: str, **kwargs: Any) -> str:
+    """Get translated string."""
+    strings = _STRINGS.get(lang, _STRINGS["en"])
+    template = strings.get(key, _STRINGS["en"].get(key, key))
+    return template.format(**kwargs) if kwargs else template
+
+
+def _get_site_config(domain: str) -> dict[str, Any]:
+    """Get site-specific login config or defaults."""
+    return _SITE_LOGIN_CONFIG.get(domain, {})
 
 
 async def get_login_state(user_id: str) -> dict | None:
@@ -71,24 +245,27 @@ async def start_login(
     family_id: str,
     site: str,
     task: str,
+    language: str = "en",
 ) -> dict[str, Any]:
     """Start an interactive login flow for a website.
 
     Opens the login page, takes a screenshot, and returns instructions
-    for the user to enter their email.
+    for the user to enter their email/phone (depending on site config).
 
     Returns:
-        dict with keys: action ("ask_email"|"error"), text, screenshot_bytes
+        dict with keys: action ("ask_email"|"ask_phone"|"error"), text, screenshot_bytes
     """
     domain = browser_service.extract_domain(site)
-    login_url = f"https://{domain}"
+    site_config = _get_site_config(domain)
+    credential_type = site_config.get("credential_type", "email")
+    login_url = browser_service.get_login_url(domain)
 
     try:
         from playwright.async_api import async_playwright
     except ImportError:
         return {
             "action": "error",
-            "text": "Playwright is not available for login flow.",
+            "text": _t("playwright_missing", language),
         }
 
     try:
@@ -125,20 +302,21 @@ async def start_login(
         }
 
         # Store flow state in Redis (NO sensitive data)
+        action = "ask_phone" if credential_type == "phone" else "ask_email"
         await _set_login_state(user_id, {
             "step": "awaiting_email",
             "site": domain,
             "family_id": family_id,
             "task": task,
+            "language": language,
             "login_url": login_url,
+            "credential_type": credential_type,
         })
 
+        prompt_key = "ask_phone" if credential_type == "phone" else "ask_email"
         return {
-            "action": "ask_email",
-            "text": (
-                f"I need to log you into <b>{domain}</b>.\n\n"
-                "Please enter your email/username for this site:"
-            ),
+            "action": action,
+            "text": _t(prompt_key, language, site=domain),
             "screenshot_bytes": screenshot,
         }
 
@@ -147,7 +325,7 @@ async def start_login(
         await _cleanup_browser(user_id)
         return {
             "action": "error",
-            "text": f"Could not open {domain}: {e}",
+            "text": _t("open_failed", language, site=domain, error=str(e)),
         }
 
 
@@ -200,18 +378,20 @@ async def _handle_email_step(
     email: str,
     session_data: dict | None,
 ) -> dict[str, Any]:
-    """Type email into the login form and ask for password."""
+    """Type email/phone into the login form and ask for password."""
+    lang = state.get("language", "en")
     if not session_data:
         await _clear_login_state(user_id)
-        return {"action": "error", "text": "Browser session expired. Try again."}
+        return {"action": "error", "text": _t("session_expired", lang)}
 
     page = session_data["page"]
     context = session_data["context"]
+    site_config = _get_site_config(state.get("site", ""))
 
     try:
-        # Try common email/username input selectors (Google uses #identifierId)
-        typed = False
-        for selector in [
+        # Use site-specific selectors first, then generic ones
+        site_selectors = site_config.get("input_selectors", [])
+        default_selectors = [
             "#identifierId",  # Google login
             'input[type="email"]',
             'input[name="email"]',
@@ -221,7 +401,13 @@ async def _handle_email_step(
             'input[id="username"]',
             'input[id="login"]',
             'input[type="text"]',
-        ]:
+        ]
+        all_selectors = site_selectors + [
+            s for s in default_selectors if s not in site_selectors
+        ]
+
+        typed = False
+        for selector in all_selectors:
             try:
                 el = page.locator(selector).first
                 if await el.is_visible(timeout=2000):
@@ -268,17 +454,15 @@ async def _handle_email_step(
             await _set_login_state(user_id, state)
             screenshot = await popup_page.screenshot(type="png")
             url = popup_page.url
-            hint = ""
             if "google.com" in url:
-                hint = "\n\nThis is <b>Google login</b>. Enter your Google password:"
+                prompt_key = "ask_password_google"
             elif "apple.com" in url:
-                hint = "\n\nThis is <b>Apple login</b>. Enter your Apple ID password:"
+                prompt_key = "ask_password_apple"
+            else:
+                prompt_key = "ask_password_oauth"
             return {
                 "action": "ask_password",
-                "text": (
-                    "OAuth login page opened. Enter your <b>password</b>."
-                    f"{hint}\n\nYour message will be <b>deleted immediately</b>."
-                ),
+                "text": _t(prompt_key, lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -291,10 +475,7 @@ async def _handle_email_step(
             screenshot = await page.screenshot(type="png")
             return {
                 "action": "ask_password",
-                "text": (
-                    "Redirected to <b>Google login</b>. Enter your Google password:\n\n"
-                    "Your message will be <b>deleted immediately</b>."
-                ),
+                "text": _t("ask_password_google", lang),
                 "screenshot_bytes": screenshot,
             }
         if "appleid.apple.com" in current_url:
@@ -304,10 +485,7 @@ async def _handle_email_step(
             screenshot = await page.screenshot(type="png")
             return {
                 "action": "ask_password",
-                "text": (
-                    "Redirected to <b>Apple login</b>. Enter your Apple ID password:\n\n"
-                    "Your message will be <b>deleted immediately</b>."
-                ),
+                "text": _t("ask_password_apple", lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -318,17 +496,14 @@ async def _handle_email_step(
 
         return {
             "action": "ask_password",
-            "text": (
-                "Now enter your <b>password</b>.\n\n"
-                "Your message will be <b>deleted immediately</b> for security."
-            ),
+            "text": _t("ask_password", lang),
             "screenshot_bytes": screenshot,
         }
 
     except Exception as e:
         logger.error("Email step failed for %s: %s", user_id, e)
         await _clear_login_state(user_id)
-        return {"action": "error", "text": f"Failed to enter email: {e}"}
+        return {"action": "error", "text": f"Failed to enter credentials: {e}"}
 
 
 async def _handle_password_step(
@@ -345,6 +520,8 @@ async def _handle_password_step(
     Password is used as a local variable ONLY — never stored anywhere.
     The user's Telegram message containing the password is deleted immediately.
     """
+    lang = state.get("language", "en")
+
     # DELETE the password message from Telegram FIRST
     if gateway and chat_id and message_id:
         try:
@@ -354,7 +531,7 @@ async def _handle_password_step(
 
     if not session_data:
         await _clear_login_state(user_id)
-        return {"action": "error", "text": "Browser session expired. Try again."}
+        return {"action": "error", "text": _t("session_expired", lang)}
 
     page = session_data["page"]
 
@@ -414,11 +591,7 @@ async def _handle_password_step(
 
             return {
                 "action": "login_success",
-                "text": (
-                    f"Logged in to <b>{site}</b> successfully! "
-                    "Your session is saved securely.\n\n"
-                    "Now executing your task..."
-                ),
+                "text": _t("login_success", lang, site=site),
                 "task": task,
                 "site": site,
             }
@@ -428,9 +601,14 @@ async def _handle_password_step(
             await _set_login_state(user_id, state)
             return {
                 "action": "ask_2fa",
-                "text": "Two-factor authentication required. Enter the code:",
+                "text": _t("ask_2fa", lang),
                 "screenshot_bytes": screenshot,
             }
+
+        elif login_result == "captcha":
+            # Escalate to browser-connect for manual CAPTCHA solving
+            escalation = await _escalate_to_browser_connect(user_id, state, session_data)
+            return escalation
 
         else:
             await browser_service.log_action(
@@ -441,10 +619,7 @@ async def _handle_password_step(
             await _clear_login_state(user_id)
             return {
                 "action": "login_failed",
-                "text": (
-                    "Login failed. Please check your credentials and try again.\n"
-                    "Your password was not stored anywhere."
-                ),
+                "text": _t("login_failed", lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -461,9 +636,10 @@ async def _handle_2fa_step(
     session_data: dict | None,
 ) -> dict[str, Any]:
     """Enter 2FA code and check login result."""
+    lang = state.get("language", "en")
     if not session_data:
         await _clear_login_state(user_id)
-        return {"action": "error", "text": "Browser session expired. Try again."}
+        return {"action": "error", "text": _t("session_expired", lang)}
 
     page = session_data["page"]
 
@@ -513,11 +689,7 @@ async def _handle_2fa_step(
 
             return {
                 "action": "login_success",
-                "text": (
-                    f"Logged in to <b>{site}</b> successfully! "
-                    "Your session is saved securely.\n\n"
-                    "Now executing your task..."
-                ),
+                "text": _t("login_success", lang, site=site),
                 "task": task,
                 "site": site,
             }
@@ -525,7 +697,7 @@ async def _handle_2fa_step(
             await _clear_login_state(user_id)
             return {
                 "action": "login_failed",
-                "text": "2FA verification failed. Please try again.",
+                "text": _t("2fa_failed", lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -586,6 +758,72 @@ async def _click_submit_button(page: Any) -> None:
     await page.keyboard.press("Enter")
 
 
+async def _escalate_to_browser_connect(
+    user_id: str,
+    state: dict,
+    session_data: dict,
+) -> dict[str, Any]:
+    """Transfer an active login browser to browser-connect for CAPTCHA solving.
+
+    Instead of closing the browser, we hand it off to remote_browser_connect
+    so the user can solve the CAPTCHA in the browser-connect UI.
+    """
+    lang = state.get("language", "en")
+    try:
+        from src.core.config import settings
+        from src.tools import remote_browser_connect
+
+        token = secrets.token_urlsafe(24)
+
+        # Store token metadata in Redis for browser-connect
+        payload = {
+            "user_id": user_id,
+            "family_id": state.get("family_id", ""),
+            "provider": state.get("site", ""),
+        }
+        await redis.set(
+            f"browser_connect:{token}",
+            json.dumps(payload),
+            ex=remote_browser_connect.CONNECT_TTL_S,
+        )
+
+        # Create a RemoteBrowserSession from the existing Playwright objects
+        session = remote_browser_connect.RemoteBrowserSession(
+            token=token,
+            user_id=user_id,
+            family_id=state.get("family_id", ""),
+            provider=state.get("site", ""),
+            playwright=session_data["pw"],
+            browser=session_data["browser"],
+            context=session_data["context"],
+            page=session_data["page"],
+            created_at=time.time(),
+            updated_at=time.time(),
+        )
+        remote_browser_connect._active_sessions[token] = session
+
+        # Remove from our active sessions WITHOUT closing the browser
+        _active_sessions.pop(user_id, None)
+        await redis.delete(f"{_REDIS_PREFIX}:{user_id}")
+
+        base_url = settings.public_base_url or ""
+        connect_url = f"{base_url}/api/browser-connect/{token}"
+
+        return {
+            "action": "captcha",
+            "text": _t("captcha_detected", lang),
+            "connect_url": connect_url,
+            "btn_text": _t("btn_solve_captcha", lang),
+        }
+    except Exception as e:
+        logger.error("Failed to escalate to browser-connect: %s", e)
+        await _clear_login_state(user_id)
+        return {
+            "action": "login_failed",
+            "text": _t("login_failed", lang),
+        }
+
+
 async def _analyze_login_result(screenshot: bytes) -> str:
     """Analyze a screenshot to determine login outcome.
 
@@ -593,14 +831,11 @@ async def _analyze_login_result(screenshot: bytes) -> str:
     Falls back to 'failed' if analysis fails.
     """
     try:
-        import base64
-
         from google.genai import types
 
         from src.core.llm.clients import google_client
 
         client = google_client()
-        b64 = base64.b64encode(screenshot).decode()
 
         response = await client.aio.models.generate_content(
             model="gemini-3.1-flash-lite-preview",
@@ -610,7 +845,7 @@ async def _analyze_login_result(screenshot: bytes) -> str:
                         types.Part(
                             inline_data=types.Blob(
                                 mime_type="image/png",
-                                data=base64.b64decode(b64),
+                                data=screenshot,
                             )
                         ),
                         types.Part(

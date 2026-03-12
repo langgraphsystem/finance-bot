@@ -542,6 +542,10 @@ async def _dispatch_message(
         if taxi_result:
             return taxi_result
 
+        food_result = await _check_browser_food_flow(message, context)
+        if food_result:
+            return food_result
+
         login_result = await _check_browser_login_flow(message, context)
         if login_result:
             return login_result
@@ -1273,7 +1277,13 @@ async def _resume_browser_connect(
     token: str | None = None,
 ) -> OutgoingMessage:
     """Resume an active browser-based task after the user logs in."""
-    from src.tools import browser_booking, browser_service, remote_browser_connect, taxi_booking
+    from src.tools import (
+        browser_booking,
+        browser_service,
+        food_ordering,
+        remote_browser_connect,
+        taxi_booking,
+    )
 
     connect_payload: dict[str, Any] | None = None
     connect_provider = ""
@@ -1293,10 +1303,28 @@ async def _resume_browser_connect(
         else False
     )
     if taxi_state and (
-        taxi_state.get("step") == "awaiting_login"
+        taxi_state.get("step") in ("awaiting_login", "awaiting_chat_login")
         or taxi_matches_provider
     ):
         result = await taxi_booking.handle_login_ready(context.user_id)
+        return OutgoingMessage(
+            text=result.get("text", "Browser connected."),
+            chat_id=message.chat_id,
+            buttons=result.get("buttons"),
+        )
+
+    # ── FOOD ORDERING FLOW CHECK ──
+    food_state = await food_ordering.get_food_state(context.user_id)
+    food_matches_provider = connect_provider and (
+        browser_service.extract_domain(str(food_state.get("platform", ""))) == connect_provider
+        if food_state
+        else False
+    )
+    if food_state and (
+        food_state.get("step") in ("awaiting_login", "awaiting_chat_login")
+        or food_matches_provider
+    ):
+        result = await food_ordering.handle_login_ready(context.user_id)
         return OutgoingMessage(
             text=result.get("text", "Browser connected."),
             chat_id=message.chat_id,
@@ -1310,7 +1338,7 @@ async def _resume_browser_connect(
         else False
     )
     if booking_state and (
-        booking_state.get("step") == "awaiting_login"
+        booking_state.get("step") in ("awaiting_login", "awaiting_chat_login")
         or booking_matches_provider
     ):
         result = await browser_booking.handle_login_ready(context.user_id)
@@ -4127,7 +4155,13 @@ async def _check_browser_taxi_flow(
         return None
 
     step = state.get("step")
-    if step not in ("awaiting_destination", "awaiting_login", "awaiting_selection", "confirming"):
+    if step not in (
+        "awaiting_destination",
+        "awaiting_login",
+        "awaiting_chat_login",
+        "awaiting_selection",
+        "confirming",
+    ):
         return None
 
     result = await taxi_booking.handle_text_input(context.user_id, message.text or "")
@@ -4138,6 +4172,41 @@ async def _check_browser_taxi_flow(
         text=result["text"],
         chat_id=message.chat_id,
         buttons=result.get("buttons"),
+        photo_bytes=result.get("photo_bytes"),
+    )
+
+
+async def _check_browser_food_flow(
+    message: IncomingMessage,
+    context: SessionContext,
+) -> OutgoingMessage | None:
+    """Check if user has an active food ordering flow."""
+    from src.tools import food_ordering
+
+    state = await food_ordering.get_food_state(context.user_id)
+    if not state:
+        return None
+
+    step = state.get("step")
+    if step not in (
+        "awaiting_address",
+        "awaiting_login",
+        "awaiting_chat_login",
+        "awaiting_restaurant",
+        "viewing_menu",
+        "confirming",
+    ):
+        return None
+
+    result = await food_ordering.handle_text_input(context.user_id, message.text or "")
+    if not result:
+        return None
+
+    return OutgoingMessage(
+        text=result["text"],
+        chat_id=message.chat_id,
+        buttons=result.get("buttons"),
+        photo_bytes=result.get("photo_bytes"),
     )
 
 
@@ -4155,11 +4224,20 @@ async def _check_browser_login_flow(
     if not login_state:
         return None
 
+    # Get gateway for password message deletion
+    try:
+        from src.gateway.factory import get_gateway
+
+        gateway = get_gateway(context.channel or "telegram")
+    except Exception:
+        gateway = None
+
     # User has an active login flow — intercept this message
     result = await browser_login.handle_step(
         user_id=context.user_id,
         family_id=context.family_id,
         message_text=message.text or "",
+        gateway=gateway,
         chat_id=message.chat_id,
         message_id=message.id,
     )
@@ -4169,21 +4247,47 @@ async def _check_browser_login_flow(
     screenshot = result.get("screenshot_bytes")
 
     if action == "login_success":
-        # Login succeeded — check for pending hotel booking flow first
+        # Login succeeded — check for pending flows and resume them
+
+        # 1. Check pending taxi booking flow
+        from src.tools import taxi_booking
+
+        taxi_state = await taxi_booking.get_taxi_state(context.user_id)
+        if taxi_state and taxi_state.get("step") == "awaiting_chat_login":
+            taxi_result = await taxi_booking.handle_login_ready(context.user_id)
+            return OutgoingMessage(
+                text=f"{text}\n\n{taxi_result.get('text', '')}",
+                chat_id=message.chat_id,
+                buttons=taxi_result.get("buttons"),
+                photo_bytes=taxi_result.get("photo_bytes"),
+            )
+
+        # 2. Check pending food ordering flow
+        from src.tools import food_ordering
+
+        food_state = await food_ordering.get_food_state(context.user_id)
+        if food_state and food_state.get("step") == "awaiting_chat_login":
+            food_result = await food_ordering.handle_login_ready(context.user_id)
+            return OutgoingMessage(
+                text=f"{text}\n\n{food_result.get('text', '')}",
+                chat_id=message.chat_id,
+                buttons=food_result.get("buttons"),
+                photo_bytes=food_result.get("photo_bytes"),
+            )
+
+        # 3. Check pending hotel booking flow
         from src.tools import browser_booking
 
         booking_state = await browser_booking.get_booking_state(context.user_id)
         if booking_state and booking_state.get("step") == "awaiting_login":
-            # Resume hotel booking flow — search with fresh cookies
             booking_result = await browser_booking.check_auth_and_search(context.user_id)
-            booking_text = booking_result.get("text", "")
             return OutgoingMessage(
-                text=f"{text}\n\n{booking_text}",
+                text=f"{text}\n\n{booking_result.get('text', '')}",
                 chat_id=message.chat_id,
                 buttons=booking_result.get("buttons"),
             )
 
-        # No booking flow — execute the original task directly
+        # No pending flow — execute the original task directly
         task = result.get("task", "")
         site = result.get("site", "")
         if task and site:

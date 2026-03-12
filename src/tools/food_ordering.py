@@ -482,7 +482,7 @@ async def handle_login_ready(user_id: str) -> dict[str, Any]:
     from src.tools import browser_service
 
     state = await get_food_state(user_id)
-    if not state or state.get("step") != "awaiting_login":
+    if not state or state.get("step") not in ("awaiting_login", "awaiting_chat_login"):
         lang = state.get("language", "en") if state else "en"
         return {"action": "no_flow", "text": _t("no_flow", lang)}
 
@@ -847,6 +847,13 @@ async def handle_text_input(user_id: str, text: str) -> dict[str, Any] | None:
             return await handle_login_ready(user_id)
         return None
 
+    if step == "awaiting_chat_login":
+        cancel_words = ("cancel", "отмена", "cancelar", "stop", "стоп")
+        if any(w in lowered for w in cancel_words):
+            await cancel_flow(user_id)
+            return {"action": "cancelled", "text": _t("cancelled", state.get("language", "en"))}
+        return None  # Router's _check_browser_login_flow() handles credentials
+
     if step == "awaiting_restaurant":
         restaurants = state.get("restaurants", [])
         if lowered.isdigit():
@@ -980,22 +987,54 @@ async def _build_login_prompt(
     state: dict[str, Any],
     prefix: str | None = None,
 ) -> dict[str, Any]:
-    connect_url = await _get_connect_url(state)
+    from src.tools import browser_login
+
     lang = state.get("language", "en")
     platform = state["platform"]
-    platform_label = _platform_label(platform)
     flow_id = state["flow_id"]
+    user_id = state["user_id"]
+    family_id = state["family_id"]
 
-    intro = prefix or _t("login_needed", lang, platform=platform_label)
-    return {
-        "action": "need_login",
-        "text": intro,
-        "buttons": [
-            {"text": f"Connect {platform_label}", "url": connect_url},
-            {"text": _t("btn_ready", lang), "callback": f"food_login_ready:{flow_id}"},
-            {"text": _t("btn_cancel", lang), "callback": f"food_cancel:{flow_id}"},
-        ],
-    }
+    result = await browser_login.start_login(
+        user_id=user_id,
+        family_id=family_id,
+        site=platform,
+        task=f"food:{flow_id}",
+        language=lang,
+    )
+
+    state["step"] = "awaiting_chat_login"
+    await _set_state(user_id, state)
+
+    if result.get("action") == "captcha":
+        platform_label = _platform_label(platform)
+        return {
+            "action": "captcha",
+            "text": result["text"],
+            "buttons": [
+                {
+                    "text": result.get("btn_text", f"Connect {platform_label}"),
+                    "url": result["connect_url"],
+                },
+                {
+                    "text": _t("btn_ready", lang),
+                    "callback": f"food_login_ready:{flow_id}",
+                },
+                {
+                    "text": _t("btn_cancel", lang),
+                    "callback": f"food_cancel:{flow_id}",
+                },
+            ],
+        }
+
+    text = result["text"]
+    if prefix:
+        text = f"{prefix}\n\n{text}"
+
+    resp: dict[str, Any] = {"action": "need_login", "text": text}
+    if result.get("screenshot_bytes"):
+        resp["photo_bytes"] = result["screenshot_bytes"]
+    return resp
 
 
 async def _build_captcha_prompt(state: dict[str, Any]) -> dict[str, Any]:

@@ -96,7 +96,7 @@ class RemoteBrowserSession:
     page: Any
     created_at: float
     updated_at: float
-    screenshot_png: bytes = b""
+    screenshot_bytes: bytes = b""
     current_url: str = ""
     status: str = "active"
     error: str = ""
@@ -306,7 +306,9 @@ async def _close_session(session: RemoteBrowserSession) -> None:
 
 async def _refresh_session_snapshot(session: RemoteBrowserSession) -> None:
     try:
-        session.screenshot_png = await session.page.screenshot(type="png", full_page=False)
+        session.screenshot_bytes = await session.page.screenshot(
+            type="jpeg", quality=75, full_page=False
+        )
         session.current_url = session.page.url
     except Exception as e:
         logger.warning("Failed to refresh browser-connect snapshot for %s: %s", session.token, e)
@@ -392,9 +394,9 @@ async def get_session_state(token: str, *, user_agent: str | None = None) -> dic
 async def get_session_screenshot(token: str) -> bytes:
     session = await ensure_session(token)
     async with session.action_lock:
-        if not session.screenshot_png:
+        if not session.screenshot_bytes:
             await _refresh_session_snapshot(session)
-        return session.screenshot_png
+        return session.screenshot_bytes
 
 
 async def apply_action(
