@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+    curl wget gnupg \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
     libffi-dev libcairo2 libpq5 \
     # Chromium runtime deps for Playwright / Browser-Use
@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Document conversion tools
     libreoffice-writer libreoffice-calc libreoffice-impress \
     pandoc calibre && \
+    # Install Google Chrome stable (for channel='chrome' WAF bypass)
+    wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get install -y /tmp/chrome.deb && rm /tmp/chrome.deb && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -34,11 +37,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN uv sync --frozen --no-dev
 
-# Install Playwright browsers at build time
-# chrome = real Google Chrome (WAF bypass via channel='chrome')
-# chromium = fallback if chrome unavailable
+# Install Playwright Chromium (fallback browser; Chrome is installed via apt above)
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/.playwright
-RUN .venv/bin/python -m playwright install chrome chromium
+RUN .venv/bin/python -m playwright install chromium
 
 # --- Runtime stage ---
 FROM base AS runtime
