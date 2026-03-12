@@ -6,6 +6,7 @@ Usage:
     python scripts/test_bot_live.py --chat-id 7314014306 --no-scoring
     python scripts/test_bot_live.py --chat-id 7314014306 --telegram
     python scripts/test_bot_live.py --chat-id 7314014306 --webhook-sim
+    python scripts/test_bot_live.py --golden-file scripts/test_results/golden_dialogues.jsonl
     python scripts/test_bot_live.py --list
 
 Modes:
@@ -38,6 +39,7 @@ import re
 import sys
 import time
 import warnings
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -139,6 +141,9 @@ class TestResult(BaseModel):
     status: str = "pending"  # pass, timeout, error
     llm_scores: LLMScores | None = None
     error: str | None = None
+    expected_response_text: str | None = None
+    source: str = "builtin"
+    trace_key: str | None = None
 
 
 class RunMetadata(BaseModel):
@@ -175,6 +180,19 @@ class TestRunReport(BaseModel):
     metadata: RunMetadata
     results: list[TestResult]
     stats: AggregateStats
+
+
+@dataclass(slots=True)
+class ScenarioCase:
+    """Normalized scenario definition for built-in and golden-dialogue tests."""
+
+    category: str
+    text: str
+    description: str
+    expected_intent: str
+    expected_response: str | None = None
+    source: str = "builtin"
+    trace_key: str | None = None
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -251,6 +269,95 @@ SCENARIOS: dict[str, list[tuple[str, str]]] = {
         ("покажи историю разговоров за вчера", "dialog_history — yesterday"),
     ],
 }
+
+
+def build_builtin_scenario_map(
+    categories: list[str] | None = None,
+) -> dict[str, list[ScenarioCase]]:
+    """Build normalized scenario cases from the static scenario catalog."""
+    selected_categories = categories or list(SCENARIOS.keys())
+    scenario_map: dict[str, list[ScenarioCase]] = {}
+    for category in selected_categories:
+        cases: list[ScenarioCase] = []
+        for text, description in SCENARIOS.get(category, []):
+            cases.append(
+                ScenarioCase(
+                    category=category,
+                    text=text,
+                    description=description,
+                    expected_intent=parse_expected_intent(description),
+                )
+            )
+        scenario_map[category] = cases
+    return scenario_map
+
+
+def load_golden_scenario_map(
+    golden_file: str | Path,
+    *,
+    categories: list[str] | None = None,
+) -> dict[str, list[ScenarioCase]]:
+    """Load reviewed production traces exported as golden-dialogue JSONL."""
+    path = Path(golden_file)
+    if not path.exists():
+        raise ValueError(f"Golden dialogue file not found: {path}")
+
+    selected = set(categories or [])
+    scenario_map: dict[str, list[ScenarioCase]] = {}
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid golden dialogue JSON on line {line_number}: {exc}") from exc
+
+        category = str(payload.get("scenario") or "golden")
+        if selected and category not in selected:
+            continue
+
+        input_text = str(payload.get("input_text") or "").strip()
+        if not input_text:
+            raise ValueError(f"Golden dialogue line {line_number} is missing input_text")
+
+        trace_key = str(payload.get("trace_key") or "").strip() or None
+        description = f"golden dialogue — {category}"
+        if trace_key:
+            description = f"{description} ({trace_key})"
+
+        scenario_map.setdefault(category, []).append(
+            ScenarioCase(
+                category=category,
+                text=input_text,
+                description=description,
+                expected_intent=category,
+                expected_response=str(payload.get("assistant_response") or "").strip() or None,
+                source="golden",
+                trace_key=trace_key,
+            )
+        )
+
+    if not scenario_map:
+        scope = f" for categories: {', '.join(categories or [])}" if categories else ""
+        raise ValueError(f"No golden dialogues loaded from {path}{scope}")
+
+    return scenario_map
+
+
+def resolve_scenario_map(
+    *,
+    categories: list[str] | None = None,
+    golden_file: str | None = None,
+) -> tuple[list[str], dict[str, list[ScenarioCase]]]:
+    """Resolve the scenario set for the current run."""
+    if golden_file:
+        scenario_map = load_golden_scenario_map(golden_file, categories=categories)
+        return list(scenario_map.keys()), scenario_map
+
+    resolved_categories = categories or list(SCENARIOS.keys())
+    return resolved_categories, build_builtin_scenario_map(resolved_categories)
 
 
 # ────────────────────────────────────────────────────────────────────────
@@ -717,6 +824,7 @@ async def run_direct_test(
     chat_id: int,
     categories: list[str],
     *,
+    scenario_map: dict[str, list[ScenarioCase]],
     skip_scoring: bool = False,
     delay: float = 2.0,
 ) -> list[TestResult]:
@@ -752,20 +860,22 @@ async def run_direct_test(
     results: list[TestResult] = []
 
     for category in categories:
-        scenarios = SCENARIOS.get(category, [])
+        scenarios = scenario_map.get(category, [])
         if not scenarios:
             print(f"{YELLOW}Unknown category: {category}{RESET}")
             continue
 
         print_header(f"Testing: {category.upper()}")
 
-        for text, description in scenarios:
-            expected_intent = parse_expected_intent(description)
+        for scenario in scenarios:
             result = TestResult(
                 category=category,
-                description=description,
-                expected_intent=expected_intent,
-                message_sent=text,
+                description=scenario.description,
+                expected_intent=scenario.expected_intent,
+                message_sent=scenario.text,
+                expected_response_text=scenario.expected_response,
+                source=scenario.source,
+                trace_key=scenario.trace_key,
             )
 
             try:
@@ -774,7 +884,7 @@ async def run_direct_test(
                     user_id=str(chat_id),
                     chat_id=str(chat_id),
                     type=MessageType.text,
-                    text=text,
+                    text=scenario.text,
                     channel="telegram",
                     language="ru",
                 )
@@ -795,7 +905,9 @@ async def run_direct_test(
                 # LLM quality scoring
                 if result.has_response and not skip_scoring:
                     result.llm_scores = await score_response(
-                        text, response.text, expected_intent
+                        scenario.text,
+                        response.text,
+                        scenario.expected_intent,
                     )
 
             except Exception as e:
@@ -819,6 +931,7 @@ async def run_webhook_test(
     chat_id: int,
     categories: list[str],
     *,
+    scenario_map: dict[str, list[ScenarioCase]],
     delay: float = 2.0,
 ) -> list[TestResult]:
     """Send simulated webhook payloads to Railway (no response capture)."""
@@ -826,24 +939,26 @@ async def run_webhook_test(
 
     async with httpx.AsyncClient() as client:
         for category in categories:
-            scenarios = SCENARIOS.get(category, [])
+            scenarios = scenario_map.get(category, [])
             if not scenarios:
                 continue
 
             print_header(f"Webhook Simulation: {category.upper()}")
 
-            for text, description in scenarios:
-                expected_intent = parse_expected_intent(description)
+            for scenario in scenarios:
                 result = TestResult(
                     category=category,
-                    description=description,
-                    expected_intent=expected_intent,
-                    message_sent=text,
+                    description=scenario.description,
+                    expected_intent=scenario.expected_intent,
+                    message_sent=scenario.text,
+                    expected_response_text=scenario.expected_response,
+                    source=scenario.source,
+                    trace_key=scenario.trace_key,
                 )
 
                 t0 = time.perf_counter()
                 try:
-                    status_code = await send_webhook_payload(client, chat_id, text)
+                    status_code = await send_webhook_payload(client, chat_id, scenario.text)
                     t1 = time.perf_counter()
                     result.response_time_ms = int((t1 - t0) * 1000)
 
@@ -861,7 +976,10 @@ async def run_webhook_test(
                 results.append(result)
 
                 icon = f"{GREEN}+{RESET}" if result.status == "pass" else f"{RED}x{RESET}"
-                print(f"  [{icon}] {description}  {DIM}{result.response_time_ms}ms{RESET}")
+                print(
+                    f"  [{icon}] {scenario.description}  "
+                    f"{DIM}{result.response_time_ms}ms{RESET}"
+                )
 
                 await asyncio.sleep(delay)
 
@@ -888,6 +1006,7 @@ async def run_telegram_test(
     chat_id: int,
     categories: list[str],
     *,
+    scenario_map: dict[str, list[ScenarioCase]],
     skip_scoring: bool = False,
     delay: float = 3.0,
     timeout: int = 60,
@@ -956,20 +1075,22 @@ async def run_telegram_test(
         last_seen_bot_id = recent[0].id
 
     for category in categories:
-        scenarios = SCENARIOS.get(category, [])
+        scenarios = scenario_map.get(category, [])
         if not scenarios:
             print(f"{YELLOW}Unknown category: {category}{RESET}")
             continue
 
         print_header(f"Testing: {category.upper()}")
 
-        for text, description in scenarios:
-            expected_intent = parse_expected_intent(description)
+        for scenario in scenarios:
             result = TestResult(
                 category=category,
-                description=description,
-                expected_intent=expected_intent,
-                message_sent=text,
+                description=scenario.description,
+                expected_intent=scenario.expected_intent,
+                message_sent=scenario.text,
+                expected_response_text=scenario.expected_response,
+                source=scenario.source,
+                trace_key=scenario.trace_key,
             )
 
             try:
@@ -982,7 +1103,7 @@ async def run_telegram_test(
 
                 # Send message to bot
                 t0 = time.perf_counter()
-                sent = await client.send_message(bot_entity, text)
+                sent = await client.send_message(bot_entity, scenario.text)
 
                 # The anchor: only accept bot messages with id > both sent_id AND last_seen
                 anchor_id = max(sent.id, last_seen_bot_id)
@@ -1036,7 +1157,9 @@ async def run_telegram_test(
                 # LLM quality scoring
                 if result.has_response and not skip_scoring:
                     result.llm_scores = await score_response(
-                        text, result.response_text, expected_intent
+                        scenario.text,
+                        result.response_text,
+                        scenario.expected_intent,
                     )
 
             except Exception as e:
@@ -1067,8 +1190,12 @@ def main():
     parser.add_argument(
         "--test",
         nargs="+",
-        default=list(SCENARIOS.keys()),
-        help="Categories to test (default: all)",
+        default=None,
+        help="Categories to test (default: all built-in or all from --golden-file)",
+    )
+    parser.add_argument(
+        "--golden-file",
+        help="Replay scenarios from golden-dialogue JSONL export instead of built-in cases",
     )
     parser.add_argument(
         "--telegram",
@@ -1092,12 +1219,24 @@ def main():
 
     args = parser.parse_args()
 
+    try:
+        selected_categories, scenario_map = resolve_scenario_map(
+            categories=args.test,
+            golden_file=args.golden_file,
+        )
+    except ValueError as exc:
+        print(f"{RED}ERROR: {exc}{RESET}")
+        sys.exit(1)
+
     if args.list:
         total = 0
-        for cat, scenarios in SCENARIOS.items():
+        for cat, scenarios in scenario_map.items():
             print(f"\n{BOLD}{cat}{RESET} ({len(scenarios)}):")
-            for text, desc in scenarios:
-                print(f"  {DIM}-{RESET} {desc}: {CYAN}{text}{RESET}")
+            for scenario in scenarios:
+                print(
+                    f"  {DIM}-{RESET} {scenario.description}: "
+                    f"{CYAN}{scenario.text}{RESET}"
+                )
                 total += 1
         print(f"\n{BOLD}Total: {total} test scenarios{RESET}")
         return
@@ -1124,7 +1263,9 @@ def main():
     print(f"  Chat ID:    {args.chat_id}")
     print(f"  Mode:       {mode}")
     print(f"  Scoring:    {scoring}")
-    print(f"  Categories: {', '.join(args.test)}")
+    print(f"  Categories: {', '.join(selected_categories)}")
+    if args.golden_file:
+        print(f"  Scenario source: {args.golden_file}")
     print(f"  Delay:      {args.delay}s")
     if args.telegram:
         print(f"  Timeout:    {args.timeout}s")
@@ -1136,7 +1277,8 @@ def main():
         results = asyncio.run(
             run_telegram_test(
                 args.chat_id,
-                args.test,
+                selected_categories,
+                scenario_map=scenario_map,
                 skip_scoring=args.no_scoring,
                 delay=args.delay,
                 timeout=args.timeout,
@@ -1144,13 +1286,19 @@ def main():
         )
     elif args.webhook_sim:
         results = asyncio.run(
-            run_webhook_test(args.chat_id, args.test, delay=args.delay)
+            run_webhook_test(
+                args.chat_id,
+                selected_categories,
+                scenario_map=scenario_map,
+                delay=args.delay,
+            )
         )
     else:
         results = asyncio.run(
             run_direct_test(
                 args.chat_id,
-                args.test,
+                selected_categories,
+                scenario_map=scenario_map,
                 skip_scoring=args.no_scoring,
                 delay=args.delay,
             )
@@ -1172,7 +1320,7 @@ def main():
             timestamp=datetime.now().isoformat(),
             chat_id=args.chat_id,
             mode=mode_key,
-            categories=args.test,
+            categories=selected_categories,
             total_tests=len(results),
             total_time_seconds=round(run_duration, 1),
             bot_token_hint=f"{BOT_TOKEN[:10]}...{BOT_TOKEN[-4:]}",
