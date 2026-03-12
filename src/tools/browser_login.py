@@ -104,7 +104,9 @@ async def start_login(
         }
         try:
             browser = await pw.chromium.launch(channel="chrome", **_launch_args)
-        except Exception:
+            logger.info("Launched Google Chrome (channel='chrome')")
+        except Exception as exc:
+            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
             browser = await pw.chromium.launch(**_launch_args)
         context = await browser.new_context(
             user_agent=(

@@ -323,7 +323,9 @@ async def execute_task(
     }
     try:
         browser = await pw.chromium.launch(channel="chrome", **launch_kwargs)
-    except Exception:
+        logger.info("Launched Google Chrome (channel='chrome')")
+    except Exception as exc:
+        logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
         browser = await pw.chromium.launch(**launch_kwargs)
     try:
         context = await browser.new_context(

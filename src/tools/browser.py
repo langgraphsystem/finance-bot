@@ -215,7 +215,9 @@ class BrowserTool:
                     browser = await pw.chromium.launch(
                         channel="chrome", headless=True, args=_STEALTH_ARGS,
                     )
-                except Exception:
+                    logger.info("Launched Google Chrome (channel='chrome')")
+                except Exception as exc:
+                    logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
                     browser = await pw.chromium.launch(headless=True, args=_STEALTH_ARGS)
                 context = await browser.new_context(user_agent=_REALISTIC_UA)
                 page = await context.new_page()

@@ -740,7 +740,9 @@ async def _execute_playwright_search(
                     headless=True,
                     args=_args,
                 )
-            except Exception:
+                logger.info("Launched Google Chrome (channel='chrome')")
+            except Exception as exc:
+                logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
                 browser = await p.chromium.launch(headless=True, args=_args)
             context = await browser.new_context(
                 storage_state=storage_state,
@@ -949,7 +951,9 @@ async def _execute_playwright_booking(
                 headless=True,
                 args=_args,
             )
-        except Exception:
+            logger.info("Launched Google Chrome (channel='chrome')")
+        except Exception as exc:
+            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
             browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(

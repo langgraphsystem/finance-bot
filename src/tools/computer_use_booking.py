@@ -289,7 +289,9 @@ async def execute_computer_use_search(
                 headless=True,
                 args=_args,
             )
-        except Exception:
+            logger.info("Launched Google Chrome (channel='chrome')")
+        except Exception as exc:
+            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
             browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
@@ -437,7 +439,9 @@ async def execute_computer_use_booking(
                 headless=True,
                 args=_args,
             )
-        except Exception:
+            logger.info("Launched Google Chrome (channel='chrome')")
+        except Exception as exc:
+            logger.warning("Chrome launch failed (%s), falling back to Chromium", exc)
             browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
