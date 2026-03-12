@@ -39,6 +39,7 @@ _active_sessions: dict[str, Any] = {}
 _SITE_LOGIN_CONFIG: dict[str, dict[str, Any]] = {
     "uber.com": {
         "credential_type": "phone",
+        "skip_password": True,  # Uber uses SMS/email OTP, no password
         "input_selectors": [
             'input[name="phoneNumber"]',
             'input[id="PHONE_NUMBER_or_EMAIL_ADDRESS"]',
@@ -48,6 +49,7 @@ _SITE_LOGIN_CONFIG: dict[str, dict[str, Any]] = {
     },
     "ubereats.com": {
         "credential_type": "phone",
+        "skip_password": True,  # Shared Uber auth — SMS/email OTP
         "input_selectors": [
             'input[name="phoneNumber"]',
             'input[id="PHONE_NUMBER_or_EMAIL_ADDRESS"]',
@@ -489,8 +491,46 @@ async def _handle_email_step(
                 "screenshot_bytes": screenshot,
             }
 
+        # Detect what the page is asking for after entering credentials
+        site_config_local = _get_site_config(state.get("site", ""))
+        next_step = await _detect_next_step(page, site_config_local)
+        logger.info(
+            "Post-credential page for %s on %s: %s", user_id, state.get("site"), next_step
+        )
+
         screenshot = await page.screenshot(type="png")
 
+        if next_step == "2fa":
+            # Site uses OTP/SMS code instead of password (e.g. Uber)
+            state["step"] = "awaiting_2fa"
+            await _set_login_state(user_id, state)
+            return {
+                "action": "ask_2fa",
+                "text": _t("ask_2fa", lang),
+                "screenshot_bytes": screenshot,
+            }
+
+        if next_step == "captcha":
+            escalation = await _escalate_to_browser_connect(user_id, state, session_data)
+            return escalation
+
+        if next_step == "success":
+            # Already logged in (e.g. cookie-based session was still valid)
+            context_obj = session_data["context"]
+            storage_state = await context_obj.storage_state()
+            site = state["site"]
+            family_id = state["family_id"]
+            task = state["task"]
+            await browser_service.save_storage_state(user_id, family_id, site, storage_state)
+            await _clear_login_state(user_id)
+            return {
+                "action": "login_success",
+                "text": _t("login_success", lang, site=site),
+                "task": task,
+                "site": site,
+            }
+
+        # Default: password page
         state["step"] = "awaiting_password"
         await _set_login_state(user_id, state)
 
@@ -822,6 +862,121 @@ async def _escalate_to_browser_connect(
             "action": "login_failed",
             "text": _t("login_failed", lang),
         }
+
+
+async def _detect_next_step(page: Any, site_config: dict) -> str:
+    """Detect what the page is asking for after entering email/phone.
+
+    Checks DOM selectors first (fast), then falls back to Gemini vision.
+    Returns: 'password', '2fa', 'captcha', 'success', or 'unknown'.
+    """
+    # Sites that skip password entirely (Uber OTP flow)
+    if site_config.get("skip_password"):
+        # Check for OTP/code input fields
+        for selector in [
+            'input[name="code"]',
+            'input[name="otp"]',
+            'input[name="verificationCode"]',
+            'input[name="PHONE_SMS_OTP"]',
+            'input[inputmode="numeric"]',
+            'input[autocomplete="one-time-code"]',
+            'input[data-testid="verify-code-input-field"]',
+        ]:
+            try:
+                el = page.locator(selector).first
+                if await el.is_visible(timeout=1500):
+                    return "2fa"
+            except Exception:
+                continue
+
+    # Check for password fields
+    for selector in [
+        'input[type="password"]',
+        'input[name="password"]',
+        'input[id="password"]',
+    ]:
+        try:
+            el = page.locator(selector).first
+            if await el.is_visible(timeout=1500):
+                return "password"
+        except Exception:
+            continue
+
+    # Check for OTP/code fields (generic, for non-skip_password sites too)
+    for selector in [
+        'input[name="code"]',
+        'input[name="otp"]',
+        'input[inputmode="numeric"]',
+        'input[autocomplete="one-time-code"]',
+    ]:
+        try:
+            el = page.locator(selector).first
+            if await el.is_visible(timeout=1500):
+                return "2fa"
+        except Exception:
+            continue
+
+    # DOM check inconclusive — use Gemini vision
+    try:
+        screenshot = await page.screenshot(type="png")
+        result = await _analyze_post_credential_page(screenshot)
+        return result
+    except Exception:
+        return "unknown"
+
+
+async def _analyze_post_credential_page(screenshot: bytes) -> str:
+    """Analyze screenshot after entering email/phone to detect next step.
+
+    Returns: 'password', '2fa', 'captcha', 'success', or 'unknown'.
+    """
+    try:
+        from google.genai import types
+
+        from src.core.llm.clients import google_client
+
+        client = google_client()
+
+        response = await client.aio.models.generate_content(
+            model="gemini-3.1-flash-lite-preview",
+            contents=[
+                types.Content(
+                    parts=[
+                        types.Part(
+                            inline_data=types.Blob(
+                                mime_type="image/png",
+                                data=screenshot,
+                            )
+                        ),
+                        types.Part(
+                            text=(
+                                "Look at this login page screenshot. "
+                                "What is the page asking the user for? "
+                                "Classify as exactly one of:\n"
+                                "- 'password' — page shows a password input field\n"
+                                "- '2fa' — page asks for SMS code, OTP, "
+                                "verification code, or authenticator code\n"
+                                "- 'captcha' — CAPTCHA challenge shown\n"
+                                "- 'success' — user is already logged in\n"
+                                "- 'unknown' — cannot determine\n\n"
+                                "Respond with ONLY one word."
+                            ),
+                        ),
+                    ]
+                )
+            ],
+            config=types.GenerateContentConfig(max_output_tokens=10),
+        )
+
+        result_text = response.text.strip().lower()
+        for keyword in ("password", "2fa", "captcha", "success"):
+            if keyword in result_text:
+                return keyword
+        return "unknown"
+
+    except Exception as e:
+        logger.warning("Post-credential page analysis failed: %s", e)
+        return "unknown"
 
 
 async def _analyze_login_result(screenshot: bytes) -> str:

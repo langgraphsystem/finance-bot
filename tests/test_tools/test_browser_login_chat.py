@@ -19,6 +19,7 @@ from src.tools.browser_login import (
 def test_uber_site_config_uses_phone():
     config = _get_site_config("uber.com")
     assert config["credential_type"] == "phone"
+    assert config["skip_password"] is True
     assert any("phone" in s.lower() for s in config.get("input_selectors", []))
 
 
@@ -38,11 +39,87 @@ def test_unknown_site_defaults_to_email():
     assert config.get("credential_type", "email") == "email"
 
 
+def test_uber_skip_password_flag():
+    """Uber/UberEats should have skip_password=True."""
+    assert _get_site_config("uber.com").get("skip_password") is True
+    assert _get_site_config("ubereats.com").get("skip_password") is True
+
+
+def test_doordash_no_skip_password():
+    """DoorDash uses standard email/password flow."""
+    assert not _get_site_config("doordash.com").get("skip_password")
+
+
 def test_site_config_keys():
     """All configured sites must have credential_type."""
     for domain, cfg in _SITE_LOGIN_CONFIG.items():
         assert "credential_type" in cfg, f"{domain} missing credential_type"
         assert cfg["credential_type"] in ("phone", "email")
+
+
+# ---------------------------------------------------------------------------
+# _detect_next_step tests
+# ---------------------------------------------------------------------------
+
+
+async def test_detect_next_step_otp_field_for_skip_password():
+    """skip_password site with OTP input visible → returns '2fa'."""
+    from src.tools.browser_login import _detect_next_step
+
+    mock_page = AsyncMock()
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=True)
+    mock_locator = MagicMock()
+    mock_locator.first = mock_el
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    result = await _detect_next_step(mock_page, {"skip_password": True})
+    assert result == "2fa"
+
+
+async def test_detect_next_step_password_field():
+    """Password input visible → returns 'password'."""
+    from src.tools.browser_login import _detect_next_step
+
+    mock_page = AsyncMock()
+
+    call_count = 0
+
+    def mock_locator_side_effect(selector):
+        nonlocal call_count
+        mock_el = AsyncMock()
+        # OTP selectors return not visible, password selectors return visible
+        is_password = 'password' in selector.lower()
+        mock_el.is_visible = AsyncMock(return_value=is_password)
+        mock_loc = MagicMock()
+        mock_loc.first = mock_el
+        return mock_loc
+
+    mock_page.locator = MagicMock(side_effect=mock_locator_side_effect)
+
+    result = await _detect_next_step(mock_page, {})
+    assert result == "password"
+
+
+async def test_detect_next_step_falls_back_to_gemini():
+    """No DOM selectors match → falls back to Gemini analysis."""
+    from src.tools.browser_login import _detect_next_step
+
+    mock_page = AsyncMock()
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=False)
+    mock_locator = MagicMock()
+    mock_locator.first = mock_el
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_page.screenshot = AsyncMock(return_value=b"screenshot")
+
+    with patch(
+        "src.tools.browser_login._analyze_post_credential_page",
+        new_callable=AsyncMock,
+        return_value="2fa",
+    ):
+        result = await _detect_next_step(mock_page, {})
+    assert result == "2fa"
 
 
 # ---------------------------------------------------------------------------
