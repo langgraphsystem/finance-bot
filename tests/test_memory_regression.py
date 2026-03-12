@@ -323,7 +323,11 @@ class TestProblem18ImportanceDiscrimination:
         memories = [
             {
                 "memory": "Spending pattern: eats out often",
-                "metadata": {"domain": "finance", "category": "spending_pattern", "priority": "normal"},
+                "metadata": {
+                    "domain": "finance",
+                    "category": "spending_pattern",
+                    "priority": "normal",
+                },
             },
             {
                 "memory": "Name is Maria",
@@ -331,7 +335,11 @@ class TestProblem18ImportanceDiscrimination:
             },
             {
                 "memory": "Monthly budget $5000",
-                "metadata": {"domain": "finance", "category": "budget_limit", "priority": "important"},
+                "metadata": {
+                    "domain": "finance",
+                    "category": "budget_limit",
+                    "priority": "important",
+                },
             },
         ]
 

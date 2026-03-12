@@ -330,7 +330,8 @@ def _render_connect_page(token: str, provider: str, *, debug: bool = False) -> s
         <div id="kbdIndicator" class="kbd-indicator">⌨ Typing active — Esc to stop</div>
       </div>
       <div class="hint" id="interactHint">
-        Click the page to interact. Scroll to move. On desktop, clicking activates keyboard — type directly, press Esc to stop.
+        Click the page to interact. Scroll to move. On desktop, clicking
+        activates keyboard; type directly, press Esc to stop.
       </div>
     </div>
   </main>

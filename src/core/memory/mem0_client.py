@@ -358,7 +358,7 @@ async def search_memories_all_namespaces(
             results.extend(_normalize_mem0_results(memory.search(**kwargs)))
 
         deduped = _dedupe_memories(results)
-        scored = [mem for mem in deduped if isinstance(mem.get("score"), (int, float))]
+        scored = [mem for mem in deduped if isinstance(mem.get("score"), int | float)]
         unscored = [mem for mem in deduped if mem not in scored]
         scored.sort(key=lambda mem: float(mem.get("score", 0.0)), reverse=True)
         cb.record_success()

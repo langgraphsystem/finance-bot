@@ -17,7 +17,7 @@ class TaxReportState(TypedDict, total=False):
 
     # Collected from DB (parallel phase)
     gross_income: float
-    expenses_by_category: list[dict]    # [{category, amount, is_deductible, deductible_amount, deduction_type}]
+    expenses_by_category: list[dict]    # [{category, amount, is_deductible, ...}]
     recurring_payments: list[dict]      # [{name, amount, frequency}]
     mileage_miles: float                # transport/taxi total converted to miles
 

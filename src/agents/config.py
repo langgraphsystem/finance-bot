@@ -54,7 +54,8 @@ Writing & Media (messages, posts, translation, images, code generation), \
 Documents (scan, convert, fill forms, PDFs, spreadsheets, presentations), \
 Clients & Bookings (contacts, appointments, CRM), \
 Browser (web actions, price alerts, news monitoring).
-CRITICAL FORMATTING: Use ONLY HTML tags for Telegram: <b>bold</b>, <i>italic</i>, <code>code</code>. \
+CRITICAL FORMATTING: Use ONLY HTML tags for Telegram: \
+<b>bold</b>, <i>italic</i>, <code>code</code>. \
 NEVER use Markdown (**bold**, *italic*, ## headers, --- dividers). \
 Markdown is NOT rendered in Telegram — it will show as raw symbols."""
 

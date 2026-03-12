@@ -1,9 +1,7 @@
 """Tests for TaxReportOrchestrator — full tax report with PDF."""
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
+from unittest.mock import AsyncMock, patch
 
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
@@ -202,7 +200,13 @@ async def test_pdf_generated_on_success():
         total_tax=18_000.0,
         effective_rate=22.5,
         quarterly_payment=4_500.0,
-        deduction_breakdown=[{"label": "Business Expense", "amount": 5000, "type": "business_expense"}],
+        deduction_breakdown=[
+            {
+                "label": "Business Expense",
+                "amount": 5000,
+                "type": "business_expense",
+            }
+        ],
     )
 
     fake_pdf = b"%PDF-1.4 fake content"

@@ -44,7 +44,8 @@ Rules:
   Minimal pattern: Flask app with routes that render HTML forms.
   CRITICAL: always use app.run(host='0.0.0.0', port=5000, debug=False).
   CRITICAL: always add "# pip install flask" comment at the very first line.
-  CRITICAL: always include <meta charset="utf-8"> in HTML templates for correct Unicode/Cyrillic rendering.
+  CRITICAL: always include <meta charset="utf-8"> in HTML templates
+  for correct Unicode/Cyrillic rendering.
 - For JavaScript: create a standalone HTML page with embedded <script>.
 - For HTML/CSS: create a standalone HTML page.
 - Include all HTML inline (no separate template files).

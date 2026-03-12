@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from src.core.audit import log_action
 from src.core.context import SessionContext
-from src.core.db import async_session, get_session
+from src.core.db import get_session
 from src.core.memory.procedural import learn_from_correction
 from src.core.models.category import Category
 from src.core.models.transaction import Transaction
@@ -69,8 +69,6 @@ class CorrectCategorySkill:
         async with get_session() as session:
             if merchant_filter:
                 # Bulk: update all transactions matching the merchant name
-                from sqlalchemy import ilike as sa_ilike
-
                 result = await session.execute(
                     select(Transaction)
                     .where(

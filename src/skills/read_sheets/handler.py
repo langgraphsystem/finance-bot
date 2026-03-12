@@ -77,7 +77,12 @@ class ReadSheetsSkill:
         context: SessionContext,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        prompt_result = await require_google_or_prompt(context.user_id, service="sheets", lang=context.language or "en", chat_id=message.chat_id)
+        prompt_result = await require_google_or_prompt(
+            context.user_id,
+            service="sheets",
+            lang=context.language or "en",
+            chat_id=message.chat_id,
+        )
         if prompt_result:
             return prompt_result
 

@@ -3,8 +3,6 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from src.agents.complexity_router import classify_complexity
 from src.core.context import SessionContext
 from src.gateway.types import IncomingMessage, MessageType
@@ -218,7 +216,12 @@ def test_revision_loop_no_error_goes_to_finalize():
     """No error → finalize."""
     from src.orchestrators.program.nodes import route_after_review
 
-    assert route_after_review({"exec_result": {"url": "http://localhost"}, "revision_count": 0}) == "finalize"
+    assert (
+        route_after_review(
+            {"exec_result": {"url": "http://localhost"}, "revision_count": 0}
+        )
+        == "finalize"
+    )
     assert route_after_review({"exec_result": None, "revision_count": 0}) == "finalize"
 
 

@@ -376,7 +376,8 @@ class ScanReceiptSkill:
             category_id = self._resolve_category(receipt.merchant, context)
 
             # Auto-detect fuel: gallons must be ≥3 AND merchant must look like a fuel station
-            # (prevents grocery store gallons like "2 gallons of milk" from triggering fuel category)
+            # This prevents grocery-store phrases like "2 gallons of milk"
+            # from triggering the fuel category.
             if not category_id and receipt.gallons and float(receipt.gallons) >= 3:
                 if _looks_like_fuel_station(receipt.merchant):
                     category_id = _find_fuel_category(

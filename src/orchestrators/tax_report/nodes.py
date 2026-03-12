@@ -397,7 +397,10 @@ def _build_html_report(state: TaxReportState) -> str:
     }
     deadline_note = ""
     if quarter:
-        deadline_note = f"<p><b>Q{quarter} estimated payment due:</b> {next_deadlines.get(quarter, 'TBD')}</p>"
+        deadline_note = (
+            f"<p><b>Q{quarter} estimated payment due:</b> "
+            f"{next_deadlines.get(quarter, 'TBD')}</p>"
+        )
 
     return f"""<!DOCTYPE html>
 <html>
@@ -411,10 +414,28 @@ def _build_html_report(state: TaxReportState) -> str:
   table {{ border-collapse: collapse; width: 100%; margin: 12px 0; }}
   th {{ background: #1a4f8b; color: white; padding: 8px; text-align: left; }}
   td {{ padding: 6px 8px; border-bottom: 1px solid #ddd; }}
-  .summary-box {{ background: #f0f5ff; border: 1px solid #1a4f8b; padding: 16px; border-radius: 4px; margin: 16px 0; }}
+  .summary-box {{
+    background: #f0f5ff;
+    border: 1px solid #1a4f8b;
+    padding: 16px;
+    border-radius: 4px;
+    margin: 16px 0;
+  }}
   .summary-row {{ display: flex; justify-content: space-between; padding: 4px 0; }}
-  .summary-row.total {{ font-weight: bold; border-top: 1px solid #1a4f8b; margin-top: 8px; padding-top: 8px; }}
-  .disclaimer {{ background: #fff3cd; border: 1px solid #ffc107; padding: 12px; border-radius: 4px; margin-top: 24px; font-size: 11px; }}
+  .summary-row.total {{
+    font-weight: bold;
+    border-top: 1px solid #1a4f8b;
+    margin-top: 8px;
+    padding-top: 8px;
+  }}
+  .disclaimer {{
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 12px;
+    border-radius: 4px;
+    margin-top: 24px;
+    font-size: 11px;
+  }}
 </style>
 </head>
 <body>
@@ -443,7 +464,9 @@ def _build_html_report(state: TaxReportState) -> str:
   <div class="summary-row"><span>SE Deduction (50%)</span><span>−${se_ded:,.2f}</span></div>
   <div class="summary-row"><span>QBI Deduction (§199A, 20%)</span><span>−${qbi:,.2f}</span></div>
   <div class="summary-row"><span>Federal Income Tax</span><span>${income_tax:,.2f}</span></div>
-  <div class="summary-row total"><span>TOTAL ESTIMATED TAX</span><span>${total_tax:,.2f}</span></div>
+  <div class="summary-row total">
+    <span>TOTAL ESTIMATED TAX</span><span>${total_tax:,.2f}</span>
+  </div>
   <div class="summary-row"><span>Effective Rate</span><span>{eff:.1f}%</span></div>
 </div>
 

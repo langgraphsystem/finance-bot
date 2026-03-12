@@ -16,8 +16,8 @@ from src.core.llm.prompts import PromptAdapter
 from src.core.models.enums import ReminderRecurrence, TaskPriority, TaskStatus
 from src.core.models.task import Task
 from src.core.observability import observe
-from src.gateway.types import IncomingMessage
 from src.core.timezone import maybe_update_timezone, validate_timezone
+from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings
 from src.skills.base import SkillResult
 
@@ -537,7 +537,12 @@ async def _maybe_handle_timezone_correction(
     lang = context.language or "en"
     await maybe_update_timezone(context.user_id, tz, source="user_set")
     count = await _reschedule_pending_reminders(context.user_id, context.family_id, tz)
-    logger.info("Timezone corrected to %s for user %s; %d reminders rescheduled", tz, context.user_id, count)
+    logger.info(
+        "Timezone corrected to %s for user %s; %d reminders rescheduled",
+        tz,
+        context.user_id,
+        count,
+    )
     return SkillResult(response_text=_t("tz_updated", lang, tz=tz))
 
 

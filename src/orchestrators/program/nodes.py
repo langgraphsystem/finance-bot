@@ -10,7 +10,6 @@ Node chain:
 
 import logging
 import uuid
-from typing import Any
 
 from src.core.llm.clients import generate_text
 from src.core.observability import observe
@@ -243,11 +242,6 @@ async def finalize(state: ProgramState) -> ProgramState:
 
     filename = state.get("filename", "program.py")
     exec_result = state.get("exec_result") or {}
-    prog_id = state.get("_prog_id", "")
-
-    buttons_text = ""
-    if prog_id:
-        buttons_text = f"\n<i>Use /code_{prog_id} to see the source code.</i>"
 
     url = exec_result.get("url")
     error = exec_result.get("error")
