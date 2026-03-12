@@ -240,6 +240,35 @@ async def test_analytics_submit_review_returns_result(mock_dependencies):
     assert data["review"]["final_label"] == "wrong_route"
 
 
+async def test_analytics_ingest_review_candidate_returns_trace(mock_dependencies):
+    trace = {
+        "trace_key": "replay-1",
+        "review_label": "wrong_route",
+        "queued_for_review": True,
+    }
+    payload = {
+        "trace_key": "replay-1",
+        "channel": "telegram",
+        "chat_id": "chat-1",
+        "user_id": "user-1",
+        "intent": "memory_related",
+        "outcome": "wrong_route",
+        "review_label": "wrong_route",
+        "tags": ["golden_replay", "memory_related"],
+        "message_preview": "Запомни мой бюджет",
+        "response_preview": "Не могу помочь.",
+        "metadata": {"source_trace_key": "corr-1"},
+    }
+    with patch("api.main.ingest_review_trace", AsyncMock(return_value=trace)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/ops/analytics/review-candidates", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["trace"]["trace_key"] == "replay-1"
+    assert data["trace"]["queued_for_review"] is True
+
+
 async def test_analytics_dataset_candidates_returns_snapshot(mock_dependencies):
     candidates = [
         {

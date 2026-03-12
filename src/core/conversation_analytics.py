@@ -307,6 +307,67 @@ async def get_trace_by_key(trace_key: str) -> dict[str, Any] | None:
         return None
 
 
+async def ingest_review_trace(payload: dict[str, Any]) -> dict[str, Any]:
+    """Persist an externally supplied trace into exports and the review queue."""
+    normalized_trace_key = str(payload.get("trace_key") or "").strip()
+    if not normalized_trace_key:
+        raise ValueError("trace_key_required")
+
+    tags = merge_analytics_tags(list(payload.get("tags") or []))
+    outcome = str(payload.get("outcome") or "error").strip() or "error"
+    metadata = dict(payload.get("metadata") or {})
+    review_label = normalize_review_label(
+        outcome,
+        tags,
+        {
+            "review_label": payload.get("review_label"),
+            **metadata,
+        },
+    )
+    message_preview = str(payload.get("message_preview") or "")[:_MESSAGE_PREVIEW_LIMIT]
+    response_preview = str(payload.get("response_preview") or "")[:_RESPONSE_PREVIEW_LIMIT]
+    response_has_text = payload.get("response_has_text")
+    response_length = payload.get("response_length")
+    if response_length is None:
+        normalized_response_length = len(response_preview)
+    else:
+        try:
+            normalized_response_length = max(0, int(response_length))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid_response_length") from exc
+
+    queued_for_review = payload.get("queued_for_review")
+    normalized_payload = {
+        "trace_key": normalized_trace_key,
+        "request_id": str(payload.get("request_id") or normalized_trace_key),
+        "correlation_id": str(payload.get("correlation_id") or normalized_trace_key),
+        "channel": str(payload.get("channel") or "telegram"),
+        "chat_id": str(payload.get("chat_id") or ""),
+        "user_id": str(payload.get("user_id") or ""),
+        "message_id": str(payload.get("message_id") or ""),
+        "intent": str(payload.get("intent") or ""),
+        "outcome": outcome,
+        "review_label": review_label,
+        "tags": tags,
+        "message_preview": message_preview,
+        "response_preview": response_preview,
+        "response_has_text": (
+            bool(response_has_text) if response_has_text is not None else bool(response_preview)
+        ),
+        "response_length": normalized_response_length,
+        "queued_for_review": (
+            bool(queued_for_review)
+            if queued_for_review is not None
+            else should_queue_review_candidate(review_label, tags)
+        ),
+        "source": str(payload.get("source") or "external_trace"),
+        "metadata": metadata,
+        "captured_at": str(payload.get("captured_at") or datetime.now(UTC).isoformat()),
+    }
+    await _store_trace_artifacts(normalized_payload)
+    return normalized_payload
+
+
 def _normalize_review_rubric(rubric: dict[str, Any]) -> dict[str, bool]:
     normalized: dict[str, bool] = {}
     missing = [field for field in _REVIEW_RUBRIC_FIELDS if field not in rubric]

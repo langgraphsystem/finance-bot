@@ -14,6 +14,7 @@ from src.core.conversation_analytics import (
     get_review_results,
     get_sampling_rule,
     get_weekly_curation_snapshot,
+    ingest_review_trace,
     normalize_review_label,
     schedule_review_trace_capture,
     should_sample_analytics_event,
@@ -222,6 +223,32 @@ async def test_submit_trace_review_promotes_dataset_candidate():
     assert result["review"]["final_label"] == "wrong_route"
     assert result["review"]["rubric"]["intent_correct"] is False
     assert result["trace"]["trace_key"] == trace_payload["trace_key"]
+
+
+async def test_ingest_review_trace_stores_external_candidate():
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.hset = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+        payload = await ingest_review_trace(
+            {
+                "trace_key": "replay-123",
+                "channel": "telegram",
+                "chat_id": "chat-1",
+                "user_id": "user-1",
+                "intent": "memory_related",
+                "outcome": "wrong_route",
+                "tags": ["golden_replay", "memory_related"],
+                "message_preview": "Запомни мой бюджет",
+                "response_preview": "Я не могу это сделать.",
+                "metadata": {"source_trace_key": "corr-1"},
+            }
+        )
+
+    assert payload["trace_key"] == "replay-123"
+    assert payload["review_label"] == "wrong_route"
+    assert payload["queued_for_review"] is True
+    assert payload["metadata"]["source_trace_key"] == "corr-1"
 
 
 async def test_submit_trace_review_rejects_missing_rubric_fields():

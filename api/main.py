@@ -29,6 +29,7 @@ from src.core.conversation_analytics import (
     get_review_queue_snapshot,
     get_review_results,
     get_weekly_curation_snapshot,
+    ingest_review_trace,
     submit_trace_review,
 )
 from src.core.db import async_session, redis
@@ -99,6 +100,25 @@ class TraceReviewSubmission(BaseModel):
     rubric: dict[str, bool]
     notes: str = ""
     labels: list[str] = Field(default_factory=list)
+
+
+class TraceCandidateSubmission(BaseModel):
+    trace_key: str
+    channel: str = "telegram"
+    chat_id: str = ""
+    user_id: str = ""
+    message_id: str = ""
+    intent: str = ""
+    outcome: str = "error"
+    review_label: str = ""
+    tags: list[str] = Field(default_factory=list)
+    message_preview: str = ""
+    response_preview: str = ""
+    response_has_text: bool | None = None
+    response_length: int | None = None
+    queued_for_review: bool | None = None
+    source: str = "external_trace"
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 def _require_ops_auth(request: Request) -> None:
@@ -1116,6 +1136,23 @@ async def analytics_submit_review(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/ops/analytics/review-candidates")
+async def analytics_ingest_review_candidate(
+    request: Request,
+    submission: TraceCandidateSubmission,
+) -> dict[str, Any]:
+    """Store an externally supplied trace as a review candidate/export artifact."""
+    _require_ops_auth(request)
+    try:
+        trace_payload = await ingest_review_trace(submission.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "trace": trace_payload,
+    }
 
 
 @app.get("/ops/analytics/dataset-candidates")

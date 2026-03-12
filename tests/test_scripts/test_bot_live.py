@@ -1,11 +1,14 @@
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from scripts.test_bot_live import (
     TestResult,
     apply_reference_rubric,
+    build_golden_mismatch_candidates,
     compute_stats,
+    enqueue_golden_review_candidates,
     evaluate_reference_response,
     load_golden_scenario_map,
     resolve_scenario_map,
@@ -154,3 +157,58 @@ def test_compute_stats_includes_reference_metrics():
     assert stats.reference_evaluated == 2
     assert stats.reference_passed == 1
     assert stats.avg_reference_coverage > 0
+
+
+def test_build_golden_mismatch_candidates_generates_replay_payload():
+    result = TestResult(
+        category="memory_related",
+        description="golden dialogue — memory_related",
+        expected_intent="memory_related",
+        message_sent="Запомни мой бюджет",
+        response_text="Я не могу помочь с этим вопросом.",
+        has_response=True,
+        status="pass",
+        expected_response_text="Запомнил бюджет и учту его дальше.",
+        source="golden",
+        trace_key="corr-1",
+    )
+    apply_reference_rubric(result, min_coverage=0.5)
+
+    candidates = build_golden_mismatch_candidates(
+        [result],
+        mode_key="telegram",
+        run_timestamp="2026-03-12T10:00:00+00:00",
+    )
+
+    assert len(candidates) == 1
+    result_index, payload = candidates[0]
+    assert result_index == 0
+    assert str(payload["trace_key"]).startswith("golden-replay:telegram:")
+    assert payload["review_label"] == "memory_failure"
+    assert payload["metadata"]["source_trace_key"] == "corr-1"
+
+
+async def test_enqueue_golden_review_candidates_uses_local_ingest_for_direct_mode():
+    candidates = [
+        (
+            0,
+            {
+                "trace_key": "golden-replay:direct:abc",
+                "review_label": "wrong_route",
+                "outcome": "wrong_route",
+                "tags": ["golden_replay"],
+            },
+        )
+    ]
+    with patch(
+        "src.core.conversation_analytics.ingest_review_trace",
+        AsyncMock(return_value={"trace_key": "golden-replay:direct:abc"}),
+    ):
+        results = await enqueue_golden_review_candidates(
+            candidates,
+            mode_key="direct",
+            ops_base_url="http://localhost:8000",
+            health_secret="",
+        )
+
+    assert results == [(0, True, "golden-replay:direct:abc", None)]

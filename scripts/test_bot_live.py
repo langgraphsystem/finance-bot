@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -42,6 +43,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urljoin
 
 import httpx
 from pydantic import BaseModel
@@ -156,6 +158,9 @@ class TestResult(BaseModel):
     reference_rubric: ReferenceRubric | None = None
     source: str = "builtin"
     trace_key: str | None = None
+    review_candidate_enqueued: bool = False
+    review_candidate_trace_key: str | None = None
+    review_candidate_error: str | None = None
 
 
 class RunMetadata(BaseModel):
@@ -893,6 +898,152 @@ def save_results(report: TestRunReport) -> Path:
     return filepath
 
 
+def infer_ops_base_url() -> str:
+    """Infer the operator base URL from env when replay results should be uploaded."""
+    explicit_base_url = os.getenv("PUBLIC_BASE_URL", "").strip()
+    if explicit_base_url:
+        return explicit_base_url.rstrip("/")
+
+    webhook_url = os.getenv("TELEGRAM_WEBHOOK_URL", "").strip()
+    if webhook_url:
+        return webhook_url.rsplit("/", 1)[0].rstrip("/")
+
+    return "http://localhost:8000"
+
+
+def build_ops_headers(health_secret: str) -> dict[str, str]:
+    """Build auth headers for protected ops endpoints."""
+    if not health_secret:
+        return {}
+    return {"Authorization": f"Bearer {health_secret}"}
+
+
+def _derive_golden_failure_outcome(result: TestResult) -> tuple[str, str]:
+    """Map a failed golden replay result to analytics outcome and review label."""
+    if result.status == "timeout":
+        outcome = "no_reply"
+    elif result.reference_rubric and not result.reference_rubric.passed:
+        outcome = "wrong_route"
+    else:
+        outcome = "error"
+
+    lowered_category = result.category.lower()
+    if "memory" in lowered_category:
+        review_label = "memory_failure"
+    elif outcome == "wrong_route":
+        review_label = "wrong_route"
+    else:
+        review_label = "tool_failure"
+    return outcome, review_label
+
+
+def build_golden_mismatch_candidates(
+    results: list[TestResult],
+    *,
+    mode_key: str,
+    run_timestamp: str,
+) -> list[tuple[int, dict[str, object]]]:
+    """Build review-queue payloads for failed golden replay results."""
+    candidates: list[tuple[int, dict[str, object]]] = []
+    run_stamp = re.sub(r"[^0-9A-Za-z]+", "", run_timestamp) or str(int(time.time()))
+
+    for index, result in enumerate(results):
+        if result.source != "golden" or result.status == "pass":
+            continue
+
+        outcome, review_label = _derive_golden_failure_outcome(result)
+        source_trace_key = result.trace_key
+        digest = hashlib.sha1(
+            f"{source_trace_key or 'no-source'}:{result.message_sent}:{index}:{run_stamp}".encode()
+        ).hexdigest()[:12]
+        replay_trace_key = f"golden-replay:{mode_key}:{run_stamp}:{digest}"
+        tags = [
+            "golden_replay",
+            f"scenario:{result.category}",
+            f"mode:{mode_key}",
+        ]
+        if result.reference_rubric and not result.reference_rubric.passed:
+            tags.append("reference_mismatch")
+        if result.status == "timeout":
+            tags.append("timeout")
+
+        response_preview = result.response_text or result.error or ""
+        payload = {
+            "trace_key": replay_trace_key,
+            "channel": "telegram",
+            "chat_id": "",
+            "user_id": "",
+            "message_id": "",
+            "intent": result.expected_intent,
+            "outcome": outcome,
+            "review_label": review_label,
+            "tags": tags,
+            "message_preview": result.message_sent[:500],
+            "response_preview": response_preview[:1000],
+            "response_has_text": bool(result.response_text),
+            "response_length": len(response_preview),
+            "queued_for_review": True,
+            "source": "test_bot_live_golden_replay",
+            "metadata": {
+                "run_timestamp": run_timestamp,
+                "mode": mode_key,
+                "category": result.category,
+                "description": result.description,
+                "status": result.status,
+                "error": result.error,
+                "source_trace_key": source_trace_key,
+                "expected_response_text": result.expected_response_text,
+                "reference_rubric": (
+                    result.reference_rubric.model_dump() if result.reference_rubric else None
+                ),
+            },
+        }
+        candidates.append((index, payload))
+
+    return candidates
+
+
+async def enqueue_golden_review_candidates(
+    candidates: list[tuple[int, dict[str, object]]],
+    *,
+    mode_key: str,
+    ops_base_url: str,
+    health_secret: str,
+) -> list[tuple[int, bool, str | None, str | None]]:
+    """Store golden replay failures back into the analytics review queue."""
+    if not candidates:
+        return []
+
+    results: list[tuple[int, bool, str | None, str | None]] = []
+    if mode_key == "direct":
+        from src.core.conversation_analytics import ingest_review_trace
+
+        for index, payload in candidates:
+            try:
+                stored = await ingest_review_trace(dict(payload))
+                results.append((index, True, str(stored.get("trace_key") or ""), None))
+            except Exception as exc:
+                results.append((index, False, str(payload.get("trace_key") or ""), str(exc)))
+        return results
+
+    headers = build_ops_headers(health_secret)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0), headers=headers) as client:
+        for index, payload in candidates:
+            trace_key = str(payload.get("trace_key") or "")
+            try:
+                response = await client.post(
+                    urljoin(f"{ops_base_url.rstrip('/')}/", "ops/analytics/review-candidates"),
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+                stored_trace = data.get("trace") or {}
+                results.append((index, True, str(stored_trace.get("trace_key") or trace_key), None))
+            except Exception as exc:
+                results.append((index, False, trace_key, str(exc)))
+    return results
+
+
 # ────────────────────────────────────────────────────────────────────────
 # Direct mode: call internal handler
 # ────────────────────────────────────────────────────────────────────────
@@ -1440,6 +1591,21 @@ def main():
         default=0.5,
         help="Minimum keyword coverage for golden reference checks (default: 0.5)",
     )
+    parser.add_argument(
+        "--enqueue-golden-mismatches",
+        action="store_true",
+        help="Push failed golden replay cases back into the analytics review queue",
+    )
+    parser.add_argument(
+        "--ops-base-url",
+        default=infer_ops_base_url(),
+        help="Base URL for ops analytics ingestion (default: inferred from env)",
+    )
+    parser.add_argument(
+        "--health-secret",
+        default=os.getenv("HEALTH_SECRET", ""),
+        help="Bearer token for protected ops analytics endpoints",
+    )
 
     args = parser.parse_args()
 
@@ -1554,6 +1720,38 @@ def main():
         results=results,
         stats=stats,
     )
+
+    if args.enqueue_golden_mismatches:
+        candidates = build_golden_mismatch_candidates(
+            results,
+            mode_key=mode_key,
+            run_timestamp=report.metadata.timestamp,
+        )
+        if candidates:
+            enqueue_results = asyncio.run(
+                enqueue_golden_review_candidates(
+                    candidates,
+                    mode_key=mode_key,
+                    ops_base_url=args.ops_base_url,
+                    health_secret=args.health_secret,
+                )
+            )
+            enqueued = 0
+            failed = 0
+            for index, success, trace_key, error in enqueue_results:
+                results[index].review_candidate_trace_key = trace_key
+                results[index].review_candidate_enqueued = success
+                results[index].review_candidate_error = error
+                if success:
+                    enqueued += 1
+                else:
+                    failed += 1
+            print(
+                f"  {BOLD}Golden mismatch enqueue:{RESET} "
+                f"{GREEN}{enqueued} stored{RESET}, {YELLOW}{failed} failed{RESET}"
+            )
+        else:
+            print(f"  {DIM}No failed golden replay cases to enqueue{RESET}")
 
     # Save
     if not args.no_save:
