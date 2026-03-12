@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -60,6 +61,9 @@ _DATASET_CANDIDATE_QUEUE_KEY = "analytics:dataset_candidates"
 _DATASET_CANDIDATE_INDEX_KEY = "analytics:dataset_candidates:index"
 _REVIEW_BATCH_QUEUE_KEY = "analytics:review_batches"
 _REVIEW_BATCH_INDEX_KEY = "analytics:review_batches:index"
+_FEEDBACK_QUEUE_KEY = "analytics:user_feedback"
+_FEEDBACK_INDEX_KEY = "analytics:user_feedback:index"
+_FEEDBACK_PROMPT_KEY_PREFIX = "analytics:feedback_prompt"
 _REVIEW_LABELS = [
     "success",
     "wrong_route",
@@ -73,6 +77,7 @@ _REVIEW_ACTIONS = [
     "follow_up",
     "promote_to_dataset",
 ]
+_USER_FEEDBACK_VALUES = ["helpful", "unhelpful"]
 _REVIEW_RUBRIC_FIELDS = [
     "intent_correct",
     "response_useful",
@@ -120,6 +125,9 @@ def get_conversation_analytics_policy() -> dict[str, Any]:
         "review_result_limit": settings.analytics_review_result_limit,
         "dataset_candidate_limit": settings.analytics_dataset_candidate_limit,
         "review_batch_limit": settings.analytics_review_batch_limit,
+        "feedback_values": list(_USER_FEEDBACK_VALUES),
+        "feedback_queue_limit": settings.analytics_feedback_queue_limit,
+        "feedback_prompt_ttl_seconds": settings.analytics_feedback_prompt_ttl_seconds,
     }
 
 
@@ -435,6 +443,10 @@ async def _store_review_batch_record(payload: dict[str, Any]) -> None:
         )
     except Exception:
         logging.getLogger(__name__).debug("Failed to store review batch record", exc_info=True)
+
+
+def _feedback_prompt_key(token: str) -> str:
+    return f"{_FEEDBACK_PROMPT_KEY_PREFIX}:{token}"
 
 
 async def _store_trace_artifacts(payload: dict[str, Any]) -> None:
@@ -835,6 +847,120 @@ async def get_review_batches(limit: int = 25) -> list[dict[str, Any]]:
     return parsed
 
 
+async def create_feedback_buttons(
+    *,
+    trace_key: str,
+    user_id: str,
+    chat_id: str,
+    channel: str,
+    existing_buttons: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Create inline feedback buttons and store a short-lived prompt mapping."""
+    buttons = list(existing_buttons or [])
+    if channel != "telegram" or not trace_key:
+        return buttons
+    if any(str(button.get("callback") or "").startswith("feedback:") for button in buttons):
+        return buttons
+
+    token = uuid.uuid4().hex[:12]
+    prompt_payload = {
+        "token": token,
+        "trace_key": trace_key,
+        "user_id": user_id,
+        "chat_id": chat_id,
+        "channel": channel,
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    try:
+        await redis.set(
+            _feedback_prompt_key(token),
+            json.dumps(prompt_payload, ensure_ascii=False, default=str),
+            ex=settings.analytics_feedback_prompt_ttl_seconds,
+        )
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to store feedback prompt", exc_info=True)
+        return buttons
+
+    buttons.extend(
+        [
+            {"text": "👍 Помогло", "callback": f"feedback:{token}:helpful"},
+            {"text": "👎 Не помогло", "callback": f"feedback:{token}:unhelpful"},
+        ]
+    )
+    return buttons
+
+
+async def submit_user_feedback(
+    *,
+    token: str,
+    feedback: str,
+    user_id: str,
+    channel: str,
+    chat_id: str = "",
+    message_id: str = "",
+) -> dict[str, Any]:
+    """Persist inline user feedback linked to a conversation trace."""
+    normalized_token = token.strip()
+    normalized_feedback = feedback.strip().lower()
+    if not normalized_token:
+        raise ValueError("feedback_token_required")
+    if normalized_feedback not in _USER_FEEDBACK_VALUES:
+        raise ValueError("invalid_feedback_value")
+
+    try:
+        raw_prompt = await redis.get(_feedback_prompt_key(normalized_token))
+    except Exception as exc:
+        raise ValueError("feedback_prompt_unavailable") from exc
+    if not raw_prompt:
+        raise ValueError("feedback_prompt_not_found")
+
+    try:
+        prompt_payload = json.loads(raw_prompt)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("feedback_prompt_invalid") from exc
+
+    prompt_user_id = str(prompt_payload.get("user_id") or "")
+    if prompt_user_id and prompt_user_id != user_id:
+        raise ValueError("feedback_user_mismatch")
+
+    record = {
+        "token": normalized_token,
+        "trace_key": str(prompt_payload.get("trace_key") or ""),
+        "feedback": normalized_feedback,
+        "user_id": user_id,
+        "chat_id": chat_id or str(prompt_payload.get("chat_id") or ""),
+        "channel": channel or str(prompt_payload.get("channel") or "telegram"),
+        "message_id": message_id,
+        "prompt_created_at": str(prompt_payload.get("created_at") or ""),
+        "submitted_at": datetime.now(UTC).isoformat(),
+    }
+    serialized = json.dumps(record, ensure_ascii=False, default=str)
+    await redis.hset(_FEEDBACK_INDEX_KEY, normalized_token, serialized)
+    await _push_queue_item(
+        _FEEDBACK_QUEUE_KEY,
+        record,
+        limit=settings.analytics_feedback_queue_limit,
+    )
+    await redis.delete(_feedback_prompt_key(normalized_token))
+    return record
+
+
+async def get_user_feedback(limit: int = 25) -> list[dict[str, Any]]:
+    """Return recent inline user feedback records."""
+    try:
+        items = await redis.lrange(_FEEDBACK_QUEUE_KEY, 0, max(limit - 1, 0))
+    except Exception:
+        logging.getLogger(__name__).debug("Failed to fetch user feedback", exc_info=True)
+        return []
+    parsed: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            parsed.append(json.loads(item))
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return parsed
+
+
 async def get_dataset_candidates(limit: int = 25) -> list[dict[str, Any]]:
     """Return recent reviewed traces promoted to dataset candidates."""
     try:
@@ -914,22 +1040,30 @@ async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
     review_results = await get_review_results(limit=limit)
     dataset_candidates = await get_dataset_candidates(limit=limit)
     review_batches = await get_review_batches(limit=limit)
+    user_feedback = await get_user_feedback(limit=limit)
     label_counts: dict[str, int] = {}
     action_counts: dict[str, int] = {}
+    feedback_counts: dict[str, int] = {}
     for review in review_results:
         label = str(review.get("final_label") or "unknown")
         action = str(review.get("action") or "unknown")
         label_counts[label] = label_counts.get(label, 0) + 1
         action_counts[action] = action_counts.get(action, 0) + 1
+    for feedback in user_feedback:
+        value = str(feedback.get("feedback") or "unknown")
+        feedback_counts[value] = feedback_counts.get(value, 0) + 1
     return {
         "policy": get_conversation_analytics_policy(),
         "review_result_size": len(review_results),
         "dataset_candidate_size": len(dataset_candidates),
         "review_batch_size": len(review_batches),
+        "feedback_size": len(user_feedback),
         "review_label_counts": label_counts,
         "review_action_counts": action_counts,
+        "feedback_counts": feedback_counts,
         "recent_reviews": review_results,
         "recent_review_batches": review_batches,
+        "recent_feedback": user_feedback,
         "golden_dialogues": [_build_golden_dialogue(candidate) for candidate in dataset_candidates],
     }
 

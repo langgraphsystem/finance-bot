@@ -172,11 +172,14 @@ class Settings(BaseSettings):
     release_health_rate_limited_threshold: float = 0.10
     release_health_shadow_mismatch_threshold: float = 0.20
     release_health_shadow_compare_failure_threshold: float = 0.10
+    release_action_history_limit: int = 100
     analytics_review_queue_limit: int = 200
     analytics_trace_export_queue_limit: int = 500
     analytics_review_result_limit: int = 500
     analytics_dataset_candidate_limit: int = 200
     analytics_review_batch_limit: int = 200
+    analytics_feedback_queue_limit: int = 500
+    analytics_feedback_prompt_ttl_seconds: int = 604800
 
     @property
     def is_production(self) -> bool:

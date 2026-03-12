@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from src.core.config import settings
@@ -25,6 +26,8 @@ _RELEASE_HEALTH_TTL_SECONDS = 86400
 _ALWAYS_ON_COHORTS = {"internal", "trusted", "beta"}
 _PROTECTED_COHORTS = {"sensitive", "vip", "new_user"}
 _ROLLOUT_PROGRESS_STEPS = (1, 5, 10, 25, 50, 100)
+_RELEASE_OVERRIDE_KEY_PREFIX = "release_override"
+_RELEASE_ACTIONS_KEY_PREFIX = "release_actions"
 logger = logging.getLogger(__name__)
 
 
@@ -54,6 +57,83 @@ def get_release_runtime_state() -> dict[str, Any]:
     }
 
 
+def _release_override_key() -> str:
+    rollout_name = settings.release_rollout_name or "default"
+    return f"{_RELEASE_OVERRIDE_KEY_PREFIX}:{rollout_name}"
+
+
+def _release_actions_key() -> str:
+    rollout_name = settings.release_rollout_name or "default"
+    return f"{_RELEASE_ACTIONS_KEY_PREFIX}:{rollout_name}"
+
+
+def _parse_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _coerce_rollout_percent(value: Any, *, fallback: int) -> int:
+    try:
+        rollout_percent = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return max(0, min(rollout_percent, 100))
+
+
+def _merge_runtime_state(
+    base_state: dict[str, Any],
+    override: dict[str, Any] | None,
+) -> dict[str, Any]:
+    merged = dict(base_state)
+    normalized_override = dict(override or {})
+    if normalized_override:
+        merged["rollout_percent"] = _coerce_rollout_percent(
+            normalized_override.get("rollout_percent"),
+            fallback=base_state["rollout_percent"],
+        )
+        merged["shadow_mode"] = _parse_bool(
+            normalized_override.get("shadow_mode"),
+            default=base_state["shadow_mode"],
+        )
+    merged["override_active"] = bool(normalized_override)
+    return merged
+
+
+async def get_release_override() -> dict[str, Any]:
+    """Return the active operator override for the current rollout, if any."""
+    try:
+        raw = await redis.get(_release_override_key())
+    except Exception:
+        logger.debug("Release override fetch failed", exc_info=True)
+        return {}
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return parsed
+
+
+async def get_effective_release_runtime_state() -> dict[str, Any]:
+    """Return rollout runtime state with operator overrides applied."""
+    return _merge_runtime_state(
+        get_release_runtime_state(),
+        await get_release_override(),
+    )
+
+
 def get_release_switches() -> dict[str, Any]:
     """Return operator-facing rollout switches without exposing raw user IDs."""
     return {
@@ -68,6 +148,20 @@ def get_release_switches() -> dict[str, Any]:
             "sensitive_roles": sorted(_parse_csv(settings.release_sensitive_roles)),
         },
     }
+
+
+async def get_effective_release_switches() -> dict[str, Any]:
+    """Return operator-facing rollout switches with effective overrides applied."""
+    effective_runtime = await get_effective_release_runtime_state()
+    switches = get_release_switches()
+    switches.update(
+        {
+            "rollout_percent": effective_runtime["rollout_percent"],
+            "shadow_mode": effective_runtime["shadow_mode"],
+            "override_active": effective_runtime["override_active"],
+        }
+    )
+    return switches
 
 
 def resolve_release_cohort(context: SessionContext | None) -> str:
@@ -124,14 +218,15 @@ async def record_release_event(event: str, increment: int = 1) -> None:
         return
 
     try:
+        effective_runtime = await get_effective_release_runtime_state()
         key = _release_health_key()
         await redis.hincrby(key, event, increment)
         await redis.hset(
             key,
             mapping={
-                "rollout_name": settings.release_rollout_name or "default",
-                "rollout_percent": settings.release_rollout_percent,
-                "shadow_mode": int(settings.release_shadow_mode),
+                "rollout_name": effective_runtime["rollout_name"],
+                "rollout_percent": effective_runtime["rollout_percent"],
+                "shadow_mode": int(effective_runtime["shadow_mode"]),
             },
         )
         await redis.expire(key, _RELEASE_HEALTH_TTL_SECONDS)
@@ -175,6 +270,7 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "recommended_action": "ignore",
             "rollout_name": settings.release_rollout_name or "default",
         }
+    effective_runtime = await get_effective_release_runtime_state()
 
     try:
         metrics = await redis.hgetall(_release_health_key())
@@ -183,7 +279,10 @@ async def get_release_health_snapshot() -> dict[str, Any]:
         return {
             "status": "unavailable",
             "recommended_action": "ignore",
-            "rollout_name": settings.release_rollout_name or "default",
+            "rollout_name": effective_runtime["rollout_name"],
+            "rollout_percent": effective_runtime["rollout_percent"],
+            "shadow_mode": effective_runtime["shadow_mode"],
+            "override_active": effective_runtime["override_active"],
         }
     requests_total = _parse_int(metrics, "requests_total")
     completed_total = _parse_int(metrics, "completed_total")
@@ -242,9 +341,16 @@ async def get_release_health_snapshot() -> dict[str, Any]:
     return {
         "status": status,
         "recommended_action": recommended_action,
-        "rollout_name": metrics.get("rollout_name", settings.release_rollout_name or "default"),
-        "rollout_percent": _parse_int(metrics, "rollout_percent"),
-        "shadow_mode": bool(_parse_int(metrics, "shadow_mode")),
+        "rollout_name": metrics.get("rollout_name", effective_runtime["rollout_name"]),
+        "rollout_percent": _coerce_rollout_percent(
+            metrics.get("rollout_percent"),
+            fallback=effective_runtime["rollout_percent"],
+        ),
+        "shadow_mode": _parse_bool(
+            metrics.get("shadow_mode"),
+            default=effective_runtime["shadow_mode"],
+        ),
+        "override_active": effective_runtime["override_active"],
         "counts": {
             "requests_total": requests_total,
             "completed_total": completed_total,
@@ -293,6 +399,8 @@ async def get_release_request_plan(
     )
     bucket = _stable_rollout_bucket(stable_subject)
     health = await get_release_health_snapshot()
+    effective_runtime = await get_effective_release_runtime_state()
+    rollout_percent = int(effective_runtime["rollout_percent"])
 
     release_enabled = False
     mode = "control"
@@ -301,14 +409,14 @@ async def get_release_request_plan(
     elif cohort in _ALWAYS_ON_COHORTS:
         release_enabled = True
         mode = cohort
-    elif cohort in _PROTECTED_COHORTS and settings.release_rollout_percent < 100:
+    elif cohort in _PROTECTED_COHORTS and rollout_percent < 100:
         mode = "protected"
-    elif bucket < settings.release_rollout_percent:
+    elif bucket < rollout_percent:
         release_enabled = True
         mode = "canary"
 
     shadow_enabled = bool(
-        settings.release_shadow_mode and health.get("recommended_action") != "rollback"
+        effective_runtime["shadow_mode"] and health.get("recommended_action") != "rollback"
     )
 
     return {
@@ -317,16 +425,18 @@ async def get_release_request_plan(
         "mode": mode,
         "release_enabled": release_enabled,
         "shadow_enabled": shadow_enabled,
-        "rollout_percent": settings.release_rollout_percent,
+        "rollout_percent": rollout_percent,
         "health_status": health.get("status", "unavailable"),
         "recommended_action": health.get("recommended_action", "ignore"),
+        "override_active": effective_runtime["override_active"],
     }
 
 
 async def get_release_rollout_decision() -> dict[str, Any]:
     """Return operator-facing rollout guidance for progress, hold, or rollback."""
     health = await get_release_health_snapshot()
-    current_percent = settings.release_rollout_percent
+    effective_runtime = await get_effective_release_runtime_state()
+    current_percent = int(effective_runtime["rollout_percent"])
     if health.get("recommended_action") == "rollback":
         target_percent = 0
         next_action = "rollback"
@@ -349,18 +459,150 @@ async def get_release_rollout_decision() -> dict[str, Any]:
         "health_status": health.get("status", "unavailable"),
         "recommended_action": health.get("recommended_action", "ignore"),
         "reasons": reasons,
-        "allowed_actions": ["hold", "rollback"]
-        if next_action != "progress"
-        else ["progress", "hold", "rollback"],
-        "shadow_mode": settings.release_shadow_mode,
+        "allowed_actions": (
+            ["progress", "hold", "rollback", "set", "clear"]
+            if next_action == "progress"
+            else ["hold", "rollback", "set", "clear"]
+        ),
+        "shadow_mode": effective_runtime["shadow_mode"],
+        "override_active": effective_runtime["override_active"],
+    }
+
+
+async def _record_release_action(payload: dict[str, Any]) -> None:
+    serialized = json.dumps(payload, ensure_ascii=False, default=str)
+    await redis.lpush(_release_actions_key(), serialized)
+    await redis.ltrim(_release_actions_key(), 0, max(settings.release_action_history_limit - 1, 0))
+
+
+async def get_release_action_history(limit: int = 25) -> list[dict[str, Any]]:
+    """Return recent rollout control actions for audit/review."""
+    try:
+        items = await redis.lrange(_release_actions_key(), 0, max(limit - 1, 0))
+    except Exception:
+        logger.debug("Release action history unavailable", exc_info=True)
+        return []
+    parsed: list[dict[str, Any]] = []
+    for item in items:
+        try:
+            parsed.append(json.loads(item))
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return parsed
+
+
+async def apply_release_override(
+    *,
+    actor: str,
+    action: str,
+    rollout_percent: int | None = None,
+    shadow_mode: bool | None = None,
+    notes: str = "",
+) -> dict[str, Any]:
+    """Apply a rollout override for operator-driven canary control."""
+    normalized_actor = actor.strip()
+    if not normalized_actor:
+        raise ValueError("actor_required")
+
+    normalized_action = action.strip().lower()
+    if normalized_action not in {"progress", "hold", "rollback", "set", "clear"}:
+        raise ValueError("invalid_release_action")
+
+    base_runtime = get_release_runtime_state()
+    current_runtime = await get_effective_release_runtime_state()
+    current_percent = int(current_runtime["rollout_percent"])
+    current_shadow_mode = bool(current_runtime["shadow_mode"])
+
+    if normalized_action == "clear":
+        override_payload: dict[str, Any] = {}
+        target_percent = base_runtime["rollout_percent"]
+        target_shadow_mode = base_runtime["shadow_mode"]
+        await redis.delete(_release_override_key())
+    else:
+        if normalized_action == "rollback":
+            target_percent = 0
+            target_shadow_mode = False if shadow_mode is None else shadow_mode
+        elif normalized_action == "hold":
+            target_percent = current_percent
+            target_shadow_mode = current_shadow_mode if shadow_mode is None else shadow_mode
+        elif normalized_action == "progress":
+            target_percent = (
+                _coerce_rollout_percent(
+                    rollout_percent,
+                    fallback=_next_rollout_percent(current_percent),
+                )
+                if rollout_percent is not None
+                else _next_rollout_percent(current_percent)
+            )
+            target_shadow_mode = current_shadow_mode if shadow_mode is None else shadow_mode
+            if target_percent < current_percent:
+                raise ValueError("progress_cannot_reduce_rollout")
+        else:
+            if rollout_percent is None and shadow_mode is None:
+                raise ValueError("override_values_required")
+            target_percent = _coerce_rollout_percent(rollout_percent, fallback=current_percent)
+            target_shadow_mode = current_shadow_mode if shadow_mode is None else shadow_mode
+
+        override_payload = {
+            "rollout_name": base_runtime["rollout_name"],
+            "rollout_percent": target_percent,
+            "shadow_mode": bool(target_shadow_mode),
+            "action": normalized_action,
+            "actor": normalized_actor,
+            "notes": notes.strip(),
+            "applied_at": datetime.now(UTC).isoformat(),
+        }
+        await redis.set(
+            _release_override_key(),
+            json.dumps(override_payload, ensure_ascii=False, default=str),
+        )
+
+    await redis.hset(
+        _release_health_key(),
+        mapping={
+            "rollout_name": base_runtime["rollout_name"],
+            "rollout_percent": target_percent,
+            "shadow_mode": int(target_shadow_mode),
+        },
+    )
+    await redis.expire(_release_health_key(), _RELEASE_HEALTH_TTL_SECONDS)
+
+    action_record = {
+        "rollout_name": base_runtime["rollout_name"],
+        "actor": normalized_actor,
+        "action": normalized_action,
+        "rollout_percent": target_percent,
+        "shadow_mode": bool(target_shadow_mode),
+        "notes": notes.strip(),
+        "applied_at": datetime.now(UTC).isoformat(),
+        "override_active": bool(override_payload),
+    }
+    await _record_release_action(action_record)
+
+    return {
+        "override": override_payload,
+        "effective_runtime": _merge_runtime_state(base_runtime, override_payload),
+        "decision": await get_release_rollout_decision(),
+    }
+
+
+async def get_release_override_snapshot(limit: int = 25) -> dict[str, Any]:
+    """Return the active override and recent control actions for operators."""
+    override = await get_release_override()
+    return {
+        "active_override": override,
+        "history_limit": settings.release_action_history_limit,
+        "action_history": await get_release_action_history(limit=limit),
+        "effective_runtime": await get_effective_release_runtime_state(),
     }
 
 
 async def get_release_ops_overview() -> dict[str, Any]:
     """Return a compact operator-facing release overview."""
     return {
-        "switches": get_release_switches(),
+        "switches": await get_effective_release_switches(),
         "flags": get_release_flag_snapshot(),
         "health": await get_release_health_snapshot(),
         "decision": await get_release_rollout_decision(),
+        "override": await get_release_override_snapshot(limit=10),
     }

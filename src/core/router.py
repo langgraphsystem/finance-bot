@@ -15,10 +15,12 @@ from src.agents import AGENTS, AgentRouter
 from src.core.config import settings
 from src.core.context import SessionContext
 from src.core.conversation_analytics import (
+    create_feedback_buttons,
     derive_conversation_tags,
     emit_conversation_analytics_event,
     merge_analytics_tags,
     schedule_review_trace_capture,
+    submit_user_feedback,
 )
 from src.core.db import async_session
 from src.core.db import redis as redis_client
@@ -48,6 +50,8 @@ from src.core.rate_limit import check_rate_limit
 from src.core.release import log_runtime_event, record_release_event
 from src.core.request_context import (
     get_current_analytics_tags,
+    get_current_correlation_id,
+    get_current_request_id,
     get_current_request_intent,
     get_current_shadow_enabled,
     reset_family_context,
@@ -439,6 +443,18 @@ async def handle_message(
             outcome = "guardrail_blocked"
         elif not response.text:
             outcome = "no_reply"
+        if outcome == "success" and message.type != MessageType.callback:
+            trace_key = get_current_correlation_id() or get_current_request_id() or ""
+            try:
+                response.buttons = await create_feedback_buttons(
+                    trace_key=trace_key,
+                    user_id=context.user_id,
+                    chat_id=message.chat_id,
+                    channel=message.channel,
+                    existing_buttons=response.buttons,
+                )
+            except Exception:
+                logger.warning("Failed to attach feedback buttons", exc_info=True)
         emit_conversation_analytics_event(
             logger,
             context=context,
@@ -2086,6 +2102,26 @@ async def _handle_callback(
     if action == "confirm":
         # Acknowledge confirmation — transaction stays in DB as-is
         return OutgoingMessage(text="✅ Подтверждено!", chat_id=message.chat_id)
+
+    elif action == "feedback":
+        token = parts[1] if len(parts) > 1 else ""
+        feedback_value = parts[2] if len(parts) > 2 else ""
+        try:
+            await submit_user_feedback(
+                token=token,
+                feedback=feedback_value,
+                user_id=context.user_id,
+                channel=message.channel,
+                chat_id=message.chat_id,
+                message_id=message.id,
+            )
+        except ValueError as exc:
+            if str(exc) == "feedback_prompt_not_found":
+                text = "Оценка уже сохранена или истекла."
+            else:
+                text = "Не удалось сохранить оценку."
+            return OutgoingMessage(text=text, chat_id=message.chat_id)
+        return OutgoingMessage(text="Спасибо за оценку.", chat_id=message.chat_id)
 
     elif action == "cancel":
         # Delete the transaction from DB

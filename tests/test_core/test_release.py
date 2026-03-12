@@ -2,9 +2,13 @@ from unittest.mock import AsyncMock, patch
 
 from src.core.context import SessionContext
 from src.core.release import (
+    apply_release_override,
+    get_effective_release_runtime_state,
+    get_release_action_history,
     get_release_flag_snapshot,
     get_release_health_snapshot,
     get_release_ops_overview,
+    get_release_override_snapshot,
     get_release_request_plan,
     get_release_rollout_decision,
     get_release_switches,
@@ -95,6 +99,16 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
     assert "shadow_mismatch_rate" in snapshot["gates"]["triggered"]
 
 
+async def test_effective_release_runtime_state_applies_override():
+    with patch("src.core.release.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value='{"rollout_percent":25,"shadow_mode":true}')
+        state = await get_effective_release_runtime_state()
+
+    assert state["rollout_percent"] == 25
+    assert state["shadow_mode"] is True
+    assert state["override_active"] is True
+
+
 def test_release_switches_hide_raw_user_ids(monkeypatch):
     monkeypatch.setattr("src.core.release.settings.release_internal_user_ids", "1,2")
     monkeypatch.setattr("src.core.release.settings.release_sensitive_roles", "accountant,assistant")
@@ -117,6 +131,7 @@ async def test_release_ops_overview_combines_switches_flags_and_health():
     assert "flags" in overview
     assert overview["health"]["status"] == "healthy"
     assert "decision" in overview
+    assert "override" in overview
 
 
 async def test_release_request_plan_keeps_internal_users_enabled_during_canary_hold():
@@ -207,3 +222,81 @@ async def test_release_rollout_decision_holds_when_degraded_without_gate_breach(
     assert decision["next_action"] == "hold"
     assert decision["target_rollout_percent"] == 10
     assert decision["reasons"] == ["non_zero_error_signals"]
+
+
+async def test_apply_release_override_progress_records_action():
+    with patch("src.core.release.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value=None)
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                "rollout_name": "default",
+                "rollout_percent": "25",
+                "shadow_mode": "1",
+                "gates": {},
+            }
+        )
+        mock_redis.set = AsyncMock()
+        mock_redis.hset = AsyncMock()
+        mock_redis.expire = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+
+        result = await apply_release_override(
+            actor="qa-1",
+            action="progress",
+            rollout_percent=25,
+            shadow_mode=True,
+            notes="expand canary",
+        )
+
+    assert result["override"]["rollout_percent"] == 25
+    assert result["override"]["shadow_mode"] is True
+    assert result["effective_runtime"]["override_active"] is True
+    mock_redis.set.assert_awaited_once()
+    mock_redis.lpush.assert_awaited_once()
+
+
+async def test_apply_release_override_clear_resets_to_base(monkeypatch):
+    monkeypatch.setattr("src.core.release.settings.release_rollout_percent", 5)
+    monkeypatch.setattr("src.core.release.settings.release_shadow_mode", False)
+    with patch("src.core.release.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value='{"rollout_percent":25,"shadow_mode":true}')
+        mock_redis.hgetall = AsyncMock(
+            return_value={
+                "rollout_name": "default",
+                "rollout_percent": "5",
+                "shadow_mode": "0",
+                "gates": {},
+            }
+        )
+        mock_redis.delete = AsyncMock()
+        mock_redis.hset = AsyncMock()
+        mock_redis.expire = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+
+        result = await apply_release_override(
+            actor="qa-1",
+            action="clear",
+            notes="revert to config",
+        )
+
+    assert result["override"] == {}
+    assert result["effective_runtime"]["rollout_percent"] == 5
+    assert result["effective_runtime"]["override_active"] is False
+    mock_redis.delete.assert_awaited_once()
+
+
+async def test_get_release_action_history_and_snapshot():
+    items = [
+        '{"actor":"qa-1","action":"progress","rollout_percent":10}',
+    ]
+    with patch("src.core.release.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value='{"rollout_percent":10,"shadow_mode":false}')
+        mock_redis.lrange = AsyncMock(return_value=items)
+        history = await get_release_action_history(limit=1)
+        snapshot = await get_release_override_snapshot(limit=1)
+
+    assert history[0]["action"] == "progress"
+    assert snapshot["active_override"]["rollout_percent"] == 10
+    assert snapshot["action_history"][0]["actor"] == "qa-1"

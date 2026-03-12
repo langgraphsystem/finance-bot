@@ -8,6 +8,7 @@ from src.core.conversation_analytics import (
     apply_trace_review_suggestion,
     apply_trace_review_suggestions_batch,
     build_review_suggestion,
+    create_feedback_buttons,
     derive_conversation_tags,
     emit_conversation_analytics_event,
     filter_review_queue_items,
@@ -18,12 +19,14 @@ from src.core.conversation_analytics import (
     get_review_queue_snapshot,
     get_review_results,
     get_sampling_rule,
+    get_user_feedback,
     get_weekly_curation_snapshot,
     ingest_review_trace,
     normalize_review_label,
     schedule_review_trace_capture,
     should_sample_analytics_event,
     submit_trace_review,
+    submit_user_feedback,
 )
 from src.gateway.types import IncomingMessage, MessageType, OutgoingMessage
 
@@ -108,6 +111,7 @@ def test_policy_exposes_sample_rates():
     assert "review_rubric" in policy
     assert "review_suggestion_fields" in policy
     assert "promote_to_dataset" in policy["review_actions"]
+    assert "feedback_values" in policy
 
 
 def test_normalize_review_label_maps_memory_and_guardrails():
@@ -223,6 +227,65 @@ async def test_get_review_batches_returns_recent_items():
 
     assert batches[0]["batch_id"] == "review-batch:1"
     assert batches[0]["applied_count"] == 2
+
+
+async def test_create_feedback_buttons_stores_prompt_and_appends_callbacks():
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.set = AsyncMock()
+        buttons = await create_feedback_buttons(
+            trace_key="corr-1",
+            user_id="user-1",
+            chat_id="chat-1",
+            channel="telegram",
+            existing_buttons=[{"text": "Undo", "callback": "undo:last"}],
+        )
+
+    assert buttons[0]["callback"] == "undo:last"
+    assert buttons[1]["callback"].startswith("feedback:")
+    assert buttons[2]["callback"].startswith("feedback:")
+    mock_redis.set.assert_awaited_once()
+
+
+async def test_submit_user_feedback_persists_record():
+    prompt_payload = {
+        "token": "token-1",
+        "trace_key": "corr-1",
+        "user_id": "user-1",
+        "chat_id": "chat-1",
+        "channel": "telegram",
+        "created_at": "2026-03-12T00:00:00+00:00",
+    }
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.get = AsyncMock(return_value=json.dumps(prompt_payload))
+        mock_redis.hset = AsyncMock()
+        mock_redis.lpush = AsyncMock()
+        mock_redis.ltrim = AsyncMock()
+        mock_redis.delete = AsyncMock()
+        result = await submit_user_feedback(
+            token="token-1",
+            feedback="helpful",
+            user_id="user-1",
+            channel="telegram",
+            chat_id="chat-1",
+            message_id="cb-1",
+        )
+
+    assert result["trace_key"] == "corr-1"
+    assert result["feedback"] == "helpful"
+    mock_redis.hset.assert_awaited_once()
+    mock_redis.delete.assert_awaited_once()
+
+
+async def test_get_user_feedback_returns_recent_items():
+    items = [
+        '{"token":"token-1","trace_key":"corr-1","feedback":"helpful"}',
+    ]
+    with patch("src.core.conversation_analytics.redis") as mock_redis:
+        mock_redis.lrange = AsyncMock(return_value=items)
+        feedback = await get_user_feedback(limit=1)
+
+    assert feedback[0]["trace_key"] == "corr-1"
+    assert feedback[0]["feedback"] == "helpful"
 
 
 def test_schedule_review_trace_capture_is_safe_without_loop():
@@ -551,6 +614,13 @@ async def test_get_weekly_curation_snapshot_aggregates_reviews():
             "failed_count": 0,
         }
     ]
+    user_feedback = [
+        {
+            "token": "token-1",
+            "trace_key": "corr-1",
+            "feedback": "unhelpful",
+        }
+    ]
     with (
         patch(
             "src.core.conversation_analytics.get_review_results",
@@ -564,13 +634,20 @@ async def test_get_weekly_curation_snapshot_aggregates_reviews():
             "src.core.conversation_analytics.get_review_batches",
             AsyncMock(return_value=review_batches),
         ),
+        patch(
+            "src.core.conversation_analytics.get_user_feedback",
+            AsyncMock(return_value=user_feedback),
+        ),
     ):
         snapshot = await get_weekly_curation_snapshot(limit=5)
 
     assert snapshot["review_result_size"] == 2
     assert snapshot["dataset_candidate_size"] == 1
     assert snapshot["review_batch_size"] == 1
+    assert snapshot["feedback_size"] == 1
     assert snapshot["review_label_counts"]["wrong_route"] == 1
     assert snapshot["review_action_counts"]["follow_up"] == 1
+    assert snapshot["feedback_counts"]["unhelpful"] == 1
     assert snapshot["recent_review_batches"][0]["batch_id"] == "review-batch:1"
+    assert snapshot["recent_feedback"][0]["token"] == "token-1"
     assert snapshot["golden_dialogues"][0]["trace_key"] == "corr-1"

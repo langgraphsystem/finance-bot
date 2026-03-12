@@ -31,6 +31,7 @@ from src.core.conversation_analytics import (
     get_review_batches,
     get_review_queue_snapshot,
     get_review_results,
+    get_user_feedback,
     get_weekly_curation_snapshot,
     ingest_review_trace,
     submit_trace_review,
@@ -44,9 +45,11 @@ from src.core.models.user_profile import UserProfile
 from src.core.models.workspace_membership import WorkspaceMembership
 from src.core.profiles import ProfileLoader
 from src.core.release import (
+    apply_release_override,
     get_release_flag_snapshot,
     get_release_health_snapshot,
     get_release_ops_overview,
+    get_release_override_snapshot,
     get_release_request_plan,
     get_release_rollout_decision,
     log_runtime_event,
@@ -147,6 +150,14 @@ class TraceSuggestionBatchApproval(BaseModel):
     suggested_final_label: str | None = None
     tag: str | None = None
     source: str | None = None
+
+
+class ReleaseOverrideSubmission(BaseModel):
+    actor: str
+    action: str
+    rollout_percent: int | None = None
+    shadow_mode: bool | None = None
+    notes: str = ""
 
 
 def _require_ops_auth(request: Request) -> None:
@@ -1131,6 +1142,32 @@ async def release_ops_decision(request: Request) -> dict[str, Any]:
     return await get_release_rollout_decision()
 
 
+@app.get("/ops/release/overrides")
+async def release_ops_overrides(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return the active release override and recent operator action history."""
+    _require_ops_auth(request)
+    return await get_release_override_snapshot(limit=max(1, min(limit, 100)))
+
+
+@app.post("/ops/release/overrides")
+async def release_ops_apply_override(
+    request: Request,
+    submission: ReleaseOverrideSubmission,
+) -> dict[str, Any]:
+    """Apply a rollout override for canary progression, hold, rollback, or clear."""
+    _require_ops_auth(request)
+    try:
+        return await apply_release_override(
+            actor=submission.actor,
+            action=submission.action,
+            rollout_percent=submission.rollout_percent,
+            shadow_mode=submission.shadow_mode,
+            notes=submission.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.get("/ops/analytics/policy")
 async def analytics_policy(request: Request) -> dict[str, Any]:
     """Return the active analytics sampling policy."""
@@ -1280,6 +1317,18 @@ async def analytics_review_batches(request: Request, limit: int = 25) -> dict[st
         "policy": get_conversation_analytics_policy(),
         "review_batch_size": len(batches),
         "review_batches": batches,
+    }
+
+
+@app.get("/ops/analytics/feedback")
+async def analytics_user_feedback(request: Request, limit: int = 25) -> dict[str, Any]:
+    """Return recent user feedback captured through inline bot actions."""
+    _require_ops_auth(request)
+    feedback_items = await get_user_feedback(limit=max(1, min(limit, 100)))
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "feedback_size": len(feedback_items),
+        "feedback": feedback_items,
     }
 
 

@@ -174,6 +174,46 @@ async def test_release_ops_decision_returns_guidance(mock_dependencies):
     assert data["target_rollout_percent"] == 10
 
 
+async def test_release_ops_overrides_returns_snapshot(mock_dependencies):
+    snapshot = {
+        "active_override": {"rollout_percent": 10, "shadow_mode": True},
+        "action_history": [{"actor": "qa-1", "action": "progress"}],
+        "effective_runtime": {"override_active": True},
+    }
+    with patch("api.main.get_release_override_snapshot", AsyncMock(return_value=snapshot)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/release/overrides?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["active_override"]["rollout_percent"] == 10
+    assert data["action_history"][0]["actor"] == "qa-1"
+
+
+async def test_release_ops_apply_override_returns_result(mock_dependencies):
+    result = {
+        "override": {"rollout_percent": 25, "shadow_mode": True},
+        "effective_runtime": {"override_active": True},
+        "decision": {"next_action": "hold"},
+    }
+    payload = {
+        "actor": "qa-1",
+        "action": "progress",
+        "rollout_percent": 25,
+        "shadow_mode": True,
+        "notes": "expand canary",
+    }
+    with patch("api.main.apply_release_override", AsyncMock(return_value=result)) as mock_apply:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.post("/ops/release/overrides", json=payload)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["override"]["rollout_percent"] == 25
+    assert data["decision"]["next_action"] == "hold"
+    assert mock_apply.await_args.kwargs["actor"] == "qa-1"
+
+
 async def test_analytics_policy_returns_sampling_rules(mock_dependencies):
     policy = {"sample_rates": {"default_success": 10}}
     with patch("api.main.get_conversation_analytics_policy", return_value=policy):
@@ -413,6 +453,30 @@ async def test_analytics_review_batches_returns_snapshot(mock_dependencies):
     assert data["review_batches"][0]["batch_id"] == "review-batch:1"
 
 
+async def test_analytics_feedback_returns_snapshot(mock_dependencies):
+    feedback = [
+        {
+            "token": "token-1",
+            "trace_key": "corr-1",
+            "feedback": "helpful",
+        }
+    ]
+    with (
+        patch("api.main.get_user_feedback", AsyncMock(return_value=feedback)),
+        patch(
+            "api.main.get_conversation_analytics_policy",
+            return_value={"feedback_values": ["helpful", "unhelpful"]},
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/feedback?limit=10")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["feedback_size"] == 1
+    assert data["feedback"][0]["trace_key"] == "corr-1"
+
+
 async def test_analytics_golden_dialogues_returns_snapshot(mock_dependencies):
     golden_dialogues = [
         {"trace_key": "corr-1", "scenario": "general", "input_text": "Привет"},
@@ -438,10 +502,13 @@ async def test_analytics_weekly_curation_returns_snapshot(mock_dependencies):
         "review_result_size": 2,
         "dataset_candidate_size": 1,
         "review_batch_size": 1,
+        "feedback_size": 1,
         "review_label_counts": {"wrong_route": 1},
         "review_action_counts": {"promote_to_dataset": 1},
+        "feedback_counts": {"unhelpful": 1},
         "recent_reviews": [],
         "recent_review_batches": [{"batch_id": "review-batch:1"}],
+        "recent_feedback": [{"token": "token-1"}],
         "golden_dialogues": [],
     }
     with patch("api.main.get_weekly_curation_snapshot", AsyncMock(return_value=snapshot)):
@@ -452,4 +519,5 @@ async def test_analytics_weekly_curation_returns_snapshot(mock_dependencies):
     data = resp.json()
     assert data["review_result_size"] == 2
     assert data["review_batch_size"] == 1
+    assert data["feedback_size"] == 1
     assert data["review_action_counts"]["promote_to_dataset"] == 1
