@@ -165,7 +165,7 @@ _JS_EXTRACT_BOOKING = (
 
 _JS_EXTRACT_GENERIC = (
     "JSON.stringify(Array.from(document.querySelectorAll("
-    "'[data-testid=\"property-card\"], .hotel-card, "
+    '\'[data-testid="property-card"], .hotel-card, '
     ".listing-card, .sr_property_block, "
     "[data-hotelid], .property-card'"
     ")).slice(0,{max_results}).map((c,i)=>{{"
@@ -287,9 +287,7 @@ async def _clear_state(user_id: str) -> None:
 # ── Request Parsing ──────────────────────────────────────────────────────────
 
 
-async def parse_booking_request(
-    task: str, language: str = "en"
-) -> dict[str, Any] | None:
+async def parse_booking_request(task: str, language: str = "en") -> dict[str, Any] | None:
     """Parse natural language booking request into structured data via Gemini Flash.
 
     Returns dict with: city, check_in, check_out, guests, budget_per_night, etc.
@@ -316,9 +314,7 @@ async def parse_booking_request(
         logger.debug("Booking parse raw response: %s", raw)
         parsed = _extract_json_object(raw)
         if not parsed:
-            logger.warning(
-                "Booking parse: failed to extract JSON from response: %.200s", raw
-            )
+            logger.warning("Booking parse: failed to extract JSON from response: %.200s", raw)
             return None
 
         # Validate minimum fields
@@ -332,8 +328,12 @@ async def parse_booking_request(
         parsed.setdefault("amenities", [])
         parsed.setdefault("sort_by", "best_value")
 
-        logger.info("Booking parse OK: city=%s, dates=%s-%s", parsed.get("city"),
-                     parsed.get("check_in"), parsed.get("check_out"))
+        logger.info(
+            "Booking parse OK: city=%s, dates=%s-%s",
+            parsed.get("city"),
+            parsed.get("check_in"),
+            parsed.get("check_out"),
+        )
         return parsed
     except Exception as e:
         logger.warning("Failed to parse booking request: %s", e, exc_info=True)
@@ -368,7 +368,9 @@ async def start_flow(
         parsed.setdefault("sort_by", "best_value")
         logger.info(
             "Booking using pre-parsed data: city=%s, dates=%s-%s",
-            parsed.get("city"), parsed.get("check_in"), parsed.get("check_out"),
+            parsed.get("city"),
+            parsed.get("check_in"),
+            parsed.get("check_out"),
         )
     else:
         parsed = await parse_booking_request(task, language)
@@ -432,18 +434,18 @@ async def start_flow(
 
     buttons = []
     for domain in _SUPPORTED_PLATFORMS:
-        buttons.append({
-            "text": domain,
-            "callback": f"hotel_platform:{flow_id}:{domain}",
-        })
+        buttons.append(
+            {
+                "text": domain,
+                "callback": f"hotel_platform:{flow_id}:{domain}",
+            }
+        )
     buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
 
     return {"text": text, "buttons": buttons}
 
 
-async def _get_price_preview(
-    task: str, parsed: dict, language: str
-) -> str:
+async def _get_price_preview(task: str, parsed: dict, language: str) -> str:
     """Quick Gemini Grounding price preview (2-3 seconds)."""
     from google.genai import types
 
@@ -469,9 +471,7 @@ async def _get_price_preview(
 # ── Platform Selection ───────────────────────────────────────────────────────
 
 
-async def handle_platform_choice(
-    user_id: str, platform: str
-) -> dict[str, Any]:
+async def handle_platform_choice(user_id: str, platform: str) -> dict[str, Any]:
     """Handle user's platform selection.
 
     Returns dict with: action, text, buttons.
@@ -729,14 +729,19 @@ async def _execute_playwright_search(
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-first-run",
-                    "--no-default-browser-check",
-                ],
-            )
+            _args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+            try:
+                browser = await p.chromium.launch(
+                    channel="chrome",
+                    headless=True,
+                    args=_args,
+                )
+            except Exception:
+                browser = await p.chromium.launch(headless=True, args=_args)
             context = await browser.new_context(
                 storage_state=storage_state,
                 viewport={"width": 1280, "height": 900},
@@ -764,15 +769,14 @@ async def _execute_playwright_search(
             # Wait for property cards
             try:
                 await page.wait_for_selector(
-                    '[data-testid="property-card"]', timeout=15000,
+                    '[data-testid="property-card"]',
+                    timeout=15000,
                 )
             except Exception:
                 await page.wait_for_timeout(5000)
 
             # Extract hotel data
-            raw_hotels = await page.evaluate(
-                _BOOKING_EXTRACT_JS % MAX_RESULTS
-            )
+            raw_hotels = await page.evaluate(_BOOKING_EXTRACT_JS % MAX_RESULTS)
 
             if raw_hotels:
                 for h in raw_hotels:
@@ -789,18 +793,20 @@ async def _execute_playwright_search(
                         if m2:
                             review_count = m2.group(1)
 
-                    hotels.append({
-                        "name": h["name"],
-                        "price_per_night": h.get("price_per_night", ""),
-                        "total_price": "",
-                        "rating": rating,
-                        "review_count": review_count,
-                        "distance": h.get("distance", ""),
-                        "amenities": [],
-                        "cancellation": h.get("cancellation", ""),
-                        "description": h.get("room_type", ""),
-                        "url": h.get("url", ""),
-                    })
+                    hotels.append(
+                        {
+                            "name": h["name"],
+                            "price_per_night": h.get("price_per_night", ""),
+                            "total_price": "",
+                            "rating": rating,
+                            "review_count": review_count,
+                            "distance": h.get("distance", ""),
+                            "amenities": [],
+                            "cancellation": h.get("cancellation", ""),
+                            "description": h.get("room_type", ""),
+                            "url": h.get("url", ""),
+                        }
+                    )
 
             # Fetch detailed info for each hotel
             if fetch_details and hotels:
@@ -812,8 +818,7 @@ async def _execute_playwright_search(
                         details = await _get_hotel_details_pw(context, url)
                         hotels[i].update(details)
                     except Exception as e:
-                        logger.warning("Failed to get details for %s: %s",
-                                       hotel.get("name"), e)
+                        logger.warning("Failed to get details for %s: %s", hotel.get("name"), e)
 
             await browser.close()
 
@@ -933,14 +938,19 @@ async def _execute_playwright_booking(
         return result
 
     async with _ap() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
-        )
+        _args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ]
+        try:
+            browser = await p.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=_args,
+            )
+        except Exception:
+            browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
                 storage_state=storage_state,
@@ -981,22 +991,18 @@ async def _execute_playwright_booking(
 
             # Click "I'll reserve"
             reserve_btn = page.locator(
-                'button.js-reservation-button, '
-                "button:has-text(\"I'll reserve\"), "
+                "button.js-reservation-button, "
+                'button:has-text("I\'ll reserve"), '
                 'button:has-text("Reserve")'
             ).first
 
             if await reserve_btn.is_visible(timeout=5000):
                 try:
-                    async with page.expect_navigation(
-                        wait_until="domcontentloaded", timeout=15000
-                    ):
+                    async with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
                         await reserve_btn.click()
                 except Exception:
                     try:
-                        await page.wait_for_load_state(
-                            "domcontentloaded", timeout=10000
-                        )
+                        await page.wait_for_load_state("domcontentloaded", timeout=10000)
                     except Exception:
                         pass
                     await page.wait_for_timeout(3000)
@@ -1041,9 +1047,7 @@ async def _execute_playwright_booking(
 
             # Click through booking form steps
             for _step in range(4):
-                await page.evaluate(
-                    "window.scrollTo(0, document.body.scrollHeight)"
-                )
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await page.wait_for_timeout(1000)
 
                 btn = page.locator(
@@ -1060,15 +1064,10 @@ async def _execute_playwright_booking(
                 await btn.scroll_into_view_if_needed()
                 await page.wait_for_timeout(500)
 
-                is_complete = any(
-                    w in btn_text.lower()
-                    for w in ("complete", "finish", "book now")
-                )
+                is_complete = any(w in btn_text.lower() for w in ("complete", "finish", "book now"))
 
                 try:
-                    async with page.expect_navigation(
-                        wait_until="domcontentloaded", timeout=15000
-                    ):
+                    async with page.expect_navigation(wait_until="domcontentloaded", timeout=15000):
                         await btn.click()
                 except Exception:
                     await page.wait_for_timeout(3000)
@@ -1095,9 +1094,7 @@ async def _execute_playwright_booking(
                             iframe_info = await frame.evaluate(_IFRAME_CARD_DETECT_JS)
                             if iframe_info.get("saved_card"):
                                 saved_card = iframe_info["saved_card"]
-                                payment["needs_cvv"] = iframe_info.get(
-                                    "needs_cvv", True
-                                )
+                                payment["needs_cvv"] = iframe_info.get("needs_cvv", True)
                         except Exception:
                             pass
                         break
@@ -1143,39 +1140,31 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
 
     # ── Try Playwright first (fast, stable) ──
     if site == "booking.com":
-        storage_state = await browser_service.get_storage_state(
-            user_id, site
-        )
+        storage_state = await browser_service.get_storage_state(user_id, site)
         if storage_state:
-            logger.info("Running Playwright search for user %s on %s",
-                        user_id, site)
+            logger.info("Running Playwright search for user %s on %s", user_id, site)
             try:
                 results = await asyncio.wait_for(
                     _execute_playwright_search(
-                        storage_state, parsed, site, fetch_details=True,
+                        storage_state,
+                        parsed,
+                        site,
+                        fetch_details=True,
                     ),
                     timeout=SEARCH_TIMEOUT,
                 )
             except TimeoutError:
-                logger.warning("Playwright search timed out for user %s",
-                               user_id)
+                logger.warning("Playwright search timed out for user %s", user_id)
                 results = []
 
             if results:
                 state["step"] = "awaiting_selection"
                 state["results"] = results[:MAX_RESULTS]
                 await _set_state(user_id, state)
-                text = _format_results_telegram(
-                    results[:MAX_RESULTS], site, parsed
-                )
-                buttons = _build_result_buttons(
-                    results[:MAX_RESULTS], flow_id
-                )
-                return {
-                    "action": "results", "text": text, "buttons": buttons
-                }
-            logger.info("Playwright returned no results, trying GPT-5.4 "
-                        "Computer Use")
+                text = _format_results_telegram(results[:MAX_RESULTS], site, parsed)
+                buttons = _build_result_buttons(results[:MAX_RESULTS], flow_id)
+                return {"action": "results", "text": text, "buttons": buttons}
+            logger.info("Playwright returned no results, trying GPT-5.4 Computer Use")
 
             # ── GPT-5.4 Computer Use (visual browser control) ──
             try:
@@ -1185,7 +1174,9 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
 
                 cu_results = await asyncio.wait_for(
                     execute_computer_use_search(
-                        storage_state, parsed, site,
+                        storage_state,
+                        parsed,
+                        site,
                     ),
                     timeout=SEARCH_TIMEOUT,
                 )
@@ -1197,17 +1188,10 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
                 state["step"] = "awaiting_selection"
                 state["results"] = cu_results[:MAX_RESULTS]
                 await _set_state(user_id, state)
-                text = _format_results_telegram(
-                    cu_results[:MAX_RESULTS], site, parsed
-                )
-                buttons = _build_result_buttons(
-                    cu_results[:MAX_RESULTS], flow_id
-                )
-                return {
-                    "action": "results", "text": text, "buttons": buttons
-                }
-            logger.info("Computer Use returned no results, falling back to "
-                        "browser-use")
+                text = _format_results_telegram(cu_results[:MAX_RESULTS], site, parsed)
+                buttons = _build_result_buttons(cu_results[:MAX_RESULTS], flow_id)
+                return {"action": "results", "text": text, "buttons": buttons}
+            logger.info("Computer Use returned no results, falling back to browser-use")
 
     # ── Fallback: browser-use ──
     prompt = _build_search_prompt(site, parsed)
@@ -1292,9 +1276,7 @@ async def execute_browser_search(user_id: str) -> dict[str, Any]:
 # ── Selection & Filtering ────────────────────────────────────────────────────
 
 
-async def handle_hotel_selection(
-    user_id: str, index: int
-) -> dict[str, Any]:
+async def handle_hotel_selection(user_id: str, index: int) -> dict[str, Any]:
     """User selected a hotel from results.
 
     Returns dict with: action, text, buttons.
@@ -1329,9 +1311,7 @@ async def handle_hotel_selection(
     }
 
 
-async def handle_text_input(
-    user_id: str, text: str
-) -> dict[str, Any] | None:
+async def handle_text_input(user_id: str, text: str) -> dict[str, Any] | None:
     """Handle free text input during hotel booking flow.
 
     Routes to selection (number/name), sort commands, or returns None if no match.
@@ -1383,9 +1363,7 @@ async def handle_text_input(
         )
         if distance_match:
             landmark = distance_match.group(1).strip()
-            return await handle_sort_change(
-                user_id, "distance", landmark=landmark
-            )
+            return await handle_sort_change(user_id, "distance", landmark=landmark)
 
         return None
 
@@ -1462,9 +1440,7 @@ async def handle_sort_change(
         return {
             "action": "error",
             "text": "Couldn't apply the filter. Here are the previous results.",
-            "buttons": _build_result_buttons(
-                state.get("results", []), flow_id
-            ),
+            "buttons": _build_result_buttons(state.get("results", []), flow_id),
         }
 
     state["step"] = "awaiting_selection"
@@ -1498,7 +1474,7 @@ async def handle_more_results(user_id: str) -> dict[str, Any]:
 
     prompt = (
         f"You are on {_SUPPORTED_PLATFORMS.get(site, f'https://{site}')} "
-        f"viewing hotel search results for \"{parsed.get('city', '')}\".\n\n"
+        f'viewing hotel search results for "{parsed.get("city", "")}".\n\n'
         f"Scroll down or go to page {page} to see more results.\n"
         f"Extract the next {MAX_RESULTS} hotels in the same JSON array format."
     )
@@ -1524,9 +1500,7 @@ async def handle_more_results(user_id: str) -> dict[str, Any]:
         return {
             "action": "error",
             "text": "No more results found. Here are the current options.",
-            "buttons": _build_result_buttons(
-                state.get("results", []), flow_id
-            ),
+            "buttons": _build_result_buttons(state.get("results", []), flow_id),
         }
 
     state["step"] = "awaiting_selection"
@@ -1618,9 +1592,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
                 )
 
                 cu_booking = await asyncio.wait_for(
-                    execute_computer_use_booking(
-                        storage_state, hotel, parsed
-                    ),
+                    execute_computer_use_booking(storage_state, hotel, parsed),
                     timeout=BOOKING_TIMEOUT * 2,
                 )
                 if cu_booking.get("status") not in ("ERROR", None):
@@ -1632,9 +1604,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
     if booking_result:
         pw_status = booking_result.get("status", "")
         booking_url = booking_result.get("booking_url", hotel.get("url", ""))
-        total_price = (
-            booking_result.get("total_price") or hotel.get("total_price", "")
-        )
+        total_price = booking_result.get("total_price") or hotel.get("total_price", "")
         cancellation = hotel.get("cancellation", "")
         saved_card = booking_result.get("saved_card", "")
         prefilled_name = booking_result.get("prefilled_name", "")
@@ -1661,12 +1631,8 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
 
             buttons = []
             if booking_url:
-                buttons.append(
-                    {"text": "Complete booking", "url": booking_url}
-                )
-            buttons.append(
-                {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"}
-            )
+                buttons.append({"text": "Complete booking", "url": booking_url})
+            buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
             return {
                 "action": "payment_handoff",
                 "text": text,
@@ -1693,12 +1659,8 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
 
             buttons = []
             if booking_url:
-                buttons.append(
-                    {"text": "Enter card & complete", "url": booking_url}
-                )
-            buttons.append(
-                {"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"}
-            )
+                buttons.append({"text": "Enter card & complete", "url": booking_url})
+            buttons.append({"text": "Cancel", "callback": f"hotel_cancel:{flow_id}"})
             return {
                 "action": "payment_handoff",
                 "text": text,
@@ -1706,9 +1668,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
             }
 
         if pw_status in ("NOT_ON_BOOKING_PAGE", "NO_URL"):
-            logger.warning(
-                "Playwright booking didn't reach form: %s", pw_status
-            )
+            logger.warning("Playwright booking didn't reach form: %s", pw_status)
             # Fall through to browser-use
 
     # ── Browser-Use fallback ──
@@ -1750,9 +1710,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
                 "available at this price.\n\n"
                 "Select a different hotel from the results."
             ),
-            "buttons": _build_result_buttons(
-                state.get("results", []), flow_id
-            ),
+            "buttons": _build_result_buttons(state.get("results", []), flow_id),
         }
 
     if status == "LOGIN_REQUIRED":
@@ -1762,12 +1720,8 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
 
     # Default: treat as payment required (booking.com always needs a card)
     booking_url = booking_data.get("booking_url", hotel.get("url", ""))
-    final_price = booking_data.get(
-        "final_price", hotel.get("total_price", "")
-    )
-    cancellation = booking_data.get(
-        "cancellation_policy", hotel.get("cancellation", "")
-    )
+    final_price = booking_data.get("final_price", hotel.get("total_price", ""))
+    cancellation = booking_data.get("cancellation_policy", hotel.get("cancellation", ""))
 
     state["step"] = "payment_handoff"
     state["booking_data"] = booking_data
@@ -1780,9 +1734,7 @@ async def execute_booking(user_id: str) -> dict[str, Any]:
     )
     if cancellation:
         text += f"Cancellation: {cancellation}\n"
-    text += (
-        "\nPlease complete the booking using the link below."
-    )
+    text += "\nPlease complete the booking using the link below."
 
     buttons = []
     if booking_url:
@@ -1807,9 +1759,7 @@ async def confirm_booking(user_id: str) -> dict[str, Any]:
     booking_data = state.get("booking_data", {})
     booking_url = booking_data.get("booking_url", hotel.get("url", ""))
     saved_card = booking_data.get("saved_card", "")
-    total_price = (
-        booking_data.get("total_price") or hotel.get("total_price", "")
-    )
+    total_price = booking_data.get("total_price") or hotel.get("total_price", "")
 
     state["step"] = "payment_handoff"
     await _set_state(user_id, state)
@@ -1851,8 +1801,7 @@ def _build_search_prompt(site: str, parsed: dict) -> str:
     if parsed.get("budget_per_night"):
         filter_section += f"MAX PRICE: ${parsed['budget_per_night']} per night\n"
         filter_steps += (
-            "- Apply a price filter if available "
-            f"(max ${parsed['budget_per_night']}/night)\n"
+            f"- Apply a price filter if available (max ${parsed['budget_per_night']}/night)\n"
         )
 
     if parsed.get("star_rating"):
@@ -1866,9 +1815,7 @@ def _build_search_prompt(site: str, parsed: dict) -> str:
 
     if parsed.get("distance_from"):
         filter_section += f"NEAR: {parsed['distance_from']}\n"
-        filter_steps += (
-            f"- Sort by distance from {parsed['distance_from']} if possible\n"
-        )
+        filter_steps += f"- Sort by distance from {parsed['distance_from']} if possible\n"
 
     sort_map = {
         "price": "- Sort results by price: lowest first\n",
@@ -1934,9 +1881,7 @@ def _parse_browser_results(raw_text: str) -> list[dict[str, Any]]:
     return []
 
 
-async def _gemini_parse_fallback(
-    raw_text: str, language: str
-) -> list[dict[str, Any]]:
+async def _gemini_parse_fallback(raw_text: str, language: str) -> list[dict[str, Any]]:
     """Use Gemini Flash to parse unstructured browser output into hotel JSON."""
     from src.core.llm.clients import generate_text
 
@@ -1995,9 +1940,7 @@ def _validate_results(results: list) -> list[dict[str, Any]]:
             if rating_match:
                 # Extract review count if embedded in rating string
                 if not hotel["review_count"]:
-                    count_match = re.search(
-                        r"([\d,]+)\s*review", hotel["rating"]
-                    )
+                    count_match = re.search(r"([\d,]+)\s*review", hotel["rating"])
                     if count_match:
                         hotel["review_count"] = count_match.group(1)
                 hotel["rating"] = rating_match.group(1)
@@ -2020,9 +1963,7 @@ def _format_preview_telegram(raw: str, city: str) -> str:
     return text
 
 
-def _format_results_telegram(
-    results: list[dict], site: str, parsed: dict
-) -> str:
+def _format_results_telegram(results: list[dict], site: str, parsed: dict) -> str:
     """Format hotel search results as Telegram HTML."""
     if not results:
         return f"No hotels found on <b>{site}</b>."
@@ -2145,9 +2086,7 @@ def _format_booking_success(confirmation: dict, hotel: dict) -> str:
     return text
 
 
-def _build_result_buttons(
-    results: list[dict], flow_id: str
-) -> list[dict[str, str]]:
+def _build_result_buttons(results: list[dict], flow_id: str) -> list[dict[str, str]]:
     """Build inline buttons for hotel search results."""
     buttons = []
     for i, r in enumerate(results):
@@ -2158,24 +2097,32 @@ def _build_result_buttons(
             label += f" — {price}"
         if len(label) > 50:
             label = label[:47] + "..."
-        buttons.append({
-            "text": label,
-            "callback": f"hotel_select:{flow_id}:{i}",
-        })
+        buttons.append(
+            {
+                "text": label,
+                "callback": f"hotel_select:{flow_id}:{i}",
+            }
+        )
 
     # Sort buttons
-    buttons.append({
-        "text": "Sort: price | rating | distance",
-        "callback": f"hotel_sort:{flow_id}:price",
-    })
-    buttons.append({
-        "text": "More results",
-        "callback": f"hotel_more:{flow_id}",
-    })
-    buttons.append({
-        "text": "Cancel",
-        "callback": f"hotel_cancel:{flow_id}",
-    })
+    buttons.append(
+        {
+            "text": "Sort: price | rating | distance",
+            "callback": f"hotel_sort:{flow_id}:price",
+        }
+    )
+    buttons.append(
+        {
+            "text": "More results",
+            "callback": f"hotel_more:{flow_id}",
+        }
+    )
+    buttons.append(
+        {
+            "text": "Cancel",
+            "callback": f"hotel_cancel:{flow_id}",
+        }
+    )
     return buttons
 
 

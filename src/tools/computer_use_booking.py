@@ -30,10 +30,10 @@ logger = logging.getLogger(__name__)
 
 VIEWPORT_W = 1440
 VIEWPORT_H = 900
-MAX_STEPS = 40          # max computer_call rounds per task
-STEP_TIMEOUT = 300.0    # total timeout for entire CU session (seconds)
-ACTION_PAUSE = 0.8      # pause after each action group (seconds)
-AFTER_NAVIGATE_PAUSE = 3.0   # pause after page navigation
+MAX_STEPS = 40  # max computer_call rounds per task
+STEP_TIMEOUT = 300.0  # total timeout for entire CU session (seconds)
+ACTION_PAUSE = 0.8  # pause after each action group (seconds)
+AFTER_NAVIGATE_PAUSE = 3.0  # pause after page navigation
 
 _PLAYWRIGHT_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -278,14 +278,19 @@ async def execute_computer_use_search(
     hotels: list[dict[str, Any]] = []
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
-        )
+        _args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ]
+        try:
+            browser = await p.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=_args,
+            )
+        except Exception:
+            browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
                 storage_state=storage_state,
@@ -346,18 +351,20 @@ def _parse_cu_hotel_results(raw: str) -> list[dict[str, Any]]:
         for item in data:
             if not isinstance(item, dict) or not item.get("name"):
                 continue
-            hotels.append({
-                "name": str(item.get("name", "")),
-                "price_per_night": str(item.get("price_per_night", "")),
-                "total_price": str(item.get("total_price", "")),
-                "rating": str(item.get("rating", "")),
-                "review_count": str(item.get("review_count", "")),
-                "distance": str(item.get("distance", "")),
-                "amenities": item.get("amenities", []),
-                "cancellation": str(item.get("cancellation", "")),
-                "description": str(item.get("description", "")),
-                "url": str(item.get("url", "")),
-            })
+            hotels.append(
+                {
+                    "name": str(item.get("name", "")),
+                    "price_per_night": str(item.get("price_per_night", "")),
+                    "total_price": str(item.get("total_price", "")),
+                    "rating": str(item.get("rating", "")),
+                    "review_count": str(item.get("review_count", "")),
+                    "distance": str(item.get("distance", "")),
+                    "amenities": item.get("amenities", []),
+                    "cancellation": str(item.get("cancellation", "")),
+                    "description": str(item.get("description", "")),
+                    "url": str(item.get("url", "")),
+                }
+            )
         return hotels
     except (json.JSONDecodeError, ValueError):
         return []
@@ -419,14 +426,19 @@ async def execute_computer_use_booking(
     result: dict[str, Any] = {"status": "ERROR"}
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
-        )
+        _args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ]
+        try:
+            browser = await p.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=_args,
+            )
+        except Exception:
+            browser = await p.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
                 storage_state=storage_state,

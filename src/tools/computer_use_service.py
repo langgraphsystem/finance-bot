@@ -494,14 +494,19 @@ async def execute_task(
     start_time = time.monotonic()
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
-        )
+        _args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ]
+        try:
+            browser = await playwright.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=_args,
+            )
+        except Exception:
+            browser = await playwright.chromium.launch(headless=True, args=_args)
         try:
             context = await browser.new_context(
                 storage_state=storage_state,

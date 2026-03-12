@@ -202,14 +202,19 @@ async def ensure_session(token: str, *, user_agent: str | None = None) -> Remote
             raise RuntimeError("Playwright is not available") from exc
 
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ],
-        )
+        _args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+        ]
+        try:
+            browser = await playwright.chromium.launch(
+                channel="chrome",
+                headless=True,
+                args=_args,
+            )
+        except Exception:
+            browser = await playwright.chromium.launch(headless=True, args=_args)
         profile = _build_client_profile(user_agent)
         context = await browser.new_context(
             viewport=profile.viewport,
@@ -275,9 +280,7 @@ async def _follow_popup(session: RemoteBrowserSession, new_page: Any) -> None:
 
     async with session.action_lock:
         session.page = new_page
-        logger.info(
-            "browser-connect %s: switched to popup %s", session.token[:8], url
-        )
+        logger.info("browser-connect %s: switched to popup %s", session.token[:8], url)
         await _refresh_session_snapshot(session)
 
 
