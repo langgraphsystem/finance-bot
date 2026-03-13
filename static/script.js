@@ -1,22 +1,22 @@
 document.addEventListener("DOMContentLoaded", () => {
-    const navbar = document.querySelector(".navbar");
-    const menuBtn = document.querySelector(".mobile-menu-btn");
+    const topbar = document.querySelector(".topbar");
+    const menuButton = document.querySelector(".mobile-menu-btn");
     const navLinks = document.querySelector(".nav-links");
     const revealItems = document.querySelectorAll(".reveal");
-    const stageShell = document.querySelector(".stage-shell");
+    const theaterFrame = document.querySelector(".theater-frame");
 
-    const syncNavbarState = () => {
-        if (!navbar) {
+    const syncTopbarState = () => {
+        if (!topbar) {
             return;
         }
-        navbar.classList.toggle("scrolled", window.scrollY > 12);
+        topbar.classList.toggle("scrolled", window.scrollY > 12);
     };
 
-    syncNavbarState();
-    window.addEventListener("scroll", syncNavbarState);
+    syncTopbarState();
+    window.addEventListener("scroll", syncTopbarState);
 
-    if (menuBtn && navLinks) {
-        menuBtn.addEventListener("click", () => {
+    if (menuButton && navLinks) {
+        menuButton.addEventListener("click", () => {
             navLinks.classList.toggle("open");
         });
 
@@ -29,10 +29,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
         anchor.addEventListener("click", (event) => {
-            const target = document.querySelector(anchor.getAttribute("href"));
+            const href = anchor.getAttribute("href");
+            if (!href || href === "#") {
+                return;
+            }
+
+            const target = document.querySelector(href);
             if (!target) {
                 return;
             }
+
             event.preventDefault();
             target.scrollIntoView({ behavior: "smooth", block: "start" });
         });
@@ -47,28 +53,28 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 });
             },
-            { threshold: 0.16, rootMargin: "0px 0px -40px 0px" },
+            { threshold: 0.14, rootMargin: "0px 0px -48px 0px" },
         );
 
         revealItems.forEach((item) => observer.observe(item));
     }
 
-    if (stageShell) {
-        const resetCursor = () => {
-            stageShell.style.setProperty("--cursor-x", "50%");
-            stageShell.style.setProperty("--cursor-y", "50%");
+    if (theaterFrame) {
+        const resetPointer = () => {
+            theaterFrame.style.setProperty("--spot-x", "50%");
+            theaterFrame.style.setProperty("--spot-y", "50%");
         };
 
-        resetCursor();
+        resetPointer();
 
-        stageShell.addEventListener("pointermove", (event) => {
-            const rect = stageShell.getBoundingClientRect();
+        theaterFrame.addEventListener("pointermove", (event) => {
+            const rect = theaterFrame.getBoundingClientRect();
             const x = ((event.clientX - rect.left) / rect.width) * 100;
             const y = ((event.clientY - rect.top) / rect.height) * 100;
-            stageShell.style.setProperty("--cursor-x", `${x}%`);
-            stageShell.style.setProperty("--cursor-y", `${y}%`);
+            theaterFrame.style.setProperty("--spot-x", `${x}%`);
+            theaterFrame.style.setProperty("--spot-y", `${y}%`);
         });
 
-        stageShell.addEventListener("pointerleave", resetCursor);
+        theaterFrame.addEventListener("pointerleave", resetPointer);
     }
 });
