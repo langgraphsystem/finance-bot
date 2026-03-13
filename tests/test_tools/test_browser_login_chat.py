@@ -178,6 +178,62 @@ async def test_detect_next_step_falls_back_to_gemini():
     assert result == "2fa"
 
 
+async def test_skip_password_unknown_defaults_to_2fa_in_handler():
+    """skip_password site with unknown detect → should ask for OTP, not password."""
+    from src.tools.browser_login import _handle_email_step
+
+    state = {
+        "user_id": "u1",
+        "family_id": "f1",
+        "site": "uber.com",
+        "task": "order uber",
+        "step": "awaiting_email",
+        "language": "en",
+    }
+    mock_page = AsyncMock()
+    mock_page.url = "https://auth.uber.com/v2/"
+    mock_page.screenshot = AsyncMock(return_value=b"screenshot")
+    # locator().first.is_visible for form filling
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=True)
+    mock_el.fill = AsyncMock()
+    mock_loc = MagicMock()
+    mock_loc.first = mock_el
+    mock_page.locator = MagicMock(return_value=mock_loc)
+
+    mock_context = AsyncMock()
+    mock_context.on = MagicMock()
+    mock_context.remove_listener = MagicMock()
+
+    session_data = {
+        "page": mock_page,
+        "context": mock_context,
+        "browser": AsyncMock(),
+    }
+
+    with (
+        patch(
+            "src.tools.browser_login._click_next_button",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "src.tools.browser_login._detect_next_step",
+            new_callable=AsyncMock,
+            return_value="unknown",
+        ),
+        patch("src.tools.browser_login._set_login_state", new_callable=AsyncMock),
+    ):
+        result = await _handle_email_step(
+            user_id="u1",
+            state=state,
+            email="+12125551234",
+            session_data=session_data,
+        )
+    assert result["action"] == "ask_2fa"
+    assert "password" not in result["action"]
+    assert result.get("screenshot_bytes") is not None
+
+
 # ---------------------------------------------------------------------------
 # _detect_2fa_method tests
 # ---------------------------------------------------------------------------

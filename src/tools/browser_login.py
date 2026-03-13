@@ -556,6 +556,16 @@ async def _handle_email_step(
                 "site": site,
             }
 
+        # For skip_password sites (Uber), default to OTP even if detection failed
+        if site_config_local.get("skip_password"):
+            state["step"] = "awaiting_2fa"
+            await _set_login_state(user_id, state)
+            return {
+                "action": "ask_2fa",
+                "text": _t("ask_2fa_sms", lang),
+                "screenshot_bytes": screenshot,
+            }
+
         # Default: password page
         state["step"] = "awaiting_password"
         await _set_login_state(user_id, state)
@@ -939,14 +949,27 @@ async def _detect_next_step(page: Any, site_config: dict) -> str:
     """
     # Sites that skip password entirely (Uber OTP flow)
     if site_config.get("skip_password"):
+        # Wait for page to settle after credential submission
+        try:
+            await page.wait_for_load_state("networkidle", timeout=5000)
+        except Exception:
+            pass
         otp_selectors = [
             'input[name="code"]',
             'input[name="otp"]',
             'input[name="verificationCode"]',
             'input[name="PHONE_SMS_OTP"]',
+            'input[name="smsCode"]',
             'input[inputmode="numeric"]',
             'input[autocomplete="one-time-code"]',
             'input[data-testid="verify-code-input-field"]',
+            'input[data-testid="otp-input"]',
+            'input[aria-label*="code"]',
+            'input[aria-label*="Code"]',
+            'input[aria-label*="verification"]',
+            'input[placeholder*="code"]',
+            'input[placeholder*="Code"]',
+            'input[type="tel"][maxlength="1"]',
         ]
         for selector in otp_selectors:
             try:
