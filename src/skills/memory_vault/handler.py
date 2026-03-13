@@ -4,7 +4,6 @@ import logging
 import re
 from typing import Any
 
-from src.core.memory.governance import explicit_memory_metadata
 from src.core.observability import observe
 from src.core.personalization import (
     has_all_marker,
@@ -182,16 +181,12 @@ class MemoryVaultSkill:
         context,
         intent_data: dict[str, Any],
     ) -> SkillResult:
-        from src.core.memory.mem0_client import (
-            add_memory,
-            delete_memory,
-            get_all_memories,
-            search_memories_all_namespaces,
-        )
+        from src.core.memory.mem0_client import delete_memory, get_all_memories
         from src.core.memory.registry import (
             delete_registry_entry,
             list_memory_registry,
             search_memory_registry,
+            write_canonical_memory,
         )
 
         lang = getattr(context, "language", None) or "ru"
@@ -214,16 +209,16 @@ class MemoryVaultSkill:
 
         if intent == "memory_save":
             content = intent_data.get("memory_query") or message.text or ""
-            return await self._handle_save(context, content, add_memory, lang)
+            return await self._handle_save(context, content, lang=lang)
 
         if intent == "memory_update":
             content = intent_data.get("memory_query") or message.text or ""
             return await self._handle_update(
                 context,
                 content,
-                search_memories_all_namespaces,
-                delete_memory,
-                add_memory,
+                search_memory_registry,
+                delete_registry_entry,
+                write_canonical_memory,
                 lang,
             )
 
@@ -427,19 +422,25 @@ class MemoryVaultSkill:
 
         return deleted
 
-    async def _handle_save(self, context, content, add_memory, lang: str) -> SkillResult:
+    async def _handle_save(
+        self,
+        context,
+        content,
+        add_memory=None,
+        lang: str = "ru",
+    ) -> SkillResult:
+        from src.core.memory.registry import write_canonical_memory
+
         content = content.strip()
         if not content:
             return SkillResult(response_text=_mv("save_ask", lang))
 
         category = _infer_explicit_memory_category(content)
-        await add_memory(
-            content=content,
-            user_id=context.user_id,
-            metadata=explicit_memory_metadata(
-                source="memory_vault",
-                category=category,
-            ),
+        await write_canonical_memory(
+            context.user_id,
+            content,
+            source="memory_vault",
+            category=category,
         )
         return SkillResult(response_text=_mv("saved", lang, text=content[:100]))
 
@@ -447,9 +448,9 @@ class MemoryVaultSkill:
         self,
         context,
         content,
-        search_memories,
-        delete_memory,
-        add_memory,
+        search_memory_registry,
+        delete_registry_entry,
+        write_canonical_memory,
         lang: str,
     ) -> SkillResult:
         """Update an existing memory fact."""
@@ -457,39 +458,36 @@ class MemoryVaultSkill:
         if not content:
             return SkillResult(response_text=_mv("update_ask", lang))
 
-        matches = await search_memories(content, context.user_id, limit=3)
+        matches = await search_memory_registry(context.user_id, content, limit=3)
         if matches:
             top = matches[0]
-            mem_id = top.get("id")
-            old_text = top.get("memory", top.get("text", ""))
+            old_text = top.get("text") or top.get("memory", top.get("display_text", ""))
             category = _infer_explicit_memory_category(content, top)
-            if mem_id:
-                try:
-                    await delete_memory(mem_id, context.user_id)
-                except Exception:
-                    logger.warning("Failed to delete old memory for update: %s", mem_id)
-
-            await add_memory(
-                content=content,
-                user_id=context.user_id,
-                metadata=explicit_memory_metadata(
-                    source="memory_update",
-                    category=category,
-                    existing_memory=top,
-                ),
+            result = await write_canonical_memory(
+                context.user_id,
+                content,
+                source="memory_update",
+                category=category,
+                existing_memory=top,
             )
+            if top.get("store") == "mem0" and result.get("store") == "mem0":
+                try:
+                    await delete_registry_entry(context.user_id, top)
+                except Exception:
+                    logger.warning(
+                        "Failed to delete superseded memory for update: %s",
+                        top.get("id"),
+                    )
             return SkillResult(
                 response_text=_mv("updated", lang, old=old_text[:80], new=content[:80])
             )
 
         category = _infer_explicit_memory_category(content)
-        await add_memory(
-            content=content,
-            user_id=context.user_id,
-            metadata=explicit_memory_metadata(
-                source="memory_update",
-                category=category,
-            ),
+        await write_canonical_memory(
+            context.user_id,
+            content,
+            source="memory_update",
+            category=category,
         )
         return SkillResult(response_text=_mv("saved_new", lang, text=content[:100]))
 

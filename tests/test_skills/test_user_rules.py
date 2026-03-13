@@ -58,10 +58,10 @@ async def test_user_rules_saves_bot_name():
     ctx = _MockContext()
     with (
         patch(
-            "src.core.identity.immediate_identity_update",
+            "src.core.memory.registry.write_canonical_memory",
             new_callable=AsyncMock,
-        ) as mock_identity,
-        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add_memory,
+            return_value={"store": "identity"},
+        ) as mock_write,
     ):
         result = await skill.execute(
             _MockMessage(text="Тебя зовут Хюррем"),
@@ -70,8 +70,12 @@ async def test_user_rules_saves_bot_name():
         )
 
     assert "Хюррем" in result.response_text
-    mock_identity.assert_awaited_once_with("u1", "bot_identity", "Тебя зовут Хюррем")
-    mock_add_memory.assert_awaited_once()
+    mock_write.assert_awaited_once_with(
+        "u1",
+        "Тебя зовут Хюррем",
+        source="user_rules",
+        category="bot_identity",
+    )
 
 
 async def test_user_rules_delegates_forget_command_to_memory_vault():
@@ -80,10 +84,9 @@ async def test_user_rules_delegates_forget_command_to_memory_vault():
 
     with (
         patch(
-            "src.core.identity.immediate_identity_update",
+            "src.core.memory.registry.write_canonical_memory",
             new_callable=AsyncMock,
-        ) as mock_identity,
-        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add_memory,
+        ) as mock_write,
         patch(
             "src.skills.memory_vault.handler.skill.execute",
             new_callable=AsyncMock,
@@ -98,18 +101,17 @@ async def test_user_rules_delegates_forget_command_to_memory_vault():
 
     assert result is delegated
     mock_memory_forget.assert_awaited_once()
-    mock_identity.assert_not_awaited()
-    mock_add_memory.assert_not_awaited()
+    mock_write.assert_not_awaited()
 
 
 async def test_user_rules_saves_user_name():
     ctx = _MockContext()
     with (
         patch(
-            "src.core.identity.immediate_identity_update",
+            "src.core.memory.registry.write_canonical_memory",
             new_callable=AsyncMock,
-        ) as mock_identity,
-        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add_memory,
+            return_value={"store": "identity"},
+        ) as mock_write,
     ):
         result = await skill.execute(
             _MockMessage(text="Меня зовут Манас"),
@@ -118,5 +120,9 @@ async def test_user_rules_saves_user_name():
         )
 
     assert "Манас" in result.response_text
-    mock_identity.assert_awaited_once_with("u1", "user_identity", "Меня зовут Манас")
-    mock_add_memory.assert_awaited_once()
+    mock_write.assert_awaited_once_with(
+        "u1",
+        "Меня зовут Манас",
+        source="user_rules",
+        category="user_identity",
+    )

@@ -1380,6 +1380,26 @@ async def assemble_context(
             logger.warning("Mem0 load timed out after 5s for user %s", user_id)
             memories = []
         if memories:
+            try:
+                from src.core.memory.registry import filter_shadowed_memories
+
+                memories, structured_shadowed = filter_shadowed_memories(
+                    memories,
+                    identity=identity,
+                    rules=user_rules,
+                )
+                if structured_shadowed:
+                    memory_trace.extend(
+                        _trace_memory_candidates(
+                            "mem0",
+                            structured_shadowed,
+                            status="suppressed",
+                            reason="shadowed_by_structured_memory",
+                            overridden_by="structured_memory",
+                        )
+                    )
+            except Exception as e:
+                logger.debug("Structured shadow suppression failed: %s", e)
             memories, suppressed_memories = _apply_session_buffer_precedence(memories, buffer_facts)
             # Pre-trim to per-layer budget
             memories, pretrimmed_memories = _trim_memories_with_drops(memories, budget_mem)

@@ -614,6 +614,46 @@ class TestAssembleContext:
         assert session_entries[0]["precedence"] < suppressed[0]["precedence"]
 
     @pytest.mark.asyncio
+    async def test_core_identity_suppresses_shadowed_mem0_identity_fact(self, mock_deps):
+        mock_deps["mem0"].search_memories_multi_domain.return_value = [
+            {
+                "id": "mem-name-1",
+                "memory": "My name is Alice",
+                "metadata": {"category": "user_identity", "domain": "core"},
+                "score": 0.9,
+            },
+            {
+                "id": "mem-note-1",
+                "memory": "Likes matcha",
+                "metadata": {"category": "life_note", "domain": "life"},
+                "score": 0.7,
+            },
+        ]
+
+        with patch(
+            "src.core.identity.get_core_identity",
+            new_callable=AsyncMock,
+            return_value={"name": "Alice"},
+        ):
+            result = await assemble_context(
+                user_id="user-1",
+                family_id="family-1",
+                current_message="hello",
+                intent="onboarding",
+                system_prompt="prompt",
+            )
+
+        memory_ids = {item.get("id") for item in result.memories}
+        assert "mem-name-1" not in memory_ids
+        assert "mem-note-1" in memory_ids
+        assert any(
+            entry.get("id") == "mem-name-1"
+            and entry.get("status") == "suppressed"
+            and entry.get("reason") == "shadowed_by_structured_memory"
+            for entry in result.memory_trace
+        )
+
+    @pytest.mark.asyncio
     async def test_unknown_intent_falls_back_to_general_chat(self, mock_deps):
         result = await assemble_context(
             user_id="user-1",

@@ -42,6 +42,7 @@ from src.core.memory.registry import (  # noqa: E402
     delete_registry_entry,
     list_memory_registry,
     search_memory_registry,
+    write_canonical_memory,
 )
 
 
@@ -133,6 +134,105 @@ async def test_search_memory_registry_merges_mem0_and_structured_matches():
         matches = await search_memory_registry("user-1", "coffee", limit=5)
 
     assert {entry["id"] for entry in matches} == {"mem0:mem-1", "summary:3"}
+
+
+async def test_list_memory_registry_hides_shadowed_mem0_identity_duplicates():
+    user_id = str(uuid.uuid4())
+    _, ctx = _summary_context([])
+
+    with (
+        patch(
+            "src.core.memory.registry.identity_store.get_core_identity",
+            new_callable=AsyncMock,
+            return_value={"name": "Alice"},
+        ),
+        patch(
+            "src.core.memory.registry.identity_store.get_user_rules",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "src.core.memory.registry.mem0_client.get_all_memories",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "id": "mem-shadowed",
+                    "memory": "My name is Alice",
+                    "metadata": {"category": "user_identity"},
+                },
+                {
+                    "id": "mem-keep",
+                    "memory": "Likes green tea",
+                    "metadata": {"category": "life_note"},
+                },
+            ],
+        ),
+        patch("src.core.memory.registry.async_session", return_value=ctx),
+    ):
+        entries = await list_memory_registry(user_id)
+
+    entry_ids = {entry["id"] for entry in entries}
+    assert "mem0:mem-shadowed" not in entry_ids
+    assert "mem0:mem-keep" in entry_ids
+
+
+async def test_write_canonical_memory_updates_structured_store_and_cleans_duplicates():
+    with (
+        patch(
+            "src.core.memory.registry.identity_store.get_core_identity",
+            new_callable=AsyncMock,
+            side_effect=[{}, {"name": "Alice"}],
+        ),
+        patch(
+            "src.core.memory.registry.identity_store.get_user_rules",
+            new_callable=AsyncMock,
+            side_effect=[[], []],
+        ),
+        patch(
+            "src.core.memory.registry.identity_store.immediate_identity_update",
+            new_callable=AsyncMock,
+        ) as mock_update,
+        patch(
+            "src.core.memory.registry.cleanup_shadowed_mem0_memories",
+            new_callable=AsyncMock,
+            return_value=2,
+        ) as mock_cleanup,
+    ):
+        result = await write_canonical_memory(
+            "user-1",
+            "My name is Alice",
+            source="memory_vault",
+            category="user_identity",
+        )
+
+    assert result["store"] == "identity"
+    assert result["updated_fields"] == ["name"]
+    assert result["deleted_duplicates"] == 2
+    mock_update.assert_awaited_once_with("user-1", "user_identity", "My name is Alice")
+    mock_cleanup.assert_awaited_once()
+
+
+async def test_write_canonical_memory_versions_nonstructured_mem0_replacements():
+    with patch(
+        "src.core.memory.registry.mem0_client.add_memory",
+        new_callable=AsyncMock,
+        return_value={"id": "mem-new"},
+    ) as mock_add:
+        await write_canonical_memory(
+            "user-1",
+            "Remember this note",
+            source="memory_update",
+            category="life_note",
+            existing_memory={
+                "id": "mem-old",
+                "source_id": "mem-old",
+                "metadata": {"category": "life_note", "version": 2},
+            },
+        )
+
+    call_kwargs = mock_add.call_args.kwargs
+    assert call_kwargs["metadata"]["version"] == 3
+    assert call_kwargs["metadata"]["supersedes"] == "mem-old"
 
 
 async def test_delete_registry_entry_deletes_summary_with_provided_session():

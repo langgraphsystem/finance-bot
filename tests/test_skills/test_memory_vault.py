@@ -275,18 +275,24 @@ async def test_memory_update_preserves_existing_category():
     ctx = _MockContext()
     matches = [
         {
-            "id": "m1",
-            "memory": "My name is Alice",
+            "id": "mem0:m1",
+            "source_id": "m1",
+            "store": "mem0",
+            "text": "My name is Alice",
             "metadata": {"category": "user_identity", "source": "memory_vault"},
         }
     ]
 
     with (
-        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add,
+        patch(
+            "src.core.memory.registry.write_canonical_memory",
+            new_callable=AsyncMock,
+            return_value={"store": "identity"},
+        ) as mock_write,
         patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
         patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
         patch(
-            "src.core.memory.mem0_client.search_memories_all_namespaces",
+            "src.core.memory.registry.search_memory_registry",
             new_callable=AsyncMock,
             return_value=matches,
         ),
@@ -299,8 +305,42 @@ async def test_memory_update_preserves_existing_category():
         )
 
     assert "updated" in result.response_text.lower()
-    call_kwargs = mock_add.call_args.kwargs
-    assert call_kwargs["metadata"]["category"] == "user_identity"
+    mock_write.assert_awaited_once_with(
+        "u1",
+        "My name is Alicia",
+        source="memory_update",
+        category="user_identity",
+        existing_memory=matches[0],
+    )
+
+
+async def test_memory_save_user_identity_routes_to_canonical_store():
+    ctx = _MockContext()
+    with (
+        patch(
+            "src.core.memory.registry.write_canonical_memory",
+            new_callable=AsyncMock,
+            return_value={"store": "identity"},
+        ) as mock_write,
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock) as mock_add,
+        patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_all_memories", new_callable=AsyncMock),
+    ):
+        result = await skill.execute(
+            _MockMessage(text="My name is Alice"),
+            ctx,
+            {"_intent": "memory_save", "memory_query": "My name is Alice"},
+        )
+
+    assert "saved" in result.response_text.lower()
+    mock_write.assert_awaited_once_with(
+        "u1",
+        "My name is Alice",
+        source="memory_vault",
+        category="user_identity",
+    )
+    mock_add.assert_not_awaited()
 
 
 async def test_memory_forget_ignores_misrouted_calendar_delete_request():

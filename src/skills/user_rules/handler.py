@@ -23,10 +23,9 @@ class UserRuleSkill(BaseSkill):
     async def execute(self, message, context, intent_data=None) -> SkillResult:  # noqa: ANN001
         from src.core.identity import (
             get_user_rules,
-            immediate_identity_update,
             is_valid_user_rule,
         )
-        from src.core.memory.mem0_client import add_memory
+        from src.core.memory.registry import write_canonical_memory
         from src.skills.memory_vault.handler import skill as memory_vault_skill
 
         text = (intent_data or {}).get("rule_text") or message.text or ""
@@ -48,14 +47,11 @@ class UserRuleSkill(BaseSkill):
         rule_type = _classify_rule(rule_text)
 
         if rule_type == "bot_name":
-            await immediate_identity_update(user_id, "bot_identity", rule_text)
-            # Also save to Mem0 for long-term
-            await add_memory(
+            await write_canonical_memory(
+                user_id,
                 rule_text,
-                user_id=user_id,
                 source="user_rules",
                 category="bot_identity",
-                memory_type="explicit",
             )
             bot_name = _extract_name(rule_text)
             return SkillResult(
@@ -63,13 +59,11 @@ class UserRuleSkill(BaseSkill):
             )
 
         if rule_type == "user_name":
-            await immediate_identity_update(user_id, "user_identity", rule_text)
-            await add_memory(
+            await write_canonical_memory(
+                user_id,
                 rule_text,
-                user_id=user_id,
                 source="user_rules",
                 category="user_identity",
-                memory_type="explicit",
             )
             user_name = _extract_name(rule_text)
             return SkillResult(
@@ -81,13 +75,11 @@ class UserRuleSkill(BaseSkill):
             logger.info("Rejected invalid user rule text: %s", rule_text[:80])
             return SkillResult(response_text=_msg("invalid_rule", language))
 
-        await immediate_identity_update(user_id, "user_rule", rule_text)
-        await add_memory(
+        await write_canonical_memory(
+            user_id,
             rule_text,
-            user_id=user_id,
             source="user_rules",
             category="user_rule",
-            memory_type="explicit",
         )
 
         current_rules = await get_user_rules(user_id)

@@ -13,13 +13,16 @@ from sqlalchemy import delete, select
 import src.core.identity as identity_store
 import src.core.memory.mem0_client as mem0_client
 from src.core.db import async_session
-from src.core.memory.governance import normalize_memory_metadata
+from src.core.memory.governance import explicit_memory_metadata, normalize_memory_metadata
 from src.core.models.session_summary import SessionSummary
 
 logger = logging.getLogger(__name__)
 
 REGISTRY_STORES = frozenset({"mem0", "identity", "rule", "summary"})
 _STORE_PRECEDENCE = {"identity": 0, "rule": 1, "mem0": 2, "summary": 3}
+CANONICAL_STRUCTURED_CATEGORIES = frozenset(
+    {"user_identity", "bot_identity", "user_rule", "user_preference"}
+)
 
 _IDENTITY_CATEGORY_BY_FIELD = {
     "name": "user_identity",
@@ -62,6 +65,240 @@ def _registry_sort_key(entry: dict[str, Any]) -> tuple[int, str, str]:
 def _rule_registry_id(rule: str) -> str:
     digest = hashlib.sha1(rule.encode("utf-8")).hexdigest()[:12]
     return f"rule:{digest}"
+
+
+def _rule_slot(rule: str) -> str:
+    return f"rule:{_normalize_text(rule)}"
+
+
+def _identity_slot(field: str) -> str:
+    return f"identity:{field}"
+
+
+def _infer_identity_field_from_text(text: str, category: str) -> str | None:
+    lower = _normalize_text(text)
+    if category == "bot_identity":
+        if any(marker in lower for marker in ("роль", "role", "bot role", "your role")):
+            return "bot_role"
+        return "bot_name"
+
+    if category == "user_preference":
+        if any(
+            marker in lower
+            for marker in (
+                "на русском",
+                "по-русски",
+                "на английском",
+                "по-английски",
+                "in english",
+                "in russian",
+                "на испанском",
+                "en español",
+            )
+        ):
+            return "response_language"
+        return "communication_preferences"
+
+    if any(marker in lower for marker in ("меня зовут", "моё имя", "мое имя", "my name is")):
+        return "name"
+    if any(marker in lower for marker in ("живу в", "город", "city:", "i live in")):
+        return "city"
+    if any(marker in lower for marker in ("работаю", "occupation", "профессия", "i work as")):
+        return "occupation"
+    if any(marker in lower for marker in ("мне ", "i am ", "years old", "лет")):
+        return "age"
+    return None
+
+
+def _mem0_shadow_slot(memory: dict[str, Any]) -> str | None:
+    metadata = memory.get("metadata") or {}
+    category = str(metadata.get("category") or memory.get("category") or "").strip()
+    text = str(memory.get("memory") or memory.get("text") or "").strip()
+    if not category or not text:
+        return None
+
+    if category == "user_rule":
+        return _rule_slot(text)
+
+    if category in {"user_identity", "bot_identity", "user_preference"}:
+        field = _infer_identity_field_from_text(text, category)
+        if field:
+            return _identity_slot(field)
+
+    return None
+
+
+def _structured_shadow_slots(identity: dict[str, Any], rules: list[str]) -> set[str]:
+    slots = {
+        _identity_slot(field)
+        for field, value in (identity or {}).items()
+        if value not in (None, "", [], {})
+    }
+    slots.update(_rule_slot(rule) for rule in (rules or []) if rule)
+    return slots
+
+
+def filter_shadowed_memories(
+    memories: list[dict[str, Any]],
+    *,
+    identity: dict[str, Any] | None = None,
+    rules: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Drop Mem0 facts shadowed by canonical structured profile stores."""
+    shadow_slots = _structured_shadow_slots(identity or {}, rules or [])
+    if not shadow_slots:
+        return list(memories), []
+
+    selected: list[dict[str, Any]] = []
+    shadowed: list[dict[str, Any]] = []
+    for memory in memories:
+        shadow_slot = _mem0_shadow_slot(memory)
+        if shadow_slot and shadow_slot in shadow_slots:
+            suppressed = dict(memory)
+            suppressed["_shadowed_by"] = shadow_slot
+            shadowed.append(suppressed)
+            continue
+        selected.append(memory)
+    return selected, shadowed
+
+
+def _next_explicit_version(existing_memory: dict[str, Any] | None) -> int:
+    if not existing_memory:
+        return 1
+
+    metadata = existing_memory.get("metadata") or {}
+    raw = metadata.get("version") or existing_memory.get("version") or 1
+    try:
+        return int(raw) + 1
+    except (TypeError, ValueError):
+        return 2
+
+
+async def _write_explicit_mem0(
+    user_id: str,
+    content: str,
+    *,
+    source: str,
+    category: str,
+    existing_memory: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    metadata = explicit_memory_metadata(
+        source=source,
+        category=category,
+        existing_memory=existing_memory,
+    )
+    metadata["version"] = _next_explicit_version(existing_memory)
+    supersedes = (
+        (existing_memory or {}).get("source_id")
+        or (existing_memory or {}).get("id")
+    )
+    if supersedes:
+        metadata["supersedes"] = supersedes
+
+    result = await mem0_client.add_memory(
+        content=content,
+        user_id=user_id,
+        metadata=metadata,
+    )
+    return {
+        "store": "mem0",
+        "category": category,
+        "result": result,
+        "metadata": metadata,
+    }
+
+
+async def cleanup_shadowed_mem0_memories(
+    user_id: str,
+    *,
+    identity: dict[str, Any] | None = None,
+    rules: list[str] | None = None,
+    categories: set[str] | None = None,
+) -> int:
+    """Delete Mem0 duplicates shadowed by canonical structured memory."""
+    current_identity = (
+        identity
+        if identity is not None
+        else await identity_store.get_core_identity(user_id)
+    )
+    current_rules = rules if rules is not None else await identity_store.get_user_rules(user_id)
+    memories = await mem0_client.get_all_memories(user_id)
+    _, shadowed = filter_shadowed_memories(memories, identity=current_identity, rules=current_rules)
+
+    deleted = 0
+    for memory in shadowed:
+        metadata = memory.get("metadata") or {}
+        category = metadata.get("category") or memory.get("category")
+        if categories and category not in categories:
+            continue
+        memory_id = memory.get("id")
+        if not memory_id:
+            continue
+        await mem0_client.delete_memory(str(memory_id), user_id)
+        deleted += 1
+    return deleted
+
+
+async def write_canonical_memory(
+    user_id: str,
+    content: str,
+    *,
+    source: str,
+    category: str,
+    existing_memory: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write explicit memory into the canonical store for its category."""
+    normalized_category = str(category or "").strip() or "life_note"
+
+    if normalized_category == "user_rule" and not identity_store.is_valid_user_rule(content):
+        normalized_category = "life_note"
+
+    if normalized_category not in CANONICAL_STRUCTURED_CATEGORIES:
+        return await _write_explicit_mem0(
+            user_id,
+            content,
+            source=source,
+            category=normalized_category,
+            existing_memory=existing_memory,
+        )
+
+    before_identity = await identity_store.get_core_identity(user_id)
+    before_rules = await identity_store.get_user_rules(user_id)
+
+    await identity_store.immediate_identity_update(user_id, normalized_category, content)
+
+    after_identity = await identity_store.get_core_identity(user_id)
+    after_rules = await identity_store.get_user_rules(user_id)
+    updated_fields = [
+        field
+        for field, value in after_identity.items()
+        if value not in (None, "", [], {}) and before_identity.get(field) != value
+    ]
+    new_rules = [rule for rule in after_rules if rule not in before_rules]
+
+    if normalized_category == "user_preference" and not updated_fields:
+        return await _write_explicit_mem0(
+            user_id,
+            content,
+            source=source,
+            category=normalized_category,
+            existing_memory=existing_memory,
+        )
+
+    deleted_duplicates = await cleanup_shadowed_mem0_memories(
+        user_id,
+        identity=after_identity,
+        rules=after_rules,
+        categories={normalized_category},
+    )
+
+    return {
+        "store": "rule" if normalized_category == "user_rule" else "identity",
+        "category": normalized_category,
+        "updated_fields": updated_fields,
+        "new_rules": new_rules,
+        "deleted_duplicates": deleted_duplicates,
+    }
 
 
 def _serialize_identity_value(value: Any) -> str:
@@ -209,6 +446,8 @@ async def list_memory_registry(
     """Aggregate user-visible memory records across supported stores."""
     stores = set(include_stores or REGISTRY_STORES) & set(REGISTRY_STORES)
     entries: list[dict[str, Any]] = []
+    identity: dict[str, Any] = {}
+    rules: list[str] = []
 
     if "identity" in stores:
         try:
@@ -230,6 +469,12 @@ async def list_memory_registry(
     if "mem0" in stores:
         try:
             memories = await mem0_client.get_all_memories(user_id)
+            if "identity" in stores or "rule" in stores:
+                memories, _ = filter_shadowed_memories(
+                    memories,
+                    identity=identity,
+                    rules=rules,
+                )
             entries.extend(_mem0_entry(memory) for memory in memories if memory.get("id"))
         except Exception:
             logger.warning(
@@ -287,6 +532,18 @@ async def search_memory_registry(
     stores = set(include_stores or REGISTRY_STORES) & set(REGISTRY_STORES)
     matches: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
+    identity: dict[str, Any] = {}
+    rules: list[str] = []
+
+    if stores & {"identity", "rule", "mem0"}:
+        try:
+            identity = await identity_store.get_core_identity(user_id)
+        except Exception:
+            identity = {}
+        try:
+            rules = await identity_store.get_user_rules(user_id)
+        except Exception:
+            rules = []
 
     if "mem0" in stores:
         try:
@@ -294,6 +551,11 @@ async def search_memory_registry(
                 normalized_query,
                 user_id,
                 limit=limit,
+            )
+            semantic_matches, _ = filter_shadowed_memories(
+                semantic_matches,
+                identity=identity,
+                rules=rules,
             )
             for memory in semantic_matches:
                 entry = _mem0_entry(memory)
