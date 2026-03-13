@@ -17,6 +17,13 @@ import uuid as _uuid
 from sqlalchemy import select, update
 
 from src.core.db import async_session
+from src.core.memory.event_log import (
+    MEMORY_TOMBSTONE_ACTION,
+    MEMORY_UPSERT_ACTION,
+    identity_memory_slot,
+    record_memory_event,
+    rule_memory_slot,
+)
 from src.core.models.user_profile import UserProfile
 
 logger = logging.getLogger(__name__)
@@ -72,6 +79,11 @@ _CATEGORY_FIELD_MAP = {
     "user_preference": [
         "preferred_currency", "communication_preferences", "response_language",
     ],
+}
+_FIELD_CATEGORY_MAP = {
+    field: category
+    for category, fields in _CATEGORY_FIELD_MAP.items()
+    for field in fields
 }
 
 
@@ -130,6 +142,7 @@ async def update_core_identity(user_id: str, updates: dict) -> dict:
         merged = {**current, **updates}
         # Remove None values (explicit deletion)
         merged = {k: v for k, v in merged.items() if v is not None}
+        changed_fields = sorted(set(current) | set(merged))
 
         async with async_session() as session:
             await _ensure_user_profile(session, user_id)
@@ -138,6 +151,30 @@ async def update_core_identity(user_id: str, updates: dict) -> dict:
                 .where(UserProfile.user_id == _uuid.UUID(user_id))
                 .values(core_identity=merged)
             )
+            for field in changed_fields:
+                old_value = current.get(field)
+                new_value = merged.get(field)
+                if old_value == new_value:
+                    continue
+                await _safe_record_memory_event(
+                    session,
+                    user_id=user_id,
+                    store="identity",
+                    slot=identity_memory_slot(field),
+                    action=(
+                        MEMORY_TOMBSTONE_ACTION
+                        if new_value is None
+                        else MEMORY_UPSERT_ACTION
+                    ),
+                    old_value=old_value,
+                    new_value=new_value,
+                    metadata={
+                        "category": _FIELD_CATEGORY_MAP.get(field, "profile"),
+                        "field": field,
+                        "source": "core_identity",
+                        "write_path": "structured_profile",
+                    },
+                )
             await session.commit()
 
         # Invalidate cache
@@ -158,6 +195,39 @@ async def invalidate_identity_cache(user_id: str) -> None:
         await redis.delete(f"{_IDENTITY_CACHE_PREFIX}:{user_id}")
     except Exception:
         pass
+
+
+async def _safe_record_memory_event(
+    session,
+    *,
+    user_id: str,
+    store: str,
+    slot: str,
+    action: str,
+    old_value=None,
+    new_value=None,
+    metadata: dict | None = None,
+) -> None:
+    """Best-effort audit trail: never block the primary structured write path."""
+    try:
+        await record_memory_event(
+            session,
+            user_id=user_id,
+            store=store,
+            slot=slot,
+            action=action,
+            old_value=old_value,
+            new_value=new_value,
+            metadata=metadata,
+        )
+    except Exception:
+        logger.warning(
+            "Failed to persist memory event for %s %s on user %s",
+            store,
+            slot,
+            user_id,
+            exc_info=True,
+        )
 
 
 async def immediate_identity_update(
@@ -401,11 +471,26 @@ async def _add_user_rule(user_id: str, rule_text: str) -> None:
             # Deduplicate (casefold for Unicode-safe comparison — GAP-M2)
             normalized = rule_text.strip().casefold()
             if not any(r.casefold() == normalized for r in current_rules):
-                current_rules.append(rule_text.strip())
+                cleaned_rule = rule_text.strip()
+                current_rules.append(cleaned_rule)
                 await session.execute(
                     update(UserProfile)
                     .where(UserProfile.user_id == _uuid.UUID(user_id))
                     .values(active_rules=current_rules)
+                )
+                await _safe_record_memory_event(
+                    session,
+                    user_id=user_id,
+                    store="rule",
+                    slot=rule_memory_slot(cleaned_rule),
+                    action=MEMORY_UPSERT_ACTION,
+                    old_value=None,
+                    new_value=cleaned_rule,
+                    metadata={
+                        "category": "user_rule",
+                        "source": "active_rules",
+                        "write_path": "structured_profile",
+                    },
                 )
                 await session.commit()
                 logger.info("Added user rule for %s: %s", user_id, rule_text[:50])
@@ -470,8 +555,9 @@ async def remove_user_rule(user_id: str, rule_text: str) -> bool:
     """Remove a user rule by text match."""
     try:
         rules = await get_user_rules(user_id)
-        normalized = rule_text.strip().lower()
-        new_rules = [r for r in rules if r.lower() != normalized]
+        normalized = rule_text.strip().casefold()
+        removed_rules = [r for r in rules if r.casefold() == normalized]
+        new_rules = [r for r in rules if r.casefold() != normalized]
         if len(new_rules) == len(rules):
             return False
 
@@ -481,6 +567,21 @@ async def remove_user_rule(user_id: str, rule_text: str) -> bool:
                 .where(UserProfile.user_id == _uuid.UUID(user_id))
                 .values(active_rules=new_rules)
             )
+            for removed_rule in removed_rules:
+                await _safe_record_memory_event(
+                    session,
+                    user_id=user_id,
+                    store="rule",
+                    slot=rule_memory_slot(removed_rule),
+                    action=MEMORY_TOMBSTONE_ACTION,
+                    old_value=removed_rule,
+                    new_value=None,
+                    metadata={
+                        "category": "user_rule",
+                        "source": "active_rules",
+                        "write_path": "structured_profile",
+                    },
+                )
             await session.commit()
 
         await invalidate_identity_cache(user_id)
@@ -503,6 +604,21 @@ async def clear_user_rules(user_id: str) -> int:
                 .where(UserProfile.user_id == _uuid.UUID(user_id))
                 .values(active_rules=[])
             )
+            for rule in rules:
+                await _safe_record_memory_event(
+                    session,
+                    user_id=user_id,
+                    store="rule",
+                    slot=rule_memory_slot(rule),
+                    action=MEMORY_TOMBSTONE_ACTION,
+                    old_value=rule,
+                    new_value=None,
+                    metadata={
+                        "category": "user_rule",
+                        "source": "active_rules",
+                        "write_path": "structured_profile",
+                    },
+                )
             await session.commit()
 
         await invalidate_identity_cache(user_id)

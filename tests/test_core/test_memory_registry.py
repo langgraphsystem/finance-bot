@@ -40,6 +40,8 @@ if not hasattr(pgvector_mod, "ConnectionPool"):
 from src.core.memory.registry import (  # noqa: E402
     clear_memory_registry,
     delete_registry_entry,
+    export_memory_registry,
+    get_registry_entry_history,
     list_memory_registry,
     search_memory_registry,
     write_canonical_memory,
@@ -134,6 +136,64 @@ async def test_search_memory_registry_merges_mem0_and_structured_matches():
         matches = await search_memory_registry("user-1", "coffee", limit=5)
 
     assert {entry["id"] for entry in matches} == {"mem0:mem-1", "summary:3"}
+
+
+async def test_get_registry_entry_history_returns_structured_slot_history():
+    entry = {
+        "id": "identity:name",
+        "store": "identity",
+        "slot": "identity:name",
+    }
+
+    with patch(
+        "src.core.memory.registry.list_memory_history",
+        new_callable=AsyncMock,
+        return_value=[{"version": 2, "value": "Alice"}],
+    ) as mock_history:
+        history = await get_registry_entry_history("user-1", entry, limit=5)
+
+    assert history == [{"version": 2, "value": "Alice"}]
+    mock_history.assert_awaited_once_with(
+        "user-1",
+        store="identity",
+        slot="identity:name",
+        limit=5,
+        session=None,
+    )
+
+
+async def test_export_memory_registry_can_include_structured_history():
+    entries = [
+        {
+            "id": "identity:name",
+            "store": "identity",
+            "slot": "identity:name",
+            "text": "Alice",
+        },
+        {
+            "id": "mem0:1",
+            "store": "mem0",
+            "text": "Likes tea",
+        },
+    ]
+
+    with (
+        patch(
+            "src.core.memory.registry.list_memory_registry",
+            new_callable=AsyncMock,
+            return_value=entries,
+        ),
+        patch(
+            "src.core.memory.registry.get_registry_entry_history",
+            new_callable=AsyncMock,
+            side_effect=[[{"version": 2}], []],
+        ) as mock_history,
+    ):
+        exported = await export_memory_registry("user-1", include_history=True, history_limit=3)
+
+    assert exported[0]["history"] == [{"version": 2}]
+    assert exported[1]["history"] == []
+    assert mock_history.await_count == 2
 
 
 async def test_list_memory_registry_hides_shadowed_mem0_identity_duplicates():

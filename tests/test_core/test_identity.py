@@ -14,6 +14,7 @@ from src.core.identity import (
     format_rules_block,
     get_core_identity,
     immediate_identity_update,
+    remove_user_rule,
     update_core_identity,
 )
 
@@ -112,6 +113,36 @@ class TestUpdateCoreIdentity:
         assert result["occupation"] == "plumber"
         assert result["preferred_currency"] == "USD"
 
+    async def test_records_versioned_events_for_changed_fields(self):
+        uid = str(uuid.uuid4())
+        current = {"name": "Maria"}
+
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch(
+                "src.core.identity.get_core_identity",
+                new_callable=AsyncMock,
+                return_value=current,
+            ),
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity._ensure_user_profile", new_callable=AsyncMock),
+            patch("src.core.identity.record_memory_event", new_callable=AsyncMock) as mock_event,
+        ):
+            await update_core_identity(uid, {"occupation": "plumber"})
+
+        mock_event.assert_awaited_once()
+        call_kwargs = mock_event.call_args.kwargs
+        assert call_kwargs["store"] == "identity"
+        assert call_kwargs["slot"] == "identity:occupation"
+        assert call_kwargs["action"] == "memory_upsert"
+        assert call_kwargs["old_value"] is None
+        assert call_kwargs["new_value"] == "plumber"
+
     async def test_removes_none_values(self):
         uid = str(uuid.uuid4())
         current = {"name": "Maria", "occupation": "teacher"}
@@ -191,6 +222,33 @@ class TestAddUserRule:
             await _add_user_rule(uid, "без эмодзи")
         mock_ensure.assert_awaited_once()
 
+    async def test_records_event_for_new_rule(self):
+        from src.core.identity import _add_user_rule
+
+        uid = str(uuid.uuid4())
+        mock_session = AsyncMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = []
+        mock_session.execute.return_value = mock_result
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity._ensure_user_profile", new_callable=AsyncMock),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+            patch("src.core.identity.record_memory_event", new_callable=AsyncMock) as mock_event,
+        ):
+            await _add_user_rule(uid, "без эмодзи")
+
+        mock_event.assert_awaited_once()
+        call_kwargs = mock_event.call_args.kwargs
+        assert call_kwargs["store"] == "rule"
+        assert call_kwargs["slot"] == "rule:без эмодзи"
+        assert call_kwargs["action"] == "memory_upsert"
+        assert call_kwargs["new_value"] == "без эмодзи"
+
 
 class TestImmediateIdentityUpdate:
     async def test_user_name_updates_identity(self):
@@ -257,6 +315,66 @@ class TestClearUserRules:
         assert cleared == 2
         mock_session.execute.assert_awaited_once()
         mock_session.commit.assert_awaited_once()
+
+    async def test_records_tombstones_for_cleared_rules(self):
+        uid = str(uuid.uuid4())
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch(
+                "src.core.identity.get_user_rules",
+                new_callable=AsyncMock,
+                return_value=["без эмодзи", "отвечай коротко"],
+            ),
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+            patch("src.core.identity.record_memory_event", new_callable=AsyncMock) as mock_event,
+        ):
+            await clear_user_rules(uid)
+
+        assert mock_event.await_count == 2
+        first_call = mock_event.await_args_list[0].kwargs
+        second_call = mock_event.await_args_list[1].kwargs
+        assert first_call["action"] == "memory_tombstone"
+        assert second_call["action"] == "memory_tombstone"
+        assert {first_call["slot"], second_call["slot"]} == {
+            "rule:без эмодзи",
+            "rule:отвечай коротко",
+        }
+
+
+class TestRemoveUserRule:
+    async def test_records_tombstone_for_removed_rule(self):
+        uid = str(uuid.uuid4())
+        mock_session = AsyncMock()
+        mock_session.execute.return_value = MagicMock()
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__.return_value = mock_session
+        mock_ctx.__aexit__.return_value = False
+
+        with (
+            patch(
+                "src.core.identity.get_user_rules",
+                new_callable=AsyncMock,
+                return_value=["без эмодзи", "отвечай коротко"],
+            ),
+            patch("src.core.identity.async_session", return_value=mock_ctx),
+            patch("src.core.identity.invalidate_identity_cache", new_callable=AsyncMock),
+            patch("src.core.identity.record_memory_event", new_callable=AsyncMock) as mock_event,
+        ):
+            removed = await remove_user_rule(uid, "без эмодзи")
+
+        assert removed is True
+        mock_event.assert_awaited_once()
+        call_kwargs = mock_event.call_args.kwargs
+        assert call_kwargs["action"] == "memory_tombstone"
+        assert call_kwargs["slot"] == "rule:без эмодзи"
+        assert call_kwargs["old_value"] == "без эмодзи"
+        assert call_kwargs["new_value"] is None
 
 
 class TestRuleValidation:

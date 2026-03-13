@@ -13,6 +13,11 @@ from sqlalchemy import delete, select
 import src.core.identity as identity_store
 import src.core.memory.mem0_client as mem0_client
 from src.core.db import async_session
+from src.core.memory.event_log import (
+    identity_memory_slot,
+    list_memory_history,
+    rule_memory_slot,
+)
 from src.core.memory.governance import explicit_memory_metadata, normalize_memory_metadata
 from src.core.models.session_summary import SessionSummary
 
@@ -68,11 +73,11 @@ def _rule_registry_id(rule: str) -> str:
 
 
 def _rule_slot(rule: str) -> str:
-    return f"rule:{_normalize_text(rule)}"
+    return rule_memory_slot(rule)
 
 
 def _identity_slot(field: str) -> str:
-    return f"identity:{field}"
+    return identity_memory_slot(field)
 
 
 def _infer_identity_field_from_text(text: str, category: str) -> str | None:
@@ -327,6 +332,7 @@ def _identity_entry(field: str, value: Any) -> dict[str, Any]:
         "id": f"identity:{field}",
         "store": "identity",
         "source_id": field,
+        "slot": _identity_slot(field),
         "field": field,
         "text": text,
         "display_text": f"{field}: {text}",
@@ -335,6 +341,7 @@ def _identity_entry(field: str, value: Any) -> dict[str, Any]:
         "created_at": None,
         "updated_at": None,
         "deletable": True,
+        "history_supported": True,
     }
 
 
@@ -353,6 +360,7 @@ def _rule_entry(rule: str) -> dict[str, Any]:
         "id": _rule_registry_id(rule),
         "store": "rule",
         "source_id": rule,
+        "slot": _rule_slot(rule),
         "text": rule,
         "display_text": rule,
         "preview": _preview(rule),
@@ -360,6 +368,7 @@ def _rule_entry(rule: str) -> dict[str, Any]:
         "created_at": None,
         "updated_at": None,
         "deletable": True,
+        "history_supported": True,
     }
 
 
@@ -654,6 +663,27 @@ async def delete_registry_entry(
     return False
 
 
+async def get_registry_entry_history(
+    user_id: str,
+    entry: dict[str, Any],
+    *,
+    limit: int = 10,
+    session=None,
+) -> list[dict[str, Any]]:
+    """Return version history for registry entries backed by structured slots."""
+    store = str(entry.get("store") or "")
+    slot = str(entry.get("slot") or "")
+    if store not in {"identity", "rule"} or not slot:
+        return []
+    return await list_memory_history(
+        user_id,
+        store=store,
+        slot=slot,
+        limit=limit,
+        session=session,
+    )
+
+
 async def clear_memory_registry(
     user_id: str,
     *,
@@ -731,6 +761,22 @@ async def export_memory_registry(
     user_id: str,
     *,
     session=None,
+    include_history: bool = False,
+    history_limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Export unified user memory records for access/debug flows."""
-    return await list_memory_registry(user_id, session=session)
+    entries = await list_memory_registry(user_id, session=session)
+    if not include_history:
+        return entries
+
+    exported: list[dict[str, Any]] = []
+    for entry in entries:
+        enriched = dict(entry)
+        enriched["history"] = await get_registry_entry_history(
+            user_id,
+            entry,
+            limit=history_limit,
+            session=session,
+        )
+        exported.append(enriched)
+    return exported
