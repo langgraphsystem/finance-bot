@@ -484,6 +484,41 @@ async def test_memory_forget_empty_query():
     assert "what should i forget" in result.response_text.lower()
 
 
+async def test_memory_forget_deletes_summary_registry_match():
+    ctx = _MockContext()
+    with (
+        patch("src.core.memory.mem0_client.get_all_memories", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.add_memory", new_callable=AsyncMock),
+        patch("src.core.memory.mem0_client.delete_memory", new_callable=AsyncMock),
+        patch(
+            "src.core.memory.registry.search_memory_registry",
+            new_callable=AsyncMock,
+            return_value=[
+                {
+                    "id": "summary:9",
+                    "store": "summary",
+                    "source_id": "9",
+                    "text": "Discussed rain plans last week",
+                }
+            ],
+        ),
+        patch(
+            "src.core.memory.registry.delete_registry_entry",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as mock_delete_entry,
+        patch("src.core.identity.get_user_rules", new_callable=AsyncMock, return_value=[]),
+    ):
+        result = await skill.execute(
+            _MockMessage(text="forget rain plans"),
+            ctx,
+            {"_intent": "memory_forget", "memory_query": "rain plans"},
+        )
+
+    assert "deleted 1" in result.response_text.lower()
+    mock_delete_entry.assert_awaited_once()
+
+
 
 def test_skill_intents():
     assert "memory_show" in skill.intents

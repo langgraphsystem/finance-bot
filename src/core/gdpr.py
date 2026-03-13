@@ -7,7 +7,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.db import redis
-from src.core.memory.mem0_client import delete_all_memories, get_all_memories
+from src.core.memory.mem0_client import get_all_memories
+from src.core.memory.registry import clear_memory_registry, export_memory_registry
 from src.core.models.audit import AuditLog
 from src.core.models.booking import Booking
 from src.core.models.contact import Contact
@@ -65,6 +66,10 @@ class MemoryGDPR:
             memories = await get_all_memories(user_id)
         except Exception:
             memories = []
+        try:
+            memory_registry = await export_memory_registry(user_id, session=session)
+        except Exception:
+            memory_registry = []
 
         profile = await session.scalar(select(UserProfile).where(UserProfile.user_id == uid))
 
@@ -163,6 +168,7 @@ class MemoryGDPR:
             "transactions": transactions,
             "conversation_logs": messages,
             "memories": memories,
+            "memory_registry": memory_registry,
             "profile": {
                 "core_identity": profile.core_identity if profile else None,
                 "active_rules": profile.active_rules if profile else None,
@@ -192,7 +198,14 @@ class MemoryGDPR:
         await session.execute(delete(Transaction).where(Transaction.user_id == uid))
         await session.execute(delete(AuditLog).where(AuditLog.user_id == uid))
         await session.execute(delete(UserContext).where(UserContext.user_id == uid))
-        await session.execute(delete(SessionSummary).where(SessionSummary.user_id == uid))
+        try:
+            await clear_memory_registry(
+                user_id,
+                session=session,
+                include_stores={"mem0", "identity", "rule", "summary"},
+            )
+        except Exception as e:
+            logger.warning("Memory registry deletion failed: %s", e)
         await session.execute(delete(UserProfile).where(UserProfile.user_id == uid))
         await session.execute(delete(LifeEvent).where(LifeEvent.user_id == uid))
         await session.execute(delete(Task).where(Task.user_id == uid))
@@ -206,12 +219,6 @@ class MemoryGDPR:
             )
         await session.execute(delete(Document).where(Document.user_id == uid))
         await session.commit()
-
-        # Delete from Mem0
-        try:
-            await delete_all_memories(user_id)
-        except Exception as e:
-            logger.warning("Mem0 deletion failed: %s", e)
 
         # Delete from Redis
         try:

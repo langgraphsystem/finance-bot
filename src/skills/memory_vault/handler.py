@@ -36,6 +36,7 @@ _MV_STRINGS = {
         "your_rules": "Your rules:",
         "memories_header": "Memories ({count}):",
         "memories_more": "... and {count} more.",
+        "summary_prefix": "Summary: {text}",
         "no_memories": "No stored memories yet.",
         "clear_all_btn": "Clear all",
         "forget_ask": "What should I forget?",
@@ -68,6 +69,7 @@ _MV_STRINGS = {
         "your_rules": "Твои правила:",
         "memories_header": "Воспоминания ({count}):",
         "memories_more": "... и ещё {count}.",
+        "summary_prefix": "Сводка: {text}",
         "no_memories": "Нет сохранённых воспоминаний.",
         "clear_all_btn": "Очистить всё",
         "forget_ask": "Что забыть? Скажи, что удалить.",
@@ -100,6 +102,7 @@ _MV_STRINGS = {
         "your_rules": "Tus reglas:",
         "memories_header": "Recuerdos ({count}):",
         "memories_more": "... y {count} más.",
+        "summary_prefix": "Resumen: {text}",
         "no_memories": "No hay recuerdos guardados.",
         "clear_all_btn": "Borrar todo",
         "forget_ask": "¿Qué debo olvidar?",
@@ -155,24 +158,15 @@ def _looks_like_calendar_delete_request(query: str) -> bool:
 
 async def clear_all_user_memory(user_id: str) -> dict[str, int]:
     """Clear long-term user-controlled memory across vector and profile stores."""
-    from src.core.identity import clear_identity_fields, clear_user_rules, get_core_identity
-    from src.core.memory.mem0_client import delete_all_memories, get_all_memories
+    from src.core.memory.registry import clear_memory_registry
 
-    memories = await get_all_memories(user_id)
-    await delete_all_memories(user_id)
-
-    rules_cleared = await clear_user_rules(user_id)
-    identity = await get_core_identity(user_id)
-    cleared_identity = (
-        await clear_identity_fields(user_id, list(identity.keys()))
-        if identity
-        else []
-    )
+    cleared = await clear_memory_registry(user_id)
 
     return {
-        "memories": len(memories),
-        "rules": rules_cleared,
-        "identity_fields": len(cleared_identity),
+        "memories": cleared.get("mem0", 0),
+        "rules": cleared.get("rule", 0),
+        "identity_fields": cleared.get("identity", 0),
+        "summaries": cleared.get("summary", 0),
     }
 
 
@@ -190,27 +184,31 @@ class MemoryVaultSkill:
     ) -> SkillResult:
         from src.core.memory.mem0_client import (
             add_memory,
-            delete_all_memories,
             delete_memory,
             get_all_memories,
             search_memories_all_namespaces,
+        )
+        from src.core.memory.registry import (
+            delete_registry_entry,
+            list_memory_registry,
+            search_memory_registry,
         )
 
         lang = getattr(context, "language", None) or "ru"
         intent = intent_data.get("_intent") or "memory_show"
 
         if intent == "memory_show":
-            return await self._handle_show(context, get_all_memories, lang)
+            return await self._handle_show(context, list_memory_registry, lang)
 
         if intent == "memory_forget":
             query = intent_data.get("memory_query") or message.text or ""
             return await self._handle_forget(
                 context,
                 query,
-                search_memories_all_namespaces,
-                delete_memory,
-                delete_all_memories,
+                search_memory_registry,
+                delete_registry_entry,
                 get_all_memories,
+                delete_memory,
                 lang,
             )
 
@@ -231,44 +229,56 @@ class MemoryVaultSkill:
 
         return SkillResult(response_text=_mv("unknown", lang))
 
-    async def _handle_show(self, context, get_all_memories, lang: str) -> SkillResult:
-        from src.core.identity import get_core_identity, get_user_rules
-
-        memories = await get_all_memories(context.user_id)
+    async def _handle_show(self, context, list_memory_registry, lang: str) -> SkillResult:
+        entries = await list_memory_registry(context.user_id)
 
         sections: list[str] = []
-        try:
-            identity = await get_core_identity(context.user_id)
-            if identity:
-                id_lines: list[str] = []
-                if identity.get("name"):
-                    id_lines.append("• " + _mv("your_name", lang, name=identity["name"]))
-                if identity.get("bot_name"):
-                    id_lines.append("• " + _mv("my_name", lang, name=identity["bot_name"]))
-                if id_lines:
-                    sections.append(
-                        f"<b>{_mv('identity', lang)}</b>\n" + "\n".join(id_lines)
-                    )
+        identity_entries = [entry for entry in entries if entry.get("store") == "identity"]
+        if identity_entries:
+            id_lines: list[str] = []
+            for entry in identity_entries:
+                field = str(entry.get("field") or entry.get("source_id") or "")
+                text = str(entry.get("text") or "").strip()
+                if not text:
+                    continue
+                if field == "name":
+                    id_lines.append("• " + _mv("your_name", lang, name=text))
+                elif field == "bot_name":
+                    id_lines.append("• " + _mv("my_name", lang, name=text))
+                else:
+                    label = field.replace("_", " ").capitalize()
+                    id_lines.append(f"• {label}: <b>{text}</b>")
+            if id_lines:
+                sections.append(
+                    f"<b>{_mv('identity', lang)}</b>\n" + "\n".join(id_lines)
+                )
 
-            rules = await get_user_rules(context.user_id)
-            if rules:
-                rule_lines = "\n".join(f"• {rule}" for rule in rules)
+        rule_entries = [entry for entry in entries if entry.get("store") == "rule"]
+        if rule_entries:
+            rule_lines = "\n".join(
+                f"• {entry['text']}" for entry in rule_entries if entry.get("text")
+            )
+            if rule_lines:
                 sections.append(f"<b>{_mv('your_rules', lang)}</b>\n{rule_lines}")
-        except Exception:
-            logger.warning("Failed to load core identity for memory_show", exc_info=True)
 
         mem_lines = []
-        for index, mem in enumerate(memories[:MAX_DISPLAY_MEMORIES], 1):
-            text = mem.get("memory", mem.get("text", ""))
+        memory_entries = [
+            entry for entry in entries
+            if entry.get("store") in {"mem0", "summary"}
+        ]
+        for index, entry in enumerate(memory_entries[:MAX_DISPLAY_MEMORIES], 1):
+            text = str(entry.get("display_text") or entry.get("text") or "").strip()
             if text:
+                if entry.get("store") == "summary":
+                    text = _mv("summary_prefix", lang, text=text)
                 mem_lines.append(f"{index}. {text}")
 
         if mem_lines:
             extra = ""
-            if len(memories) > MAX_DISPLAY_MEMORIES:
-                remaining = len(memories) - MAX_DISPLAY_MEMORIES
+            if len(memory_entries) > MAX_DISPLAY_MEMORIES:
+                remaining = len(memory_entries) - MAX_DISPLAY_MEMORIES
                 extra = "\n" + _mv("memories_more", lang, count=str(remaining))
-            header = _mv("memories_header", lang, count=str(len(memories)))
+            header = _mv("memories_header", lang, count=str(len(memory_entries)))
             sections.append(f"<b>{header}</b>\n" + "\n".join(mem_lines) + extra)
 
         if not sections:
@@ -285,10 +295,10 @@ class MemoryVaultSkill:
         self,
         context,
         query,
-        search_memories,
-        delete_memory,
-        delete_all_memories,
+        search_memory_registry,
+        delete_registry_entry,
         get_all_memories,
+        delete_memory,
         lang: str,
     ) -> SkillResult:
         from src.core.identity import (
@@ -359,21 +369,20 @@ class MemoryVaultSkill:
             await clear_all_user_memory(context.user_id)
             return SkillResult(response_text=_mv("all_cleared", lang))
 
-        # Semantic search — limit to 3 to avoid over-deletion
-        matches = await search_memories(query, context.user_id, limit=3)
+        matches = await search_memory_registry(context.user_id, query, limit=3)
         if not matches:
             return SkillResult(response_text=_mv("no_match", lang, query=query))
 
         deleted = 0
-        for mem in matches:
-            mem_id = mem.get("id")
-            if not mem_id:
-                continue
+        for entry in matches:
             try:
-                await delete_memory(mem_id, context.user_id)
-                deleted += 1
+                deleted += int(await delete_registry_entry(context.user_id, entry))
             except Exception:
-                logger.warning("Failed to delete memory %s", mem_id, exc_info=True)
+                logger.warning(
+                    "Failed to delete memory registry entry %s",
+                    entry.get("id"),
+                    exc_info=True,
+                )
 
         if deleted:
             return SkillResult(

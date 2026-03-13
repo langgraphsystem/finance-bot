@@ -22,8 +22,8 @@
     --radius-lg: 28px;
     --radius-md: 20px;
     --radius-sm: 14px;
-    --sans: "Inter", sans-serif;
-    --display: "Sora", sans-serif;
+    --sans: "Instrument Sans", sans-serif;
+    --display: "Inter Tight", sans-serif;
     --mono: "IBM Plex Mono", monospace;
 }
 
@@ -132,8 +132,9 @@ main,
     display: inline-flex;
     align-items: center;
     gap: 12px;
+    font-family: var(--display);
     font-weight: 700;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.04em;
 }
 
 .brand-mark {
@@ -157,25 +158,30 @@ main,
     margin-left: auto;
 }
 
-.nav-links a,
-.nav-cta,
-.footer-cta,
-.btn,
 .card-label,
 .proof-label,
 .proof-state,
 .status-pill,
 .connection-status,
-.hero-ledger span,
 .board-chip,
 .proof-index,
 .eyebrow {
     font-family: var(--mono);
 }
 
+.nav-links a,
+.nav-cta,
+.footer-cta,
+.btn,
+.hero-ledger span {
+    font-family: var(--sans);
+}
+
 .nav-links a {
     color: var(--ink-muted);
     font-size: 13px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
     transition: color 0.2s ease;
 }
 
@@ -195,9 +201,9 @@ main,
     border-radius: 999px;
     background: var(--ink);
     color: #f6f8fb;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     transition: transform 0.2s ease, background 0.2s ease;
 }
@@ -276,12 +282,28 @@ main {
 
 .hero-title {
     max-width: 860px;
-    font-size: clamp(3.6rem, 7vw, 6.5rem);
-    line-height: 0.94;
+    font-size: clamp(3.55rem, 7vw, 6.2rem);
+    line-height: 0.92;
+    letter-spacing: -0.065em;
+}
+
+.hero-title-break,
+.text-accent {
+    display: block;
+}
+
+.hero-title-break {
+    color: var(--ink);
 }
 
 .text-accent {
     color: var(--accent);
+    max-width: 720px;
+    margin-top: 0.03em;
+    font-size: 0.88em;
+    line-height: 0.94;
+    font-weight: 620;
+    letter-spacing: -0.05em;
 }
 
 .hero-body,
@@ -291,8 +313,8 @@ main {
 .proof-card p,
 .system-card p {
     color: var(--ink-soft);
-    font-size: 1.03rem;
-    line-height: 1.75;
+    font-size: 1rem;
+    line-height: 1.72;
 }
 
 .hero-body {
@@ -313,9 +335,9 @@ main {
     padding: 0 22px;
     border: 1px solid transparent;
     border-radius: 999px;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 600;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
 }
@@ -359,6 +381,8 @@ main {
     background: rgba(255, 255, 255, 0.62);
     color: var(--ink-muted);
     font-size: 12px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
 }
 
 .hero-proof {
@@ -426,8 +450,8 @@ main {
 .board-card h3,
 .system-card h3,
 .proof-card h3 {
-    font-size: 1.18rem;
-    line-height: 1.2;
+    font-size: 1.12rem;
+    line-height: 1.18;
 }
 
 .hero-proof-row span,
@@ -594,6 +618,9 @@ main {
 .connection-row strong,
 .exec-grid strong {
     font-size: 0.94rem;
+    font-family: var(--sans);
+    font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
 .board-card-review {
@@ -789,8 +816,8 @@ main {
 
 .message {
     padding: 14px 16px;
-    font-size: 15px;
-    line-height: 1.55;
+    font-size: 14px;
+    line-height: 1.58;
 }
 
 .message-user {
@@ -838,6 +865,7 @@ main {
     color: rgba(244, 247, 252, 0.92);
     font-size: 14px;
     font-weight: 600;
+    letter-spacing: -0.02em;
 }
 
 .device-composer {
@@ -856,7 +884,7 @@ main {
 
 .composer-copy {
     color: rgba(244, 247, 252, 0.46);
-    font-size: 15px;
+    font-size: 14px;
 }
 
 .composer-tools {
@@ -1003,6 +1031,24 @@ main {
 
 .proof-card p {
     margin-top: 10px;
+}
+
+.hero-proof-row span,
+.hero-proof-meta span,
+.stack-row span,
+.connection-row small,
+.exec-grid span,
+.board-note,
+.board-chip,
+.system-principle span,
+.system-steps span,
+.proof-card p,
+.system-card p,
+.footer-copy,
+.hero-body,
+.section-intro p,
+.system-copy p {
+    letter-spacing: -0.01em;
 }
 
 .footer {
