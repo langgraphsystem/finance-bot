@@ -15,6 +15,7 @@ from src.core.conversation_analytics import (
     get_conversation_analytics_policy,
     get_dataset_candidates,
     get_golden_dialogues,
+    get_quality_metrics_snapshot,
     get_review_batches,
     get_review_queue_snapshot,
     get_review_results,
@@ -227,6 +228,73 @@ async def test_get_review_batches_returns_recent_items():
 
     assert batches[0]["batch_id"] == "review-batch:1"
     assert batches[0]["applied_count"] == 2
+
+
+async def test_get_quality_metrics_snapshot_aggregates_review_and_feedback_rates():
+    review_results = [
+        {
+            "final_label": "wrong_route",
+            "action": "promote_to_dataset",
+            "rubric": {
+                "intent_correct": False,
+                "response_useful": False,
+                "action_completed": False,
+                "clarification_appropriate": False,
+                "memory_applied": True,
+                "safe": True,
+                "language_correct": True,
+                "formatting_correct": True,
+                "latency_acceptable": True,
+            },
+        },
+        {
+            "final_label": "success",
+            "action": "close",
+            "rubric": {
+                "intent_correct": True,
+                "response_useful": True,
+                "action_completed": True,
+                "clarification_appropriate": True,
+                "memory_applied": True,
+                "safe": True,
+                "language_correct": True,
+                "formatting_correct": True,
+                "latency_acceptable": False,
+            },
+        },
+    ]
+    feedback_items = [
+        {"feedback": "helpful"},
+        {"feedback": "unhelpful"},
+    ]
+    with (
+        patch(
+            "src.core.conversation_analytics.get_review_results",
+            AsyncMock(return_value=review_results),
+        ),
+        patch(
+            "src.core.conversation_analytics.get_dataset_candidates",
+            AsyncMock(return_value=[{"trace_key": "trace-1"}]),
+        ),
+        patch(
+            "src.core.conversation_analytics.get_review_queue",
+            AsyncMock(return_value=[{"trace_key": "trace-1"}]),
+        ),
+        patch(
+            "src.core.conversation_analytics.get_user_feedback",
+            AsyncMock(return_value=feedback_items),
+        ),
+    ):
+        snapshot = await get_quality_metrics_snapshot(limit=20)
+
+    assert snapshot["status"] == "monitor"
+    assert snapshot["review_count"] == 2
+    assert snapshot["review_queue_size"] == 1
+    assert snapshot["dataset_candidate_size"] == 1
+    assert snapshot["rates"]["wrong_route_rate"] == 0.5
+    assert snapshot["rates"]["task_completion_rate"] == 0.5
+    assert snapshot["rates"]["helpful_feedback_rate"] == 0.5
+    assert snapshot["rates"]["user_dissatisfaction_signal_rate"] == 0.5
 
 
 async def test_create_feedback_buttons_stores_prompt_and_appends_callbacks():

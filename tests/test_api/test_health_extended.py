@@ -477,6 +477,30 @@ async def test_analytics_feedback_returns_snapshot(mock_dependencies):
     assert data["feedback"][0]["trace_key"] == "corr-1"
 
 
+async def test_analytics_quality_metrics_returns_snapshot(mock_dependencies):
+    snapshot = {
+        "status": "monitor",
+        "review_count": 5,
+        "review_queue_size": 2,
+        "dataset_candidate_size": 3,
+        "feedback_count": 4,
+        "rates": {
+            "wrong_route_rate": 0.2,
+            "task_completion_rate": 0.8,
+            "user_dissatisfaction_signal_rate": 0.25,
+        },
+    }
+    with patch("api.main.get_quality_metrics_snapshot", AsyncMock(return_value=snapshot)):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/ops/analytics/quality-metrics?limit=50")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "monitor"
+    assert data["review_count"] == 5
+    assert data["rates"]["wrong_route_rate"] == 0.2
+
+
 async def test_analytics_golden_dialogues_returns_snapshot(mock_dependencies):
     golden_dialogues = [
         {"trace_key": "corr-1", "scenario": "general", "input_text": "Привет"},

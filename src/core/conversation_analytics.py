@@ -320,6 +320,12 @@ def _default_review_rubric() -> dict[str, bool]:
     return {field: True for field in _REVIEW_RUBRIC_FIELDS}
 
 
+def _safe_rate(numerator: int, denominator: int) -> float:
+    if denominator <= 0:
+        return 0.0
+    return round(numerator / denominator, 4)
+
+
 def build_review_suggestion(
     *,
     review_label: str,
@@ -1065,6 +1071,100 @@ async def get_weekly_curation_snapshot(limit: int = 25) -> dict[str, Any]:
         "recent_review_batches": review_batches,
         "recent_feedback": user_feedback,
         "golden_dialogues": [_build_golden_dialogue(candidate) for candidate in dataset_candidates],
+    }
+
+
+async def get_quality_metrics_snapshot(limit: int = 100) -> dict[str, Any]:
+    """Return aggregated outcome metrics from reviews, feedback, and queue state."""
+    normalized_limit = max(1, limit)
+    review_results = await get_review_results(limit=normalized_limit)
+    dataset_candidates = await get_dataset_candidates(limit=normalized_limit)
+    review_queue = await get_review_queue(limit=normalized_limit)
+    user_feedback = await get_user_feedback(limit=normalized_limit)
+
+    review_label_counts: dict[str, int] = {}
+    review_action_counts: dict[str, int] = {}
+    rubric_true_counts = {field: 0 for field in _REVIEW_RUBRIC_FIELDS}
+
+    for review in review_results:
+        final_label = str(review.get("final_label") or "unknown")
+        action = str(review.get("action") or "unknown")
+        review_label_counts[final_label] = review_label_counts.get(final_label, 0) + 1
+        review_action_counts[action] = review_action_counts.get(action, 0) + 1
+
+        rubric = dict(review.get("rubric") or {})
+        for field in _REVIEW_RUBRIC_FIELDS:
+            if rubric.get(field) is True:
+                rubric_true_counts[field] += 1
+
+    feedback_counts: dict[str, int] = {}
+    for feedback in user_feedback:
+        value = str(feedback.get("feedback") or "unknown")
+        feedback_counts[value] = feedback_counts.get(value, 0) + 1
+
+    review_total = len(review_results)
+    feedback_total = len(user_feedback)
+    helpful = feedback_counts.get("helpful", 0)
+    unhelpful = feedback_counts.get("unhelpful", 0)
+
+    rates = {
+        "task_completion_rate": _safe_rate(rubric_true_counts["action_completed"], review_total),
+        "response_useful_rate": _safe_rate(rubric_true_counts["response_useful"], review_total),
+        "intent_correct_rate": _safe_rate(rubric_true_counts["intent_correct"], review_total),
+        "clarification_appropriate_rate": _safe_rate(
+            rubric_true_counts["clarification_appropriate"],
+            review_total,
+        ),
+        "memory_applied_rate": _safe_rate(rubric_true_counts["memory_applied"], review_total),
+        "safety_correctness_rate": _safe_rate(rubric_true_counts["safe"], review_total),
+        "language_correct_rate": _safe_rate(rubric_true_counts["language_correct"], review_total),
+        "formatting_correct_rate": _safe_rate(
+            rubric_true_counts["formatting_correct"],
+            review_total,
+        ),
+        "latency_acceptable_rate": _safe_rate(
+            rubric_true_counts["latency_acceptable"],
+            review_total,
+        ),
+        "wrong_route_rate": _safe_rate(review_label_counts.get("wrong_route", 0), review_total),
+        "memory_failure_rate": _safe_rate(
+            review_label_counts.get("memory_failure", 0),
+            review_total,
+        ),
+        "tool_failure_rate": _safe_rate(review_label_counts.get("tool_failure", 0), review_total),
+        "unsafe_block_rate": _safe_rate(review_label_counts.get("unsafe_block", 0), review_total),
+        "unsafe_allow_rate": _safe_rate(review_label_counts.get("unsafe_allow", 0), review_total),
+        "promote_to_dataset_rate": _safe_rate(
+            review_action_counts.get("promote_to_dataset", 0),
+            review_total,
+        ),
+        "follow_up_rate": _safe_rate(review_action_counts.get("follow_up", 0), review_total),
+        "user_dissatisfaction_signal_rate": _safe_rate(unhelpful, feedback_total),
+        "helpful_feedback_rate": _safe_rate(helpful, feedback_total),
+    }
+
+    status = "healthy"
+    if rates["unsafe_allow_rate"] > 0 or rates["user_dissatisfaction_signal_rate"] > 0.5:
+        status = "needs_attention"
+    elif (
+        rates["wrong_route_rate"] >= 0.25
+        or rates["tool_failure_rate"] >= 0.2
+        or rates["memory_failure_rate"] >= 0.2
+    ):
+        status = "monitor"
+
+    return {
+        "policy": get_conversation_analytics_policy(),
+        "status": status,
+        "sample_limit": normalized_limit,
+        "review_count": review_total,
+        "review_queue_size": len(review_queue),
+        "dataset_candidate_size": len(dataset_candidates),
+        "feedback_count": feedback_total,
+        "review_label_counts": review_label_counts,
+        "review_action_counts": review_action_counts,
+        "feedback_counts": feedback_counts,
+        "rates": rates,
     }
 
 

@@ -28,6 +28,7 @@ from src.core.conversation_analytics import (
     get_conversation_analytics_policy,
     get_dataset_candidates,
     get_golden_dialogues,
+    get_quality_metrics_snapshot,
     get_review_batches,
     get_review_queue_snapshot,
     get_review_results,
@@ -1330,6 +1331,13 @@ async def analytics_user_feedback(request: Request, limit: int = 25) -> dict[str
         "feedback_size": len(feedback_items),
         "feedback": feedback_items,
     }
+
+
+@app.get("/ops/analytics/quality-metrics")
+async def analytics_quality_metrics(request: Request, limit: int = 100) -> dict[str, Any]:
+    """Return aggregated review and feedback quality metrics for operator checks."""
+    _require_ops_auth(request)
+    return await get_quality_metrics_snapshot(limit=max(1, min(limit, 500)))
 
 
 @app.get("/ops/analytics/golden-dialogues")
