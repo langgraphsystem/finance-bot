@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuBtn = document.querySelector(".mobile-menu-btn");
     const navLinks = document.querySelector(".nav-links");
     const revealItems = document.querySelectorAll(".reveal");
-    const productBoard = document.querySelector(".product-board");
+    const stageShell = document.querySelector(".stage-shell");
 
     const syncNavbarState = () => {
         if (!navbar) {
@@ -53,22 +53,22 @@ document.addEventListener("DOMContentLoaded", () => {
         revealItems.forEach((item) => observer.observe(item));
     }
 
-    if (productBoard) {
+    if (stageShell) {
         const resetCursor = () => {
-            productBoard.style.setProperty("--cursor-x", "50%");
-            productBoard.style.setProperty("--cursor-y", "50%");
+            stageShell.style.setProperty("--cursor-x", "50%");
+            stageShell.style.setProperty("--cursor-y", "50%");
         };
 
         resetCursor();
 
-        productBoard.addEventListener("pointermove", (event) => {
-            const rect = productBoard.getBoundingClientRect();
+        stageShell.addEventListener("pointermove", (event) => {
+            const rect = stageShell.getBoundingClientRect();
             const x = ((event.clientX - rect.left) / rect.width) * 100;
             const y = ((event.clientY - rect.top) / rect.height) * 100;
-            productBoard.style.setProperty("--cursor-x", `${x}%`);
-            productBoard.style.setProperty("--cursor-y", `${y}%`);
+            stageShell.style.setProperty("--cursor-x", `${x}%`);
+            stageShell.style.setProperty("--cursor-y", `${y}%`);
         });
 
-        productBoard.addEventListener("pointerleave", resetCursor);
+        stageShell.addEventListener("pointerleave", resetCursor);
     }
 });

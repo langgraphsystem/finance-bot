@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Bot | Autonomous Operations in Chat</title>
+    <title>Finance Bot | Operations, Run From Chat</title>
     <meta
         name="description"
-        content="Finance Bot turns chat into an operating layer for receipts, reminders, reporting, calendar prep, and follow-through."
+        content="Finance Bot turns Telegram into an operating layer for receipts, reminders, reporting, calendar prep, and follow-through."
     >
     <link
         rel="icon"
-        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230e1726'/%3E%3Cpath d='M20 20h24v6H27v9h14v6H27v13h-7z' fill='%23f4f7fb'/%3E%3C/svg%3E"
+        href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230d1626'/%3E%3Cpath d='M20 20h24v6H27v9h14v6H27v13h-7z' fill='%23f4f7fb'/%3E%3C/svg%3E"
     >
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,9 +21,9 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="page-noise" aria-hidden="true"></div>
-    <div class="page-grid" aria-hidden="true"></div>
-    <div class="page-wash" aria-hidden="true"></div>
+    <div class="ambient-noise" aria-hidden="true"></div>
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <div class="ambient-wash" aria-hidden="true"></div>
 
     <nav class="navbar">
         <a href="/" class="brand" aria-label="Finance Bot home">
@@ -32,9 +32,9 @@
         </a>
 
         <div class="nav-links">
-            <a href="#showcase">Product</a>
+            <a href="#product">Product</a>
             <a href="#system">System</a>
-            <a href="#proof">Use Cases</a>
+            <a href="#use-cases">Use Cases</a>
             <a href="#contact">Contact</a>
         </div>
 
@@ -49,93 +49,92 @@
 
     <main>
         <section class="hero reveal">
-            <div class="hero-grid">
-                <div class="hero-copy">
-                    <div class="eyebrow">AUTONOMOUS OPERATIONS IN CHAT</div>
-                    <h1 class="hero-title">
-                        Chat becomes
-                        <span class="hero-title-break">the operating layer for</span>
-                        <span class="text-accent">money, calendar, and follow-through.</span>
-                    </h1>
-                    <p class="hero-body">
-                        Finance Bot consolidates receipts, reminders, reports, inbox actions, and daily
-                        planning into one command surface that feels calm, fast, and accountable.
-                    </p>
+            <div class="hero-frame">
+                <div class="eyebrow">AUTONOMOUS OPERATIONS IN CHAT</div>
 
-                    <div class="hero-actions">
-                        <a href="https://t.me/YourBotName" class="btn btn-primary">Open Finance Bot</a>
-                        <a href="#showcase" class="btn btn-secondary">View the Product</a>
+                <div class="hero-layout">
+                    <div class="hero-copy">
+                        <h1 class="hero-title">
+                            Run money, calendar, and follow-through
+                            <span class="hero-title-accent">from one conversation.</span>
+                        </h1>
+
+                        <p class="hero-body">
+                            Finance Bot turns Telegram into a calm operating layer for receipts,
+                            reminders, reporting, and next-day prep across the systems your day already runs on.
+                        </p>
+
+                        <div class="hero-actions">
+                            <a href="https://t.me/YourBotName" class="btn btn-primary">Open Finance Bot</a>
+                            <a href="#product" class="btn btn-secondary">See the Product</a>
+                        </div>
                     </div>
 
-                    <div class="hero-ledger" id="channels">
-                        <span>Telegram-first</span>
-                        <span>Receipts</span>
-                        <span>Calendar prep</span>
-                        <span>Reporting</span>
-                        <span>Reminders</span>
-                        <span>Follow-ups</span>
-                    </div>
+                    <aside class="hero-memo">
+                        <div class="hero-memo-head">
+                            <span class="memo-label">Operating memo</span>
+                            <span class="memo-state">Live orchestration</span>
+                        </div>
+
+                        <div class="memo-row">
+                            <strong>Morning brief</strong>
+                            <span>Tomorrow's meetings, reminders, and open threads prepared before 08:00.</span>
+                        </div>
+                        <div class="memo-row">
+                            <strong>Weekly finance digest</strong>
+                            <span>Receipts grouped, categorized, and summarized without spreadsheet cleanup.</span>
+                        </div>
+                        <div class="memo-row">
+                            <strong>Human review when needed</strong>
+                            <span>Ambiguous tax or invoice items pause before delivery instead of guessing.</span>
+                        </div>
+
+                        <div class="memo-meta">
+                            <div>
+                                <span>Channels</span>
+                                <strong>Telegram, Gmail, Calendar, OCR</strong>
+                            </div>
+                            <div>
+                                <span>Delivery style</span>
+                                <strong>Concise brief + review flags</strong>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
 
-                <aside class="hero-proof">
-                    <div class="hero-proof-head">
-                        <span class="proof-label">Built for real operational work</span>
-                        <span class="proof-state">Live orchestration</span>
-                    </div>
-
-                    <div class="hero-proof-list">
-                        <div class="hero-proof-row">
-                            <strong>Weekly finance digest</strong>
-                            <span>Receipts grouped, categorized, and summarized</span>
-                        </div>
-                        <div class="hero-proof-row">
-                            <strong>Morning brief</strong>
-                            <span>Tomorrow's meetings, reminders, and follow-ups prepared</span>
-                        </div>
-                        <div class="hero-proof-row">
-                            <strong>Connected delivery</strong>
-                            <span>Telegram, Gmail, Calendar, and OCR on one rail</span>
-                        </div>
-                    </div>
-
-                    <div class="hero-proof-meta">
-                        <div>
-                            <span>Primary</span>
-                            <strong>claude-sonnet-4-6</strong>
-                        </div>
-                        <div>
-                            <span>Fast</span>
-                            <strong>gpt-5.2</strong>
-                        </div>
-                        <div>
-                            <span>Vision</span>
-                            <strong>gemini-3.1-pro-preview</strong>
-                        </div>
-                    </div>
-                </aside>
+                <div class="hero-ledger" id="channels">
+                    <span>Telegram-first</span>
+                    <span>Receipts</span>
+                    <span>Calendar prep</span>
+                    <span>Reporting</span>
+                    <span>Reminders</span>
+                    <span>Follow-ups</span>
+                </div>
             </div>
         </section>
 
-        <section class="product reveal" id="showcase">
-            <div class="section-intro">
-                <div class="eyebrow">PRODUCT</div>
-                <h2>A control surface, not another assistant tab.</h2>
-                <p>
-                    The interface stays quiet. Routing, execution, channel work, and memory remain legible
-                    around it, so the product feels trustworthy before it feels impressive.
-                </p>
+        <section class="product reveal" id="product">
+            <div class="section-head">
+                <div class="section-kicker">PRODUCT</div>
+                <div class="section-copy">
+                    <h2>The product stays quiet. The system stays visible.</h2>
+                    <p>
+                        The interface feels calm because routing, execution, review, and memory are made explicit.
+                        The user sees one command surface. The product team still shows its work.
+                    </p>
+                </div>
             </div>
 
-            <div class="product-board">
-                <div class="board-column board-left">
-                    <article class="board-card board-card-plan drift-slow">
-                        <div class="card-label">request_plan</div>
-                        <h3>The ask is decomposed before anything is executed.</h3>
+            <div class="stage-shell">
+                <div class="stage-rail stage-left">
+                    <article class="stage-card stage-card-route drift-slow">
+                        <div class="card-label">request_route</div>
+                        <h3>The request is decomposed before anything moves.</h3>
 
-                        <div class="board-stack">
+                        <div class="stage-stack">
                             <div class="stack-row">
-                                <strong>1. Parse the request</strong>
-                                <span>weekly spend + tomorrow prep + delivery target</span>
+                                <strong>1. Parse the ask</strong>
+                                <span>weekly spend, tomorrow prep, delivery target</span>
                             </div>
                             <div class="stack-row">
                                 <strong>2. Route the work</strong>
@@ -143,76 +142,78 @@
                             </div>
                             <div class="stack-row">
                                 <strong>3. Hold review if needed</strong>
-                                <span>tax category and invoice follow-up can pause for confirmation</span>
+                                <span>unclear tax treatment and invoice follow-up can pause for confirmation</span>
                             </div>
                         </div>
                     </article>
 
-                    <article class="board-card board-card-review drift-medium">
-                        <div class="card-label">human_review</div>
-                        <p class="board-note">
-                            One open review item: confirm tax treatment before the digest is final.
+                    <article class="stage-card stage-card-review drift-medium">
+                        <div class="card-label">review_gate</div>
+                        <p class="review-copy">
+                            One item is still waiting for approval before the finance digest goes out.
                         </p>
-                        <div class="board-chip">Awaiting operator confirmation</div>
+                        <div class="review-pill">Awaiting operator confirmation</div>
                     </article>
                 </div>
 
-                <div class="device-stage">
-                    <div class="device-shell">
-                        <div class="device-notch" aria-hidden="true"></div>
-                        <div class="device-header">
-                            <span class="status-dot"></span>
-                            <span>Finance Bot</span>
-                        </div>
-
-                        <video class="device-video" autoplay loop muted playsinline>
-                            <source src="hero-bg.webm" type="video/webm">
-                        </video>
-
-                        <div class="chat-thread">
-                            <div class="message message-user">
-                                Pull weekly spending, prep tomorrow, and send me the brief before 8.
+                <div class="stage-center">
+                    <div class="device-frame">
+                        <div class="device-shell">
+                            <div class="device-notch" aria-hidden="true"></div>
+                            <div class="device-header">
+                                <span class="status-dot"></span>
+                                <span>Finance Bot</span>
                             </div>
 
-                            <div class="message message-bot">
-                                Running receipt parsing, calendar sync, and reminder checks now. I will send
-                                the digest to Telegram.
-                            </div>
+                            <video class="device-video" autoplay loop muted playsinline>
+                                <source src="hero-bg.webm" type="video/webm">
+                            </video>
 
-                            <div class="message-cluster">
-                                <div class="cluster-item">
-                                    <span class="cluster-title">Weekly spend</span>
-                                    <span class="cluster-value">$2,140</span>
+                            <div class="chat-thread">
+                                <div class="message message-user">
+                                    Pull weekly spend, prep tomorrow, and send me the brief before 08:00.
                                 </div>
-                                <div class="cluster-item">
-                                    <span class="cluster-title">Tomorrow</span>
-                                    <span class="cluster-value">3 meetings</span>
+
+                                <div class="message message-bot">
+                                    Running receipt parsing, calendar sync, and follow-up scan now. I will hold one
+                                    ambiguous item for review before delivery.
                                 </div>
-                                <div class="cluster-item">
-                                    <span class="cluster-title">Receipts</span>
-                                    <span class="cluster-value">18 parsed</span>
+
+                                <div class="message-cluster">
+                                    <div class="cluster-item">
+                                        <span class="cluster-title">Weekly spend</span>
+                                        <span class="cluster-value">$2,140</span>
+                                    </div>
+                                    <div class="cluster-item">
+                                        <span class="cluster-title">Tomorrow</span>
+                                        <span class="cluster-value">3 meetings</span>
+                                    </div>
+                                    <div class="cluster-item">
+                                        <span class="cluster-title">Review</span>
+                                        <span class="cluster-value">1 item held</span>
+                                    </div>
+                                </div>
+
+                                <div class="message message-user message-user-compact">
+                                    Put the review flag at the top and send the summary to Telegram.
                                 </div>
                             </div>
 
-                            <div class="message message-user message-user-compact">
-                                Flag anything that needs review before it goes out.
+                            <div class="device-composer">
+                                <div class="composer-copy">Ask Finance Bot...</div>
+                                <div class="composer-tools">
+                                    <span>Telegram</span>
+                                    <span>Calendar</span>
+                                    <span>OCR</span>
+                                </div>
+                                <button type="button" aria-label="Send request">↗</button>
                             </div>
-                        </div>
-
-                        <div class="device-composer">
-                            <div class="composer-copy">Ask Finance Bot...</div>
-                            <div class="composer-tools">
-                                <span>Telegram</span>
-                                <span>Calendar</span>
-                                <span>OCR</span>
-                            </div>
-                            <button type="button" aria-label="Send request">↗</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="board-column board-right">
-                    <article class="board-card board-card-connections drift-fast">
+                <div class="stage-rail stage-right">
+                    <article class="stage-card stage-card-channels drift-fast">
                         <div class="card-head">
                             <span class="card-label">connected_channels</span>
                             <span class="status-pill">4 active</span>
@@ -221,7 +222,7 @@
                         <div class="connection-row">
                             <div>
                                 <strong>Telegram</strong>
-                                <small>primary delivery</small>
+                                <small>primary delivery surface</small>
                             </div>
                             <span class="connection-status is-live">live</span>
                         </div>
@@ -248,41 +249,36 @@
                         </div>
                     </article>
 
-                    <article class="board-card board-card-exec drift-slow">
+                    <article class="stage-card stage-card-ledger drift-slow">
                         <div class="card-head">
-                            <span class="card-label">execution_state</span>
+                            <span class="card-label">execution_ledger</span>
                             <span class="status-pill">in flight</span>
                         </div>
 
-                        <div class="exec-main">
-                            <div class="exec-badge">MORNING_BRIEF</div>
-                            <div class="exec-grid">
+                        <div class="ledger-block">
+                            <div class="ledger-badge">MORNING_BRIEF</div>
+                            <div class="ledger-grid">
                                 <div>
-                                    <span>scope</span>
+                                    <span>Scope</span>
                                     <strong>calendar + reminders</strong>
                                 </div>
                                 <div>
-                                    <span>delivery</span>
+                                    <span>Delivery</span>
                                     <strong>telegram briefing</strong>
                                 </div>
                             </div>
-                            <div class="exec-result">2 actions resolved · 1 review still open</div>
+                            <div class="ledger-result">2 actions resolved · 1 review still open</div>
                         </div>
-                    </article>
 
-                    <article class="board-card board-card-memory drift-medium">
-                        <div class="card-label">memory_state</div>
-                        <div class="stack-row">
-                            <strong>Recurring pattern</strong>
-                            <span>Thursday morning brief before 08:00</span>
-                        </div>
-                        <div class="stack-row">
-                            <strong>Delivery preference</strong>
-                            <span>Telegram first, concise summary, review flags at top</span>
-                        </div>
-                        <div class="stack-row">
-                            <strong>Escalation rule</strong>
-                            <span>Pause for confirmation on ambiguous tax or invoice items</span>
+                        <div class="stage-stack compact">
+                            <div class="stack-row">
+                                <strong>Recurring pattern</strong>
+                                <span>Thursday brief before 08:00</span>
+                            </div>
+                            <div class="stack-row">
+                                <strong>Delivery preference</strong>
+                                <span>summary first, review flags at the top</span>
+                            </div>
                         </div>
                     </article>
                 </div>
@@ -290,109 +286,128 @@
         </section>
 
         <section class="system reveal" id="system">
-            <div class="system-layout">
-                <div class="system-copy">
-                    <div class="eyebrow">SYSTEM</div>
-                    <h2>Built like software infrastructure, not a novelty chatbot.</h2>
+            <div class="section-head system-head">
+                <div class="section-kicker">SYSTEM</div>
+                <div class="section-copy">
+                    <h2>Designed like infrastructure, not a novelty chatbot.</h2>
                     <p>
-                        Trust comes from visible boundaries: what gets routed, what gets executed, what gets
-                        remembered, and what still needs a person.
+                        Trust comes from visible boundaries. What gets routed, what gets remembered, what still
+                        needs a person, and what has already resolved should all be legible in the product story.
                     </p>
+                </div>
+            </div>
 
-                    <div class="system-principle">
-                        <strong>Good automation feels calm because the structure is explicit.</strong>
-                        <span>
-                            That clarity is what makes the product feel premium. Not effects. Not slogans.
-                        </span>
+            <div class="principles-grid">
+                <article class="principle-card principle-card-large">
+                    <div class="card-label">operating_model</div>
+                    <h3>Good automation feels calm because the structure is explicit.</h3>
+
+                    <div class="principle-steps">
+                        <div class="principle-step">
+                            <span>01</span>
+                            <strong>Classify</strong>
+                            <p>Separate finance, scheduling, reminders, and delivery before execution starts.</p>
+                        </div>
+                        <div class="principle-step">
+                            <span>02</span>
+                            <strong>Execute</strong>
+                            <p>Run only the channels and tools needed for the task in front of the user.</p>
+                        </div>
+                        <div class="principle-step">
+                            <span>03</span>
+                            <strong>Deliver</strong>
+                            <p>Return a brief, a review flag, or a resolved state instead of system chatter.</p>
+                        </div>
                     </div>
-                </div>
+                </article>
 
-                <div class="system-grid">
-                    <article class="system-card system-card-large">
-                        <div class="card-label">operating_model</div>
-                        <ol class="system-steps">
-                            <li>
-                                <strong>Classify</strong>
-                                <span>Separate finance, scheduling, reminders, and delivery before execution starts.</span>
-                            </li>
-                            <li>
-                                <strong>Execute</strong>
-                                <span>Run only the channels and tools needed for the task in front of the user.</span>
-                            </li>
-                            <li>
-                                <strong>Deliver</strong>
-                                <span>Return a brief, a review flag, or a resolved state instead of system noise.</span>
-                            </li>
-                        </ol>
-                    </article>
+                <article class="principle-card principle-card-blue">
+                    <div class="card-label">routing</div>
+                    <h3>Intent is routed before tools run.</h3>
+                    <p>
+                        Expense logging, reminders, reporting, booking, and inbox work do not compete in one
+                        fuzzy loop.
+                    </p>
+                </article>
 
-                    <article class="system-card">
-                        <div class="card-label">routing</div>
-                        <h3>Intent is routed before tools run.</h3>
-                        <p>
-                            Expense logging, booking, reminders, reporting, and inbox work do not compete in a
-                            single fuzzy loop.
-                        </p>
-                    </article>
+                <article class="principle-card principle-card-sand">
+                    <div class="card-label">review</div>
+                    <h3>Risky steps wait for confirmation.</h3>
+                    <p>
+                        Ambiguity pauses the system. That boundary is what makes the product feel trustworthy.
+                    </p>
+                </article>
 
-                    <article class="system-card">
-                        <div class="card-label">memory</div>
-                        <h3>Preferences stay useful.</h3>
-                        <p>
-                            Recurring habits and preferences are retained so the product feels personal without
-                            becoming messy.
-                        </p>
-                    </article>
-
-                    <article class="system-card">
-                        <div class="card-label">review</div>
-                        <h3>Risky steps wait for confirmation.</h3>
-                        <p>
-                            That boundary makes the experience more trustworthy than pretending every action
-                            should run unattended.
-                        </p>
-                    </article>
-                </div>
+                <article class="principle-card principle-card-sage">
+                    <div class="card-label">memory</div>
+                    <h3>Preferences stay useful.</h3>
+                    <p>
+                        Delivery habits, recurring patterns, and human-review rules persist without turning the
+                        experience into noise.
+                    </p>
+                </article>
             </div>
         </section>
 
-        <section class="proof reveal" id="proof">
-            <div class="section-intro proof-intro">
-                <div class="eyebrow">USE CASES</div>
-                <h2>Designed for real operational routines.</h2>
-                <p>
-                    The product becomes credible when the page speaks in concrete workflows instead of
-                    generic AI promises.
-                </p>
+        <section class="use-cases reveal" id="use-cases">
+            <div class="section-head use-cases-head">
+                <div class="section-kicker">USE CASES</div>
+                <div class="section-copy">
+                    <h2>Designed for real operational routines.</h2>
+                    <p>
+                        The site feels more credible when it speaks in concrete outcomes instead of generic AI language.
+                    </p>
+                </div>
             </div>
 
-            <div class="proof-grid">
-                <article class="proof-card">
-                    <div class="proof-index">01</div>
-                    <h3>Weekly finance close</h3>
-                    <p>
-                        Group receipts, summarize spend, surface anomalies, and deliver a clean digest without
-                        spreadsheet gymnastics.
-                    </p>
+            <div class="use-cases-grid">
+                <article class="use-case-card">
+                    <div class="use-case-index">01</div>
+                    <div class="use-case-copy">
+                        <h3>Weekly finance close</h3>
+                        <p>
+                            Group receipts, summarize spend, surface anomalies, and deliver a clean digest without
+                            spreadsheet cleanup.
+                        </p>
+                    </div>
                 </article>
 
-                <article class="proof-card">
-                    <div class="proof-index">02</div>
-                    <h3>Morning operational brief</h3>
-                    <p>
-                        Prepare meetings, reminders, and open threads before the day starts, with review flags
-                        where judgment still matters.
-                    </p>
+                <article class="use-case-card">
+                    <div class="use-case-index">02</div>
+                    <div class="use-case-copy">
+                        <h3>Morning operational brief</h3>
+                        <p>
+                            Prepare meetings, reminders, and open loops before the day starts, with review flags
+                            where judgment still matters.
+                        </p>
+                    </div>
                 </article>
 
-                <article class="proof-card">
-                    <div class="proof-index">03</div>
-                    <h3>Follow-through that does not disappear</h3>
-                    <p>
-                        Delivery preferences, recurring habits, and unresolved items stay visible, so the
-                        system feels dependable over time.
-                    </p>
+                <article class="use-case-card">
+                    <div class="use-case-index">03</div>
+                    <div class="use-case-copy">
+                        <h3>Follow-through that does not disappear</h3>
+                        <p>
+                            Delivery preferences, recurring habits, and unresolved items stay visible so the system
+                            feels dependable over time.
+                        </p>
+                    </div>
                 </article>
+            </div>
+        </section>
+
+        <section class="closing reveal">
+            <div class="closing-card">
+                <div class="section-kicker">START</div>
+                <h2>Put Finance Bot in the loop.</h2>
+                <p>
+                    One operating layer for receipts, reminders, reporting, and next-day prep, delivered from chat.
+                </p>
+
+                <div class="closing-actions">
+                    <a href="https://t.me/YourBotName" class="btn btn-primary">Open Finance Bot</a>
+                    <a href="#product" class="btn btn-secondary">Review the Product</a>
+                </div>
             </div>
         </section>
     </main>
@@ -409,14 +424,14 @@
         </div>
 
         <div class="footer-links">
-            <a href="#showcase">Product</a>
+            <a href="#product">Product</a>
             <a href="#system">System</a>
-            <a href="#proof">Use Cases</a>
+            <a href="#use-cases">Use Cases</a>
             <a href="privacy.html">Privacy</a>
             <a href="terms.html">Terms</a>
         </div>
 
-        <a href="https://t.me/YourBotName" class="footer-cta">Launch Finance Bot</a>
+        <a href="https://t.me/YourBotName" class="footer-cta">Open in Telegram</a>
     </footer>
 
     <script src="script.js"></script>
