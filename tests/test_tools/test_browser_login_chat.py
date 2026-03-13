@@ -62,16 +62,72 @@ def test_site_config_keys():
 # ---------------------------------------------------------------------------
 
 
-async def test_detect_next_step_otp_field_for_skip_password():
-    """skip_password site with OTP input visible → returns '2fa'."""
+async def test_detect_next_step_otp_sms_for_skip_password():
+    """skip_password site with OTP input + SMS text → returns '2fa_sms'."""
     from src.tools.browser_login import _detect_next_step
 
     mock_page = AsyncMock()
     mock_el = AsyncMock()
     mock_el.is_visible = AsyncMock(return_value=True)
-    mock_locator = MagicMock()
-    mock_locator.first = mock_el
-    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(return_value="Enter the code sent via SMS to your phone")
+
+    def _locator(selector):
+        if selector == "body":
+            return mock_body
+        loc = MagicMock()
+        loc.first = mock_el
+        return loc
+
+    mock_page.locator = MagicMock(side_effect=_locator)
+
+    result = await _detect_next_step(mock_page, {"skip_password": True})
+    assert result == "2fa_sms"
+
+
+async def test_detect_next_step_otp_email_for_skip_password():
+    """skip_password site with OTP input + email text → returns '2fa_email'."""
+    from src.tools.browser_login import _detect_next_step
+
+    mock_page = AsyncMock()
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=True)
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(
+        return_value="We sent a code to your email address"
+    )
+
+    def _locator(selector):
+        if selector == "body":
+            return mock_body
+        loc = MagicMock()
+        loc.first = mock_el
+        return loc
+
+    mock_page.locator = MagicMock(side_effect=_locator)
+
+    result = await _detect_next_step(mock_page, {"skip_password": True})
+    assert result == "2fa_email"
+
+
+async def test_detect_next_step_otp_unknown_method():
+    """skip_password site with OTP input but no method keywords → returns '2fa'."""
+    from src.tools.browser_login import _detect_next_step
+
+    mock_page = AsyncMock()
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=True)
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(return_value="Enter verification code")
+
+    def _locator(selector):
+        if selector == "body":
+            return mock_body
+        loc = MagicMock()
+        loc.first = mock_el
+        return loc
+
+    mock_page.locator = MagicMock(side_effect=_locator)
 
     result = await _detect_next_step(mock_page, {"skip_password": True})
     assert result == "2fa"
@@ -120,6 +176,84 @@ async def test_detect_next_step_falls_back_to_gemini():
     ):
         result = await _detect_next_step(mock_page, {})
     assert result == "2fa"
+
+
+# ---------------------------------------------------------------------------
+# _detect_2fa_method tests
+# ---------------------------------------------------------------------------
+
+
+async def test_detect_2fa_method_sms():
+    """Page text with SMS keywords → returns 'sms'."""
+    from src.tools.browser_login import _detect_2fa_method
+
+    mock_page = AsyncMock()
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(
+        return_value="Enter the 4-digit code sent to your phone +1***890"
+    )
+    mock_page.locator = MagicMock(return_value=mock_body)
+
+    result = await _detect_2fa_method(mock_page)
+    assert result == "sms"
+
+
+async def test_detect_2fa_method_email():
+    """Page text with email keywords → returns 'email'."""
+    from src.tools.browser_login import _detect_2fa_method
+
+    mock_page = AsyncMock()
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(
+        return_value="We sent a verification code to your email t***@gmail.com"
+    )
+    mock_page.locator = MagicMock(return_value=mock_body)
+
+    result = await _detect_2fa_method(mock_page)
+    assert result == "email"
+
+
+async def test_detect_2fa_method_russian_sms():
+    """Russian page text with SMS keywords → returns 'sms'."""
+    from src.tools.browser_login import _detect_2fa_method
+
+    mock_page = AsyncMock()
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(
+        return_value="Код отправлен на ваш телефон +7***890"
+    )
+    mock_page.locator = MagicMock(return_value=mock_body)
+
+    result = await _detect_2fa_method(mock_page)
+    assert result == "sms"
+
+
+async def test_detect_2fa_method_russian_email():
+    """Russian page text with email keywords → returns 'email'."""
+    from src.tools.browser_login import _detect_2fa_method
+
+    mock_page = AsyncMock()
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(
+        return_value="Код отправлен на вашу почту t***@mail.ru"
+    )
+    mock_page.locator = MagicMock(return_value=mock_body)
+
+    result = await _detect_2fa_method(mock_page)
+    assert result == "email"
+
+
+async def test_detect_2fa_method_unknown():
+    """Page text with no clear keywords → returns 'unknown'."""
+    from src.tools.browser_login import _detect_2fa_method
+
+    mock_page = AsyncMock()
+    mock_body = AsyncMock()
+    mock_body.inner_text = AsyncMock(return_value="Enter your verification code")
+    mock_page.locator = MagicMock(return_value=mock_body)
+
+    result = await _detect_2fa_method(mock_page)
+    assert result == "unknown"
 
 
 # ---------------------------------------------------------------------------

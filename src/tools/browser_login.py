@@ -89,7 +89,15 @@ _STRINGS: dict[str, dict[str, str]] = {
             "OAuth login page opened. Enter your <b>password</b>.\n\n"
             "Your message will be <b>deleted immediately</b>."
         ),
-        "ask_2fa": "Two-factor authentication required. Enter the code:",
+        "ask_2fa": "Verification code required. Enter the code:",
+        "ask_2fa_sms": (
+            "A code was sent to your <b>phone via SMS</b>.\n\n"
+            "Enter the verification code:"
+        ),
+        "ask_2fa_email": (
+            "A code was sent to your <b>email</b>.\n\n"
+            "Check your inbox and enter the verification code:"
+        ),
         "login_success": (
             "Logged in to <b>{site}</b> successfully! "
             "Session saved.\n\nNow executing your task..."
@@ -129,7 +137,15 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Открыта страница OAuth. Введите <b>пароль</b>.\n\n"
             "Сообщение будет <b>удалено сразу</b>."
         ),
-        "ask_2fa": "Требуется двухфакторная аутентификация. Введите код:",
+        "ask_2fa": "Требуется код подтверждения. Введите код:",
+        "ask_2fa_sms": (
+            "Код отправлен на ваш <b>телефон (SMS)</b>.\n\n"
+            "Введите код подтверждения:"
+        ),
+        "ask_2fa_email": (
+            "Код отправлен на вашу <b>почту</b>.\n\n"
+            "Проверьте входящие и введите код подтверждения:"
+        ),
         "login_success": (
             "Вход в <b>{site}</b> выполнен! "
             "Сессия сохранена.\n\nВыполняю задачу..."
@@ -173,7 +189,15 @@ _STRINGS: dict[str, dict[str, str]] = {
             "Página OAuth abierta. Ingresa tu <b>contraseña</b>.\n\n"
             "Tu mensaje será <b>eliminado inmediatamente</b>."
         ),
-        "ask_2fa": "Se requiere autenticación de dos factores. Ingresa el código:",
+        "ask_2fa": "Se requiere un código de verificación. Ingresa el código:",
+        "ask_2fa_sms": (
+            "Se envió un código a tu <b>teléfono por SMS</b>.\n\n"
+            "Ingresa el código de verificación:"
+        ),
+        "ask_2fa_email": (
+            "Se envió un código a tu <b>correo electrónico</b>.\n\n"
+            "Revisa tu bandeja de entrada e ingresa el código:"
+        ),
         "login_success": (
             "Sesión en <b>{site}</b> iniciada con éxito! "
             "Sesión guardada.\n\nEjecutando tu tarea..."
@@ -500,13 +524,15 @@ async def _handle_email_step(
 
         screenshot = await page.screenshot(type="png")
 
-        if next_step == "2fa":
-            # Site uses OTP/SMS code instead of password (e.g. Uber)
+        if next_step.startswith("2fa"):
+            # Site uses OTP code instead of password (e.g. Uber SMS, email code)
             state["step"] = "awaiting_2fa"
             await _set_login_state(user_id, state)
+            # Pick method-specific prompt: ask_2fa_sms, ask_2fa_email, or ask_2fa
+            prompt_key = f"ask_{next_step}" if next_step in ("2fa_sms", "2fa_email") else "ask_2fa"
             return {
                 "action": "ask_2fa",
-                "text": _t("ask_2fa", lang),
+                "text": _t(prompt_key, lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -639,9 +665,14 @@ async def _handle_password_step(
         elif login_result == "2fa":
             state["step"] = "awaiting_2fa"
             await _set_login_state(user_id, state)
+            # Detect if code was sent via SMS or email
+            method = await _detect_2fa_method(page)
+            prompt_key = (
+                f"ask_2fa_{method}" if method in ("sms", "email") else "ask_2fa"
+            )
             return {
                 "action": "ask_2fa",
-                "text": _t("ask_2fa", lang),
+                "text": _t(prompt_key, lang),
                 "screenshot_bytes": screenshot,
             }
 
@@ -864,16 +895,51 @@ async def _escalate_to_browser_connect(
         }
 
 
+async def _detect_2fa_method(page: Any) -> str:
+    """Detect how the verification code was sent (SMS, email, or unknown).
+
+    Checks page text for keywords like 'email', 'SMS', 'phone', 'text message'.
+    Returns: 'sms', 'email', or 'unknown'.
+    """
+    try:
+        # Get visible text from the page body
+        body_text = await page.locator("body").inner_text(timeout=3000)
+        text_lower = body_text.lower()
+
+        # Email-related keywords (check first — more specific)
+        email_keywords = [
+            "email", "e-mail", "inbox", "почт", "входящ",
+            "correo", "bandeja",
+        ]
+        sms_keywords = [
+            "sms", "text message", "phone", "mobile",
+            "телефон", "смс", "номер",
+            "teléfono", "mensaje de texto",
+        ]
+
+        has_email = any(kw in text_lower for kw in email_keywords)
+        has_sms = any(kw in text_lower for kw in sms_keywords)
+
+        if has_email and not has_sms:
+            return "email"
+        if has_sms and not has_email:
+            return "sms"
+        # Both or neither — can't determine reliably
+        return "unknown"
+    except Exception:
+        return "unknown"
+
+
 async def _detect_next_step(page: Any, site_config: dict) -> str:
     """Detect what the page is asking for after entering email/phone.
 
     Checks DOM selectors first (fast), then falls back to Gemini vision.
-    Returns: 'password', '2fa', 'captcha', 'success', or 'unknown'.
+    Returns: 'password', '2fa', '2fa_sms', '2fa_email',
+             'captcha', 'success', or 'unknown'.
     """
     # Sites that skip password entirely (Uber OTP flow)
     if site_config.get("skip_password"):
-        # Check for OTP/code input fields
-        for selector in [
+        otp_selectors = [
             'input[name="code"]',
             'input[name="otp"]',
             'input[name="verificationCode"]',
@@ -881,10 +947,14 @@ async def _detect_next_step(page: Any, site_config: dict) -> str:
             'input[inputmode="numeric"]',
             'input[autocomplete="one-time-code"]',
             'input[data-testid="verify-code-input-field"]',
-        ]:
+        ]
+        for selector in otp_selectors:
             try:
                 el = page.locator(selector).first
                 if await el.is_visible(timeout=1500):
+                    method = await _detect_2fa_method(page)
+                    if method != "unknown":
+                        return f"2fa_{method}"
                     return "2fa"
             except Exception:
                 continue
@@ -912,6 +982,9 @@ async def _detect_next_step(page: Any, site_config: dict) -> str:
         try:
             el = page.locator(selector).first
             if await el.is_visible(timeout=1500):
+                method = await _detect_2fa_method(page)
+                if method != "unknown":
+                    return f"2fa_{method}"
                 return "2fa"
         except Exception:
             continue

@@ -129,7 +129,7 @@ async def test_handle_step_uber_phone_goes_to_2fa():
             patch(
                 "src.tools.browser_login._detect_next_step",
                 new_callable=AsyncMock,
-                return_value="2fa",
+                return_value="2fa_sms",
             ),
         ):
             mock_redis.get = AsyncMock(return_value=json.dumps(state))
@@ -141,7 +141,61 @@ async def test_handle_step_uber_phone_goes_to_2fa():
                 message_text="+1234567890",
             )
         assert result["action"] == "ask_2fa"
-        assert "code" in result["text"].lower() or "код" in result["text"].lower()
+        assert "sms" in result["text"].lower() or "phone" in result["text"].lower()
+    finally:
+        browser_login._active_sessions.pop("user-123", None)
+
+
+async def test_handle_step_uber_phone_email_otp():
+    """Uber phone entry with email OTP should show email-specific prompt."""
+    import json
+
+    state = {
+        "step": "awaiting_email",
+        "site": "uber.com",
+        "family_id": "family-123",
+        "task": "order uber",
+        "login_url": "https://auth.uber.com/login",
+    }
+
+    mock_page = AsyncMock()
+    mock_el = AsyncMock()
+    mock_el.is_visible = AsyncMock(return_value=True)
+    mock_el.fill = AsyncMock()
+    mock_locator = MagicMock()
+    mock_locator.first = mock_el
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_page.screenshot = AsyncMock(return_value=b"screenshot")
+    mock_page.keyboard = AsyncMock()
+
+    from src.tools import browser_login
+
+    browser_login._active_sessions["user-123"] = {
+        "page": mock_page,
+        "browser": AsyncMock(),
+        "context": AsyncMock(),
+        "pw": AsyncMock(),
+    }
+
+    try:
+        with (
+            patch("src.tools.browser_login.redis") as mock_redis,
+            patch(
+                "src.tools.browser_login._detect_next_step",
+                new_callable=AsyncMock,
+                return_value="2fa_email",
+            ),
+        ):
+            mock_redis.get = AsyncMock(return_value=json.dumps(state))
+            mock_redis.set = AsyncMock()
+
+            result = await handle_step(
+                user_id="user-123",
+                family_id="family-123",
+                message_text="+1234567890",
+            )
+        assert result["action"] == "ask_2fa"
+        assert "email" in result["text"].lower() or "inbox" in result["text"].lower()
     finally:
         browser_login._active_sessions.pop("user-123", None)
 
