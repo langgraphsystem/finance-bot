@@ -1209,6 +1209,10 @@ main {
         grid-template-columns: 1fr;
     }
 
+    .masthead-grid {
+        gap: 32px;
+    }
+
     .theater-frame {
         grid-template-columns: 1fr;
         gap: 26px;
@@ -1251,6 +1255,8 @@ main {
     .topbar {
         flex-wrap: wrap;
         align-items: center;
+        gap: 16px;
+        padding: 14px 16px;
     }
 
     .nav-links {
@@ -1268,7 +1274,7 @@ main {
     }
 
     .nav-cta {
-        margin-left: auto;
+        display: none;
     }
 
     .mobile-menu-btn {
@@ -1276,12 +1282,23 @@ main {
     }
 
     .masthead {
-        padding-top: 54px;
+        padding-top: 40px;
+    }
+
+    .masthead-meta {
+        gap: 12px;
+        font-size: 11px;
     }
 
     .masthead-copy h1 {
-        max-width: 12ch;
-        font-size: clamp(2.9rem, 9vw, 4.8rem);
+        max-width: none;
+        font-size: clamp(2.6rem, 8vw, 4.2rem);
+        line-height: 0.97;
+    }
+
+    .masthead-text {
+        margin-top: 20px;
+        font-size: 1rem;
     }
 
     .theater-frame {
@@ -1305,6 +1322,32 @@ main {
     .principles-grid,
     .routine-list {
         gap: 12px;
+    }
+
+    .hero-actions {
+        margin-top: 24px;
+        gap: 10px;
+    }
+
+    .masthead-note {
+        padding: 22px;
+    }
+
+    .masthead-note p {
+        font-size: 0.95rem;
+    }
+
+    .note-stack {
+        margin-top: 20px;
+        padding-top: 18px;
+        gap: 12px;
+    }
+
+    .signal-ribbon {
+        margin-top: 36px;
+        padding: 14px 0;
+        gap: 10px 14px;
+        font-size: 10px;
     }
 
     .principles-grid {
@@ -1341,7 +1384,7 @@ main {
     .topbar {
         top: 10px;
         margin-top: 10px;
-        padding: 14px 16px;
+        padding: 12px 14px;
     }
 
     .nav-cta {
@@ -1351,11 +1394,12 @@ main {
     .masthead-meta {
         flex-direction: column;
         align-items: flex-start;
-        gap: 10px;
+        gap: 8px;
     }
 
     .masthead-copy h1 {
-        font-size: clamp(2.4rem, 12vw, 3.8rem);
+        font-size: clamp(2.15rem, 10vw, 3.3rem);
+        line-height: 0.98;
     }
 
     .masthead-text,
@@ -1364,8 +1408,32 @@ main {
         font-size: 0.98rem;
     }
 
+    .masthead-note {
+        padding: 18px;
+        border-radius: 22px;
+    }
+
+    .masthead-note p {
+        display: none;
+    }
+
+    .note-stack {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+    }
+
+    .note-row strong {
+        font-size: 0.98rem;
+    }
+
+    .note-row span {
+        font-size: 0.8rem;
+    }
+
     .signal-ribbon {
-        gap: 12px 18px;
+        display: none;
     }
 
     .signal-panel,
@@ -1402,5 +1470,48 @@ main {
 
     .closing-panel h2 {
         max-width: 10ch;
+    }
+}
+
+@media (max-height: 860px) and (min-width: 900px) {
+    .masthead {
+        padding-top: 56px;
+    }
+
+    .masthead-grid {
+        gap: 34px;
+        margin-top: 20px;
+    }
+
+    .masthead-copy h1 {
+        font-size: clamp(3rem, 5vw, 5rem);
+    }
+
+    .masthead-text {
+        margin-top: 20px;
+        font-size: 1rem;
+    }
+
+    .hero-actions {
+        margin-top: 24px;
+    }
+
+    .masthead-note {
+        padding: 22px 22px 24px;
+    }
+
+    .masthead-note p {
+        font-size: 0.94rem;
+    }
+
+    .note-stack {
+        margin-top: 20px;
+        padding-top: 18px;
+        gap: 12px;
+    }
+
+    .signal-ribbon {
+        margin-top: 34px;
+        padding: 14px 0;
     }
 }
