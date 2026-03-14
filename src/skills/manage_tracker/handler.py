@@ -21,49 +21,70 @@ logger = logging.getLogger(__name__)
 
 _STRINGS: dict[str, dict[str, str]] = {
     "en": {
-        "created":       "✅ <b>{name}</b> tracker created!\n\nOpen the app to log entries and see your progress.",
-        "logged":        "✅ Logged {emoji} <b>{name}</b> — {val}",
-        "logged_note":   "✅ Logged {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
-        "no_trackers":   "You don't have any trackers yet.\n\nSay <b>«create a water tracker»</b> to start!",
-        "not_found":     "I couldn't find that tracker. Here are yours:\n\n{list}",
-        "list_header":   "📊 <b>Your Trackers</b>\n\n",
-        "streak":        "🔥 {n}d streak",
-        "no_streak":     "No entries yet",
-        "open_app":      "Open App",
-        "log_btn":       "Log {emoji}",
-        "ask_value":     "What value should I log for <b>{name}</b>?\n\nSend a number (e.g. <b>7</b> for mood, <b>6</b> for glasses of water).",
-        "ask_type":      "What type of tracker?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
-        "deleted":       "🗑️ <b>{name}</b> tracker deleted.",
+        "created":              "✅ <b>{name}</b> tracker created!\n\nOpen the app to log entries and see your progress.",
+        "logged":               "✅ Logged {emoji} <b>{name}</b> — {val}",
+        "logged_note":          "✅ Logged {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
+        "no_trackers":          "You don't have any trackers yet.\n\nSay <b>«create a water tracker»</b> to start!",
+        "not_found":            "I couldn't find that tracker. Here are yours:\n\n{list}",
+        "list_header":          "📊 <b>Your Trackers</b>\n\n",
+        "streak":               "🔥 {n}d streak",
+        "no_streak":            "No entries yet",
+        "open_app":             "Open App",
+        "log_btn":              "Log {emoji}",
+        "ask_value":            "What value should I log for <b>{name}</b>?\n\nSend a number (e.g. <b>7</b> for mood, <b>6</b> for glasses of water).",
+        "ask_type":             "What type of tracker?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
+        "deleted":              "🗑️ <b>{name}</b> tracker deleted.",
+        "remind_on":            "🔔 Reminder set for {emoji} <b>{name}</b> at <b>{time}</b> daily.\n\nI'll ping you if you haven't logged it yet.",
+        "remind_on_repeat":     "🔔 Reminder set for {emoji} <b>{name}</b> at <b>{time}</b>.\n\n🔁 I'll remind you every <b>{interval} min</b> until you log it.",
+        "remind_on_enabled":    "🔔 Reminder re-enabled for {emoji} <b>{name}</b> at <b>{time}</b>.",
+        "remind_off":           "🔕 Reminder turned off for {emoji} <b>{name}</b>.",
+        "remind_no_time":       "What time should I remind you?\n\nSend a time like <b>21:00</b> or <b>9pm</b>.",
+        "remind_no_time_set":   "No reminder time configured for {emoji} <b>{name}</b>.\n\nSend a time like <b>21:00</b> or <b>9pm</b>.",
+        "remind_not_found":     "I couldn't find that tracker. Here are yours:\n\n{list}",
     },
     "ru": {
-        "created":       "✅ Трекер <b>{name}</b> создан!\n\nОткройте приложение, чтобы записывать и отслеживать прогресс.",
-        "logged":        "✅ Записано {emoji} <b>{name}</b> — {val}",
-        "logged_note":   "✅ Записано {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
-        "no_trackers":   "У вас ещё нет трекеров.\n\nСкажите <b>«создай трекер воды»</b>, чтобы начать!",
-        "not_found":     "Такой трекер не найден. Ваши трекеры:\n\n{list}",
-        "list_header":   "📊 <b>Мои трекеры</b>\n\n",
-        "streak":        "🔥 {n} дней подряд",
-        "no_streak":     "Ещё нет записей",
-        "open_app":      "Открыть приложение",
-        "log_btn":       "Записать {emoji}",
-        "ask_value":     "Какое значение записать для <b>{name}</b>?\n\nОтправьте число (например <b>7</b> для настроения, <b>6</b> для стаканов воды).",
-        "ask_type":      "Какой тип трекера?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
-        "deleted":       "🗑️ Трекер <b>{name}</b> удалён.",
+        "created":              "✅ Трекер <b>{name}</b> создан!\n\nОткройте приложение, чтобы записывать и отслеживать прогресс.",
+        "logged":               "✅ Записано {emoji} <b>{name}</b> — {val}",
+        "logged_note":          "✅ Записано {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
+        "no_trackers":          "У вас ещё нет трекеров.\n\nСкажите <b>«создай трекер воды»</b>, чтобы начать!",
+        "not_found":            "Такой трекер не найден. Ваши трекеры:\n\n{list}",
+        "list_header":          "📊 <b>Мои трекеры</b>\n\n",
+        "streak":               "🔥 {n} дней подряд",
+        "no_streak":            "Ещё нет записей",
+        "open_app":             "Открыть приложение",
+        "log_btn":              "Записать {emoji}",
+        "ask_value":            "Какое значение записать для <b>{name}</b>?\n\nОтправьте число (например <b>7</b> для настроения, <b>6</b> для стаканов воды).",
+        "ask_type":             "Какой тип трекера?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
+        "deleted":              "🗑️ Трекер <b>{name}</b> удалён.",
+        "remind_on":            "🔔 Напоминание для {emoji} <b>{name}</b> установлено на <b>{time}</b>.\n\nПришлю напоминание, если не запишете.",
+        "remind_on_repeat":     "🔔 Напоминание для {emoji} <b>{name}</b> установлено на <b>{time}</b>.\n\n🔁 Буду напоминать каждые <b>{interval} мин</b>, пока не запишете.",
+        "remind_on_enabled":    "🔔 Напоминание для {emoji} <b>{name}</b> включено (в <b>{time}</b>).",
+        "remind_off":           "🔕 Напоминание для {emoji} <b>{name}</b> отключено.",
+        "remind_no_time":       "В какое время напоминать?\n\nОтправьте время, например <b>21:00</b>.",
+        "remind_no_time_set":   "Для {emoji} <b>{name}</b> не задано время напоминания.\n\nОтправьте время, например <b>21:00</b>.",
+        "remind_not_found":     "Такой трекер не найден. Ваши трекеры:\n\n{list}",
     },
     "es": {
-        "created":       "✅ Tracker <b>{name}</b> creado!\n\nAbre la app para registrar entradas y ver tu progreso.",
-        "logged":        "✅ Registrado {emoji} <b>{name}</b> — {val}",
-        "logged_note":   "✅ Registrado {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
-        "no_trackers":   "Aún no tienes trackers.\n\nDi <b>«crear tracker de agua»</b> para empezar!",
-        "not_found":     "No encontré ese tracker. Tus trackers:\n\n{list}",
-        "list_header":   "📊 <b>Mis Trackers</b>\n\n",
-        "streak":        "🔥 {n} días seguidos",
-        "no_streak":     "Sin entradas aún",
-        "open_app":      "Abrir App",
-        "log_btn":       "Registrar {emoji}",
-        "ask_value":     "¿Qué valor debo registrar para <b>{name}</b>?\n\nEnvía un número (ej. <b>7</b> para estado de ánimo, <b>6</b> vasos de agua).",
-        "ask_type":      "¿Qué tipo de tracker?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
-        "deleted":       "🗑️ Tracker <b>{name}</b> eliminado.",
+        "created":              "✅ Tracker <b>{name}</b> creado!\n\nAbre la app para registrar entradas y ver tu progreso.",
+        "logged":               "✅ Registrado {emoji} <b>{name}</b> — {val}",
+        "logged_note":          "✅ Registrado {emoji} <b>{name}</b> — {val}\n<i>{note}</i>",
+        "no_trackers":          "Aún no tienes trackers.\n\nDi <b>«crear tracker de agua»</b> para empezar!",
+        "not_found":            "No encontré ese tracker. Tus trackers:\n\n{list}",
+        "list_header":          "📊 <b>Mis Trackers</b>\n\n",
+        "streak":               "🔥 {n} días seguidos",
+        "no_streak":            "Sin entradas aún",
+        "open_app":             "Abrir App",
+        "log_btn":              "Registrar {emoji}",
+        "ask_value":            "¿Qué valor debo registrar para <b>{name}</b>?\n\nEnvía un número (ej. <b>7</b> para estado de ánimo, <b>6</b> vasos de agua).",
+        "ask_type":             "¿Qué tipo de tracker?\n\n<b>mood</b> 😊 · <b>water</b> 💧 · <b>habit</b> 🔥 · <b>sleep</b> 🌙 · <b>weight</b> ⚖️ · <b>workout</b> 💪 · <b>nutrition</b> 🥗 · <b>gratitude</b> 🙏 · <b>medication</b> 💊 · <b>custom</b> ✨",
+        "deleted":              "🗑️ Tracker <b>{name}</b> eliminado.",
+        "remind_on":            "🔔 Recordatorio para {emoji} <b>{name}</b> a las <b>{time}</b> cada día.\n\nTe aviso si no lo registras.",
+        "remind_on_repeat":     "🔔 Recordatorio para {emoji} <b>{name}</b> a las <b>{time}</b>.\n\n🔁 Te recordaré cada <b>{interval} min</b> hasta que lo registres.",
+        "remind_on_enabled":    "🔔 Recordatorio reactivado para {emoji} <b>{name}</b> a las <b>{time}</b>.",
+        "remind_off":           "🔕 Recordatorio desactivado para {emoji} <b>{name}</b>.",
+        "remind_no_time":       "¿A qué hora debo recordarte?\n\nEnvía una hora como <b>21:00</b>.",
+        "remind_no_time_set":   "Sin hora configurada para {emoji} <b>{name}</b>.\n\nEnvía una hora como <b>21:00</b>.",
+        "remind_not_found":     "No encontré ese tracker. Tus trackers:\n\n{list}",
     },
 }
 
@@ -191,9 +212,90 @@ def _find_tracker_by_name(trackers: list[Tracker], query: str) -> Tracker | None
 
 # ── Skill class ───────────────────────────────────────────────────────────────
 
+import re as _re
+
+
+def _parse_reminder_time(text: str) -> str | None:
+    """Extract HH:MM from free text. Returns '21:00' style string or None."""
+    if not text:
+        return None
+    text = text.strip().lower()
+    # HH:MM or H:MM
+    m = _re.search(r"\b(\d{1,2}):(\d{2})\b", text)
+    if m:
+        h, mn = int(m.group(1)), int(m.group(2))
+        if 0 <= h <= 23 and 0 <= mn <= 59:
+            return f"{h:02d}:{mn:02d}"
+    # "9pm", "21pm", "9 pm", "9am"
+    m = _re.search(r"\b(\d{1,2})\s*(am|pm)\b", text)
+    if m:
+        h = int(m.group(1))
+        if m.group(2) == "pm" and h != 12:
+            h += 12
+        elif m.group(2) == "am" and h == 12:
+            h = 0
+        if 0 <= h <= 23:
+            return f"{h:02d}:00"
+    # bare hour like "в 21", "at 9"
+    m = _re.search(r"\b(?:в|at|в\s+)(\d{1,2})\b", text)
+    if m:
+        h = int(m.group(1))
+        if 0 <= h <= 23:
+            return f"{h:02d}:00"
+    return None
+
+
+def _parse_repeat_interval(text: str) -> int | None:
+    """Extract repeat interval in minutes from free text.
+
+    Examples:
+        "every 30 minutes"      → 30
+        "каждые 30 минут"       → 30
+        "every hour"            → 60
+        "каждый час"            → 60
+        "every 2 hours"         → 120
+        "каждые 2 часа"         → 120
+        "каждые полчаса"        → 30
+    Returns minutes (int) or None if not found.
+    """
+    if not text:
+        return None
+    low = text.lower()
+
+    # "every N minutes" / "каждые N минут" / "cada N minutos"
+    m = _re.search(
+        r"(?:every|каждые?|каждую|cada)\s+(\d+)\s*(?:min(?:ute)?s?|мин(?:ут)?[аы]?|minutos?)",
+        low,
+    )
+    if m:
+        mins = int(m.group(1))
+        if 1 <= mins <= 1440:
+            return mins
+
+    # "every N hours" / "каждые N часа/часов"
+    m = _re.search(
+        r"(?:every|каждые?|каждый|каждую|cada)\s+(\d+)\s*(?:hours?|час(?:а|ов)?|horas?)",
+        low,
+    )
+    if m:
+        hours = int(m.group(1))
+        if 1 <= hours <= 24:
+            return hours * 60
+
+    # "every hour" / "каждый час" / "cada hora"
+    if _re.search(r"\b(?:every\s+hour|каждый\s+час|cada\s+hora)\b", low):
+        return 60
+
+    # "every half hour" / "каждые полчаса" / "каждые 30"
+    if _re.search(r"\b(?:every\s+half\s+hour|каждые?\s+полчаса|every\s+30)\b", low):
+        return 30
+
+    return None
+
+
 class ManageTrackerSkill:
     name = "manage_tracker"
-    intents = ["create_tracker", "list_trackers", "log_tracker"]
+    intents = ["create_tracker", "list_trackers", "log_tracker", "set_tracker_reminder"]
     model = "gpt-5.2"
 
     @observe(name="manage_tracker")
@@ -212,6 +314,8 @@ class ManageTrackerSkill:
             return await self._list(context, lang)
         elif intent == "log_tracker":
             return await self._log(message, context, intent_data, lang)
+        elif intent == "set_tracker_reminder":
+            return await self._set_reminder(message, context, intent_data, lang)
 
         return SkillResult(response_text=_t("no_trackers", lang))
 
@@ -325,6 +429,138 @@ class ManageTrackerSkill:
         resp = _t(key, lang, emoji=emoji, name=tracker.name, val=val_str, note=note or "")
 
         return SkillResult(response_text=resp)
+
+    # ── Set / toggle reminder ──────────────────────────────────────────────
+
+    async def _set_reminder(self, message, context, intent_data, lang) -> SkillResult:
+        text = message.text or ""
+        trackers = await _get_trackers(context.user_id, context.family_id)
+
+        if not trackers:
+            return SkillResult(response_text=_t("no_trackers", lang))
+
+        # Find tracker by name/type from intent_data or message text
+        tracker_name = (
+            intent_data.get("tracker_name")
+            or intent_data.get("description")
+            or text
+        )
+        tracker = _find_tracker_by_name(trackers, tracker_name)
+        if not tracker:
+            list_text = _tracker_list_text(trackers, lang)
+            return SkillResult(response_text=_t("remind_not_found", lang, list=list_text))
+
+        emoji = tracker.emoji or _TRACKER_META.get(tracker.tracker_type, {}).get("emoji", "📊")
+        existing_config = dict(tracker.config or {})
+
+        # ── Detect disable intent ─────────────────────────────────────────────
+        disable_keywords = [
+            "выключи", "отключи", "disable", "turn off", "off", "stop",
+            "desactiv", "apaga", "убери напоминание", "удали напоминание",
+        ]
+        is_disable = any(kw in text.lower() for kw in disable_keywords)
+
+        if is_disable:
+            existing_config["reminder_enabled"] = False
+            async with async_session() as session:
+                db_tracker = await session.get(Tracker, tracker.id)
+                if db_tracker:
+                    db_tracker.config = existing_config
+                    await session.commit()
+            return SkillResult(response_text=_t("remind_off", lang, emoji=emoji, name=tracker.name))
+
+        # ── Detect enable-only intent (no new time, no disable) ───────────────
+        enable_keywords = [
+            "включи", "включить", "enable", "turn on", "on", "activ",
+            "включи напоминание", "включи напоминани",
+        ]
+        is_enable_only = any(kw in text.lower() for kw in enable_keywords)
+
+        # ── Parse repeat interval from intent_data or raw text ────────────────
+        repeat_minutes: int | None = (
+            intent_data.get("reminder_repeat_minutes")
+            or _parse_repeat_interval(intent_data.get("schedule_time") or "")
+            or _parse_repeat_interval(text)
+        )
+        if isinstance(repeat_minutes, int) and repeat_minutes <= 0:
+            repeat_minutes = None
+
+        # ── Parse reminder time ───────────────────────────────────────────────
+        reminder_time: str | None = (
+            _parse_reminder_time(intent_data.get("schedule_time") or "")
+            or _parse_reminder_time(text)
+        )
+
+        # If enable-only and tracker already has a time configured → just enable
+        if is_enable_only and not reminder_time:
+            existing_time = existing_config.get("reminder_time")
+            if existing_time:
+                existing_config["reminder_enabled"] = True
+                if repeat_minutes:
+                    existing_config["reminder_repeat_minutes"] = repeat_minutes
+                async with async_session() as session:
+                    db_tracker = await session.get(Tracker, tracker.id)
+                    if db_tracker:
+                        db_tracker.config = existing_config
+                        await session.commit()
+                return SkillResult(
+                    response_text=_t("remind_on_enabled", lang, emoji=emoji, name=tracker.name, time=existing_time),
+                    buttons=[{"text": _t("open_app", lang), "url": "https://t.me/FinanceAssistBot/app"}],
+                )
+            # No existing time → ask for it
+            return SkillResult(response_text=_t("remind_no_time_set", lang, emoji=emoji, name=tracker.name))
+
+        if not reminder_time:
+            # Check if tracker already has time → just update repeat or enable
+            existing_time = existing_config.get("reminder_time")
+            if existing_time and (repeat_minutes is not None):
+                # User said "remind every 30 min" without specifying a new clock time
+                existing_config["reminder_enabled"] = True
+                existing_config["reminder_repeat_minutes"] = repeat_minutes
+                async with async_session() as session:
+                    db_tracker = await session.get(Tracker, tracker.id)
+                    if db_tracker:
+                        db_tracker.config = existing_config
+                        await session.commit()
+                return SkillResult(
+                    response_text=_t(
+                        "remind_on_repeat", lang,
+                        emoji=emoji, name=tracker.name,
+                        time=existing_time, interval=repeat_minutes,
+                    ),
+                    buttons=[{"text": _t("open_app", lang), "url": "https://t.me/FinanceAssistBot/app"}],
+                )
+            return SkillResult(response_text=_t("remind_no_time", lang))
+
+        # ── Enable / update reminder ──────────────────────────────────────────
+        existing_config["reminder_enabled"] = True
+        existing_config["reminder_time"] = reminder_time
+
+        if repeat_minutes:
+            existing_config["reminder_repeat_minutes"] = repeat_minutes
+        else:
+            # Explicitly clear repeat if user didn't request it (clean update)
+            existing_config.pop("reminder_repeat_minutes", None)
+
+        async with async_session() as session:
+            db_tracker = await session.get(Tracker, tracker.id)
+            if db_tracker:
+                db_tracker.config = existing_config
+                await session.commit()
+
+        if repeat_minutes:
+            resp = _t(
+                "remind_on_repeat", lang,
+                emoji=emoji, name=tracker.name,
+                time=reminder_time, interval=repeat_minutes,
+            )
+        else:
+            resp = _t("remind_on", lang, emoji=emoji, name=tracker.name, time=reminder_time)
+
+        return SkillResult(
+            response_text=resp,
+            buttons=[{"text": _t("open_app", lang), "url": "https://t.me/FinanceAssistBot/app"}],
+        )
 
     def get_system_prompt(self, context: SessionContext) -> str:
         return ""

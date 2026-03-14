@@ -302,6 +302,7 @@ AGENTS: list[AgentConfig] = [
             "create_tracker",
             "list_trackers",
             "log_tracker",
+            "set_tracker_reminder",
         ],
         default_model="gpt-5.2",
         context_config={"mem": "life", "hist": 5, "sql": False, "sum": False},

@@ -149,6 +149,15 @@ invoice_due_days: число дней (net 15 → 15)
 - log_tracker: записать в трекер ("залогировать настроение 8", "выпил 6 стаканов", \
 "записать сон 7 часов", "log water 5", "трекер воды 6", "вес 74", "тренировка выполнена", \
 "записать в трекер", "log tracker"). Extracted fields: tracker_name, tracker_value (int), note (optional)
+- set_tracker_reminder: включить/выключить/настроить напоминание по трекеру \
+("напомни про трекер воды в 21:00", "включи напоминание для привычки в 9 утра", \
+"выключи напоминание для сна", "remind me to log water at 9pm", \
+"turn off reminder for habit tracker", "set reminder for mood at 20:30", \
+"disable workout reminder", "напоминай каждые 30 минут пока не запишу воду", \
+"remind me every hour about sleep tracker until done", \
+"повтори напоминание каждые 15 минут пока не отмечу привычку"). \
+Extracted fields: tracker_name, tracker_type (optional), schedule_time (HH:MM, optional), \
+reminder_repeat_minutes (int, minutes between repeat reminders until logged — e.g. 30 for "every 30 min", 60 for "every hour"; omit if one-shot)
 - day_plan: план дня ("план: ...", "топ задача: ...", \
 "сегодня: задеплоить MVP", "план дня")
 - day_reflection: рефлексия дня ("рефлексия", "итоги дня", \

@@ -53,6 +53,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "create_tracker": Domain.general,
     "list_trackers": Domain.general,
     "log_tracker": Domain.general,
+    "set_tracker_reminder": Domain.general,
     "day_plan": Domain.tasks,
     "day_reflection": Domain.general,
     "life_search": Domain.general,

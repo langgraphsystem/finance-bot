@@ -70,6 +70,11 @@ _SKILL_ONLY_INTENTS = {
     "find_contact",
     "send_to_client",
     "receptionist",
+    # Tracker handlers write directly to DB and parse time from text — skip LLM data_tools.
+    "create_tracker",
+    "list_trackers",
+    "log_tracker",
+    "set_tracker_reminder",
 }
 _TOOL_ROUND_EXHAUSTED_RESPONSE = "I needed more steps to complete this request."
 

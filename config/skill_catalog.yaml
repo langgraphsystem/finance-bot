@@ -280,6 +280,10 @@ domains:
       - log tracker
       - мои трекеры
       - my trackers
+      - напоминание трекер
+      - reminder tracker
+      - remind me to log
+      - напомни трекер
     agent: life
     skills:
       - quick_capture
@@ -289,6 +293,7 @@ domains:
       - create_tracker
       - list_trackers
       - log_tracker
+      - set_tracker_reminder
       - day_plan
       - day_reflection
       - life_search

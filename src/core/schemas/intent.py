@@ -84,9 +84,10 @@ class IntentData(BaseModel):
     new_instruction: str | None = None  # updated instruction text
 
     # Tracker fields
-    tracker_type: str | None = None   # mood, habit, water, sleep, weight, workout, nutrition, gratitude, medication, custom
-    tracker_name: str | None = None   # user-given name for the tracker
-    tracker_value: int | None = None  # numeric value to log (score, count, etc.)
+    tracker_type: str | None = None          # mood, habit, water, sleep, weight, workout, nutrition, gratitude, medication, custom
+    tracker_name: str | None = None          # user-given name for the tracker
+    tracker_value: int | None = None         # numeric value to log (score, count, etc.)
+    reminder_repeat_minutes: int | None = None  # repeat reminder every N min until logged (0 = once)
 
     # Research fields (Phase 3)
     search_topic: str | None = None

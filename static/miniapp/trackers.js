@@ -598,8 +598,10 @@ function openEditTrackerModal(trackerId) {
   const tracker = _trackers.find(t => t.id === trackerId);
   if (!tracker) return;
 
-  const goalVal = tracker.config?.goal ?? 1;
-  const unitVal = tracker.config?.unit ?? '';
+  const goalVal    = tracker.config?.goal ?? 1;
+  const unitVal    = tracker.config?.unit ?? '';
+  const remEnabled = tracker.config?.reminder_enabled === true;
+  const remTime    = tracker.config?.reminder_time ?? '21:00';
 
   const html = `
     <div style="padding:0 4px 4px">
@@ -620,28 +622,81 @@ function openEditTrackerModal(trackerId) {
 
       <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">UNIT (glasses, hours, kg…)</label>
       <input id="edit-tr-unit" value="${unitVal}"
-        style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:16px"/>
+        style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:20px"/>
+
+      <!-- Reminder section -->
+      <div style="background:var(--bg2);border-radius:18px;padding:16px;margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${remEnabled ? '14px' : '0'}">
+          <div>
+            <div style="font-size:15px;font-weight:600">🔔 Daily Reminder</div>
+            <div style="font-size:12px;color:var(--hint);margin-top:2px">Remind me if I haven't logged yet</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:50px;height:28px;flex-shrink:0;cursor:pointer">
+            <input type="checkbox" id="edit-tr-rem-toggle" ${remEnabled ? 'checked' : ''}
+              style="opacity:0;width:0;height:0;position:absolute"/>
+            <span id="edit-tr-rem-track" style="
+              position:absolute;inset:0;border-radius:28px;
+              background:${remEnabled ? '#3b82f6' : 'var(--section-sep)'};
+              transition:background .2s">
+              <span id="edit-tr-rem-thumb" style="
+                position:absolute;top:3px;left:${remEnabled ? '25px' : '3px'};
+                width:22px;height:22px;border-radius:50%;background:#fff;
+                transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.25)"></span>
+            </span>
+          </label>
+        </div>
+        <div id="edit-tr-rem-time-row" style="display:${remEnabled ? 'flex' : 'none'};align-items:center;gap:10px">
+          <div style="font-size:13px;color:var(--hint);font-weight:500;white-space:nowrap">Remind at</div>
+          <input type="time" id="edit-tr-rem-time" value="${remTime}"
+            style="flex:1;padding:10px 14px;border-radius:12px;border:1px solid var(--section-sep);background:var(--bg);font-family:inherit;font-size:15px;color:var(--text);outline:none"/>
+        </div>
+      </div>
 
       <button class="btn-primary" style="width:100%;margin-bottom:10px" onclick="_saveEditTracker('${trackerId}')">Save Changes</button>
       <button class="btn-ghost" style="width:100%" onclick="closeModal()">Cancel</button>
     </div>
   `;
   openModal(html);
+
+  // Wire up toggle events after DOM insert
+  const toggle = document.getElementById('edit-tr-rem-toggle');
+  const track  = document.getElementById('edit-tr-rem-track');
+  const thumb  = document.getElementById('edit-tr-rem-thumb');
+  const timeRow = document.getElementById('edit-tr-rem-time-row');
+  if (toggle) {
+    toggle.addEventListener('change', () => {
+      const on = toggle.checked;
+      if (track) track.style.background = on ? '#3b82f6' : 'var(--section-sep)';
+      if (thumb) thumb.style.left = on ? '25px' : '3px';
+      if (timeRow) timeRow.style.display = on ? 'flex' : 'none';
+    });
+    // Also make the whole track clickable (label wraps input)
+    track?.addEventListener('click', () => {
+      toggle.checked = !toggle.checked;
+      toggle.dispatchEvent(new Event('change'));
+    });
+  }
 }
 
 window._saveEditTracker = async function(trackerId) {
-  const name  = document.getElementById('edit-tr-name')?.value?.trim();
-  const emoji = document.getElementById('edit-tr-emoji')?.value?.trim();
-  const goal  = parseInt(document.getElementById('edit-tr-goal')?.value) || 1;
-  const unit  = document.getElementById('edit-tr-unit')?.value?.trim();
+  const name    = document.getElementById('edit-tr-name')?.value?.trim();
+  const emoji   = document.getElementById('edit-tr-emoji')?.value?.trim();
+  const goal    = parseInt(document.getElementById('edit-tr-goal')?.value) || 1;
+  const unit    = document.getElementById('edit-tr-unit')?.value?.trim();
+  const remOn   = document.getElementById('edit-tr-rem-toggle')?.checked ?? false;
+  const remTime = document.getElementById('edit-tr-rem-time')?.value || '21:00';
 
   if (!name) { toast('Name is required'); return; }
   try {
-    const updated = await put(`/trackers/${trackerId}`, { name, emoji: emoji || undefined, config: { goal, unit } });
+    const updated = await put(`/trackers/${trackerId}`, {
+      name,
+      emoji: emoji || undefined,
+      config: { goal, unit, reminder_enabled: remOn, reminder_time: remTime },
+    });
     const idx = _trackers.findIndex(t => t.id === trackerId);
     if (idx >= 0) _trackers[idx] = { ..._trackers[idx], ...updated };
     closeModal();
-    toast('✅ Saved!');
+    toast(remOn ? `🔔 Reminder set for ${remTime}` : '✅ Saved!');
     haptic('success');
     if (_activeTrackerId === trackerId) await openTrackerDetail(trackerId);
     else await renderTrackers(document.getElementById('content'));

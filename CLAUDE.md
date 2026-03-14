@@ -44,7 +44,7 @@ alembic upgrade head
 uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 # Task queue worker (full command with all task modules)
-TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks src.core.tasks.crossdomain_tasks"
+TASK_MODULES="src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.tracker_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks src.core.tasks.crossdomain_tasks"
 python -m taskiq worker src.core.tasks.broker:broker $TASK_MODULES
 
 # Task queue scheduler (separate process, needed for cron tasks)
