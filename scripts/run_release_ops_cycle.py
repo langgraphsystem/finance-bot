@@ -16,14 +16,18 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.export_golden_dialogues import RESULTS_DIR, build_headers, infer_base_url
-from scripts.generate_release_checklist import (
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.export_golden_dialogues import RESULTS_DIR, build_headers, infer_base_url  # noqa: E402
+from scripts.generate_release_checklist import (  # noqa: E402
     DEFAULT_QUALITY_THRESHOLDS,
     build_release_checklist,
     fetch_release_inputs,
     save_release_checklist,
 )
-from scripts.run_weekly_review_cycle import run_weekly_review_cycle
+from scripts.run_weekly_review_cycle import run_weekly_review_cycle  # noqa: E402
 
 
 def get_exit_code(overall_status: str) -> int:

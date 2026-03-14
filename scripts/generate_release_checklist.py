@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,15 @@ from urllib.parse import urljoin
 
 import httpx
 
-from scripts.export_golden_dialogues import RESULTS_DIR, build_headers, infer_base_url
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.export_golden_dialogues import (  # noqa: E402
+    RESULTS_DIR,
+    build_headers,
+    infer_base_url,
+)
 
 DEFAULT_QUALITY_THRESHOLDS = {
     "max_wrong_route_rate": 0.20,
