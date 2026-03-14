@@ -55,6 +55,7 @@ from src.core.release import (
     get_release_rollout_decision,
     log_runtime_event,
     record_release_event,
+    reset_release_health_counters,
 )
 from src.core.request_context import (
     reset_request_context,
@@ -1167,6 +1168,17 @@ async def release_ops_apply_override(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/ops/release/reset-health")
+async def release_ops_reset_health(request: Request) -> dict[str, Any]:
+    """Reset release health counters (errors, no-reply, mismatches) without touching rollout state.
+
+    Use after fixing the root cause of degraded health to unblock rollout progression.
+    """
+    _require_ops_auth(request)
+    actor = request.headers.get("X-Actor", "ops")
+    return await reset_release_health_counters(actor=actor)
 
 
 @app.get("/ops/analytics/policy")

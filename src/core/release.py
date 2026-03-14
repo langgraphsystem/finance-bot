@@ -212,6 +212,29 @@ def _release_health_key() -> str:
     return f"release_health:{rollout_name}"
 
 
+_HEALTH_COUNTER_FIELDS = (
+    "requests_total",
+    "completed_total",
+    "errors_total",
+    "no_reply_total",
+    "rate_limited_total",
+    "shadow_requests_total",
+    "shadow_match_total",
+    "shadow_mismatch_total",
+    "shadow_route_match_total",
+    "shadow_route_mismatch_total",
+    "shadow_compare_failed_total",
+)
+
+
+async def reset_release_health_counters(actor: str) -> dict[str, Any]:
+    """Reset all error/event counters for the active rollout, preserving rollout metadata."""
+    key = _release_health_key()
+    await redis.hdel(key, *_HEALTH_COUNTER_FIELDS)
+    logger.info("Release health counters reset by %s (key=%s)", actor, key)
+    return {"reset": True, "key": key, "actor": actor, "fields_cleared": list(_HEALTH_COUNTER_FIELDS)}
+
+
 async def record_release_event(event: str, increment: int = 1) -> None:
     """Record a release-health counter for the active rollout."""
     if not settings.release_health_logging:
