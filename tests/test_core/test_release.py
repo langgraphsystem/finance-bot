@@ -85,6 +85,8 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
         "shadow_requests_total": "20",
         "shadow_match_total": "10",
         "shadow_mismatch_total": "7",
+        "shadow_route_match_total": "10",
+        "shadow_route_mismatch_total": "5",
         "shadow_compare_failed_total": "1",
     }
     with patch("src.core.release.redis") as mock_redis:
@@ -96,7 +98,9 @@ async def test_release_health_snapshot_rolls_back_when_thresholds_exceeded():
     assert snapshot["rates"]["error_rate"] == 0.08
     assert snapshot["rates"]["shadow_request_rate"] == 0.2
     assert snapshot["rates"]["shadow_mismatch_rate"] == 0.4118
+    assert snapshot["rates"]["shadow_route_mismatch_rate"] == 0.3333
     assert "shadow_mismatch_rate" in snapshot["gates"]["triggered"]
+    assert "shadow_route_mismatch_rate" in snapshot["gates"]["triggered"]
 
 
 async def test_effective_release_runtime_state_applies_override():

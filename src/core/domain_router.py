@@ -56,6 +56,34 @@ class DomainRouter:
         """Resolve intent to its domain."""
         return INTENT_DOMAIN_MAP.get(intent, Domain.general)
 
+    def describe_route(self, intent: str) -> dict[str, str]:
+        """Return a stable description of the route plan for an intent."""
+        domain = self.get_domain(intent)
+        intent_orch = self._intent_orchestrators.get(intent)
+        if intent_orch:
+            return {
+                "intent": intent,
+                "domain": domain.value,
+                "route_kind": "intent_orchestrator",
+                "handler": type(intent_orch).__name__,
+            }
+
+        orchestrator = self._orchestrators.get(domain)
+        if orchestrator:
+            return {
+                "intent": intent,
+                "domain": domain.value,
+                "route_kind": "domain_orchestrator",
+                "handler": type(orchestrator).__name__,
+            }
+
+        return {
+            "intent": intent,
+            "domain": domain.value,
+            "route_kind": "agent_router",
+            "handler": type(self._agent_router).__name__,
+        }
+
     @observe(name="domain_route")
     async def route(
         self,

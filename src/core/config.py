@@ -171,6 +171,7 @@ class Settings(BaseSettings):
     release_health_no_reply_rate_threshold: float = 0.02
     release_health_rate_limited_threshold: float = 0.10
     release_health_shadow_mismatch_threshold: float = 0.20
+    release_health_shadow_route_mismatch_threshold: float = 0.20
     release_health_shadow_compare_failure_threshold: float = 0.10
     release_action_history_limit: int = 100
     release_ops_enabled: bool = False

@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 from src.core.request_context import reset_request_context, set_request_context
 from src.core.router import _run_intent_shadow_compare
@@ -21,14 +21,31 @@ async def test_shadow_compare_logs_mismatch_and_records_metric():
         correlation_id="corr-1",
         shadow_enabled=True,
     )
+    mock_domain_router = MagicMock()
+    mock_domain_router.describe_route.side_effect = [
+        {
+            "intent": "general_chat",
+            "domain": "general",
+            "route_kind": "agent_router",
+            "handler": "AgentRouter",
+        },
+        {
+            "intent": "set_reminder",
+            "domain": "general",
+            "route_kind": "domain_orchestrator",
+            "handler": "ReminderOrchestrator",
+        },
+    ]
     try:
         with (
             patch(
                 "src.core.router.detect_intent_v2",
                 AsyncMock(return_value=_intent_result("set_reminder", 0.74)),
             ),
+            patch("src.core.router.get_domain_router", return_value=mock_domain_router),
             patch("src.core.router.record_release_event", AsyncMock()) as mock_record,
             patch("src.core.router.log_runtime_event") as mock_log,
+            patch("src.core.router.schedule_review_trace_capture") as mock_capture,
         ):
             await _run_intent_shadow_compare(
                 primary_detector_name="detect_intent",
@@ -41,9 +58,13 @@ async def test_shadow_compare_logs_mismatch_and_records_metric():
     finally:
         reset_request_context(token)
 
-    mock_record.assert_awaited_once_with("shadow_mismatch_total")
+    mock_record.assert_has_awaits(
+        [call("shadow_mismatch_total"), call("shadow_route_mismatch_total")]
+    )
     assert mock_log.call_args.args[2] == "intent_shadow_compared"
     assert mock_log.call_args.kwargs["intents_match"] is False
+    assert mock_log.call_args.kwargs["routes_match"] is False
+    mock_capture.assert_called_once()
 
 
 async def test_shadow_compare_skips_when_request_shadow_disabled():

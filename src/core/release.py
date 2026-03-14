@@ -292,14 +292,21 @@ async def get_release_health_snapshot() -> dict[str, Any]:
     shadow_requests_total = _parse_int(metrics, "shadow_requests_total")
     shadow_match_total = _parse_int(metrics, "shadow_match_total")
     shadow_mismatch_total = _parse_int(metrics, "shadow_mismatch_total")
+    shadow_route_match_total = _parse_int(metrics, "shadow_route_match_total")
+    shadow_route_mismatch_total = _parse_int(metrics, "shadow_route_mismatch_total")
     shadow_compare_failed_total = _parse_int(metrics, "shadow_compare_failed_total")
     shadow_compared_total = shadow_match_total + shadow_mismatch_total
+    shadow_route_compared_total = shadow_route_match_total + shadow_route_mismatch_total
 
     error_rate = _safe_rate(errors_total, requests_total)
     no_reply_rate = _safe_rate(no_reply_total, completed_total)
     rate_limited_rate = _safe_rate(rate_limited_total, requests_total)
     shadow_request_rate = _safe_rate(shadow_requests_total, requests_total)
     shadow_mismatch_rate = _safe_rate(shadow_mismatch_total, shadow_compared_total)
+    shadow_route_mismatch_rate = _safe_rate(
+        shadow_route_mismatch_total,
+        shadow_route_compared_total,
+    )
     shadow_compare_failure_rate = _safe_rate(
         shadow_compare_failed_total,
         shadow_requests_total or (shadow_compared_total + shadow_compare_failed_total),
@@ -313,6 +320,7 @@ async def get_release_health_snapshot() -> dict[str, Any]:
         or no_reply_rate > settings.release_health_no_reply_rate_threshold
         or rate_limited_rate > settings.release_health_rate_limited_threshold
         or shadow_mismatch_rate > settings.release_health_shadow_mismatch_threshold
+        or shadow_route_mismatch_rate > settings.release_health_shadow_route_mismatch_threshold
         or shadow_compare_failure_rate > settings.release_health_shadow_compare_failure_threshold
     ):
         status = "rollback_recommended"
@@ -322,6 +330,7 @@ async def get_release_health_snapshot() -> dict[str, Any]:
         or no_reply_total
         or rate_limited_total
         or shadow_mismatch_total
+        or shadow_route_mismatch_total
         or shadow_compare_failed_total
     ):
         status = "degraded"
@@ -335,6 +344,8 @@ async def get_release_health_snapshot() -> dict[str, Any]:
         triggered_gates.append("rate_limited_rate")
     if shadow_mismatch_rate > settings.release_health_shadow_mismatch_threshold:
         triggered_gates.append("shadow_mismatch_rate")
+    if shadow_route_mismatch_rate > settings.release_health_shadow_route_mismatch_threshold:
+        triggered_gates.append("shadow_route_mismatch_rate")
     if shadow_compare_failure_rate > settings.release_health_shadow_compare_failure_threshold:
         triggered_gates.append("shadow_compare_failure_rate")
 
@@ -360,6 +371,8 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "shadow_requests_total": shadow_requests_total,
             "shadow_match_total": shadow_match_total,
             "shadow_mismatch_total": shadow_mismatch_total,
+            "shadow_route_match_total": shadow_route_match_total,
+            "shadow_route_mismatch_total": shadow_route_mismatch_total,
             "shadow_compare_failed_total": shadow_compare_failed_total,
         },
         "rates": {
@@ -368,6 +381,7 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "rate_limited_rate": rate_limited_rate,
             "shadow_request_rate": shadow_request_rate,
             "shadow_mismatch_rate": shadow_mismatch_rate,
+            "shadow_route_mismatch_rate": shadow_route_mismatch_rate,
             "shadow_compare_failure_rate": shadow_compare_failure_rate,
         },
         "thresholds": {
@@ -375,6 +389,7 @@ async def get_release_health_snapshot() -> dict[str, Any]:
             "no_reply_rate": settings.release_health_no_reply_rate_threshold,
             "rate_limited_rate": settings.release_health_rate_limited_threshold,
             "shadow_mismatch_rate": settings.release_health_shadow_mismatch_threshold,
+            "shadow_route_mismatch_rate": settings.release_health_shadow_route_mismatch_threshold,
             "shadow_compare_failure_rate": settings.release_health_shadow_compare_failure_threshold,
         },
         "gates": {

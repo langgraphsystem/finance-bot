@@ -174,9 +174,19 @@ async def _run_intent_shadow_compare(
             language=language,
             recent_context=recent_context,
         )
+        domain_router = get_domain_router()
+        primary_route = domain_router.describe_route(primary_result.intent)
+        shadow_route = domain_router.describe_route(shadow_result.intent)
         intents_match = primary_result.intent == shadow_result.intent
+        routes_match = primary_route == shadow_route
         shadow_event = "shadow_match_total" if intents_match else "shadow_mismatch_total"
         await record_release_event(shadow_event)
+        route_shadow_event = (
+            "shadow_route_match_total"
+            if routes_match
+            else "shadow_route_mismatch_total"
+        )
+        await record_release_event(route_shadow_event)
         log_runtime_event(
             logger,
             "info",
@@ -190,6 +200,13 @@ async def _run_intent_shadow_compare(
             primary_confidence=primary_result.confidence,
             shadow_confidence=shadow_result.confidence,
             intents_match=intents_match,
+            routes_match=routes_match,
+            primary_domain=primary_route["domain"],
+            shadow_domain=shadow_route["domain"],
+            primary_route_kind=primary_route["route_kind"],
+            shadow_route_kind=shadow_route["route_kind"],
+            primary_handler=primary_route["handler"],
+            shadow_handler=shadow_route["handler"],
         )
         if not intents_match:
             schedule_review_trace_capture(
@@ -204,7 +221,31 @@ async def _run_intent_shadow_compare(
                     "shadow_intent": shadow_result.intent,
                     "primary_detector": primary_detector_name,
                     "shadow_detector": shadow_detector_name,
+                    "metadata": {
+                        "primary_route": primary_route,
+                        "shadow_route": shadow_route,
+                    },
                     "tags": ["shadow_mismatch", "routing_risk"],
+                }
+            )
+        elif not routes_match:
+            schedule_review_trace_capture(
+                {
+                    "outcome": "wrong_route",
+                    "review_label": "wrong_route",
+                    "queued_for_review": True,
+                    "request_id": None,
+                    "correlation_id": None,
+                    "trace_key": None,
+                    "intent": primary_result.intent,
+                    "shadow_intent": shadow_result.intent,
+                    "primary_detector": primary_detector_name,
+                    "shadow_detector": shadow_detector_name,
+                    "metadata": {
+                        "primary_route": primary_route,
+                        "shadow_route": shadow_route,
+                    },
+                    "tags": ["shadow_route_mismatch", "routing_risk"],
                 }
             )
     except Exception:
