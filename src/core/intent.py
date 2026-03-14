@@ -141,6 +141,14 @@ invoice_due_days: число дней (net 15 → 15)
 "выпил воду", "2 кофе", "вода 500мл")
 - mood_checkin: чек-ин состояния ("настроение 7", "энергия 5", "стресс 3", \
 "спал 7 часов", "устал", "feeling great", "checkin")
+- create_tracker: создать трекер ("создай трекер воды", "добавь трекер привычки", \
+"хочу трекер настроения", "create water tracker", "add habit tracker", \
+"новый трекер сна", "трекер для веса"). Extracted fields: tracker_type (mood/habit/water/sleep/weight/workout/nutrition/gratitude/medication/custom), tracker_name (optional custom name)
+- list_trackers: показать трекеры ("мои трекеры", "список трекеров", \
+"покажи трекеры", "my trackers", "show trackers")
+- log_tracker: записать в трекер ("залогировать настроение 8", "выпил 6 стаканов", \
+"записать сон 7 часов", "log water 5", "трекер воды 6", "вес 74", "тренировка выполнена", \
+"записать в трекер", "log tracker"). Extracted fields: tracker_name, tracker_value (int), note (optional)
 - day_plan: план дня ("план: ...", "топ задача: ...", \
 "сегодня: задеплоить MVP", "план дня")
 - day_reflection: рефлексия дня ("рефлексия", "итоги дня", \

@@ -225,4 +225,7 @@ def create_registry() -> SkillRegistry:
     registry.register(invite_member_skill)
     registry.register(list_members_skill)
     registry.register(manage_member_skill)
+    # Trackers
+    from src.skills.manage_tracker.handler import skill as manage_tracker_skill
+    registry.register(manage_tracker_skill)
     return registry

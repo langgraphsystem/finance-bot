@@ -237,9 +237,10 @@ function _renderTrackerDetail(tracker, entries) {
 
     ${entriesHtml}
 
-    <!-- Delete -->
-    <div style="padding:0 16px 100px;text-align:center">
-      <button class="btn-ghost" onclick="confirmDeleteTracker('${tracker.id}')" style="color:var(--destructive);font-size:13px">Delete Tracker</button>
+    <!-- Edit / Delete -->
+    <div style="padding:0 16px 100px;display:flex;gap:10px;justify-content:center">
+      <button class="btn-ghost" onclick="openEditTrackerModal('${tracker.id}')" style="font-size:13px">✏️ Edit</button>
+      <button class="btn-ghost" onclick="confirmDeleteTracker('${tracker.id}')" style="color:var(--destructive);font-size:13px">🗑️ Delete</button>
     </div>
   `;
 }
@@ -491,6 +492,61 @@ window._createTracker = async function() {
     haptic('success');
     _activeTrackerId = null;
     await renderTrackers(document.getElementById('content'));
+  } catch (e) { toast(e.message); }
+};
+
+// ─── Edit Tracker Modal ──────────────────────────────────────────────────────
+function openEditTrackerModal(trackerId) {
+  const tracker = _trackers.find(t => t.id === trackerId);
+  if (!tracker) return;
+
+  const goalVal = tracker.config?.goal ?? 1;
+  const unitVal = tracker.config?.unit ?? '';
+
+  const html = `
+    <div style="padding:0 4px 4px">
+      <div style="font-size:26px;margin-bottom:4px">${tracker.emoji}</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:16px">Edit Tracker</div>
+
+      <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">NAME</label>
+      <input id="edit-tr-name" value="${tracker.name}"
+        style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:14px"/>
+
+      <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">EMOJI</label>
+      <input id="edit-tr-emoji" value="${tracker.emoji || ''}" maxlength="2"
+        style="width:80px;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:22px;text-align:center;outline:none;margin-bottom:14px"/>
+
+      <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">DAILY GOAL</label>
+      <input id="edit-tr-goal" type="number" min="0" value="${goalVal}"
+        style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:14px"/>
+
+      <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">UNIT (glasses, hours, kg…)</label>
+      <input id="edit-tr-unit" value="${unitVal}"
+        style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:16px"/>
+
+      <button class="btn-primary" style="width:100%;margin-bottom:10px" onclick="_saveEditTracker('${trackerId}')">Save Changes</button>
+      <button class="btn-ghost" style="width:100%" onclick="closeModal()">Cancel</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+window._saveEditTracker = async function(trackerId) {
+  const name  = document.getElementById('edit-tr-name')?.value?.trim();
+  const emoji = document.getElementById('edit-tr-emoji')?.value?.trim();
+  const goal  = parseInt(document.getElementById('edit-tr-goal')?.value) || 1;
+  const unit  = document.getElementById('edit-tr-unit')?.value?.trim();
+
+  if (!name) { toast('Name is required'); return; }
+  try {
+    const updated = await put(`/trackers/${trackerId}`, { name, emoji: emoji || undefined, config: { goal, unit } });
+    const idx = _trackers.findIndex(t => t.id === trackerId);
+    if (idx >= 0) _trackers[idx] = { ..._trackers[idx], ...updated };
+    closeModal();
+    toast('✅ Saved!');
+    haptic('success');
+    if (_activeTrackerId === trackerId) await openTrackerDetail(trackerId);
+    else await renderTrackers(document.getElementById('content'));
   } catch (e) { toast(e.message); }
 };
 

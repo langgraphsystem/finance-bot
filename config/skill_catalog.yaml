@@ -272,12 +272,23 @@ domains:
       - my projects
       - создай проект
       - start project
+      - трекер
+      - tracker
+      - трек
+      - track
+      - залогировать
+      - log tracker
+      - мои трекеры
+      - my trackers
     agent: life
     skills:
       - quick_capture
       - track_food
       - track_drink
       - mood_checkin
+      - create_tracker
+      - list_trackers
+      - log_tracker
       - day_plan
       - day_reflection
       - life_search

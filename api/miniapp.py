@@ -1894,6 +1894,13 @@ class TrackerCreate(BaseModel):
     config: dict | None = None
 
 
+class TrackerUpdate(BaseModel):
+    name: str | None = Field(None, max_length=128)
+    emoji: str | None = Field(None, max_length=8)
+    description: str | None = None
+    config: dict | None = None
+
+
 class TrackerEntryCreate(BaseModel):
     date: str  # ISO date YYYY-MM-DD
     value: int | None = None
@@ -1993,6 +2000,32 @@ async def create_tracker(
         await session.commit()
         await session.refresh(tracker)
     return _tracker_json(tracker)
+
+
+@router.put("/trackers/{tracker_id}")
+async def update_tracker(
+    tracker_id: str,
+    body: TrackerUpdate,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Update tracker name, emoji, description or config."""
+    async with async_session() as session:
+        t = await session.scalar(
+            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+        )
+        if not t:
+            raise HTTPException(status_code=404, detail="Tracker not found")
+        if body.name is not None:
+            t.name = body.name
+        if body.emoji is not None:
+            t.emoji = body.emoji
+        if body.description is not None:
+            t.description = body.description
+        if body.config is not None:
+            t.config = {**(t.config or {}), **body.config}
+        await session.commit()
+        await session.refresh(t)
+    return _tracker_json(t)
 
 
 @router.delete("/trackers/{tracker_id}")
