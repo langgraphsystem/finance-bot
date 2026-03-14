@@ -173,6 +173,12 @@ class Settings(BaseSettings):
     release_health_shadow_mismatch_threshold: float = 0.20
     release_health_shadow_compare_failure_threshold: float = 0.10
     release_action_history_limit: int = 100
+    release_ops_enabled: bool = False
+    release_ops_base_url: str = ""
+    release_ops_reviewer: str = "release-ops"
+    release_ops_apply_weekly_review: bool = False
+    release_ops_weekly_review_cron: str = "0 13 * * 1"
+    release_ops_cycle_cron: str = "0 14 * * *"
     analytics_review_queue_limit: int = 200
     analytics_trace_export_queue_limit: int = 500
     analytics_review_result_limit: int = 500
