@@ -56,6 +56,10 @@ _SKILL_ONLY_INTENTS = {
     "life_search",
     "set_comm_mode",
     "evening_recap",
+    # Finance write handlers have proper category resolution and get_session() RLS context.
+    # The generic data_tools LLM path sends invalid dates/category_ids causing DB errors.
+    "add_expense",
+    "add_income",
     # Booking/CRM handlers have richer DB semantics than generic query_data calls.
     "create_booking",
     "list_bookings",

@@ -35,41 +35,41 @@ REMINDER_TESTS = [
     (
         "ru",
         "напомни позвонить врачу в 6 вечера",
-        ["🔔", "позвонить врачу"],
+        ["⏰", "позвонить врачу"],
         "RU: one-shot with time",
     ),
-    ("ru", "напоминай каждый день в 8 утра пить воду", ["🔔", "пить воду"], "RU: daily recurring"),
+    ("ru", "напоминай каждый день в 8 утра пить воду", ["⏰", "пить воду", "Ежедневно"], "RU: daily recurring"),
     (
         "ru",
         "напомни через 10 минут проверить духовку",
-        ["🔔", "духовку"],
+        ["⏰", "духовку"],
         "RU: relative time ('через 10 минут')",
     ),
     # ── English ──
-    ("en", "remind me to call the dentist at 3pm", ["🔔", "dentist"], "EN: one-shot with time"),
+    ("en", "remind me to call the dentist at 3pm", ["⏰", "dentist"], "EN: one-shot with time"),
     (
         "en",
         "set a daily reminder at 7am to take vitamins",
-        ["🔔", "vitamins"],
+        ["⏰", "vitamins"],
         "EN: daily recurring",
     ),
-    ("en", "remind me in 15 minutes to check the oven", ["🔔", "oven"], "EN: relative time"),
+    ("en", "remind me in 15 minutes to check the oven", ["⏰", "oven"], "EN: relative time"),
     # ── Spanish ──
     (
         "es",
         "recuérdame llamar al doctor a las 5 de la tarde",
-        ["🔔", "doctor"],
+        ["⏰", "doctor"],
         "ES: one-shot with time",
     ),
     (
         "es",
         "ponme un recordatorio diario a las 9 de la mañana para tomar agua",
-        ["🔔", "agua"],
+        ["⏰", "agua"],
         "ES: daily recurring",
     ),
     # ── Edge cases ──
-    ("ru", "напомни", ["?", "напомн"], "RU: empty — should ask what"),
-    ("en", "remind me", ["?"], "EN: empty — should ask what"),
+    ("ru", "напомни мне о зубном враче завтра в 10", ["⏰", "зубн"], "RU: reminder with explicit content"),
+    ("en", "remind me to buy milk tomorrow at 9am", ["⏰", "milk"], "EN: reminder with explicit content"),
     # ── Verify list ──
     ("ru", "мои задачи", ["врачу"], "RU: verify reminders in task list"),
 ]

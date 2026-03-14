@@ -159,6 +159,12 @@ If the user says "remind me about this/that", look at previous messages \
 to find what "this/that" refers to.
 2. reminder_times: list of objects {{"time": "HH:MM", "label": "short description"}}
 3. recurrence: "daily", "weekly", "monthly", or null
+   - Set "daily" if the context involves a habit, tracker, or routine
+     (e.g. water tracker, exercise, food log, daily plan) AND the user
+     did NOT say "only today" or "one time".
+   - Set "daily" if the user provides multiple times per day (morning/lunch/evening)
+     for a recurring activity — this implies daily repetition.
+   - Otherwise null (one-time reminder).
 4. end_date: "YYYY-MM-DD" or null
 
 CRITICAL RULES:

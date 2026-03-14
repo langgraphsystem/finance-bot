@@ -16,7 +16,7 @@ from sqlalchemy import desc as sa_desc
 
 from src.core.access import apply_scope_filter
 from src.core.audit import log_action
-from src.core.db import async_session
+from src.core.db import async_session, rls_session
 from src.core.models import (
     Booking,
     Budget,
@@ -153,7 +153,9 @@ def _coerce_dates(model: type, data: dict[str, Any]) -> None:
         try:
             data[col_name] = date.fromisoformat(value)
         except ValueError:
-            continue
+            # Non-ISO date string (e.g. natural language) — fall back to today
+            # to avoid leaving a string that will fail the DB type check.
+            data[col_name] = date.today()
 
 
 def _apply_create_defaults(table: str, data: dict[str, Any]) -> None:
@@ -328,7 +330,7 @@ async def create_record(
     _coerce_uuids(model, data)
     _coerce_dates(model, data)
 
-    async with async_session() as session:
+    async with rls_session(family_id, user_id) as session:
         record = model(**data)
         session.add(record)
         await session.flush()
@@ -371,7 +373,7 @@ async def update_record(
         data[k] = _coerce_enum(model, k, v)
     _coerce_uuids(model, data)
 
-    async with async_session() as session:
+    async with rls_session(family_id, user_id) as session:
         stmt = select(model).where(
             model.id == uuid.UUID(record_id),
             model.family_id == uuid.UUID(family_id),
@@ -414,7 +416,7 @@ async def delete_record(
     if table in READ_ONLY_TABLES:
         raise ValueError(f"Table '{table}' is read-only")
 
-    async with async_session() as session:
+    async with rls_session(family_id, user_id) as session:
         stmt = select(model).where(
             model.id == uuid.UUID(record_id),
             model.family_id == uuid.UUID(family_id),
@@ -466,7 +468,7 @@ async def delete_record_confirmed(
     """Execute a confirmed deletion (called from pending action handler)."""
     model = _validate_table(table)
 
-    async with async_session() as session:
+    async with rls_session(family_id, user_id) as session:
         stmt = select(model).where(
             model.id == uuid.UUID(record_id),
             model.family_id == uuid.UUID(family_id),
