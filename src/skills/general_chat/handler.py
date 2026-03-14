@@ -231,7 +231,7 @@ register_strings("general_chat", {"en": {}, "ru": {}, "es": {}})
 class GeneralChatSkill:
     name = "general_chat"
     intents = ["general_chat"]
-    model = "claude-sonnet-4-6"
+    model = "gpt-5.2"
 
     def _get_dosing_prompt(self, suppress: bool) -> str:
         """Return system prompt with or without feature suggestions."""
@@ -325,7 +325,18 @@ class GeneralChatSkill:
             msgs = [{"role": "user", "content": message.text or "Hi"}]
 
         # Dynamic max_tokens: short inputs get shorter responses
-        max_tok = 256 if len(text_raw) < 20 else 1024
+        # 256 for single-word/emoji, 1024 for normal messages, 3000 for long/structured content
+        # (trackers, lists, schedules) to avoid mid-sentence truncation
+        if len(text_raw) < 20:
+            max_tok = 256
+        elif len(text_raw) > 100 or any(
+            kw in text_raw.lower()
+            for kw in ("трекер", "tracker", "список", "list", "план", "plan",
+                       "расписание", "schedule", "таблица", "table", "дней", "days")
+        ):
+            max_tok = 3000
+        else:
+            max_tok = 1024
         text = await generate_text(self.model, sys, msgs, max_tokens=max_tok)
         return SkillResult(response_text=text)
 

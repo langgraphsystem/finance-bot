@@ -12,7 +12,7 @@ from src.core.observability import observe
 from src.core.research.dual_search import dual_search
 from src.core.research.signal_detector import detect_signals
 from src.gateway.types import IncomingMessage
-from src.skills._i18n import register_strings
+from src.skills._i18n import register_strings, t
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
@@ -33,13 +33,22 @@ to external websites. Present the full information directly.
 - Tone: match the query mood. Fun/casual topics (food, travel, entertainment, lifestyle) \
 — add relevant emojis. Serious topics (legal, medical, financial analysis, business) \
 — no emojis, professional tone.
+- LOCATION PRIORITY: If the user's message explicitly mentions a city, country, or place, \
+ALWAYS search for that exact location. Never override an explicitly mentioned location with \
+the user's default/profile location.
 - ALWAYS respond in the language of the user's ORIGINAL message (provided below). \
 User's preferred language: {language}."""
+
+_STRINGS = {
+    "en": {"error": "Couldn't complete the search. Try again or rephrase your question?"},
+    "ru": {"error": "Не удалось выполнить поиск. Попробуй ещё раз или переформулируй запрос?"},
+    "es": {"error": "No pude completar la búsqueda. ¿Intentas de nuevo o reformula tu pregunta?"},
+}
 
 FALLBACK_DISCLAIMER = "\n\n<i>Based on my training data — may not reflect current info.</i>"
 
 
-register_strings("web_search", {"en": {}, "ru": {}, "es": {}})
+register_strings("web_search", _STRINGS)
 
 
 class WebSearchSkill:
@@ -115,7 +124,8 @@ async def search_and_answer(
     except Exception as e:
         logger.error("Gemini fallback also failed: %s", e)
 
-    return "I couldn't complete the search. Try again or rephrase your question?"
+    lang = language if language in _STRINGS else "en"
+    return t(_STRINGS, "error", lang)
 
 
 skill = WebSearchSkill()

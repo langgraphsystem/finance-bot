@@ -136,7 +136,7 @@ register_strings("query_stats", {"en": {}, "ru": {}, "es": {}})
 class QueryStatsSkill:
     name = "query_stats"
     intents = ["query_stats"]
-    model = "claude-sonnet-4-6"
+    model = "gemini-3.1-flash-lite-preview"
 
     async def _get_comparison_data(
         self,

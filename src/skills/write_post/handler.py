@@ -4,8 +4,7 @@ import logging
 from typing import Any
 
 from src.core.context import SessionContext
-from src.core.llm.clients import anthropic_client
-from src.core.llm.prompts import PromptAdapter
+from src.core.llm.clients import generate_text
 from src.core.observability import observe
 from src.gateway.types import IncomingMessage
 from src.skills._i18n import register_strings, t
@@ -48,7 +47,7 @@ Instagram = casual with line breaks, business response = calm and solution-orien
 class WritePostSkill:
     name = "write_post"
     intents = ["write_post"]
-    model = "claude-sonnet-4-6"
+    model = "gemini-3.1-flash-lite-preview"
 
     @observe(name="write_post")
     async def execute(
@@ -99,25 +98,17 @@ class WritePostSkill:
 
 
 async def generate_post(topic: str, language: str) -> str:
-    """Generate platform-ready content using Claude Sonnet."""
-    client = anthropic_client()
-    system = WRITE_POST_SYSTEM_PROMPT.format(language=language)
+    """Generate platform-ready content using Gemini Flash."""
+    system = WRITE_POST_SYSTEM_PROMPT
     system = f"IMPORTANT: Write ONLY in {language}. Do NOT use any other language.\n\n" + system
-    prompt_data = PromptAdapter.for_claude(
-        system=system,
-        messages=[{"role": "user", "content": topic}],
-    )
+    messages = [{"role": "user", "content": topic}]
 
     try:
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
-            **prompt_data,
-        )
-        return response.content[0].text
+        return await generate_text("gemini-3.1-flash-lite-preview", system, messages, max_tokens=1024)
     except Exception as e:
         logger.warning("Post generation failed: %s", e)
-        return t(_STRINGS, "error", language)
+        lang = language if language in _STRINGS else "en"
+        return t(_STRINGS, "error", lang)
 
 
 skill = WritePostSkill()
