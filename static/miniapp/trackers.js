@@ -112,18 +112,51 @@ function _renderTrackersEmpty() {
 }
 
 function _renderTrackerCard(t) {
+  const mode = t.value_mode || 'sum';
+  const unit = t.config?.unit || '';
+  const goal = t.config?.goal;
+
+  // Streak badge (all modes show streak)
   const streakHtml = t.streak > 0
     ? `<div class="tracker-streak"><span class="streak-fire">🔥</span> ${t.streak}d</div>`
     : '';
-  const btnLabel = t.today_done ? '✓ Logged today' : `Log ${t.emoji}`;
+
+  // Today's progress line under the streak
+  let todayLine = '';
+  if (mode === 'boolean') {
+    todayLine = t.today_done
+      ? `<div class="tracker-card-meta" style="color:var(--tr-habit-a)">✅ Done today</div>`
+      : '';
+  } else if (mode === 'single' && t.today_value != null) {
+    todayLine = `<div class="tracker-card-meta">Today: <b>${t.today_value}</b> ${unit}</div>`;
+  } else if (mode === 'sum' && t.today_total > 0) {
+    const pct = goal ? Math.min(100, Math.round(t.today_total / goal * 100)) : null;
+    const pctHtml = pct != null ? ` <span style="color:var(--hint)">(${pct}%)</span>` : '';
+    todayLine = `<div class="tracker-card-meta">Today: <b>${t.today_total}</b> ${unit}${pctHtml}</div>`;
+  }
+
+  // Button label
+  let btnLabel, btnDone;
+  if (mode === 'boolean') {
+    btnLabel  = t.today_done ? '✓ Done' : `Mark done`;
+    btnDone   = t.today_done;
+  } else if (mode === 'single') {
+    btnLabel  = t.today_value != null ? `Update ${t.emoji}` : `Log ${t.emoji}`;
+    btnDone   = false; // always allow updating single value
+  } else {
+    // sum
+    btnLabel  = t.today_done ? `＋ Add more` : `Log ${t.emoji}`;
+    btnDone   = false;
+  }
+
   return `
     <div class="tracker-card" data-type="${t.tracker_type}" onclick="openTrackerDetail('${t.id}')">
       <span class="tracker-card-emoji">${t.emoji}</span>
       <div class="tracker-card-name">${t.name}</div>
-      <div class="tracker-card-meta">${_typeLabel(t.tracker_type)}</div>
+      ${todayLine || `<div class="tracker-card-meta">${_typeLabel(t.tracker_type)}</div>`}
       ${streakHtml}
       <button
-        class="tracker-today-btn ${t.today_done ? 'done' : ''}"
+        class="tracker-today-btn ${btnDone ? 'done' : ''}"
         data-type="${t.tracker_type}"
         onclick="event.stopPropagation(); quickLog('${t.id}', '${t.tracker_type}')"
       >${btnLabel}</button>
@@ -161,16 +194,54 @@ async function openTrackerDetail(trackerId) {
 
 function _renderTrackerDetail(tracker, entries) {
   const today = _todayISO();
-  const entryDates = new Set(entries.map(e => e.date));
-  const totalEntries = entries.length;
+  const mode  = tracker.value_mode || 'sum';
+  const unit  = tracker.config?.unit || '';
+  const goal  = tracker.config?.goal;
   const streak = tracker.streak;
 
-  // Compute last value for display
-  const lastEntry = entries.length ? entries[entries.length - 1] : null;
-  const lastVal = lastEntry?.value ?? '—';
-  const unit = tracker.config?.unit || '';
+  // Group entries by date
+  const byDate = {};
+  for (const e of entries) {
+    if (!byDate[e.date]) byDate[e.date] = [];
+    byDate[e.date].push(e);
+  }
+  const entryDates = new Set(Object.keys(byDate));
 
-  // Stats
+  // Per-day aggregated values (for stats)
+  const dayValues = Object.entries(byDate).map(([d, es]) => {
+    if (mode === 'sum')    return { date: d, val: es.reduce((s, e) => s + (e.value || 0), 0) };
+    if (mode === 'single') return { date: d, val: es[es.length - 1]?.value };
+    if (mode === 'boolean')return { date: d, val: 1 };
+    return { date: d, val: null };
+  });
+
+  // Stats boxes — differ by mode
+  let stat2Label, stat2Val, stat3Label, stat3Val;
+  if (mode === 'boolean') {
+    const daysLogged = dayValues.length;
+    stat2Label = 'Days logged';  stat2Val = daysLogged;
+    stat3Label = 'This week';
+    const weekStart = _daysAgo(6);
+    stat3Val = dayValues.filter(d => d.date >= weekStart).length + 'd';
+
+  } else if (mode === 'single') {
+    const nums = dayValues.filter(d => d.val != null).map(d => d.val);
+    const avg = nums.length ? Math.round(nums.reduce((a,b)=>a+b,0) / nums.length * 10) / 10 : '—';
+    const last = nums.length ? nums[nums.length - 1] : '—';
+    stat2Label = '7d avg';  stat2Val = avg !== '—' ? `${avg} ${unit}` : '—';
+    stat3Label = 'Last';    stat3Val = last !== '—' ? `${last} ${unit}` : '—';
+
+  } else {
+    // sum
+    const todayTotal = (byDate[today] || []).reduce((s,e) => s + (e.value||0), 0);
+    const allTotals  = dayValues.map(d => d.val);
+    const avg7 = allTotals.length
+      ? Math.round(allTotals.reduce((a,b)=>a+b,0) / allTotals.length)
+      : '—';
+    stat2Label = 'Today';    stat2Val = todayTotal > 0 ? `${todayTotal} ${unit}` : '—';
+    stat3Label = '7d avg';   stat3Val = avg7 !== '—' ? `${avg7} ${unit}` : '—';
+  }
+
   const statsHtml = `
     <div class="tracker-stats-row">
       <div class="tracker-stat-box">
@@ -178,15 +249,33 @@ function _renderTrackerDetail(tracker, entries) {
         <div class="tracker-stat-lbl">Day streak</div>
       </div>
       <div class="tracker-stat-box">
-        <div class="tracker-stat-val">${totalEntries}</div>
-        <div class="tracker-stat-lbl">Total logs</div>
+        <div class="tracker-stat-val">${stat2Val}</div>
+        <div class="tracker-stat-lbl">${stat2Label}</div>
       </div>
       <div class="tracker-stat-box">
-        <div class="tracker-stat-val">${lastVal !== '—' ? lastVal : '—'}<small style="font-size:11px;font-weight:500;color:var(--hint)"> ${lastVal !== '—' ? unit : ''}</small></div>
-        <div class="tracker-stat-lbl">Last logged</div>
+        <div class="tracker-stat-val">${stat3Val}</div>
+        <div class="tracker-stat-lbl">${stat3Label}</div>
       </div>
     </div>
   `;
+
+  // Goal progress bar (sum + single modes)
+  let goalBarHtml = '';
+  if (goal && mode === 'sum') {
+    const todayTotal = (byDate[today] || []).reduce((s,e) => s + (e.value||0), 0);
+    const pct = Math.min(100, Math.round(todayTotal / goal * 100));
+    const color = pct >= 100 ? '#34d399' : `var(--tr-${tracker.tracker_type}-a, var(--link))`;
+    goalBarHtml = `
+      <div style="padding:0 16px 14px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--hint);margin-bottom:6px">
+          <span>Today's goal</span><span>${todayTotal} / ${goal} ${unit}</span>
+        </div>
+        <div style="height:8px;border-radius:8px;background:var(--bg2);overflow:hidden">
+          <div style="height:100%;border-radius:8px;background:${color};width:${pct}%;transition:width .6s cubic-bezier(.32,.72,0,1)"></div>
+        </div>
+      </div>
+    `;
+  }
 
   // Heatmap (30 cells, oldest→newest, left→right)
   const cells = Array.from({ length: 30 }, (_, i) => {
@@ -214,6 +303,14 @@ function _renderTrackerDetail(tracker, entries) {
 
   const todayDone = entryDates.has(today);
 
+  // Log button label based on value_mode
+  let logBtnLabel;
+  if (mode === 'boolean')       logBtnLabel = todayDone ? '✓ Marked done' : `Mark done ${tracker.emoji}`;
+  else if (mode === 'single')   logBtnLabel = todayDone ? `Update ${tracker.emoji} today` : `＋ Log ${tracker.emoji} today`;
+  else                          logBtnLabel = todayDone ? `＋ Add more ${tracker.emoji}` : `＋ Log ${tracker.emoji} today`;
+
+  const logBtnDisabled = (mode === 'boolean' && todayDone) ? 'disabled style="opacity:.55;cursor:not-allowed"' : '';
+
   return `
     <!-- Hero -->
     <div class="tracker-detail-hero" data-type="${tracker.tracker_type}">
@@ -223,6 +320,7 @@ function _renderTrackerDetail(tracker, entries) {
     </div>
 
     ${statsHtml}
+    ${goalBarHtml}
     ${heatmapHtml}
 
     <!-- Log button -->
@@ -230,9 +328,9 @@ function _renderTrackerDetail(tracker, entries) {
       class="tracker-log-btn"
       data-type="${tracker.tracker_type}"
       onclick="openLogModal('${tracker.id}', '${tracker.tracker_type}')"
-      ${todayDone && tracker.tracker_type === 'habit' ? 'disabled style="opacity:.5"' : ''}
+      ${logBtnDisabled}
     >
-      ${todayDone ? '＋ Log Again' : `＋ Log ${tracker.emoji} Today`}
+      ${logBtnLabel}
     </button>
 
     ${entriesHtml}

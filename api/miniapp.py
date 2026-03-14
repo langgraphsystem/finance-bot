@@ -1873,16 +1873,20 @@ async def detect_geo_from_ip(
 # ---------------------------------------------------------------------------
 
 _TRACKER_DEFAULTS: dict[str, dict] = {
-    "mood":       {"emoji": "😊", "goal": 1,  "unit": "score",   "scale": [1, 10]},
-    "habit":      {"emoji": "🔥", "goal": 1,  "unit": "done",    "scale": None},
-    "water":      {"emoji": "💧", "goal": 8,  "unit": "glasses", "scale": None},
-    "sleep":      {"emoji": "🌙", "goal": 8,  "unit": "hours",   "scale": None},
-    "weight":     {"emoji": "⚖️", "goal": None,"unit": "kg",     "scale": None},
-    "workout":    {"emoji": "💪", "goal": 1,  "unit": "session", "scale": None},
-    "nutrition":  {"emoji": "🥗", "goal": 2000,"unit": "kcal",   "scale": None},
-    "gratitude":  {"emoji": "🙏", "goal": 3,  "unit": "items",   "scale": None},
-    "medication": {"emoji": "💊", "goal": 1,  "unit": "dose",    "scale": None},
-    "custom":     {"emoji": "✨", "goal": 1,  "unit": "times",   "scale": None},
+    # value_mode:
+    #   "boolean" → habit/medication — log done/not-done, stats show day streak
+    #   "single"  → mood/weight/sleep — one value per day (last write wins), show last value + 7d avg
+    #   "sum"     → water/nutrition/gratitude/workout/custom — accumulate all logs per day, show daily total
+    "mood":       {"emoji": "😊", "goal": 10,   "unit": "/ 10",   "scale": [1, 10], "value_mode": "single"},
+    "habit":      {"emoji": "🔥", "goal": 1,    "unit": "",        "scale": None,    "value_mode": "boolean"},
+    "water":      {"emoji": "💧", "goal": 8,    "unit": "glasses", "scale": None,    "value_mode": "sum"},
+    "sleep":      {"emoji": "🌙", "goal": 8,    "unit": "h",       "scale": None,    "value_mode": "single"},
+    "weight":     {"emoji": "⚖️", "goal": None, "unit": "kg",      "scale": None,    "value_mode": "single"},
+    "workout":    {"emoji": "💪", "goal": 1,    "unit": "sessions","scale": None,    "value_mode": "sum"},
+    "nutrition":  {"emoji": "🥗", "goal": 2000, "unit": "kcal",    "scale": None,    "value_mode": "sum"},
+    "gratitude":  {"emoji": "🙏", "goal": 3,    "unit": "items",   "scale": None,    "value_mode": "sum"},
+    "medication": {"emoji": "💊", "goal": 1,    "unit": "dose",    "scale": None,    "value_mode": "boolean"},
+    "custom":     {"emoji": "✨", "goal": 1,    "unit": "times",   "scale": None,    "value_mode": "sum"},
 }
 
 
@@ -1908,17 +1912,28 @@ class TrackerEntryCreate(BaseModel):
     note: str | None = None
 
 
-def _tracker_json(t: Tracker, streak: int = 0, today_done: bool = False) -> dict:
+def _tracker_json(
+    t: Tracker,
+    streak: int = 0,
+    today_done: bool = False,
+    today_total: int = 0,
+    today_value: int | None = None,
+) -> dict:
+    defaults = _TRACKER_DEFAULTS.get(t.tracker_type, {})
+    config = {**defaults, **(t.config or {})}
     return {
         "id": str(t.id),
         "tracker_type": t.tracker_type,
         "name": t.name,
-        "emoji": t.emoji or _TRACKER_DEFAULTS.get(t.tracker_type, {}).get("emoji", "📊"),
+        "emoji": t.emoji or defaults.get("emoji", "📊"),
         "description": t.description,
-        "config": t.config or _TRACKER_DEFAULTS.get(t.tracker_type, {}),
+        "config": config,
+        "value_mode": config.get("value_mode", "sum"),
         "is_active": t.is_active,
         "streak": streak,
         "today_done": today_done,
+        "today_total": today_total,       # sum mode: accumulated value today
+        "today_value": today_value,       # single mode: last logged value today
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
@@ -1967,14 +1982,24 @@ async def list_trackers(user: User = Depends(get_current_user)) -> list[dict]:
                     else check_date.replace(year=check_date.year - 1, month=12, day=31)
                 )
 
-            today_done = await session.scalar(
-                select(TrackerEntry.id).where(
+            # Today's entries for value_mode logic
+            today_entries = (await session.scalars(
+                select(TrackerEntry).where(
                     TrackerEntry.tracker_id == t.id,
                     TrackerEntry.date == today,
-                ).limit(1)
-            ) is not None
+                ).order_by(TrackerEntry.created_at)
+            )).all()
 
-            result.append(_tracker_json(t, streak=streak, today_done=today_done))
+            today_done = len(today_entries) > 0
+            today_total = sum(e.value or 0 for e in today_entries)
+            today_value = today_entries[-1].value if today_entries else None
+
+            result.append(_tracker_json(
+                t, streak=streak,
+                today_done=today_done,
+                today_total=today_total,
+                today_value=today_value,
+            ))
     return result
 
 
