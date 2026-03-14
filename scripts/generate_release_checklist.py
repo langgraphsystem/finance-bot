@@ -20,6 +20,15 @@ import httpx
 
 from scripts.export_golden_dialogues import RESULTS_DIR, build_headers, infer_base_url
 
+DEFAULT_QUALITY_THRESHOLDS = {
+    "max_wrong_route_rate": 0.20,
+    "max_memory_failure_rate": 0.15,
+    "max_tool_failure_rate": 0.15,
+    "max_user_dissatisfaction_rate": 0.40,
+    "min_task_completion_rate": 0.70,
+    "min_response_useful_rate": 0.70,
+}
+
 
 def _check(status: str, name: str, detail: str, *, blocking: bool) -> dict[str, Any]:
     return {
@@ -50,6 +59,10 @@ async def fetch_release_inputs(
             urljoin(f"{base_url}/", "ops/analytics/weekly-curation"),
             params={"limit": limit},
         )
+        quality_task = client.get(
+            urljoin(f"{base_url}/", "ops/analytics/quality-metrics"),
+            params={"limit": limit},
+        )
         review_queue_task = client.get(
             urljoin(f"{base_url}/", "ops/analytics/review-queue"),
             params={"limit": limit, "max_selected": min(limit, 100)},
@@ -60,6 +73,7 @@ async def fetch_release_inputs(
             decision_task,
             overrides_task,
             weekly_task,
+            quality_task,
             review_queue_task,
         )
         for response in responses:
@@ -73,7 +87,8 @@ async def fetch_release_inputs(
         "release_decision": responses[2].json(),
         "release_overrides": responses[3].json(),
         "weekly_curation": responses[4].json(),
-        "review_queue": responses[5].json(),
+        "quality_metrics": responses[5].json(),
+        "review_queue": responses[6].json(),
     }
 
 
@@ -81,13 +96,19 @@ def build_release_checklist(
     inputs: dict[str, Any],
     *,
     max_review_backlog: int = 25,
+    quality_thresholds: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build a release checklist with pass/warn/fail checks."""
     health_detailed = dict(inputs["health_detailed"])
     release_decision = dict(inputs["release_decision"])
     release_overrides = dict(inputs["release_overrides"])
     weekly_curation = dict(inputs["weekly_curation"])
+    quality_metrics = dict(inputs.get("quality_metrics") or {})
     review_queue = dict(inputs["review_queue"])
+    thresholds = {
+        **DEFAULT_QUALITY_THRESHOLDS,
+        **dict(quality_thresholds or {}),
+    }
 
     checks: list[dict[str, Any]] = []
 
@@ -254,6 +275,108 @@ def build_release_checklist(
             )
         )
 
+    quality_status = str(quality_metrics.get("status") or "unknown")
+    review_count = int(quality_metrics.get("review_count") or 0)
+    quality_rates = dict(quality_metrics.get("rates") or {})
+    quality_breaches: list[str] = []
+
+    wrong_route_rate = float(quality_rates.get("wrong_route_rate") or 0.0)
+    if wrong_route_rate > thresholds["max_wrong_route_rate"]:
+        quality_breaches.append(
+            "wrong_route_rate "
+            f"{wrong_route_rate:.2%} > {thresholds['max_wrong_route_rate']:.2%}"
+        )
+
+    memory_failure_rate = float(quality_rates.get("memory_failure_rate") or 0.0)
+    if memory_failure_rate > thresholds["max_memory_failure_rate"]:
+        quality_breaches.append(
+            "memory_failure_rate "
+            f"{memory_failure_rate:.2%} > {thresholds['max_memory_failure_rate']:.2%}"
+        )
+
+    tool_failure_rate = float(quality_rates.get("tool_failure_rate") or 0.0)
+    if tool_failure_rate > thresholds["max_tool_failure_rate"]:
+        quality_breaches.append(
+            "tool_failure_rate "
+            f"{tool_failure_rate:.2%} > {thresholds['max_tool_failure_rate']:.2%}"
+        )
+
+    task_completion_rate = float(quality_rates.get("task_completion_rate") or 0.0)
+    if review_count and task_completion_rate < thresholds["min_task_completion_rate"]:
+        quality_breaches.append(
+            "task_completion_rate "
+            f"{task_completion_rate:.2%} < {thresholds['min_task_completion_rate']:.2%}"
+        )
+
+    response_useful_rate = float(quality_rates.get("response_useful_rate") or 0.0)
+    if review_count and response_useful_rate < thresholds["min_response_useful_rate"]:
+        quality_breaches.append(
+            "response_useful_rate "
+            f"{response_useful_rate:.2%} < {thresholds['min_response_useful_rate']:.2%}"
+        )
+
+    dissatisfaction_rate = float(
+        quality_rates.get("user_dissatisfaction_signal_rate") or 0.0
+    )
+    if dissatisfaction_rate > thresholds["max_user_dissatisfaction_rate"]:
+        quality_breaches.append(
+            "user_dissatisfaction_signal_rate "
+            f"{dissatisfaction_rate:.2%} > "
+            f"{thresholds['max_user_dissatisfaction_rate']:.2%}"
+        )
+
+    if review_count <= 0:
+        checks.append(
+            _check(
+                "warn",
+                "quality_metrics",
+                "No reviewed traces available for quality gating yet.",
+                blocking=False,
+            )
+        )
+    elif quality_status == "needs_attention" or quality_breaches:
+        detail = (
+            "; ".join(quality_breaches)
+            if quality_breaches
+            else "Quality snapshot status is needs_attention."
+        )
+        checks.append(
+            _check(
+                "fail",
+                "quality_metrics",
+                detail,
+                blocking=True,
+            )
+        )
+    elif quality_status == "monitor":
+        checks.append(
+            _check(
+                "warn",
+                "quality_metrics",
+                (
+                    "Quality snapshot is monitor: "
+                    f"wrong_route={wrong_route_rate:.2%}, "
+                    f"task_completion={task_completion_rate:.2%}, "
+                    f"user_dissatisfaction={dissatisfaction_rate:.2%}."
+                ),
+                blocking=True,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "pass",
+                "quality_metrics",
+                (
+                    "Quality metrics are within thresholds: "
+                    f"wrong_route={wrong_route_rate:.2%}, "
+                    f"task_completion={task_completion_rate:.2%}, "
+                    f"user_dissatisfaction={dissatisfaction_rate:.2%}."
+                ),
+                blocking=True,
+            )
+        )
+
     statuses = {check["status"] for check in checks if check["blocking"]}
     if "fail" in statuses or next_action == "rollback":
         overall_status = "rollback"
@@ -268,6 +391,7 @@ def build_release_checklist(
         "generated_at": inputs["generated_at"],
         "base_url": inputs["base_url"],
         "overall_status": overall_status,
+        "quality_thresholds": thresholds,
         "checks": checks,
         "inputs": inputs,
     }
@@ -290,6 +414,8 @@ def render_release_checklist_markdown(report: dict[str, Any]) -> str:
 
     inputs = report["inputs"]
     weekly = inputs["weekly_curation"]
+    quality = inputs.get("quality_metrics") or {}
+    quality_rates = quality.get("rates") or {}
     decision = inputs["release_decision"]
     overrides = inputs["release_overrides"]
     lines.extend(
@@ -306,6 +432,26 @@ def render_release_checklist_markdown(report: dict[str, Any]) -> str:
             f"- Dataset candidates: {weekly.get('dataset_candidate_size', 0)}",
             f"- Review batches: {weekly.get('review_batch_size', 0)}",
             f"- Feedback items: {weekly.get('feedback_size', 0)}",
+            "",
+            "## Quality",
+            f"- Quality status: {quality.get('status', 'unknown')}",
+            f"- Reviewed traces: {quality.get('review_count', 0)}",
+            (
+                "- Wrong-route rate: "
+                f"{float(quality_rates.get('wrong_route_rate') or 0.0):.2%}"
+            ),
+            (
+                "- Task completion rate: "
+                f"{float(quality_rates.get('task_completion_rate') or 0.0):.2%}"
+            ),
+            (
+                "- Response useful rate: "
+                f"{float(quality_rates.get('response_useful_rate') or 0.0):.2%}"
+            ),
+            (
+                "- User dissatisfaction rate: "
+                f"{float(quality_rates.get('user_dissatisfaction_signal_rate') or 0.0):.2%}"
+            ),
         ]
     )
     return "\n".join(lines) + "\n"
@@ -355,6 +501,42 @@ def main() -> None:
         help="Warn when review backlog exceeds this threshold (default: 25)",
     )
     parser.add_argument(
+        "--max-wrong-route-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["max_wrong_route_rate"],
+        help="Fail when wrong-route rate exceeds this threshold (default: 0.20)",
+    )
+    parser.add_argument(
+        "--max-memory-failure-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["max_memory_failure_rate"],
+        help="Fail when memory-failure rate exceeds this threshold (default: 0.15)",
+    )
+    parser.add_argument(
+        "--max-tool-failure-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["max_tool_failure_rate"],
+        help="Fail when tool-failure rate exceeds this threshold (default: 0.15)",
+    )
+    parser.add_argument(
+        "--max-user-dissatisfaction-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["max_user_dissatisfaction_rate"],
+        help="Fail when unhelpful feedback share exceeds this threshold (default: 0.40)",
+    )
+    parser.add_argument(
+        "--min-task-completion-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["min_task_completion_rate"],
+        help="Fail when task completion rate drops below this floor (default: 0.70)",
+    )
+    parser.add_argument(
+        "--min-response-useful-rate",
+        type=float,
+        default=DEFAULT_QUALITY_THRESHOLDS["min_response_useful_rate"],
+        help="Fail when response usefulness rate drops below this floor (default: 0.70)",
+    )
+    parser.add_argument(
         "--out-dir",
         default=str(RESULTS_DIR),
         help="Directory for release checklist artifacts (default: scripts/test_results)",
@@ -376,6 +558,17 @@ def main() -> None:
     report = build_release_checklist(
         inputs,
         max_review_backlog=max(0, args.max_review_backlog),
+        quality_thresholds={
+            "max_wrong_route_rate": max(0.0, args.max_wrong_route_rate),
+            "max_memory_failure_rate": max(0.0, args.max_memory_failure_rate),
+            "max_tool_failure_rate": max(0.0, args.max_tool_failure_rate),
+            "max_user_dissatisfaction_rate": max(
+                0.0,
+                args.max_user_dissatisfaction_rate,
+            ),
+            "min_task_completion_rate": max(0.0, args.min_task_completion_rate),
+            "min_response_useful_rate": max(0.0, args.min_response_useful_rate),
+        },
     )
     paths = save_release_checklist(
         report,

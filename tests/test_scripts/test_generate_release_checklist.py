@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from scripts.generate_release_checklist import (
+    DEFAULT_QUALITY_THRESHOLDS,
     build_release_checklist,
     fetch_release_inputs,
     render_release_checklist_markdown,
@@ -17,6 +18,7 @@ async def test_fetch_release_inputs_calls_expected_endpoints():
         {"next_action": "progress", "target_rollout_percent": 10},
         {"active_override": {}},
         {"review_result_size": 3, "dataset_candidate_size": 2},
+        {"status": "healthy", "review_count": 4, "rates": {"task_completion_rate": 0.9}},
         {"review_queue_size": 4},
     ]
     responses = []
@@ -43,7 +45,8 @@ async def test_fetch_release_inputs_calls_expected_endpoints():
 
     assert inputs["release_decision"]["next_action"] == "progress"
     assert inputs["review_queue"]["review_queue_size"] == 4
-    assert client_instance.get.await_count == 6
+    assert inputs["quality_metrics"]["status"] == "healthy"
+    assert client_instance.get.await_count == 7
 
 
 def test_build_release_checklist_marks_ready_when_all_checks_pass():
@@ -68,12 +71,27 @@ def test_build_release_checklist_marks_ready_when_all_checks_pass():
             "review_batch_size": 1,
             "feedback_size": 3,
         },
+        "quality_metrics": {
+            "status": "healthy",
+            "review_count": 4,
+            "rates": {
+                "wrong_route_rate": 0.05,
+                "memory_failure_rate": 0.0,
+                "tool_failure_rate": 0.0,
+                "task_completion_rate": 0.8,
+                "response_useful_rate": 0.9,
+                "user_dissatisfaction_signal_rate": 0.25,
+            },
+        },
         "review_queue": {"review_queue_size": 3},
     }
 
     report = build_release_checklist(inputs, max_review_backlog=5)
 
     assert report["overall_status"] == "ready"
+    assert report["quality_thresholds"]["max_wrong_route_rate"] == DEFAULT_QUALITY_THRESHOLDS[
+        "max_wrong_route_rate"
+    ]
     assert any(
         check["name"] == "core_services" and check["status"] == "pass"
         for check in report["checks"]
@@ -104,6 +122,18 @@ def test_build_release_checklist_marks_rollback_for_failing_gates():
             "review_result_size": 2,
             "review_batch_size": 1,
             "feedback_size": 3,
+        },
+        "quality_metrics": {
+            "status": "needs_attention",
+            "review_count": 5,
+            "rates": {
+                "wrong_route_rate": 0.4,
+                "memory_failure_rate": 0.2,
+                "tool_failure_rate": 0.2,
+                "task_completion_rate": 0.4,
+                "response_useful_rate": 0.4,
+                "user_dissatisfaction_signal_rate": 0.6,
+            },
         },
         "review_queue": {"review_queue_size": 40},
     }
@@ -143,6 +173,16 @@ def test_render_release_checklist_markdown_includes_sections():
                 "review_batch_size": 1,
                 "feedback_size": 3,
             },
+            "quality_metrics": {
+                "status": "monitor",
+                "review_count": 5,
+                "rates": {
+                    "wrong_route_rate": 0.2,
+                    "task_completion_rate": 0.6,
+                    "response_useful_rate": 0.7,
+                    "user_dissatisfaction_signal_rate": 0.3,
+                },
+            },
         },
     }
 
@@ -151,6 +191,7 @@ def test_render_release_checklist_markdown_includes_sections():
     assert "# Release Checklist" in markdown
     assert "Overall status: HOLD" in markdown
     assert "## Weekly Analytics" in markdown
+    assert "## Quality" in markdown
 
 
 def test_save_release_checklist_writes_json_and_markdown(tmp_path: Path):
@@ -171,6 +212,16 @@ def test_save_release_checklist_writes_json_and_markdown(tmp_path: Path):
                 "dataset_candidate_size": 1,
                 "review_batch_size": 1,
                 "feedback_size": 0,
+            },
+            "quality_metrics": {
+                "status": "healthy",
+                "review_count": 1,
+                "rates": {
+                    "wrong_route_rate": 0.0,
+                    "task_completion_rate": 1.0,
+                    "response_useful_rate": 1.0,
+                    "user_dissatisfaction_signal_rate": 0.0,
+                },
             },
         },
     }
