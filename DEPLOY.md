@@ -53,7 +53,15 @@ This is the main service, already created. It:
    - OR add env variable: `RAILWAY_PROCESS_TYPE=worker` (uses entrypoint.sh)
 4. **Settings → Deploy → Health Check**: Remove/disable (worker has no HTTP port)
 
-### 2c: Redis Service
+### 2c: Scheduler Service
+
+1. In your Railway project → **+ New Service → GitHub Repo** (same repo)
+2. Rename it to `scheduler`
+3. Go to **Settings → Deploy → Start Command**:
+   - Set: `python -m taskiq scheduler src.core.tasks.broker:scheduler src.core.tasks.memory_tasks src.core.tasks.notification_tasks src.core.tasks.life_tasks src.core.tasks.reminder_tasks src.core.tasks.profile_tasks src.core.tasks.proactivity_tasks src.core.tasks.booking_tasks src.core.tasks.document_tasks src.core.tasks.crossdomain_tasks src.core.tasks.billing_tasks src.core.tasks.scheduled_action_tasks src.core.tasks.release_ops_tasks`
+4. **Settings → Deploy → Health Check**: Remove/disable (scheduler has no HTTP port)
+
+### 2d: Redis Service
 
 1. In your Railway project → **+ New Service → Database → Redis**
 2. Railway creates a managed Redis instance
@@ -98,12 +106,48 @@ MEM0_BASE_URL=
 # App Settings
 APP_ENV=production
 LOG_LEVEL=INFO
+HEALTH_SECRET=<shared ops bearer token>
 RATE_LIMIT_PER_MINUTE=30
+
+# Controlled rollout / release ops
+RELEASE_ROLLOUT_NAME=finance-bot-canary
+RELEASE_ROLLOUT_PERCENT=0
+RELEASE_SHADOW_MODE=true
+RELEASE_HEALTH_LOGGING=true
+RELEASE_DEFAULT_COHORT=normal
+RELEASE_INTERNAL_USER_IDS=<telegram-or-user-ids for internal team>
+RELEASE_TRUSTED_USER_IDS=<trusted beta testers>
+RELEASE_BETA_USER_IDS=
+RELEASE_VIP_USER_IDS=
+RELEASE_SENSITIVE_ROLES=accountant,assistant
+RELEASE_OPS_ENABLED=true
+RELEASE_OPS_BASE_URL=https://<your-app>.up.railway.app
+RELEASE_OPS_REVIEWER=release-ops
+RELEASE_OPS_APPLY_WEEKLY_REVIEW=false
+RELEASE_OPS_WEEKLY_REVIEW_CRON=0 13 * * 1
+RELEASE_OPS_CYCLE_CRON=0 14 * * *
 ```
 
 **Important:** Use Railway's **Shared Variables** or **Reference Variables** (`${{Redis.REDIS_URL}}`) for inter-service connections.
 
-Copy the same variables to the **worker** service (except `TELEGRAM_WEBHOOK_URL`).
+Copy the same variables to the **worker** and **scheduler** services (except `TELEGRAM_WEBHOOK_URL`).
+
+---
+
+## Step 3.5: Release Ops Preflight
+
+Before the first canary, run:
+
+```bash
+python scripts/preflight_release_ops.py --check-endpoint
+```
+
+Expected result:
+- required release ops env vars are present
+- at least one `RELEASE_INTERNAL_USER_IDS` / `RELEASE_TRUSTED_USER_IDS` / `RELEASE_BETA_USER_IDS` is configured
+- `/health/detailed`, `/ops/release/overview`, `/ops/release/decision` are reachable
+
+Artifacts are saved into `scripts/test_results`.
 
 ---
 
@@ -154,6 +198,23 @@ Copy the same variables to the **worker** service (except `TELEGRAM_WEBHOOK_URL`
 
 3. Check Railway logs for any errors
 
+4. Verify release ops endpoints:
+   ```bash
+   curl -H "Authorization: Bearer <HEALTH_SECRET>" https://<your-app>.up.railway.app/ops/release/overview
+   curl -H "Authorization: Bearer <HEALTH_SECRET>" https://<your-app>.up.railway.app/ops/analytics/quality-metrics
+   ```
+
+5. Generate a release summary:
+   ```bash
+   python scripts/run_release_ops_cycle.py --reviewer release-ops
+   ```
+
+6. Start the first controlled canary:
+   ```bash
+   python scripts/start_controlled_canary.py --apply --actor release-ops
+   ```
+   This starts the first `1%` rollout with shadow mode enabled.
+
 ---
 
 ## Architecture on Railway
@@ -167,6 +228,10 @@ Railway Project
 ├── worker                — Taskiq background tasks
 │   ├── Same Dockerfile
 │   ├── CMD override: taskiq worker
+│   └── No HTTP port
+├── scheduler             — Taskiq cron / release ops automation
+│   ├── Same Dockerfile
+│   ├── CMD override: taskiq scheduler
 │   └── No HTTP port
 └── Redis                 — Managed Redis
     └── Auto-provisioned
@@ -190,6 +255,8 @@ External:
 | `asyncpg` connection error | Check `DATABASE_URL` format — app auto-converts `postgresql://` to `postgresql+asyncpg://` |
 | Webhook not receiving | Verify `TELEGRAM_WEBHOOK_URL` matches Railway domain |
 | Worker not processing | Check worker service logs, verify `REDIS_URL` shared |
+| Release ops preflight fails | Verify `HEALTH_SECRET`, `RELEASE_OPS_BASE_URL`, and that scheduler service is deployed |
+| Canary bootstrap says `All connection attempts failed` | The app URL is unreachable from your shell or `RELEASE_OPS_BASE_URL` / `--base-url` is wrong |
 | Health check fails | Database or Redis not connected — check env vars |
 | RLS blocking queries | Ensure `set_family_context()` is called before queries |
 | pgvector not found | Enable `vector` extension in Supabase dashboard |
