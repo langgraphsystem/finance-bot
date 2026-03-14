@@ -37,6 +37,7 @@ from src.core.models.enums import (
 from src.core.models.family import Family
 from src.core.models.life_event import LifeEvent
 from src.core.models.recurring_payment import RecurringPayment
+from src.core.models.tracker import Tracker, TrackerEntry
 from src.core.models.task import Task
 from src.core.models.transaction import Transaction
 from src.core.models.user import User
@@ -1865,3 +1866,227 @@ async def detect_geo_from_ip(
         "region": data.get("regionName"),
         "country": data.get("country"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Trackers
+# ---------------------------------------------------------------------------
+
+_TRACKER_DEFAULTS: dict[str, dict] = {
+    "mood":       {"emoji": "😊", "goal": 1,  "unit": "score",   "scale": [1, 10]},
+    "habit":      {"emoji": "🔥", "goal": 1,  "unit": "done",    "scale": None},
+    "water":      {"emoji": "💧", "goal": 8,  "unit": "glasses", "scale": None},
+    "sleep":      {"emoji": "🌙", "goal": 8,  "unit": "hours",   "scale": None},
+    "weight":     {"emoji": "⚖️", "goal": None,"unit": "kg",     "scale": None},
+    "workout":    {"emoji": "💪", "goal": 1,  "unit": "session", "scale": None},
+    "nutrition":  {"emoji": "🥗", "goal": 2000,"unit": "kcal",   "scale": None},
+    "gratitude":  {"emoji": "🙏", "goal": 3,  "unit": "items",   "scale": None},
+    "medication": {"emoji": "💊", "goal": 1,  "unit": "dose",    "scale": None},
+    "custom":     {"emoji": "✨", "goal": 1,  "unit": "times",   "scale": None},
+}
+
+
+class TrackerCreate(BaseModel):
+    tracker_type: str = Field(..., max_length=32)
+    name: str = Field(..., max_length=128)
+    emoji: str | None = Field(None, max_length=8)
+    description: str | None = None
+    config: dict | None = None
+
+
+class TrackerEntryCreate(BaseModel):
+    date: str  # ISO date YYYY-MM-DD
+    value: int | None = None
+    data: dict | None = None
+    note: str | None = None
+
+
+def _tracker_json(t: Tracker, streak: int = 0, today_done: bool = False) -> dict:
+    return {
+        "id": str(t.id),
+        "tracker_type": t.tracker_type,
+        "name": t.name,
+        "emoji": t.emoji or _TRACKER_DEFAULTS.get(t.tracker_type, {}).get("emoji", "📊"),
+        "description": t.description,
+        "config": t.config or _TRACKER_DEFAULTS.get(t.tracker_type, {}),
+        "is_active": t.is_active,
+        "streak": streak,
+        "today_done": today_done,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+    }
+
+
+def _entry_json(e: TrackerEntry) -> dict:
+    return {
+        "id": str(e.id),
+        "tracker_id": str(e.tracker_id),
+        "date": e.date.isoformat(),
+        "value": e.value,
+        "data": e.data,
+        "note": e.note,
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+    }
+
+
+@router.get("/trackers")
+async def list_trackers(user: User = Depends(get_current_user)) -> list[dict]:
+    """List all active trackers for the current user."""
+    today = date.today()
+    async with async_session() as session:
+        stmt = (
+            select(Tracker)
+            .where(Tracker.family_id == user.family_id, Tracker.user_id == user.id, Tracker.is_active == True)
+            .order_by(Tracker.created_at)
+        )
+        trackers = (await session.scalars(stmt)).all()
+
+        result = []
+        for t in trackers:
+            # Streak: count consecutive days with at least one entry going back from today
+            streak = 0
+            check_date = today
+            while True:
+                exists = await session.scalar(
+                    select(TrackerEntry.id).where(
+                        TrackerEntry.tracker_id == t.id,
+                        TrackerEntry.date == check_date,
+                    ).limit(1)
+                )
+                if not exists:
+                    break
+                streak += 1
+                check_date = check_date.replace(day=check_date.day - 1) if check_date.day > 1 else (
+                    check_date.replace(month=check_date.month - 1, day=28) if check_date.month > 1
+                    else check_date.replace(year=check_date.year - 1, month=12, day=31)
+                )
+
+            today_done = await session.scalar(
+                select(TrackerEntry.id).where(
+                    TrackerEntry.tracker_id == t.id,
+                    TrackerEntry.date == today,
+                ).limit(1)
+            ) is not None
+
+            result.append(_tracker_json(t, streak=streak, today_done=today_done))
+    return result
+
+
+@router.post("/trackers")
+async def create_tracker(
+    body: TrackerCreate,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Create a new tracker."""
+    defaults = _TRACKER_DEFAULTS.get(body.tracker_type, {})
+    config = {**defaults, **(body.config or {})}
+    tracker = Tracker(
+        family_id=user.family_id,
+        user_id=user.id,
+        tracker_type=body.tracker_type,
+        name=body.name,
+        emoji=body.emoji or defaults.get("emoji"),
+        description=body.description,
+        config=config,
+    )
+    async with async_session() as session:
+        session.add(tracker)
+        await session.commit()
+        await session.refresh(tracker)
+    return _tracker_json(tracker)
+
+
+@router.delete("/trackers/{tracker_id}")
+async def delete_tracker(tracker_id: str, user: User = Depends(get_current_user)) -> dict:
+    """Soft-delete a tracker (set is_active=False)."""
+    async with async_session() as session:
+        t = await session.scalar(
+            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+        )
+        if not t:
+            raise HTTPException(status_code=404, detail="Tracker not found")
+        t.is_active = False
+        await session.commit()
+    return {"ok": True}
+
+
+@router.get("/trackers/{tracker_id}/entries")
+async def list_tracker_entries(
+    tracker_id: str,
+    days: int = Query(30, ge=1, le=365),
+    user: User = Depends(get_current_user),
+) -> list[dict]:
+    """Return tracker entries for the last N days."""
+    since = date.today().replace(day=date.today().day - min(days - 1, date.today().day - 1))
+    from datetime import timedelta
+    since = date.today() - timedelta(days=days - 1)
+
+    async with async_session() as session:
+        t = await session.scalar(
+            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+        )
+        if not t:
+            raise HTTPException(status_code=404, detail="Tracker not found")
+
+        entries = (await session.scalars(
+            select(TrackerEntry)
+            .where(TrackerEntry.tracker_id == t.id, TrackerEntry.date >= since)
+            .order_by(TrackerEntry.date)
+        )).all()
+    return [_entry_json(e) for e in entries]
+
+
+@router.post("/trackers/{tracker_id}/entries")
+async def log_tracker_entry(
+    tracker_id: str,
+    body: TrackerEntryCreate,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Log an entry for a tracker."""
+    try:
+        from datetime import date as date_cls
+        entry_date = date_cls.fromisoformat(body.date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format")
+
+    async with async_session() as session:
+        t = await session.scalar(
+            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+        )
+        if not t:
+            raise HTTPException(status_code=404, detail="Tracker not found")
+
+        entry = TrackerEntry(
+            tracker_id=t.id,
+            family_id=user.family_id,
+            user_id=user.id,
+            date=entry_date,
+            value=body.value,
+            data=body.data,
+            note=body.note,
+        )
+        session.add(entry)
+        await session.commit()
+        await session.refresh(entry)
+    return _entry_json(entry)
+
+
+@router.delete("/trackers/{tracker_id}/entries/{entry_id}")
+async def delete_tracker_entry(
+    tracker_id: str,
+    entry_id: str,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Delete a specific tracker entry."""
+    async with async_session() as session:
+        e = await session.scalar(
+            select(TrackerEntry).where(
+                TrackerEntry.id == uuid.UUID(entry_id),
+                TrackerEntry.tracker_id == uuid.UUID(tracker_id),
+                TrackerEntry.family_id == user.family_id,
+            )
+        )
+        if not e:
+            raise HTTPException(status_code=404, detail="Entry not found")
+        await session.delete(e)
+        await session.commit()
+    return {"ok": True}

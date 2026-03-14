@@ -63,6 +63,7 @@ from src.core.models.user import User
 from src.core.models.user_context import UserContext
 from src.core.models.user_profile import UserProfile
 from src.core.models.user_project import UserProject
+from src.core.models.tracker import Tracker, TrackerEntry
 from src.core.models.workspace_membership import WorkspaceMembership
 
 __all__ = [
@@ -131,4 +132,6 @@ __all__ = [
     "BrowserActionLog",
     "UserProject",
     "WorkspaceMembership",
+    "Tracker",
+    "TrackerEntry",
 ]

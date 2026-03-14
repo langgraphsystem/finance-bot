@@ -10,6 +10,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/miniapp/style.css">
+  <link rel="stylesheet" href="/static/miniapp/tracker-styles.css">
 </head>
 <body>
 <div id="app">
@@ -42,6 +43,10 @@
       <span class="icon">✅</span>
       <span>Tasks</span>
     </div>
+    <div class="nav-tab" data-tab="trackers" onclick="navigate('trackers')">
+      <span class="icon">📊</span>
+      <span>Track</span>
+    </div>
     <div class="nav-tab" data-tab="settings" onclick="navigate('settings')">
       <span class="icon">⚙️</span>
       <span>More</span>
@@ -61,6 +66,7 @@
 <!-- Toast -->
 <div id="toast"></div>
 
+<script src="/static/miniapp/trackers.js"></script>
 <script src="/static/miniapp/app.js"></script>
 </body>
 </html>

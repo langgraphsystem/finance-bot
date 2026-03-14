@@ -1,0 +1,655 @@
+/* =========================================================================
+   Tracker Styles — 2026 Design System
+   Each tracker type has a unique visual identity:
+   mood→purple, habit→orange, water→cyan, sleep→indigo,
+   weight→green, workout→red, nutrition→yellow, gratitude→rose,
+   medication→teal, custom→violet
+   ========================================================================= */
+
+/* ─── Tracker type palettes ─────────────────────────────────────────────── */
+:root {
+  --tr-mood-a:      #c084fc; --tr-mood-b:      #f472b6; --tr-mood-bg:    rgba(192,132,252,.12);
+  --tr-habit-a:     #fb923c; --tr-habit-b:     #fbbf24; --tr-habit-bg:   rgba(251,146,60,.12);
+  --tr-water-a:     #22d3ee; --tr-water-b:     #3b82f6; --tr-water-bg:   rgba(34,211,238,.12);
+  --tr-sleep-a:     #818cf8; --tr-sleep-b:     #6366f1; --tr-sleep-bg:   rgba(129,140,248,.12);
+  --tr-weight-a:    #34d399; --tr-weight-b:    #059669; --tr-weight-bg:  rgba(52,211,153,.12);
+  --tr-workout-a:   #f87171; --tr-workout-b:   #ef4444; --tr-workout-bg: rgba(248,113,113,.12);
+  --tr-nutrition-a: #fbbf24; --tr-nutrition-b: #f59e0b; --tr-nutrition-bg:rgba(251,191,36,.12);
+  --tr-gratitude-a: #fb7185; --tr-gratitude-b: #f59e0b; --tr-gratitude-bg:rgba(251,113,133,.12);
+  --tr-medication-a:#2dd4bf; --tr-medication-b:#0d9488; --tr-medication-bg:rgba(45,212,191,.12);
+  --tr-custom-a:    #a78bfa; --tr-custom-b:    #7c3aed; --tr-custom-bg:  rgba(167,139,250,.12);
+}
+
+/* ─── Trackers Tab Layout ────────────────────────────────────────────────── */
+.trackers-header {
+  padding: 20px 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.trackers-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+
+.btn-new-tracker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--btn);
+  color: var(--btn-text);
+  border: none;
+  border-radius: 14px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+
+.btn-new-tracker:active { opacity: .75; }
+
+/* ─── Tracker Grid (Bento Layout) ─────────────────────────────────────────── */
+.tracker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+/* ─── Tracker Card ─────────────────────────────────────────────────────────── */
+.tracker-card {
+  border-radius: 22px;
+  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform .2s cubic-bezier(.32,.72,0,1), box-shadow .2s;
+  background: var(--section-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
+}
+
+.tracker-card:active {
+  transform: scale(.97);
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+/* Type-specific accent stripe */
+.tracker-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  opacity: .15;
+  z-index: 0;
+}
+
+.tracker-card[data-type="mood"]::before       { background: linear-gradient(135deg, var(--tr-mood-a), var(--tr-mood-b)); }
+.tracker-card[data-type="habit"]::before      { background: linear-gradient(135deg, var(--tr-habit-a), var(--tr-habit-b)); }
+.tracker-card[data-type="water"]::before      { background: linear-gradient(135deg, var(--tr-water-a), var(--tr-water-b)); }
+.tracker-card[data-type="sleep"]::before      { background: linear-gradient(135deg, var(--tr-sleep-a), var(--tr-sleep-b)); }
+.tracker-card[data-type="weight"]::before     { background: linear-gradient(135deg, var(--tr-weight-a), var(--tr-weight-b)); }
+.tracker-card[data-type="workout"]::before    { background: linear-gradient(135deg, var(--tr-workout-a), var(--tr-workout-b)); }
+.tracker-card[data-type="nutrition"]::before  { background: linear-gradient(135deg, var(--tr-nutrition-a), var(--tr-nutrition-b)); }
+.tracker-card[data-type="gratitude"]::before  { background: linear-gradient(135deg, var(--tr-gratitude-a), var(--tr-gratitude-b)); }
+.tracker-card[data-type="medication"]::before { background: linear-gradient(135deg, var(--tr-medication-a), var(--tr-medication-b)); }
+.tracker-card[data-type="custom"]::before     { background: linear-gradient(135deg, var(--tr-custom-a), var(--tr-custom-b)); }
+
+.tracker-card > * { position: relative; z-index: 1; }
+
+.tracker-card-emoji {
+  font-size: 28px;
+  line-height: 1;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.tracker-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tracker-card-meta {
+  font-size: 11px;
+  color: var(--hint);
+  margin-bottom: 10px;
+}
+
+/* Streak badge */
+.tracker-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(255,255,255,.2);
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 10px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+/* Today button */
+.tracker-today-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 7px 0;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.tracker-today-btn.done {
+  background: rgba(255,255,255,.15);
+  color: var(--hint);
+}
+
+.tracker-today-btn:not(.done)[data-type="mood"]       { background: linear-gradient(90deg,var(--tr-mood-a),var(--tr-mood-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="habit"]      { background: linear-gradient(90deg,var(--tr-habit-a),var(--tr-habit-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="water"]      { background: linear-gradient(90deg,var(--tr-water-a),var(--tr-water-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="sleep"]      { background: linear-gradient(90deg,var(--tr-sleep-a),var(--tr-sleep-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="weight"]     { background: linear-gradient(90deg,var(--tr-weight-a),var(--tr-weight-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="workout"]    { background: linear-gradient(90deg,var(--tr-workout-a),var(--tr-workout-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="nutrition"]  { background: linear-gradient(90deg,var(--tr-nutrition-a),var(--tr-nutrition-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="gratitude"]  { background: linear-gradient(90deg,var(--tr-gratitude-a),var(--tr-gratitude-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="medication"] { background: linear-gradient(90deg,var(--tr-medication-a),var(--tr-medication-b)); color:#fff; }
+.tracker-today-btn:not(.done)[data-type="custom"]     { background: linear-gradient(90deg,var(--tr-custom-a),var(--tr-custom-b)); color:#fff; }
+
+.tracker-today-btn:active { transform: scale(.96); }
+
+/* ─── Tracker Empty State ────────────────────────────────────────────────── */
+.tracker-empty {
+  text-align: center;
+  padding: 60px 32px;
+  color: var(--hint);
+}
+
+.tracker-empty-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.tracker-empty h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.tracker-empty p {
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+/* ─── Tracker Detail Page ────────────────────────────────────────────────── */
+.tracker-detail-hero {
+  border-radius: 28px;
+  margin: 16px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  min-height: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.tracker-detail-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 28px;
+  z-index: 0;
+}
+
+.tracker-detail-hero[data-type="mood"]::before       { background: linear-gradient(145deg,var(--tr-mood-a),var(--tr-mood-b)); }
+.tracker-detail-hero[data-type="habit"]::before      { background: linear-gradient(145deg,var(--tr-habit-a),var(--tr-habit-b)); }
+.tracker-detail-hero[data-type="water"]::before      { background: linear-gradient(145deg,var(--tr-water-a),var(--tr-water-b)); }
+.tracker-detail-hero[data-type="sleep"]::before      { background: linear-gradient(145deg,var(--tr-sleep-a),var(--tr-sleep-b)); }
+.tracker-detail-hero[data-type="weight"]::before     { background: linear-gradient(145deg,var(--tr-weight-a),var(--tr-weight-b)); }
+.tracker-detail-hero[data-type="workout"]::before    { background: linear-gradient(145deg,var(--tr-workout-a),var(--tr-workout-b)); }
+.tracker-detail-hero[data-type="nutrition"]::before  { background: linear-gradient(145deg,var(--tr-nutrition-a),var(--tr-nutrition-b)); }
+.tracker-detail-hero[data-type="gratitude"]::before  { background: linear-gradient(145deg,var(--tr-gratitude-a),var(--tr-gratitude-b)); }
+.tracker-detail-hero[data-type="medication"]::before { background: linear-gradient(145deg,var(--tr-medication-a),var(--tr-medication-b)); }
+.tracker-detail-hero[data-type="custom"]::before     { background: linear-gradient(145deg,var(--tr-custom-a),var(--tr-custom-b)); }
+
+/* Decorative blob in hero */
+.tracker-detail-hero::after {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.12);
+  top: -40px;
+  right: -40px;
+  z-index: 0;
+}
+
+.tracker-detail-hero > * { position: relative; z-index: 1; }
+
+.tracker-detail-hero-emoji { font-size: 44px; margin-bottom: 8px; display: block; }
+.tracker-detail-hero-name  { font-size: 22px; font-weight: 800; color: #fff; margin-bottom: 4px; letter-spacing: -.5px; }
+.tracker-detail-hero-meta  { font-size: 13px; color: rgba(255,255,255,.75); }
+
+/* Stats row */
+.tracker-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.tracker-stat-box {
+  background: var(--section-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 18px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.tracker-stat-val {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  margin-bottom: 2px;
+}
+
+.tracker-stat-lbl {
+  font-size: 11px;
+  color: var(--hint);
+  font-weight: 500;
+}
+
+/* ─── Heatmap Calendar (30-day grid) ─────────────────────────────────────── */
+.tracker-heatmap-section {
+  padding: 0 16px 16px;
+}
+
+.tracker-heatmap-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+
+.tracker-heatmap {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
+}
+
+.heatmap-cell {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  background: var(--bg2);
+  transition: transform .15s;
+  cursor: default;
+  position: relative;
+}
+
+.heatmap-cell.has-entry { opacity: 1; }
+.heatmap-cell.today { box-shadow: 0 0 0 2px rgba(255,255,255,.6); }
+
+.heatmap-cell[data-type="mood"].has-entry       { background: linear-gradient(135deg,var(--tr-mood-a),var(--tr-mood-b)); }
+.heatmap-cell[data-type="habit"].has-entry      { background: linear-gradient(135deg,var(--tr-habit-a),var(--tr-habit-b)); }
+.heatmap-cell[data-type="water"].has-entry      { background: linear-gradient(135deg,var(--tr-water-a),var(--tr-water-b)); }
+.heatmap-cell[data-type="sleep"].has-entry      { background: linear-gradient(135deg,var(--tr-sleep-a),var(--tr-sleep-b)); }
+.heatmap-cell[data-type="weight"].has-entry     { background: linear-gradient(135deg,var(--tr-weight-a),var(--tr-weight-b)); }
+.heatmap-cell[data-type="workout"].has-entry    { background: linear-gradient(135deg,var(--tr-workout-a),var(--tr-workout-b)); }
+.heatmap-cell[data-type="nutrition"].has-entry  { background: linear-gradient(135deg,var(--tr-nutrition-a),var(--tr-nutrition-b)); }
+.heatmap-cell[data-type="gratitude"].has-entry  { background: linear-gradient(135deg,var(--tr-gratitude-a),var(--tr-gratitude-b)); }
+.heatmap-cell[data-type="medication"].has-entry { background: linear-gradient(135deg,var(--tr-medication-a),var(--tr-medication-b)); }
+.heatmap-cell[data-type="custom"].has-entry     { background: linear-gradient(135deg,var(--tr-custom-a),var(--tr-custom-b)); }
+
+/* ─── Log Button (detail page) ────────────────────────────────────────────── */
+.tracker-log-btn {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 0 16px 16px;
+  border: none;
+  border-radius: 18px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .2s, opacity .2s;
+  color: #fff;
+}
+
+.tracker-log-btn[data-type="mood"]       { background: linear-gradient(90deg,var(--tr-mood-a),var(--tr-mood-b)); }
+.tracker-log-btn[data-type="habit"]      { background: linear-gradient(90deg,var(--tr-habit-a),var(--tr-habit-b)); }
+.tracker-log-btn[data-type="water"]      { background: linear-gradient(90deg,var(--tr-water-a),var(--tr-water-b)); }
+.tracker-log-btn[data-type="sleep"]      { background: linear-gradient(90deg,var(--tr-sleep-a),var(--tr-sleep-b)); }
+.tracker-log-btn[data-type="weight"]     { background: linear-gradient(90deg,var(--tr-weight-a),var(--tr-weight-b)); }
+.tracker-log-btn[data-type="workout"]    { background: linear-gradient(90deg,var(--tr-workout-a),var(--tr-workout-b)); }
+.tracker-log-btn[data-type="nutrition"]  { background: linear-gradient(90deg,var(--tr-nutrition-a),var(--tr-nutrition-b)); }
+.tracker-log-btn[data-type="gratitude"]  { background: linear-gradient(90deg,var(--tr-gratitude-a),var(--tr-gratitude-b)); }
+.tracker-log-btn[data-type="medication"] { background: linear-gradient(90deg,var(--tr-medication-a),var(--tr-medication-b)); }
+.tracker-log-btn[data-type="custom"]     { background: linear-gradient(90deg,var(--tr-custom-a),var(--tr-custom-b)); }
+
+.tracker-log-btn:active { transform: scale(.97); opacity: .9; }
+
+/* ─── Entries List (detail) ──────────────────────────────────────────────── */
+.tracker-entries-section { padding: 0 16px 100px; }
+
+.tracker-entries-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 10px;
+}
+
+.tracker-entry-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--section-bg);
+  backdrop-filter: blur(12px);
+  border-radius: 14px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,.2);
+}
+
+.tracker-entry-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tracker-entry-dot[data-type="mood"]       { background: var(--tr-mood-a); }
+.tracker-entry-dot[data-type="habit"]      { background: var(--tr-habit-a); }
+.tracker-entry-dot[data-type="water"]      { background: var(--tr-water-a); }
+.tracker-entry-dot[data-type="sleep"]      { background: var(--tr-sleep-a); }
+.tracker-entry-dot[data-type="weight"]     { background: var(--tr-weight-a); }
+.tracker-entry-dot[data-type="workout"]    { background: var(--tr-workout-a); }
+.tracker-entry-dot[data-type="nutrition"]  { background: var(--tr-nutrition-a); }
+.tracker-entry-dot[data-type="gratitude"]  { background: var(--tr-gratitude-a); }
+.tracker-entry-dot[data-type="medication"] { background: var(--tr-medication-a); }
+.tracker-entry-dot[data-type="custom"]     { background: var(--tr-custom-a); }
+
+.tracker-entry-date { font-size: 12px; color: var(--hint); white-space: nowrap; }
+.tracker-entry-val  { font-size: 15px; font-weight: 700; margin-left: auto; }
+.tracker-entry-note { font-size: 12px; color: var(--hint); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ─── Log Modal — Mood Grid ──────────────────────────────────────────────── */
+.mood-picker {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+
+.mood-face {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  background: var(--bg2);
+  transition: all .15s;
+}
+
+.mood-face:active { transform: scale(.92); }
+.mood-face.selected { border-color: var(--tr-mood-a); background: var(--tr-mood-bg); }
+
+.mood-face-emoji { font-size: 26px; }
+.mood-face-label { font-size: 10px; font-weight: 600; color: var(--hint); }
+
+/* ─── Log Modal — Water glasses ─────────────────────────────────────────── */
+.water-glasses {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+
+.water-glass {
+  aspect-ratio: 1;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  background: var(--bg2);
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.water-glass:active { transform: scale(.9); }
+.water-glass.selected { border-color: var(--tr-water-a); background: var(--tr-water-bg); }
+
+/* ─── Log Modal — Number stepper ─────────────────────────────────────────── */
+.value-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 12px 0;
+}
+
+.stepper-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  border: none;
+  background: var(--bg2);
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform .15s;
+  color: var(--text);
+}
+
+.stepper-btn:active { transform: scale(.9); }
+
+.stepper-val {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  min-width: 80px;
+  text-align: center;
+}
+
+.stepper-unit { font-size: 13px; color: var(--hint); text-align: center; margin-top: 2px; }
+
+/* ─── New Tracker Type Picker ─────────────────────────────────────────────── */
+.tracker-type-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  padding: 8px 0 16px;
+}
+
+.tracker-type-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  background: var(--bg2);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.tracker-type-option:active { transform: scale(.97); }
+.tracker-type-option.selected { border-color: var(--link); background: rgba(10,132,255,.08); }
+
+.tracker-type-icon {
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tracker-type-option[data-type="mood"]       .tracker-type-icon { background: var(--tr-mood-bg); }
+.tracker-type-option[data-type="habit"]      .tracker-type-icon { background: var(--tr-habit-bg); }
+.tracker-type-option[data-type="water"]      .tracker-type-icon { background: var(--tr-water-bg); }
+.tracker-type-option[data-type="sleep"]      .tracker-type-icon { background: var(--tr-sleep-bg); }
+.tracker-type-option[data-type="weight"]     .tracker-type-icon { background: var(--tr-weight-bg); }
+.tracker-type-option[data-type="workout"]    .tracker-type-icon { background: var(--tr-workout-bg); }
+.tracker-type-option[data-type="nutrition"]  .tracker-type-icon { background: var(--tr-nutrition-bg); }
+.tracker-type-option[data-type="gratitude"]  .tracker-type-icon { background: var(--tr-gratitude-bg); }
+.tracker-type-option[data-type="medication"] .tracker-type-icon { background: var(--tr-medication-bg); }
+.tracker-type-option[data-type="custom"]     .tracker-type-icon { background: var(--tr-custom-bg); }
+
+.tracker-type-info strong { font-size: 14px; font-weight: 700; display: block; margin-bottom: 2px; }
+.tracker-type-info span   { font-size: 11px; color: var(--hint); }
+
+/* ─── Gratitude Cards ─────────────────────────────────────────────────────── */
+.gratitude-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 12px;
+}
+
+.gratitude-card-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--section-sep);
+  background: var(--bg2);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s;
+}
+
+.gratitude-card-input:focus {
+  border-color: var(--tr-gratitude-a);
+}
+
+/* ─── Ring Progress (workout) ─────────────────────────────────────────────── */
+.ring-wrap {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  margin: 0 auto 12px;
+}
+
+.ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-track { fill: none; stroke: var(--bg2); stroke-width: 8; }
+.ring-fill  { fill: none; stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset .6s cubic-bezier(.32,.72,0,1); }
+
+.ring-fill[data-type="workout"]  { stroke: url(#grad-workout); }
+.ring-fill[data-type="water"]    { stroke: url(#grad-water); }
+.ring-fill[data-type="sleep"]    { stroke: url(#grad-sleep); }
+.ring-fill[data-type="nutrition"]{ stroke: url(#grad-nutrition); }
+
+.ring-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ring-center small { font-size: 10px; color: var(--hint); font-weight: 500; }
+
+/* ─── Animated water fill ──────────────────────────────────────────────────── */
+@keyframes wave {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.water-bottle-wrap {
+  width: 64px;
+  margin: 0 auto 8px;
+  position: relative;
+}
+
+.water-bottle-svg { width: 100%; height: auto; }
+
+/* ─── Fade-in animation for tracker cards ─────────────────────────────────── */
+.tracker-card {
+  animation: trCardIn .3s cubic-bezier(.32,.72,0,1) both;
+}
+
+@keyframes trCardIn {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.tracker-card:nth-child(1) { animation-delay: .05s; }
+.tracker-card:nth-child(2) { animation-delay: .10s; }
+.tracker-card:nth-child(3) { animation-delay: .15s; }
+.tracker-card:nth-child(4) { animation-delay: .20s; }
+.tracker-card:nth-child(5) { animation-delay: .25s; }
+.tracker-card:nth-child(6) { animation-delay: .30s; }
+
+/* ─── Back button in topbar ──────────────────────────────────────────────── */
+.topbar-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 4px 8px 4px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--link);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.topbar-back:active { opacity: .7; }
+
+/* ─── Streak fire glow ────────────────────────────────────────────────────── */
+.streak-fire {
+  display: inline-block;
+  animation: fireFlicker 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes fireFlicker {
+  from { text-shadow: 0 0 6px #fb923c, 0 0 12px #fbbf24; }
+  to   { text-shadow: 0 0 10px #ef4444, 0 0 20px #fb923c; }
+}

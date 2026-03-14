@@ -104,7 +104,7 @@ function navigate(tab) {
     dashboard: 'Dashboard', transactions: 'Transactions',
     add: 'New Record',      stats: 'Statistics',
     tasks: 'Tasks',         life: 'Life',        settings: 'Settings',
-    members: 'Team Members',
+    members: 'Team Members', trackers: 'Trackers',
   };
   document.getElementById('screen-title').textContent = titles[tab] || tab;
   renderTab(tab);
@@ -115,6 +115,7 @@ async function renderTab(tab) {
   content.innerHTML = spinner();
   Object.values(state.charts).forEach(c => c?.destroy());
   state.charts = {};
+  if (typeof _activeTrackerId !== 'undefined') _activeTrackerId = null;
   switch (tab) {
     case 'dashboard':    await renderDashboard(content);    break;
     case 'transactions': await renderTransactions(content); break;
@@ -124,6 +125,7 @@ async function renderTab(tab) {
     case 'life':         await renderLife(content);         break;
     case 'members':      await renderMembers(content);      break;
     case 'settings':     await renderSettings(content);     break;
+    case 'trackers':     await renderTrackers(content);     break;
     default: content.innerHTML = '<div class="empty"><p>Coming soon</p></div>';
   }
 }
