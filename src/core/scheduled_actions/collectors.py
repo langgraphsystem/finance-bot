@@ -39,6 +39,7 @@ class CollectorContext:
     language: str
     # Optional extras for specialised collectors
     news_topic: str = ""
+    event_condition: str = ""  # for event_check: the condition to monitor
 
 
 def build_collector_context(action: ScheduledAction) -> CollectorContext:
@@ -49,6 +50,7 @@ def build_collector_context(action: ScheduledAction) -> CollectorContext:
         family_id=str(action.family_id),
         language=action.language or "en",
         news_topic=schedule_cfg.get("news_topic", "") or "",
+        event_condition=schedule_cfg.get("event_condition", "") or "",
     )
 
 
@@ -169,6 +171,69 @@ def _news_adapter():
     return _collect_news
 
 
+def _event_check_adapter():
+    """Return an async collector that checks whether a custom event has occurred.
+
+    Uses Gemini Google Search to search for the condition from ctx.event_condition.
+    Returns non-empty text (description of event) when detected → triggers completion.
+    Returns empty string when event has NOT yet occurred.
+    """
+
+    async def _collect_event(ctx: CollectorContext) -> tuple[str, str]:
+        condition = ctx.event_condition
+        if not condition:
+            return "", "empty"
+
+        _LANG_NAMES: dict[str, str] = {
+            "en": "English", "ru": "Russian", "es": "Spanish",
+            "de": "German",  "fr": "French",  "it": "Italian",
+            "pt": "Portuguese", "zh": "Chinese", "ja": "Japanese",
+            "ar": "Arabic",  "tr": "Turkish", "pl": "Polish",
+        }
+        lang_name = _LANG_NAMES.get(ctx.language, "English")
+
+        prompt = (
+            f"Search the web to determine whether the following event has already occurred:\n"
+            f'"{condition}"\n\n'
+            f"Rules:\n"
+            f"- If the event HAS occurred: respond in {lang_name} with a brief 2-3 sentence "
+            f"summary — what happened, when, and a source name. Use Telegram HTML (<b>, <i>).\n"
+            f"- If the event has NOT occurred yet: respond with exactly the word: NOT_YET\n"
+            f"- Do not add any other text when responding NOT_YET."
+        )
+
+        try:
+            from google.genai import types  # lazy import
+
+            from src.core.llm.clients import google_client  # lazy import
+
+            client = google_client()
+            response = await client.aio.models.generate_content(
+                model="gemini-3.1-flash-lite-preview",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                ),
+            )
+            text = (response.text or "").strip()
+
+            # If Gemini says NOT_YET (or empty) → event not yet detected
+            if not text or "NOT_YET" in text:
+                return "", "not_triggered"
+
+            return text, "triggered"
+
+        except Exception as exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                "Event check failed for condition=%r: %s", condition, exc
+            )
+            return "", "failed"
+
+    _collect_event.__name__ = "collect_event_check"
+    return _collect_event
+
+
 # Registry of supported sources.
 # Adding a new source = one line here; no other SIA files need to change.
 _SOURCE_COLLECTORS: dict[str, Any] = {
@@ -178,6 +243,7 @@ _SOURCE_COLLECTORS: dict[str, Any] = {
     "email_highlights": _brief_adapter("collect_email",       "email_data"),
     "outstanding":      _brief_adapter("collect_outstanding", "outstanding_data"),
     "news":             _news_adapter(),
+    "event_check":      _event_check_adapter(),
 }
 
 

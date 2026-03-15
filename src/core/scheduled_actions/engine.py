@@ -15,6 +15,7 @@ from src.core.models.scheduled_action import ScheduledAction
 _EMPTY_CONDITIONS = {"empty", "until_empty", "all_clear"}
 _TASK_CONDITIONS = {"task_completed", "tasks_completed", "tasks_empty"}
 _INVOICE_CONDITIONS = {"invoice_paid", "outstanding_cleared", "outstanding_empty"}
+_EVENT_CONDITIONS = {"event_detected", "event_triggered", "event_found"}
 
 
 def now_utc() -> datetime:
@@ -235,6 +236,8 @@ def _normalized_completion_condition(raw: Any) -> str:
         return "task_completed"
     if condition in _INVOICE_CONDITIONS:
         return "invoice_paid"
+    if condition in _EVENT_CONDITIONS:
+        return "event_detected"
     return "empty"
 
 
@@ -257,6 +260,9 @@ def is_action_completed(
             return "tasks" in payload and _is_empty_payload_value(payload.get("tasks"))
         if condition == "invoice_paid":
             return "outstanding" in payload and _is_empty_payload_value(payload.get("outstanding"))
+        if condition == "event_detected":
+            # Complete when event_check returns non-empty (event found)
+            return "event_check" in payload and not _is_empty_payload_value(payload.get("event_check"))
         if condition == "empty":
             # Completed if all collected sources are empty
             return all(_is_empty_payload_value(text) for text in payload.values())

@@ -14,6 +14,7 @@ from src.skills.complete_task.handler import skill as complete_task_skill
 from src.skills.complex_query.handler import skill as complex_query_skill
 from src.skills.convert_document.handler import skill as convert_document_skill
 from src.skills.correct_category.handler import skill as correct_category_skill
+from src.skills.custom_event.handler import skill as custom_event_skill
 from src.skills.create_booking.handler import skill as create_booking_skill
 from src.skills.create_event.handler import skill as create_event_skill
 from src.skills.create_sheets.handler import skill as create_sheets_skill
@@ -118,6 +119,7 @@ def create_registry() -> SkillRegistry:
     registry.register(query_stats_skill)
     registry.register(general_chat_skill)
     registry.register(correct_category_skill)
+    registry.register(custom_event_skill)
     registry.register(undo_last_skill)
     registry.register(query_report_skill)
     registry.register(set_budget_skill)

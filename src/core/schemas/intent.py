@@ -202,6 +202,12 @@ class IntentData(BaseModel):
     # Project Context fields (Phase 12)
     project_name: str | None = None  # for set_project, create_project
 
+    # News digest fields
+    news_topic: str | None = None  # topic/query for scheduled news collection
+
+    # Custom event monitor fields
+    event_condition: str | None = None  # event/condition to watch for (custom_event skill)
+
 
 class IntentDetectionResult(BaseModel):
     intent: str
