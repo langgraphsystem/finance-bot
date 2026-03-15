@@ -1176,6 +1176,12 @@ async def _dispatch_message(
         except Exception as e:
             logger.warning("Suggestions injection failed: %s", e)
 
+    # Enforce Telegram's 4096-char hard limit on the final response text.
+    # Must happen as the very last step so truncation survives all post-processing.
+    if skill_result.response_text:
+        from src.core.formatting import truncate_telegram
+        skill_result.response_text = truncate_telegram(skill_result.response_text)
+
     return OutgoingMessage(
         text=skill_result.response_text,
         chat_id=message.chat_id,

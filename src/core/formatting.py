@@ -73,9 +73,18 @@ def fix_unclosed_tags(text: str) -> str:
         if open_count > close_count:
             text += f"</{tag}>" * (open_count - close_count)
         elif close_count > open_count:
-            # Remove excess closing tags from the start
-            for _ in range(close_count - open_count):
-                text = re.sub(rf"</{tag}>", "", text, count=1, flags=re.IGNORECASE)
+            excess = close_count - open_count
+            # Remove all excess closing tags in one pass instead of N regex calls
+            removed = 0
+
+            def _remove_excess(m: re.Match) -> str:
+                nonlocal removed
+                if removed < excess:
+                    removed += 1
+                    return ""
+                return m.group(0)
+
+            text = re.sub(rf"</{tag}>", _remove_excess, text, flags=re.IGNORECASE)
     return text
 
 
@@ -103,13 +112,15 @@ def _convert_tables(text: str) -> str:
     """Convert Markdown pipe-delimited tables to clean text.
 
     Turns:
-        | Name | Amount |
-        |------|--------|
-        | Food | $50    |
+        | Name | Amount | Date   |
+        |------|--------|--------|
+        | Food | $50    | Jan 1  |
 
     Into:
-        • Name: Amount
-        • Food: $50
+        • Food — Amount: $50, Date: Jan 1
+
+    Column headers are preserved in data rows so context is not lost.
+    Single-column tables fall back to plain bullet list.
     """
     lines = text.split("\n")
     result: list[str] = []
@@ -122,19 +133,26 @@ def _convert_tables(text: str) -> str:
         if stripped.startswith("|") and stripped.endswith("|"):
             cells = [c.strip() for c in stripped.strip("|").split("|")]
             # Skip separator rows (|---|---|)
-            if all(re.match(r"^[-:]+$", c) for c in cells):
+            if all(re.match(r"^[-:]+$", c) for c in cells if c):
                 continue
             if not in_table:
                 # First row = headers
                 headers = cells
                 in_table = True
             else:
-                # Data row: pair with headers
+                # Data row: pair each cell with its column header
                 if headers and len(headers) >= 2 and len(cells) >= 2:
-                    parts = [f"{cells[0]}: {', '.join(cells[1:])}"]
-                    result.append(f"• {parts[0]}")
+                    # First cell is the row label; remaining cells get "Header: value"
+                    label = cells[0]
+                    paired = ", ".join(
+                        f"{headers[i]}: {cells[i]}"
+                        for i in range(1, min(len(headers), len(cells)))
+                        if cells[i]
+                    )
+                    row_text = f"{label} — {paired}" if paired else label
+                    result.append(f"• {row_text}")
                 else:
-                    result.append(f"• {', '.join(cells)}")
+                    result.append(f"• {', '.join(c for c in cells if c)}")
         else:
             if in_table and headers:
                 in_table = False
@@ -142,6 +160,27 @@ def _convert_tables(text: str) -> str:
             result.append(line)
 
     return "\n".join(result)
+
+
+_TELEGRAM_MAX_LEN = 4096
+_TRUNCATION_NOTICE = "\n\n<i>…</i>"
+
+
+def truncate_telegram(text: str) -> str:
+    """Clip text to Telegram's 4096-char hard limit, cutting at a newline boundary.
+
+    Should be applied as the last step before sending any bot message.
+    Already handles the case where text is within limits (no-op).
+    """
+    if len(text) <= _TELEGRAM_MAX_LEN:
+        return text
+    cutoff = _TELEGRAM_MAX_LEN - len(_TRUNCATION_NOTICE)
+    truncated = text[:cutoff]
+    # Prefer cutting at a newline so we don't split a tag or mid-word
+    last_nl = truncated.rfind("\n")
+    if last_nl > cutoff // 2:
+        truncated = truncated[:last_nl]
+    return truncated + _TRUNCATION_NOTICE
 
 
 def _escape_html(text: str) -> str:
