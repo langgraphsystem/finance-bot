@@ -285,6 +285,49 @@
   font-weight: 500;
 }
 
+/* ─── Extended Stats (2nd row: Best + Goal%) ─────────────────────────────── */
+.tracker-stats-row-2 {
+  grid-template-columns: 1fr 1fr;
+  margin-top: -4px;
+  padding-top: 0;
+}
+
+/* ─── 30-Day Trend Chart ──────────────────────────────────────────────────── */
+.tracker-chart-section {
+  padding: 0 16px 16px;
+}
+
+.tracker-chart-wrap {
+  background: var(--section-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 18px;
+  overflow: hidden;
+  padding: 10px 4px 4px;
+}
+
+.tracker-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Draw-in animation for the chart line */
+.chart-line {
+  stroke-dasharray: var(--dash, 2000);
+  stroke-dashoffset: var(--dash, 2000);
+  animation: chart-draw .9s cubic-bezier(.4,0,.2,1) forwards;
+}
+
+@keyframes chart-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart-line { animation: none; stroke-dashoffset: 0; }
+}
+
 /* ─── Heatmap Calendar (30-day grid) ─────────────────────────────────────── */
 .tracker-heatmap-section {
   padding: 0 16px 16px;

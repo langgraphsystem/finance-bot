@@ -217,19 +217,38 @@ function _renderTrackerDetail(tracker, entries) {
 
   // Stats boxes — differ by mode
   let stat2Label, stat2Val, stat3Label, stat3Val;
+  let bestLabel = 'Best', bestVal = '—';
+  let extraLabel = '—', extraVal = '—';
+
   if (mode === 'boolean') {
     const daysLogged = dayValues.length;
     stat2Label = 'Days logged';  stat2Val = daysLogged;
     stat3Label = 'This week';
     const weekStart = _daysAgo(6);
     stat3Val = dayValues.filter(d => d.date >= weekStart).length + 'd';
+    bestLabel = 'Total';
+    bestVal = daysLogged;
+    extraLabel = 'Rate';
+    extraVal = daysLogged ? Math.round(daysLogged / 30 * 100) + '%' : '—';
 
   } else if (mode === 'single') {
     const nums = dayValues.filter(d => d.val != null).map(d => d.val);
-    const avg = nums.length ? Math.round(nums.reduce((a,b)=>a+b,0) / nums.length * 10) / 10 : '—';
-    const last = nums.length ? nums[nums.length - 1] : '—';
-    stat2Label = '7d avg';  stat2Val = avg !== '—' ? `${avg} ${unit}` : '—';
-    stat3Label = 'Last';    stat3Val = last !== '—' ? `${last} ${unit}` : '—';
+    const avg  = nums.length ? Math.round(nums.reduce((a,b)=>a+b,0) / nums.length * 10) / 10 : null;
+    const last = nums.length ? nums[nums.length - 1] : null;
+    stat2Label = '7d avg';  stat2Val = avg  != null ? `${avg} ${unit}`  : '—';
+    stat3Label = 'Last';    stat3Val = last != null ? `${last} ${unit}` : '—';
+    const best = nums.length ? Math.max(...nums) : null;
+    bestLabel = 'Best';
+    bestVal   = best != null ? `${best} ${unit}` : '—';
+    // Goal% — days where value >= goal
+    if (goal && nums.length) {
+      const goalDays = dayValues.filter(d => d.val != null && d.val >= goal).length;
+      extraLabel = 'Goal %';
+      extraVal   = Math.round(goalDays / nums.length * 100) + '%';
+    } else {
+      extraLabel = 'Days';
+      extraVal   = nums.length;
+    }
 
   } else {
     // sum
@@ -237,9 +256,21 @@ function _renderTrackerDetail(tracker, entries) {
     const allTotals  = dayValues.map(d => d.val);
     const avg7 = allTotals.length
       ? Math.round(allTotals.reduce((a,b)=>a+b,0) / allTotals.length)
-      : '—';
-    stat2Label = 'Today';    stat2Val = todayTotal > 0 ? `${todayTotal} ${unit}` : '—';
-    stat3Label = '7d avg';   stat3Val = avg7 !== '—' ? `${avg7} ${unit}` : '—';
+      : null;
+    stat2Label = 'Today';  stat2Val = todayTotal > 0 ? `${todayTotal} ${unit}` : '—';
+    stat3Label = '7d avg'; stat3Val = avg7 != null ? `${avg7} ${unit}` : '—';
+    const best = allTotals.length ? Math.max(...allTotals) : null;
+    bestLabel = 'Best day';
+    bestVal   = best != null ? `${best} ${unit}` : '—';
+    // Goal% — days where daily total >= goal
+    if (goal && allTotals.length) {
+      const goalDays = allTotals.filter(v => v >= goal).length;
+      extraLabel = 'Goal %';
+      extraVal   = Math.round(goalDays / allTotals.length * 100) + '%';
+    } else {
+      extraLabel = 'Days';
+      extraVal   = allTotals.length;
+    }
   }
 
   const statsHtml = `
@@ -257,7 +288,20 @@ function _renderTrackerDetail(tracker, entries) {
         <div class="tracker-stat-lbl">${stat3Label}</div>
       </div>
     </div>
+    <div class="tracker-stats-row tracker-stats-row-2">
+      <div class="tracker-stat-box">
+        <div class="tracker-stat-val">${bestVal}</div>
+        <div class="tracker-stat-lbl">${bestLabel}</div>
+      </div>
+      <div class="tracker-stat-box">
+        <div class="tracker-stat-val">${extraVal}</div>
+        <div class="tracker-stat-lbl">${extraLabel}</div>
+      </div>
+    </div>
   `;
+
+  // Line chart
+  const chartHtml = _renderChart(tracker, dayValues, goal);
 
   // Goal progress bar (sum + single modes)
   let goalBarHtml = '';
@@ -321,6 +365,7 @@ function _renderTrackerDetail(tracker, entries) {
 
     ${statsHtml}
     ${goalBarHtml}
+    ${chartHtml}
     ${heatmapHtml}
 
     <!-- Log button -->
@@ -367,10 +412,135 @@ function _formatEntryValue(entry, tracker) {
   return '—';
 }
 
-// ─── Ring Animation ──────────────────────────────────────────────────────────
-function _animateRing(tracker, entries) {
-  // Not used currently — placeholder for future ring widgets in detail
+// ─── Chart helpers ───────────────────────────────────────────────────────────
+
+/** Catmull-Rom–style smooth path through an array of [x,y] points. */
+function _smoothPath(pts) {
+  if (!pts.length) return '';
+  if (pts.length === 1) return `M ${pts[0][0]},${pts[0][1]}`;
+  let d = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    const cpx = (x0 + x1) / 2;
+    d += ` C ${cpx},${y0} ${cpx},${y1} ${x1},${y1}`;
+  }
+  return d;
 }
+
+/** Approximate polyline length (multiply by 1.3 for bezier curves). */
+function _approxLen(pts) {
+  let len = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const dx = pts[i][0] - pts[i - 1][0];
+    const dy = pts[i][1] - pts[i - 1][1];
+    len += Math.sqrt(dx * dx + dy * dy);
+  }
+  return Math.ceil(len * 1.3) + 50;
+}
+
+/**
+ * Render a 30-day SVG line/area chart for numeric tracker modes.
+ * Returns '' for boolean / gratitude (heatmap is sufficient there).
+ */
+function _renderChart(tracker, dayValues, goal) {
+  const mode = tracker.value_mode || 'sum';
+  if (mode === 'boolean' || tracker.tracker_type === 'gratitude') return '';
+  if (!dayValues.length) return '';
+
+  const W = 320, H = 110;
+  const PX = 10, PY = 12;                        // horizontal / vertical padding
+  const plotW = W - PX * 2;
+  const plotH = H - PY * 2 - 14;                 // 14px for bottom labels
+
+  // Build 30-slot array (null for missing days)
+  const days30 = Array.from({ length: 30 }, (_, i) => _daysAgo(29 - i));
+  const dvMap  = {};
+  for (const dv of dayValues) dvMap[dv.date] = dv.val;
+  const vals  = days30.map(d => dvMap[d] ?? null);
+  const nums  = vals.filter(v => v !== null);
+  if (!nums.length) return '';
+
+  const minVal = Math.min(...nums);
+  const maxVal = Math.max(...nums);
+  const range  = maxVal === minVal ? 1 : maxVal - minVal;
+  const unit   = tracker.config?.unit || '';
+
+  const toX = i => PX + (i / 29) * plotW;
+  const toY = v => PY + plotH - ((v - minVal) / range) * plotH;
+
+  // Collect defined points
+  const pts = [];
+  for (let i = 0; i < 30; i++) {
+    if (vals[i] !== null) pts.push([toX(i), toY(vals[i])]);
+  }
+
+  const linePath = _smoothPath(pts);
+  const dashLen  = _approxLen(pts);
+
+  // Area fill path (close to bottom baseline)
+  const areaPath = pts.length > 1
+    ? `${linePath} L ${pts[pts.length - 1][0]},${PY + plotH} L ${pts[0][0]},${PY + plotH} Z`
+    : '';
+
+  const type   = tracker.tracker_type;
+  const gradId = `cg-${type}`;                    // unique per type is fine (same page)
+
+  // Goal dashed line
+  let goalLineHtml = '';
+  if (goal && goal >= minVal && goal <= maxVal + range * 0.05) {
+    const gy = toY(Math.min(goal, maxVal));
+    goalLineHtml = `<line x1="${PX}" y1="${gy}" x2="${W - PX}" y2="${gy}"
+      stroke="rgba(255,255,255,.45)" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+  }
+
+  // Y-axis labels (max, min)
+  const fmtY = v => (Number.isInteger(v) ? v : v.toFixed(1)) + (unit ? ' ' + unit : '');
+  const labelY1 = `<text x="${PX}" y="${PY - 2}" font-size="8.5" fill="rgba(255,255,255,.38)">${fmtY(maxVal)}</text>`;
+  const labelY2 = `<text x="${PX}" y="${PY + plotH + 10}" font-size="8.5" fill="rgba(255,255,255,.38)">${fmtY(minVal)}</text>`;
+
+  // X-axis date labels
+  const labelX1 = `<text x="${PX}" y="${H - 2}" font-size="8.5" fill="rgba(255,255,255,.38)">${_shortDate(days30[0])}</text>`;
+  const labelX2 = `<text x="${W - PX}" y="${H - 2}" font-size="8.5" fill="rgba(255,255,255,.38)" text-anchor="end">${_shortDate(days30[29])}</text>`;
+
+  // Dots — only last 5 defined to avoid clutter
+  const dotPts = pts.slice(-5);
+  const dotsHtml = dotPts.map(([x, y]) =>
+    `<circle cx="${x}" cy="${y}" r="2.5" fill="var(--tr-${type}-a)"/>`
+  ).join('');
+
+  return `
+    <div class="tracker-chart-section">
+      <div class="tracker-heatmap-title">30-Day Trend</div>
+      <div class="tracker-chart-wrap">
+        <svg class="tracker-chart-svg" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"   stop-color="var(--tr-${type}-a)" stop-opacity=".35"/>
+              <stop offset="100%" stop-color="var(--tr-${type}-a)" stop-opacity=".02"/>
+            </linearGradient>
+          </defs>
+          ${areaPath ? `<path d="${areaPath}" fill="url(#${gradId})"/>` : ''}
+          ${goalLineHtml}
+          <path class="chart-line" d="${linePath}"
+            fill="none"
+            stroke="var(--tr-${type}-a)"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            style="--dash:${dashLen}"
+          />
+          ${dotsHtml}
+          ${labelY1}${labelY2}
+          ${labelX1}${labelX2}
+        </svg>
+      </div>
+    </div>
+  `;
+}
+
+// ─── (Ring animation removed — replaced by _renderChart above) ───────────────
+function _animateRing() {}
 
 // ─── Quick Log (from card button) ────────────────────────────────────────────
 async function quickLog(trackerId, trackerType) {
