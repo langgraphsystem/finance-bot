@@ -128,11 +128,11 @@ function _renderTrackerCard(t) {
       ? `<div class="tracker-card-meta" style="color:var(--tr-habit-a)">✅ Done today</div>`
       : '';
   } else if (mode === 'single' && t.today_value != null) {
-    todayLine = `<div class="tracker-card-meta">Today: <b>${t.today_value}</b> ${unit}</div>`;
+    todayLine = `<div class="tracker-card-meta">Today: <b>${esc(t.today_value)}</b> ${esc(unit)}</div>`;
   } else if (mode === 'sum' && t.today_total > 0) {
     const pct = goal ? Math.min(100, Math.round(t.today_total / goal * 100)) : null;
     const pctHtml = pct != null ? ` <span style="color:var(--hint)">(${pct}%)</span>` : '';
-    todayLine = `<div class="tracker-card-meta">Today: <b>${t.today_total}</b> ${unit}${pctHtml}</div>`;
+    todayLine = `<div class="tracker-card-meta">Today: <b>${esc(t.today_total)}</b> ${esc(unit)}${pctHtml}</div>`;
   }
 
   // Button label
@@ -150,16 +150,16 @@ function _renderTrackerCard(t) {
   }
 
   return `
-    <div class="tracker-card" data-type="${t.tracker_type}" onclick="openTrackerDetail('${t.id}')">
-      <span class="tracker-card-emoji">${t.emoji}</span>
-      <div class="tracker-card-name">${t.name}</div>
-      ${todayLine || `<div class="tracker-card-meta">${_typeLabel(t.tracker_type)}</div>`}
+    <div class="tracker-card" data-type="${escAttr(t.tracker_type)}" onclick="openTrackerDetail('${escAttr(t.id)}')">
+      <span class="tracker-card-emoji">${esc(t.emoji)}</span>
+      <div class="tracker-card-name">${esc(t.name)}</div>
+      ${todayLine || `<div class="tracker-card-meta">${esc(_typeLabel(t.tracker_type))}</div>`}
       ${streakHtml}
       <button
         class="tracker-today-btn ${btnDone ? 'done' : ''}"
-        data-type="${t.tracker_type}"
-        onclick="event.stopPropagation(); quickLog('${t.id}', '${t.tracker_type}')"
-      >${btnLabel}</button>
+        data-type="${escAttr(t.tracker_type)}"
+        onclick="event.stopPropagation(); quickLog('${escAttr(t.id)}', '${escAttr(t.tracker_type)}')"
+      >${esc(btnLabel)}</button>
     </div>
   `;
 }
@@ -313,10 +313,10 @@ function _renderTrackerDetail(tracker, entries) {
 
   return `
     <!-- Hero -->
-    <div class="tracker-detail-hero" data-type="${tracker.tracker_type}">
-      <span class="tracker-detail-hero-emoji">${tracker.emoji}</span>
-      <div class="tracker-detail-hero-name">${tracker.name}</div>
-      <div class="tracker-detail-hero-meta">${_typeLabel(tracker.tracker_type)}</div>
+    <div class="tracker-detail-hero" data-type="${escAttr(tracker.tracker_type)}">
+      <span class="tracker-detail-hero-emoji">${esc(tracker.emoji)}</span>
+      <div class="tracker-detail-hero-name">${esc(tracker.name)}</div>
+      <div class="tracker-detail-hero-meta">${esc(_typeLabel(tracker.tracker_type))}</div>
     </div>
 
     ${statsHtml}
@@ -326,19 +326,19 @@ function _renderTrackerDetail(tracker, entries) {
     <!-- Log button -->
     <button
       class="tracker-log-btn"
-      data-type="${tracker.tracker_type}"
-      onclick="openLogModal('${tracker.id}', '${tracker.tracker_type}')"
+      data-type="${escAttr(tracker.tracker_type)}"
+      onclick="openLogModal('${escAttr(tracker.id)}', '${escAttr(tracker.tracker_type)}')"
       ${logBtnDisabled}
     >
-      ${logBtnLabel}
+      ${esc(logBtnLabel)}
     </button>
 
     ${entriesHtml}
 
     <!-- Edit / Delete -->
     <div style="padding:0 16px 100px;display:flex;gap:10px;justify-content:center">
-      <button class="btn-ghost" onclick="openEditTrackerModal('${tracker.id}')" style="font-size:13px">✏️ Edit</button>
-      <button class="btn-ghost" onclick="confirmDeleteTracker('${tracker.id}')" style="color:var(--destructive);font-size:13px">🗑️ Delete</button>
+      <button class="btn-ghost" onclick="openEditTrackerModal('${escAttr(tracker.id)}')" style="font-size:13px">✏️ Edit</button>
+      <button class="btn-ghost" onclick="confirmDeleteTracker('${escAttr(tracker.id)}')" style="color:var(--destructive);font-size:13px">🗑️ Delete</button>
     </div>
   `;
 }
@@ -349,8 +349,8 @@ function _renderEntryRow(entry, tracker) {
     <div class="tracker-entry-item">
       <div class="tracker-entry-dot" data-type="${tracker.tracker_type}"></div>
       <div class="tracker-entry-date">${_shortDate(entry.date)}</div>
-      ${entry.note ? `<div class="tracker-entry-note">${entry.note}</div>` : ''}
-      <div class="tracker-entry-val">${valDisplay}</div>
+      ${entry.note ? `<div class="tracker-entry-note">${esc(entry.note)}</div>` : ''}
+      <div class="tracker-entry-val">${esc(valDisplay)}</div>
     </div>
   `;
 }
@@ -363,7 +363,7 @@ function _formatEntryValue(entry, tracker) {
   }
   if (tracker.tracker_type === 'habit') return entry.value ? '✅ Done' : '—';
   if (tracker.tracker_type === 'gratitude') return entry.data?.items?.length ? `${entry.data.items.length} items` : '✍️';
-  if (entry.value != null) return `${entry.value} ${unit}`;
+  if (entry.value != null) return `${esc(entry.value)} ${esc(unit)}`;
   return '—';
 }
 
@@ -439,8 +439,8 @@ function openLogModal(trackerId, trackerType) {
       <div class="value-stepper">
         <button class="stepper-btn" onclick="_stepVal(-1)">−</button>
         <div>
-          <div class="stepper-val" id="stepper-display">${trackerType === 'weight' ? '70' : goal}</div>
-          <div class="stepper-unit">${unit}</div>
+          <div class="stepper-val" id="stepper-display">${trackerType === 'weight' ? '70' : esc(goal)}</div>
+          <div class="stepper-unit">${esc(unit)}</div>
         </div>
         <button class="stepper-btn" onclick="_stepVal(1)">＋</button>
       </div>
@@ -450,10 +450,10 @@ function openLogModal(trackerId, trackerType) {
 
   const html = `
     <div style="padding:0 4px 4px">
-      <div style="font-size:26px;margin-bottom:4px">${emoji}</div>
-      <div style="font-size:18px;font-weight:700;margin-bottom:16px">${name}</div>
+      <div style="font-size:26px;margin-bottom:4px">${esc(emoji)}</div>
+      <div style="font-size:18px;font-weight:700;margin-bottom:16px">${esc(name)}</div>
       ${bodyHtml}
-      <button class="btn-primary" style="width:100%" onclick="_submitLog('${trackerId}', '${trackerType}')">Save Log</button>
+      <button class="btn-primary" id="log-save-btn" style="width:100%" onclick="_submitLog('${escAttr(trackerId)}', '${escAttr(trackerType)}')">Save Log</button>
     </div>
   `;
 
@@ -487,19 +487,32 @@ window._stepVal = function(delta) {
 };
 
 window._submitLog = async function(trackerId, trackerType) {
+  // Guard against double-tap / double-click submitting two entries
+  const saveBtn = document.getElementById('log-save-btn');
+  if (saveBtn?.disabled) return;
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '…'; }
+
   const note = document.getElementById('log-note')?.value?.trim() || null;
   let value = window._logState?.value ?? null;
   let data = null;
 
   if (trackerType === 'mood' && value == null) {
-    toast('Pick a mood first'); return;
+    toast('Pick a mood first');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Log'; }
+    return;
   }
   if (trackerType === 'water' && value == null) {
-    toast('Pick glasses count'); return;
+    toast('Pick glasses count');
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Log'; }
+    return;
   }
   if (trackerType === 'gratitude') {
     const items = [1,2,3].map(i => document.getElementById(`grat-${i}`)?.value?.trim()).filter(Boolean);
-    if (!items.length) { toast('Add at least one item'); return; }
+    if (!items.length) {
+      toast('Add at least one item');
+      if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Log'; }
+      return;
+    }
     data = { items };
     value = items.length;
   }
@@ -527,7 +540,10 @@ window._submitLog = async function(trackerId, trackerType) {
     } else {
       await renderTrackers(document.getElementById('content'));
     }
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    toast(e.message);
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save Log'; }
+  }
 };
 
 // ─── New Tracker Modal ────────────────────────────────────────────────────────
@@ -611,23 +627,23 @@ function openEditTrackerModal(trackerId) {
 
   const html = `
     <div style="padding:0 4px 4px">
-      <div style="font-size:26px;margin-bottom:4px">${tracker.emoji}</div>
+      <div style="font-size:26px;margin-bottom:4px">${esc(tracker.emoji)}</div>
       <div style="font-size:18px;font-weight:700;margin-bottom:16px">Edit Tracker</div>
 
       <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">NAME</label>
-      <input id="edit-tr-name" value="${tracker.name}"
+      <input id="edit-tr-name" value="${escAttr(tracker.name)}"
         style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:14px"/>
 
       <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">EMOJI</label>
-      <input id="edit-tr-emoji" value="${tracker.emoji || ''}" maxlength="2"
+      <input id="edit-tr-emoji" value="${escAttr(tracker.emoji || '')}" maxlength="2"
         style="width:80px;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:22px;text-align:center;outline:none;margin-bottom:14px"/>
 
       <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">DAILY GOAL</label>
-      <input id="edit-tr-goal" type="number" min="0" value="${goalVal}"
+      <input id="edit-tr-goal" type="number" min="0" value="${escAttr(goalVal)}"
         style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:14px"/>
 
       <label style="font-size:12px;color:var(--hint);font-weight:600;display:block;margin-bottom:6px">UNIT (glasses, hours, kg…)</label>
-      <input id="edit-tr-unit" value="${unitVal}"
+      <input id="edit-tr-unit" value="${escAttr(unitVal)}"
         style="width:100%;padding:14px;border-radius:16px;border:1px solid var(--section-sep);background:var(--bg2);font-family:inherit;font-size:15px;color:var(--text);outline:none;margin-bottom:20px"/>
 
       <!-- Reminder section -->

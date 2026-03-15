@@ -112,9 +112,11 @@ function navigate(tab) {
 
 async function renderTab(tab) {
   const content = document.getElementById('content');
-  content.innerHTML = spinner();
-  Object.values(state.charts).forEach(c => c?.destroy());
+  // Destroy charts BEFORE replacing DOM — Chart.js needs the canvas in DOM
+  // to free WebGL context and event listeners properly.
+  Object.values(state.charts).forEach(c => { try { c?.destroy(); } catch (_) {} });
   state.charts = {};
+  content.innerHTML = spinner();
   if (typeof _activeTrackerId !== 'undefined') _activeTrackerId = null;
   switch (tab) {
     case 'dashboard':    await renderDashboard(content);    break;
