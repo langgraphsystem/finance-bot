@@ -43,15 +43,18 @@ _RECOMMENDED_DEFAULT = {
     "es": "• Empieza ahora con la tarea de mayor urgencia.",
 }
 _BUDGET_USAGE_RE = re.compile(
-    r"budget usage\s*:\s*([0-9]+(?:[.,][0-9]+)?)\s*%",
+    r"budget usage\s*:\s*([0-9]{1,3}(?:,[0-9]{3})*(?:[.,][0-9]+)?|[0-9]+(?:[.,][0-9]+)?)\s*%",
     flags=re.IGNORECASE,
 )
+# Money pattern: digits with optional proper thousands separators (1,234,567.89)
+# Rejects malformed comma sequences like "1,2,3" that are not valid numbers.
+_MONEY_PATTERN = r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?|[0-9]+(?:\.[0-9]+)?"
 _YESTERDAY_SPENT_RE = re.compile(
-    r"yesterday\s*:\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)",
+    rf"yesterday\s*:\s*\$?\s*({_MONEY_PATTERN})",
     flags=re.IGNORECASE,
 )
 _MONTH_SPENT_RE = re.compile(
-    r"this month\s*:\s*\$?\s*([0-9][0-9,]*(?:\.[0-9]+)?)",
+    rf"this month\s*:\s*\$?\s*({_MONEY_PATTERN})",
     flags=re.IGNORECASE,
 )
 
@@ -313,5 +316,22 @@ async def format_action_message(
                     continue
 
         # Fallback to deterministic output if all synthesis models fail.
-        return text, "template_fallback", None, True
-    return text, None, None, False
+        return _truncate_message(text), "template_fallback", None, True
+    return _truncate_message(text), None, None, False
+
+
+_TELEGRAM_MAX_LEN = 4096
+_TRUNCATION_SUFFIX = "\n\n<i>…сообщение сокращено</i>"
+
+
+def _truncate_message(text: str) -> str:
+    """Ensure message fits Telegram's 4096-char limit, truncating gracefully."""
+    if len(text) <= _TELEGRAM_MAX_LEN:
+        return text
+    cutoff = _TELEGRAM_MAX_LEN - len(_TRUNCATION_SUFFIX)
+    # Cut at last newline to avoid splitting mid-bullet
+    truncated = text[:cutoff]
+    last_nl = truncated.rfind("\n")
+    if last_nl > cutoff // 2:
+        truncated = truncated[:last_nl]
+    return truncated + _TRUNCATION_SUFFIX

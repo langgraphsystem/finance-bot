@@ -26,6 +26,17 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
+_CURRENCY_SYMBOLS: dict[str, str] = {
+    "USD": "$", "EUR": "€", "GBP": "£", "JPY": "¥", "CNY": "¥",
+    "RUB": "₽", "UAH": "₴", "KZT": "₸", "CAD": "CA$", "AUD": "A$",
+}
+
+
+def _currency_symbol(currency: str | None) -> str:
+    """Return currency symbol for chart labels, fallback to code itself."""
+    return _CURRENCY_SYMBOLS.get((currency or "USD").upper(), currency or "$")
+
+
 _STRINGS = {
     "en": {
         "no_account": "Set up your account first to get financial summaries.",
@@ -184,14 +195,18 @@ class FinancialSummarySkill:
             prev_total, period_label, context.currency,
         )
 
-        # Generate chart
+        # Generate chart — gracefully skip on any QuickChart failure
         chart_url = None
         if len(categories) >= 2:
-            labels = [c["category"] for c in categories[:8]]
-            values = [float(c["amount"]) for c in categories[:8]]
-            chart_url = create_pie_chart(
-                labels, values, f"Expenses — {period_label}"
-            )
+            try:
+                labels = [c["category"] for c in categories[:8]]
+                values = [float(c["amount"]) for c in categories[:8]]
+                chart_url = create_pie_chart(
+                    labels, values, f"Expenses — {period_label}",
+                    currency_symbol=_currency_symbol(context.currency),
+                )
+            except Exception as chart_err:
+                logger.warning("Chart generation failed (non-critical): %s", chart_err)
 
         # LLM generates natural response
         model = intent_data.get("_model", self.model)

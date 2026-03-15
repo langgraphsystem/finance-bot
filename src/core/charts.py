@@ -9,11 +9,14 @@ def create_pie_chart(
     title: str = "",
     width: int = 500,
     height: int = 400,
+    currency_symbol: str = "$",
 ) -> str:
     """Create a pie chart and return its URL."""
     qc = QuickChart()
     qc.width = width
     qc.height = height
+    # Escape single quotes in currency_symbol to avoid breaking JS string literal
+    safe_symbol = currency_symbol.replace("'", "\\'")
     qc.config = {
         "type": "pie",
         "data": {
@@ -41,7 +44,7 @@ def create_pie_chart(
             "plugins": {
                 "datalabels": {
                     "display": True,
-                    "formatter": "(val) => '$' + val",
+                    "formatter": f"(val) => '{safe_symbol}' + val",
                 },
             },
         },
