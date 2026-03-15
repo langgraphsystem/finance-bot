@@ -12,7 +12,7 @@ from src.core.db import async_session
 from src.core.models.tracker import Tracker, TrackerEntry
 from src.core.observability import observe
 from src.core.context import SessionContext
-from src.core.schemas.message import IncomingMessage
+from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
