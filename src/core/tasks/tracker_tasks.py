@@ -120,13 +120,21 @@ async def dispatch_tracker_reminders() -> None:
             tracker, telegram_id, lang, pref_lang, notif_lang, tz_str, tz_src = row
             if not telegram_id:
                 continue
-            reminder_time: str | None = (tracker.config or {}).get("reminder_time")
+            config = tracker.config or {}
+            reminder_time: str | None = config.get("reminder_time")
             if not reminder_time:
                 continue
             tz = _parse_tz(tz_str)
             now_local = now_utc.astimezone(tz)
-            if _matches_reminder_time(reminder_time, now_local):
-                due.append(row)
+            repeat_mins = config.get("reminder_repeat_minutes")
+            if repeat_mins:
+                # Repeat mode: fire whenever dedup expires AND we're past reminder_time
+                if _is_past_reminder_time(reminder_time, now_local):
+                    due.append(row)
+            else:
+                # One-shot: fire only at the exact minute
+                if _matches_reminder_time(reminder_time, now_local):
+                    due.append(row)
 
         if not due:
             return
@@ -138,7 +146,14 @@ async def dispatch_tracker_reminders() -> None:
         for row in due:
             tracker = row[0]
             dedup_key = f"tracker_remind:{tracker.id}:{today_iso}"
-            already = await redis.get(dedup_key)
+            try:
+                already = await redis.get(dedup_key)
+            except Exception as exc:
+                logger.warning(
+                    "Redis dedup check failed for tracker %s, skipping: %s",
+                    tracker.id, exc,
+                )
+                continue  # skip this tracker — don't double-fire on Redis failure
             if already:
                 continue
             filtered_due.append(row)
@@ -188,9 +203,12 @@ async def dispatch_tracker_reminders() -> None:
                     # if no goal → always remind once (don't skip)
 
             if skip:
-                # Mark dedup so we don't keep checking
+                # Goal reached — silence for the rest of the day (always 25h)
                 dedup_key = f"tracker_remind:{tracker.id}:{today_iso}"
-                await redis.set(dedup_key, "1", ex=_DEDUP_TTL)
+                try:
+                    await redis.set(dedup_key, "1", ex=_DEDUP_TTL)
+                except Exception as exc:
+                    logger.warning("Redis set failed for dedup key %s: %s", dedup_key, exc)
                 continue
 
             # Resolve locale for message language
@@ -216,9 +234,14 @@ async def dispatch_tracker_reminders() -> None:
 
             try:
                 await send_telegram_message(telegram_id, text)
-                # Mark dedup
+                # Mark dedup — repeat mode uses shorter TTL so it fires again after interval
                 dedup_key = f"tracker_remind:{tracker.id}:{today_iso}"
-                await redis.set(dedup_key, "1", ex=_DEDUP_TTL)
+                repeat_mins = config.get("reminder_repeat_minutes")
+                dedup_ttl = int(repeat_mins) * 60 if repeat_mins else _DEDUP_TTL
+                try:
+                    await redis.set(dedup_key, "1", ex=dedup_ttl)
+                except Exception as exc:
+                    logger.warning("Redis set failed after send for %s: %s", dedup_key, exc)
                 sent += 1
                 logger.info(
                     "Tracker reminder sent: tracker_id=%s user_id=%s telegram_id=%s",

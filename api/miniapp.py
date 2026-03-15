@@ -1907,7 +1907,7 @@ class TrackerUpdate(BaseModel):
 
 class TrackerEntryCreate(BaseModel):
     date: str  # ISO date YYYY-MM-DD
-    value: int | None = None
+    value: float | None = None  # float to support sleep (7.5h), weight (70.5kg), etc.
     data: dict | None = None
     note: str | None = None
 
@@ -1967,7 +1967,7 @@ async def list_trackers(user: User = Depends(get_current_user)) -> list[dict]:
             # Streak: count consecutive days with at least one entry going back from today
             streak = 0
             check_date = today
-            while True:
+            while streak < 365:
                 exists = await session.scalar(
                     select(TrackerEntry.id).where(
                         TrackerEntry.tracker_id == t.id,
@@ -1977,10 +1977,7 @@ async def list_trackers(user: User = Depends(get_current_user)) -> list[dict]:
                 if not exists:
                     break
                 streak += 1
-                check_date = check_date.replace(day=check_date.day - 1) if check_date.day > 1 else (
-                    check_date.replace(month=check_date.month - 1, day=28) if check_date.month > 1
-                    else check_date.replace(year=check_date.year - 1, month=12, day=31)
-                )
+                check_date -= timedelta(days=1)
 
             # Today's entries for value_mode logic
             today_entries = (await session.scalars(
@@ -1990,7 +1987,12 @@ async def list_trackers(user: User = Depends(get_current_user)) -> list[dict]:
                 ).order_by(TrackerEntry.created_at)
             )).all()
 
-            today_done = len(today_entries) > 0
+            _value_mode = (t.config or {}).get("value_mode", "sum")
+            # boolean trackers: done only when an entry with value=1 exists
+            if _value_mode == "boolean":
+                today_done = any(e.value for e in today_entries)
+            else:
+                today_done = len(today_entries) > 0
             today_total = sum(e.value or 0 for e in today_entries)
             today_value = today_entries[-1].value if today_entries else None
 
@@ -2036,7 +2038,11 @@ async def update_tracker(
     """Update tracker name, emoji, description or config."""
     async with async_session() as session:
         t = await session.scalar(
-            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+            select(Tracker).where(
+                Tracker.id == uuid.UUID(tracker_id),
+                Tracker.family_id == user.family_id,
+                Tracker.user_id == user.id,
+            )
         )
         if not t:
             raise HTTPException(status_code=404, detail="Tracker not found")
@@ -2058,7 +2064,11 @@ async def delete_tracker(tracker_id: str, user: User = Depends(get_current_user)
     """Soft-delete a tracker (set is_active=False)."""
     async with async_session() as session:
         t = await session.scalar(
-            select(Tracker).where(Tracker.id == uuid.UUID(tracker_id), Tracker.family_id == user.family_id)
+            select(Tracker).where(
+                Tracker.id == uuid.UUID(tracker_id),
+                Tracker.family_id == user.family_id,
+                Tracker.user_id == user.id,
+            )
         )
         if not t:
             raise HTTPException(status_code=404, detail="Tracker not found")
@@ -2074,8 +2084,6 @@ async def list_tracker_entries(
     user: User = Depends(get_current_user),
 ) -> list[dict]:
     """Return tracker entries for the last N days."""
-    since = date.today().replace(day=date.today().day - min(days - 1, date.today().day - 1))
-    from datetime import timedelta
     since = date.today() - timedelta(days=days - 1)
 
     async with async_session() as session:
@@ -2112,6 +2120,14 @@ async def log_tracker_entry(
         )
         if not t:
             raise HTTPException(status_code=404, detail="Tracker not found")
+
+        # sum/single trackers require a numeric value; boolean/gratitude allow None
+        _entry_mode = (t.config or {}).get("value_mode", "sum")
+        if _entry_mode in ("sum", "single") and body.value is None and body.data is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"value is required for {_entry_mode} tracker",
+            )
 
         entry = TrackerEntry(
             tracker_id=t.id,

@@ -504,10 +504,16 @@ window._submitLog = async function(trackerId, trackerType) {
     value = items.length;
   }
 
+  // sleep and weight use decimal steps (0.5h, 0.1kg) — keep as float
+  const _FLOAT_TYPES = new Set(['sleep', 'weight']);
+  const submitValue = typeof value === 'number'
+    ? (_FLOAT_TYPES.has(trackerType) ? Math.round(value * 10) / 10 : Math.round(value))
+    : value;
+
   try {
     await post(`/trackers/${trackerId}/entries`, {
       date: _todayISO(),
-      value: typeof value === 'number' ? Math.round(value) : value,
+      value: submitValue,
       data,
       note,
     });
@@ -664,16 +670,13 @@ function openEditTrackerModal(trackerId) {
   const thumb  = document.getElementById('edit-tr-rem-thumb');
   const timeRow = document.getElementById('edit-tr-rem-time-row');
   if (toggle) {
+    // The <label> already wraps the checkbox, so clicking the track naturally
+    // toggles it — no extra click listener needed (would cause double-toggle).
     toggle.addEventListener('change', () => {
       const on = toggle.checked;
       if (track) track.style.background = on ? '#3b82f6' : 'var(--section-sep)';
       if (thumb) thumb.style.left = on ? '25px' : '3px';
       if (timeRow) timeRow.style.display = on ? 'flex' : 'none';
-    });
-    // Also make the whole track clickable (label wraps input)
-    track?.addEventListener('click', () => {
-      toggle.checked = !toggle.checked;
-      toggle.dispatchEvent(new Event('change'));
     });
   }
 }
@@ -681,7 +684,8 @@ function openEditTrackerModal(trackerId) {
 window._saveEditTracker = async function(trackerId) {
   const name    = document.getElementById('edit-tr-name')?.value?.trim();
   const emoji   = document.getElementById('edit-tr-emoji')?.value?.trim();
-  const goal    = parseInt(document.getElementById('edit-tr-goal')?.value) || 1;
+  const _goalRaw = document.getElementById('edit-tr-goal')?.value;
+  const goal    = _goalRaw !== '' && _goalRaw != null ? parseFloat(_goalRaw) : 1;
   const unit    = document.getElementById('edit-tr-unit')?.value?.trim();
   const remOn   = document.getElementById('edit-tr-rem-toggle')?.checked ?? false;
   const remTime = document.getElementById('edit-tr-rem-time')?.value || '21:00';
