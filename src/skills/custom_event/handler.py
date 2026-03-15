@@ -141,7 +141,7 @@ class CustomEventSkill:
             max_runs=_MAX_RUNS,
         )
 
-        async with get_session(context.user_id, context.family_id) as session:
+        async with get_session() as session:
             session.add(action)
             await session.commit()
 

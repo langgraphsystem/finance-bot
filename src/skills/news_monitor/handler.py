@@ -269,7 +269,7 @@ class NewsMonitorSkill:
             next_run_at=next_run_at,
         )
 
-        async with get_session(context.user_id, context.family_id) as session:
+        async with get_session() as session:
             session.add(action)
             await session.commit()
 
