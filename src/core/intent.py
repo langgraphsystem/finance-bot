@@ -515,6 +515,8 @@ task_deadline: текущее время + 10 минут. \
 - "check price of X at Y", "сколько стоит X на сайте Y" → price_check (price lookup)
 - "alert me when price", "мониторь цену", "notify when price" → price_alert
 - "monitor news about", "следи за новостями", "alert me about [topic]" → news_monitor
+- "мониторь [тему] каждый день/еженедельно", "мониторь [X] и [Y] каждый день в HH:MM" → news_monitor \
+(ДАЖЕ если упоминается "календарь" — это дополнительный источник дайджеста, НЕ list_events)
 - "notify me when [event]", "уведоми когда", "скажи когда выйдет", "следи когда", \
 "watch for [event]", "alert me when [condition]" → custom_event (НЕ news_monitor — здесь одноразовое событие, а не регулярный дайджест)
 
