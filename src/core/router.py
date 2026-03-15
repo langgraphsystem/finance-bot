@@ -993,6 +993,29 @@ async def _dispatch_message(
         except Exception as inner_e:
             logger.error("Fallback skill %s also failed: %s", intent_name, inner_e, exc_info=True)
             skill_result = SkillResult(response_text="Произошла ошибка. Попробуйте ещё раз.")
+
+    # Compound messages: execute follow-up intents sequentially and merge responses
+    if result.follow_up_intents and skill_result.response_text:
+        for follow_up_name in result.follow_up_intents:
+            try:
+                follow_up_result = await domain_router.route(
+                    follow_up_name, message, context, intent_data
+                )
+                if follow_up_result.response_text:
+                    skill_result.response_text = (
+                        skill_result.response_text + "\n\n" + follow_up_result.response_text
+                    )
+                    logger.info(
+                        "Compound follow-up executed: primary=%s follow_up=%s user=%s",
+                        intent_name,
+                        follow_up_name,
+                        context.user_id,
+                    )
+            except Exception as fu_err:
+                logger.warning(
+                    "Follow-up intent %s failed (non-critical): %s", follow_up_name, fu_err
+                )
+
     # Phase 13: Post-generation rule check
     if skill_result.response_text and settings.ff_post_gen_check:
         try:

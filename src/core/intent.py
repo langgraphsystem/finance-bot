@@ -143,7 +143,13 @@ invoice_due_days: число дней (net 15 → 15)
 "спал 7 часов", "устал", "feeling great", "checkin")
 - create_tracker: создать трекер ("создай трекер воды", "добавь трекер привычки", \
 "хочу трекер настроения", "create water tracker", "add habit tracker", \
-"новый трекер сна", "трекер для веса"). Extracted fields: tracker_type (mood/habit/water/sleep/weight/workout/nutrition/gratitude/medication/custom), tracker_name (optional custom name)
+"новый трекер сна", "трекер для веса"). Extracted fields: tracker_type (mood/habit/water/sleep/weight/workout/nutrition/gratitude/medication/custom), tracker_name (optional custom name). \
+СОСТАВНОЕ СООБЩЕНИЕ: если сообщение ОДНОВРЕМЕННО содержит создание трекера И настройку напоминания \
+(упоминается время, "каждый день", "в N утра/вечера", "напоминай", "remind me", "reminder", "в HH:MM") → \
+верни intent: "create_tracker", follow_up_intents: ["set_tracker_reminder"] и включи \
+schedule_time (HH:MM) и reminder_repeat_minutes в data. \
+Пример: "создай трекер воды и напоминай каждый день в 9 утра" → intent: create_tracker, \
+follow_up_intents: ["set_tracker_reminder"], data.tracker_type: "water", data.schedule_time: "09:00"
 - list_trackers: показать трекеры ("мои трекеры", "список трекеров", \
 "покажи трекеры", "my trackers", "show trackers")
 - log_tracker: записать в трекер ("залогировать настроение 8", "выпил 6 стаканов", \
@@ -672,6 +678,7 @@ intent_type: "action", confidence: 0.92
   "intent_type": "action" или "chat" или "clarify",
   "clarify_candidates": [{{"intent": "...", "label": "описание на русском", \
 "confidence": 0.0-1.0}}] или null,
+  "follow_up_intents": ["имя_интента"] или null,
   "data": {{
     "amount": число или null,
     "merchant": "название" или null,
@@ -766,7 +773,11 @@ intent_type: "action", confidence: 0.92
     "presentation_topic": "тема презентации" или null,
     "sheet_url": "URL или ID Google Sheets таблицы" или null,
     "sheet_range": "диапазон ячеек (A1:D10)" или null,
-    "sheet_data": "данные для записи/добавления" или null
+    "sheet_data": "данные для записи/добавления" или null,
+    "tracker_type": "mood/habit/water/sleep/weight/workout/nutrition/gratitude/medication/custom" или null,
+    "tracker_name": "пользовательское название трекера" или null,
+    "tracker_value": число для логирования или null,
+    "reminder_repeat_minutes": число минут между повторами напоминания или null
   }},
   "response": "краткий ответ для пользователя"
 }}"""

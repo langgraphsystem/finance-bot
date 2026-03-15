@@ -210,3 +210,4 @@ class IntentDetectionResult(BaseModel):
     data: IntentData | None = None
     response: str | None = None
     clarify_candidates: list[ClarifyCandidate] | None = None
+    follow_up_intents: list[str] | None = None  # compound messages: intents to execute after primary
