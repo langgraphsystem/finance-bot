@@ -5,7 +5,6 @@ Recurring reminders advance reminder_at to the next occurrence after firing.
 """
 
 import logging
-from calendar import monthrange
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select, update
@@ -19,6 +18,7 @@ from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
 from src.core.notifications_pkg.dispatch import send_telegram_message
 from src.core.notifications_pkg.templates import get_reminder_label
+from src.core.scheduled_actions.engine import _monthly_next
 from src.core.tasks.broker import broker
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,6 @@ _RECURRENCE_LABELS = {
 }
 
 
-
 def _compute_next_reminder(task: Task, now: datetime) -> datetime | None:
     """Compute the next reminder_at based on recurrence and original_reminder_time."""
     if task.recurrence == ReminderRecurrence.daily:
@@ -39,11 +38,17 @@ def _compute_next_reminder(task: Task, now: datetime) -> datetime | None:
         delta = timedelta(weeks=1)
     elif task.recurrence == ReminderRecurrence.monthly:
         current = task.reminder_at
-        # Advance to next month, clamping day for short months
-        year = current.year + (current.month // 12)
-        month = (current.month % 12) + 1
-        day = min(current.day, monthrange(year, month)[1])
-        return current.replace(year=year, month=month, day=day)
+        # Reuse engine's _monthly_next to avoid duplicate month-advance logic
+        next_date = _monthly_next(current.date(), current.day)
+        next_at = current.replace(year=next_date.year, month=next_date.month, day=next_date.day)
+        # Preserve original wall-clock time (DST-safe)
+        if task.original_reminder_time:
+            try:
+                hour, minute = map(int, task.original_reminder_time.split(":"))
+                next_at = next_at.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            except (ValueError, AttributeError):
+                pass
+        return next_at
     else:
         return None
 
