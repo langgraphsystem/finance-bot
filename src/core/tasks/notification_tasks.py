@@ -16,6 +16,7 @@ from src.core.models.transaction import Transaction
 from src.core.models.user import User
 from src.core.models.user_profile import UserProfile
 from src.core.notifications import collect_alerts, format_notification
+from src.core.notifications_pkg.dispatch import mark_daily_once, send_telegram_message
 from src.core.request_context import reset_family_context, set_family_context
 from src.core.tasks.broker import broker
 
@@ -63,12 +64,19 @@ async def daily_notifications():
                     language = resolved.language
 
             alerts = await collect_alerts(family_id, language=language)
-            if alerts:
-                await format_notification(alerts, language=language)
-
-                if user:
+            if alerts and user and user.telegram_id:
+                # Deduplicate: skip if already sent today for this user
+                today = date.today()
+                is_first = await mark_daily_once("budget_alerts", str(user.id), today)
+                if not is_first:
+                    logger.debug(
+                        "Skipping duplicate daily notification for user %s", user.telegram_id
+                    )
+                else:
+                    text = await format_notification(alerts, language=language)
+                    await send_telegram_message(user.telegram_id, text)
                     logger.info(
-                        "Notification for family %s (user %s): %d alerts language=%s",
+                        "Notification sent for family %s (user %s): %d alerts language=%s",
                         family.id,
                         user.telegram_id,
                         len(alerts),
