@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re as _lang_re
 from datetime import date
 from typing import Any
 
@@ -18,19 +17,9 @@ from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
 
-# ── Language auto-detection ───────────────────────────────────────────────────
-
-_CYRILLIC_RE = _lang_re.compile(r"[а-яА-ЯёЁ]")
-
 
 def _resolve_lang(context_lang: str | None, message_text: str | None) -> str:
-    """Use message language when context profile hasn't set one (defaults to 'en').
-
-    If the message contains Cyrillic → 'ru'.
-    Else fall back to context language or English.
-    """
-    if _CYRILLIC_RE.search(message_text or ""):
-        return "ru"
+    """Return the language saved in the user's profile, defaulting to 'en'."""
     return context_lang or "en"
 
 # ── i18n ─────────────────────────────────────────────────────────────────────
