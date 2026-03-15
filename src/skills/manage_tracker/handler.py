@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re as _lang_re
 from datetime import date
 from typing import Any
 
@@ -16,6 +17,21 @@ from src.gateway.types import IncomingMessage
 from src.skills.base import SkillResult
 
 logger = logging.getLogger(__name__)
+
+# ── Language auto-detection ───────────────────────────────────────────────────
+
+_CYRILLIC_RE = _lang_re.compile(r"[а-яА-ЯёЁ]")
+
+
+def _resolve_lang(context_lang: str | None, message_text: str | None) -> str:
+    """Use message language when context profile hasn't set one (defaults to 'en').
+
+    If the message contains Cyrillic → 'ru'.
+    Else fall back to context language or English.
+    """
+    if _CYRILLIC_RE.search(message_text or ""):
+        return "ru"
+    return context_lang or "en"
 
 # ── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +57,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "remind_no_time":       "What time should I remind you?\n\nSend a time like <b>21:00</b> or <b>9pm</b>.",
         "remind_no_time_set":   "No reminder time configured for {emoji} <b>{name}</b>.\n\nSend a time like <b>21:00</b> or <b>9pm</b>.",
         "remind_not_found":     "I couldn't find that tracker. Here are yours:\n\n{list}",
+        "already_exists":       "💧 <b>{name}</b> tracker already exists!\n\nUse the button below to log today's entry.",
     },
     "ru": {
         "created":              "✅ Трекер <b>{name}</b> создан!\n\nОткройте приложение, чтобы записывать и отслеживать прогресс.",
@@ -63,6 +80,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "remind_no_time":       "В какое время напоминать?\n\nОтправьте время, например <b>21:00</b>.",
         "remind_no_time_set":   "Для {emoji} <b>{name}</b> не задано время напоминания.\n\nОтправьте время, например <b>21:00</b>.",
         "remind_not_found":     "Такой трекер не найден. Ваши трекеры:\n\n{list}",
+        "already_exists":       "💧 Трекер <b>{name}</b> уже существует!\n\nИспользуйте кнопку ниже, чтобы записать данные сегодня.",
     },
     "es": {
         "created":              "✅ Tracker <b>{name}</b> creado!\n\nAbre la app para registrar entradas y ver tu progreso.",
@@ -85,6 +103,7 @@ _STRINGS: dict[str, dict[str, str]] = {
         "remind_no_time":       "¿A qué hora debo recordarte?\n\nEnvía una hora como <b>21:00</b>.",
         "remind_no_time_set":   "Sin hora configurada para {emoji} <b>{name}</b>.\n\nEnvía una hora como <b>21:00</b>.",
         "remind_not_found":     "No encontré ese tracker. Tus trackers:\n\n{list}",
+        "already_exists":       "💧 El tracker <b>{name}</b> ya existe!\n\nUsa el botón para registrar la entrada de hoy.",
     },
 }
 
@@ -306,7 +325,7 @@ class ManageTrackerSkill:
         intent_data: dict[str, Any],
     ) -> SkillResult:
         intent = intent_data.get("_intent", "")
-        lang = context.language or "en"
+        lang = _resolve_lang(context.language, message.text)
 
         if intent == "create_tracker":
             return await self._create(message, context, intent_data, lang)
@@ -330,6 +349,20 @@ class ManageTrackerSkill:
 
         meta = _TRACKER_META.get(t_type, {})
         emoji = meta.get("emoji", "✨")
+
+        # ── Duplicate check: return existing tracker instead of creating another ──
+        existing_trackers = await _get_trackers(context.user_id, context.family_id)
+        for existing in existing_trackers:
+            if existing.tracker_type == t_type and existing.name.lower() == name.lower():
+                ex_emoji = existing.emoji or emoji
+                buttons = [
+                    {"text": _t("open_app", lang), "url": "https://t.me/FinanceAssistBot/app"},
+                    {"text": _t("log_btn", lang, emoji=ex_emoji), "callback_data": f"tracker_log:{existing.id}:{t_type}"},
+                ]
+                return SkillResult(
+                    response_text=_t("already_exists", lang, name=existing.name),
+                    buttons=buttons,
+                )
 
         from src.core.db import async_session as _session
         async with _session() as session:

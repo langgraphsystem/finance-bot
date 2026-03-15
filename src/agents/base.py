@@ -46,6 +46,11 @@ _SKILL_ONLY_INTENTS = {
     "shopping_list_view",
     "shopping_list_remove",
     "shopping_list_clear",
+    # Tracker handlers use dedicated DB logic (config JSONB, streak calc, cron reminders).
+    "create_tracker",
+    "list_trackers",
+    "log_tracker",
+    "set_tracker_reminder",
     # Life tracking handlers are more reliable than generic data tools.
     "quick_capture",
     "track_food",

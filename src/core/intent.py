@@ -155,7 +155,15 @@ invoice_due_days: число дней (net 15 → 15)
 "turn off reminder for habit tracker", "set reminder for mood at 20:30", \
 "disable workout reminder", "напоминай каждые 30 минут пока не запишу воду", \
 "remind me every hour about sleep tracker until done", \
-"повтори напоминание каждые 15 минут пока не отмечу привычку"). \
+"повтори напоминание каждые 15 минут пока не отмечу привычку", \
+"поставь напоминание для трекера воды каждый день в 9 утра", \
+"напоминай мне про воду каждый день в 9:00", \
+"поставь напоминание каждый день в 9 утра", \
+"ежедневное напоминание в 9 утра для воды", \
+"remind me every day at 9am", "daily reminder at 9am for water tracker", \
+"поставь напоминание для привычки в 22:00", "напоминай про сон в 23:00"). \
+ВАЖНО: если в предыдущем сообщении или контексте был создан трекер (вода, привычка, сон и т.д.) \
+и пользователь просит поставить напоминание — это ВСЕГДА set_tracker_reminder, НЕ set_reminder. \
 Extracted fields: tracker_name, tracker_type (optional), schedule_time (HH:MM, optional), \
 reminder_repeat_minutes (int, minutes between repeat reminders until logged — e.g. 30 for "every 30 min", 60 for "every hour"; omit if one-shot)
 - day_plan: план дня ("план: ...", "топ задача: ...", \
@@ -190,10 +198,12 @@ reminder_repeat_minutes (int, minutes between repeat reminders until logged — 
 "to-do: ...", "добавь в список: ...", "нужно сделать: ...")
 - list_tasks: показать список задач ("мои задачи", "что мне нужно сделать", \
 "my tasks", "список дел", "what's on my list")
-- set_reminder: установить напоминание ("remind me ...", "напомни ...", \
+- set_reminder: установить ОБЩЕЕ напоминание (НЕ связанное с трекером) ("remind me ...", "напомни ...", \
 "напоминание: ...", "remind me to pick up Emma at 3:15", \
 "напоминай каждый день в 5 утра", "daily reminder at 7pm", \
-"напоминание каждую неделю"). Поддерживает повторяющиеся напоминания (daily/weekly/monthly).
+"напоминание каждую неделю"). Поддерживает повторяющиеся напоминания (daily/weekly/monthly). \
+ВАЖНО: если сообщение упоминает трекер (вода, привычка, сон, вес, тренировка, настроение) \
+или предыдущий контекст — создание/управление трекером → используй set_tracker_reminder, НЕ set_reminder.
 - schedule_action: запланировать AI-сводку/автодействие \
 ("every day at 8 send me calendar and tasks", \
 "каждое утро в 8 отправляй сводку по задачам и календарю", \
