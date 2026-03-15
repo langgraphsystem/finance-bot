@@ -30,20 +30,25 @@ class CollectorContext:
     """Minimal context for SIA data collectors.
 
     Decoupled from BriefState so SIA is not affected by Brief refactors.
-    Only carries the three fields all collectors actually need.
+    Only carries the three fields all collectors actually need,
+    plus optional per-source extras (e.g. news_topic for the news collector).
     """
 
     user_id: str
     family_id: str
     language: str
+    # Optional extras for specialised collectors
+    news_topic: str = ""
 
 
 def build_collector_context(action: ScheduledAction) -> CollectorContext:
     """Build a CollectorContext from a ScheduledAction."""
+    schedule_cfg: dict = action.schedule_config or {}
     return CollectorContext(
         user_id=str(action.user_id),
         family_id=str(action.family_id),
         language=action.language or "en",
+        news_topic=schedule_cfg.get("news_topic", "") or "",
     )
 
 
@@ -88,14 +93,91 @@ def _brief_adapter(node_path: str, response_key: str):
     return _collect
 
 
+def _news_adapter():
+    """Return an async collector fn that fetches news via dual_search.
+
+    The topic is read from ctx.news_topic — populated by build_collector_context()
+    from action.schedule_config["news_topic"].
+    All research imports are lazy to preserve the DI boundary.
+    """
+
+    async def _collect_news(ctx: CollectorContext) -> tuple[str, str]:
+        from src.core.config import settings  # lazy import
+        from src.core.research.dual_search import dual_search  # lazy import
+
+        topic = ctx.news_topic
+        if not topic:
+            return "", "empty"
+
+        # Map language codes → full names for the prompt instruction
+        _LANG_NAMES: dict[str, str] = {
+            "en": "English", "ru": "Russian", "es": "Spanish",
+            "de": "German",  "fr": "French",  "it": "Italian",
+            "pt": "Portuguese", "zh": "Chinese", "ja": "Japanese",
+            "ar": "Arabic",  "tr": "Turkish", "pl": "Polish",
+        }
+
+        # Reuse the same Gemini-backed searcher as web_search skill
+        async def _gemini_search(query: str, language: str) -> str:
+            from google.genai import types  # lazy import
+
+            from src.core.llm.clients import google_client  # lazy import
+
+            lang_name = _LANG_NAMES.get(language, "English")
+            localized_prompt = (
+                f"Find the latest news and updates about: {query}\n\n"
+                f"Requirements:\n"
+                f"- Respond ONLY in {lang_name}\n"
+                f"- Use Telegram HTML formatting (<b>, <i>) — no Markdown\n"
+                f"- Group results as bullet points with source name in <i>italics</i>\n"
+                f"- Max 8 items, prioritise recency (last 48 hours)\n"
+                f"- Skip paywalled or unavailable articles"
+            )
+
+            client = google_client()
+            response = await client.aio.models.generate_content(
+                model="gemini-3.1-flash-lite-preview",
+                contents=localized_prompt,
+                config=types.GenerateContentConfig(
+                    tools=[types.Tool(google_search=types.GoogleSearch())],
+                ),
+            )
+            return response.text or ""
+
+        use_dual = bool(
+            getattr(settings, "ff_dual_search", False)
+            and getattr(settings, "xai_api_key", None)
+        )
+        try:
+            if use_dual:
+                text = await dual_search(
+                    topic,
+                    ctx.language,
+                    topic,
+                    gemini_searcher=_gemini_search,
+                    trace_user_id=ctx.user_id,
+                )
+            else:
+                text = await _gemini_search(topic, ctx.language)
+            return text, "success" if text else "empty"
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("News collector failed for topic=%r: %s", topic, exc)
+            return "", "failed"
+
+    _collect_news.__name__ = "collect_news"
+    return _collect_news
+
+
 # Registry of supported sources.
 # Adding a new source = one line here; no other SIA files need to change.
 _SOURCE_COLLECTORS: dict[str, Any] = {
-    "calendar":       _brief_adapter("collect_calendar",    "calendar_data"),
-    "tasks":          _brief_adapter("collect_tasks",       "tasks_data"),
-    "money_summary":  _brief_adapter("collect_finance",     "finance_data"),
-    "email_highlights": _brief_adapter("collect_email",     "email_data"),
-    "outstanding":    _brief_adapter("collect_outstanding", "outstanding_data"),
+    "calendar":         _brief_adapter("collect_calendar",    "calendar_data"),
+    "tasks":            _brief_adapter("collect_tasks",       "tasks_data"),
+    "money_summary":    _brief_adapter("collect_finance",     "finance_data"),
+    "email_highlights": _brief_adapter("collect_email",       "email_data"),
+    "outstanding":      _brief_adapter("collect_outstanding", "outstanding_data"),
+    "news":             _news_adapter(),
 }
 
 
