@@ -290,6 +290,7 @@ AGENTS: list[AgentConfig] = [
             "evening_recap",
             "price_alert",
             "news_monitor",
+            "custom_event",
             "memory_show",
             "memory_forget",
             "memory_save",

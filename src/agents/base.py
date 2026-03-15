@@ -38,6 +38,10 @@ _SKILL_ONLY_INTENTS = {
     "dialog_history",
     # memory_update uses dedicated Mem0 search+delete+add flow.
     "memory_update",
+    # news_monitor and custom_event create ScheduledAction records directly —
+    # data_tools has no "scheduled_actions" table and would try bogus create_record.
+    "news_monitor",
+    "custom_event",
     # Project management uses dedicated DB handlers.
     "set_project",
     "create_project",

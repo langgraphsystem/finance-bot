@@ -13,7 +13,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from src.core.context import SessionContext
-from src.core.db import async_session
+from src.core.db import get_session
 from src.core.models.enums import ScheduleKind
 from src.core.models.scheduled_action import ScheduledAction
 from src.core.observability import observe
@@ -141,7 +141,7 @@ class CustomEventSkill:
             max_runs=_MAX_RUNS,
         )
 
-        async with async_session() as session:
+        async with get_session(context.user_id, context.family_id) as session:
             session.add(action)
             await session.commit()
 

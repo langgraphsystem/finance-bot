@@ -309,8 +309,19 @@ hotel_budget (число без валюты), hotel_platform (если указ
 "сколько стоит X на сайте Y", "price of 2x4 at Lowe's")
 - price_alert: мониторинг цены, оповещение о цене ("alert me when lumber drops below $5", \
 "мониторь цену на X", "notify when price goes below/above")
-- news_monitor: мониторинг новостей, подписка на тему ("monitor plumbing industry news", \
-"следи за новостями о X", "alert me about school closings")
+- news_monitor: подписка на дайджест новостей по теме с доставкой в заданное время \
+("monitor plumbing industry news every morning", \
+"следи за новостями о криптовалюте каждый день в 9 утра", \
+"alert me about AI news daily at 8am", \
+"собирай новости про Tesla каждый вечер в 20:00"). \
+Обязательно извлечь: news_topic (тема), schedule_time (время доставки, "HH:MM"), \
+schedule_frequency (daily/weekly/once).
+- custom_event: мониторинг конкретного события/условия из реального мира — бот проверяет \
+каждый час через поиск в интернете и уведомляет один раз при обнаружении \
+("notify me when iPhone 18 is released", "уведоми меня когда выйдет iPhone 18", \
+"watch for Coldplay concert tickets in Moscow", "следи когда SpaceX запустит Starship", \
+"alert me when Bitcoin drops below 50000", "скажи когда выйдет GTA 6"). \
+Обязательно извлечь: event_condition (строка с описанием события/условия).
 - create_booking: забронировать, записать клиента ("book John tomorrow 2pm", \
 "запиши клиента на завтра 14:00", "schedule appointment for faucet repair")
 - list_bookings: расписание бронирований ("my bookings today", \
@@ -504,6 +515,8 @@ task_deadline: текущее время + 10 минут. \
 - "check price of X at Y", "сколько стоит X на сайте Y" → price_check (price lookup)
 - "alert me when price", "мониторь цену", "notify when price" → price_alert
 - "monitor news about", "следи за новостями", "alert me about [topic]" → news_monitor
+- "notify me when [event]", "уведоми когда", "скажи когда выйдет", "следи когда", \
+"watch for [event]", "alert me when [condition]" → custom_event (НЕ news_monitor — здесь одноразовое событие, а не регулярный дайджест)
 
 Правила приоритета (booking + CRM):
 - "book/запиши/schedule appointment/забронируй" + клиент/время → create_booking
