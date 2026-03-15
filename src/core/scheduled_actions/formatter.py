@@ -19,6 +19,7 @@ _SECTION_ICONS = {
     "money_summary": "💰",
     "email_highlights": "📧",
     "outstanding": "🔴",
+    "news": "📰",
 }
 
 _DEFAULT_GREETING_ICON = "☀️"
@@ -178,12 +179,22 @@ def format_compact_message(
         source_text = payload.get(source, "")
         if not source_text:
             continue
+
+        icon = _SECTION_ICONS.get(source, "📋")
+        title = t(f"section_{source}", language)
+
+        # News text is already Telegram HTML from dual_search — render verbatim
+        if source == "news":
+            rendered_any = True
+            lines.append(f"{icon} <b>{title}</b>")
+            lines.append(source_text.strip())
+            lines.append("")
+            continue
+
         items = _extract_items(source_text)
         if not items:
             continue
         rendered_any = True
-        icon = _SECTION_ICONS.get(source, "📋")
-        title = t(f"section_{source}", language)
         lines.append(f"{icon} <b>{title}</b>")
 
         if source == "money_summary":

@@ -602,8 +602,13 @@ window._createTracker = async function() {
   const name = document.getElementById('tracker-name-input')?.value?.trim();
   if (!type) { toast('Pick a tracker type'); return; }
   if (!name)  { toast('Give it a name'); return; }
+  if (name.length > 128) { toast('Name is too long (max 128 chars)'); return; }
 
   const meta = TRACKER_TYPES.find(t => t.type === type);
+
+  const btn = document.querySelector('#modal-content .btn-primary');
+  if (btn?.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
 
   try {
     await post('/trackers', { tracker_type: type, name, emoji: meta?.emoji });
@@ -612,7 +617,10 @@ window._createTracker = async function() {
     haptic('success');
     _activeTrackerId = null;
     await renderTrackers(document.getElementById('content'));
-  } catch (e) { toast(e.message); }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Tracker'; }
+    toast(e.message);
+  }
 };
 
 // ─── Edit Tracker Modal ──────────────────────────────────────────────────────

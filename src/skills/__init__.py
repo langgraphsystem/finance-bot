@@ -62,6 +62,7 @@ from src.skills.modify_program.handler import skill as modify_program_skill
 from src.skills.mood_checkin.handler import skill as mood_checkin_skill
 from src.skills.morning_brief.handler import skill as morning_brief_skill
 from src.skills.news_monitor.handler import skill as news_monitor_skill
+from src.skills.news_search.handler import skill as news_search_skill
 from src.skills.onboarding.handler import skill as onboarding_skill
 from src.skills.pdf_operations.handler import skill as pdf_operations_skill
 from src.skills.price_alert.handler import skill as price_alert_skill
@@ -174,6 +175,7 @@ def create_registry() -> SkillRegistry:
     registry.register(price_check_skill)
     registry.register(price_alert_skill)
     registry.register(news_monitor_skill)
+    registry.register(news_search_skill)
     # Phase 6: Booking + CRM skills
     registry.register(add_contact_skill)
     registry.register(list_contacts_skill)

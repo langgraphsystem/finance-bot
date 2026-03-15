@@ -221,6 +221,7 @@ AGENTS: list[AgentConfig] = [
         skills=[
             "quick_answer",
             "web_search",
+            "news_search",
             "compare_options",
             "maps_search",
             "youtube_search",

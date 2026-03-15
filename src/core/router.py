@@ -3557,6 +3557,67 @@ async def _handle_callback(
             logger.warning("Email attachment download failed: %s", _e)
             return OutgoingMessage(text="Ошибка при скачивании вложения.", chat_id=message.chat_id)
 
+    elif action == "news_sub":
+        # news_sub:{pending_id}:{kind}  where kind = daily | weekly | custom
+        pending_id = parts[1] if len(parts) > 1 else ""
+        kind = parts[2] if len(parts) > 2 else "daily"
+
+        if kind == "custom":
+            # Redirect user to news_monitor flow with pre-filled topic hint
+            raw = await redis_client.get(f"news_sub:{pending_id}") if pending_id else None
+            if raw:
+                data = json.loads(raw)
+                topic = data.get("topic", "")
+                lang = data.get("language", context.language or "en")
+                hint = {
+                    "en": f"Monitor <b>{topic}</b> news — tell me: how often and at what time?\nExample: <i>daily at 9am</i> or <i>every Monday at 18:00</i>",
+                    "ru": f"Мониторинг новостей по теме <b>{topic}</b> — укажи как часто и в какое время.\nПример: <i>каждый день в 9:00</i> или <i>каждый понедельник в 18:00</i>",
+                    "es": f"Monitoreo de noticias sobre <b>{topic}</b> — dime con qué frecuencia y a qué hora.\nEjemplo: <i>cada día a las 9:00</i> o <i>cada lunes a las 18:00</i>",
+                }
+                return OutgoingMessage(
+                    text=hint.get(lang, hint["en"]),
+                    chat_id=message.chat_id,
+                )
+            return OutgoingMessage(
+                text="Напиши: тема + расписание. Например: <i>новости про Tesla каждый день в 9:00</i>",
+                chat_id=message.chat_id,
+            )
+
+        raw = await redis_client.get(f"news_sub:{pending_id}") if pending_id else None
+        if not raw:
+            return OutgoingMessage(
+                text="Кнопка устарела. Запроси новости ещё раз и нажми подписаться.",
+                chat_id=message.chat_id,
+            )
+
+        data = json.loads(raw)
+        topic = data.get("topic", "")
+        lang = data.get("language", context.language or "en")
+        tz = data.get("timezone", "UTC")
+
+        from src.skills.news_search.handler import create_news_subscription  # lazy import
+
+        schedule_label, next_run_str = await create_news_subscription(
+            topic=topic,
+            kind=kind,
+            user_id=context.user_id,
+            family_id=context.family_id,
+            language=lang,
+            timezone=tz,
+        )
+
+        _sub_strings = {
+            "en": "✅ <b>Subscribed!</b> I'll send you <b>{topic}</b> news {schedule}.\nFirst delivery: <b>{next_run}</b>",
+            "ru": "✅ <b>Подписка оформлена!</b> Буду присылать новости по теме <b>{topic}</b> {schedule}.\nПервая доставка: <b>{next_run}</b>",
+            "es": "✅ <b>¡Suscrito!</b> Te enviaré noticias sobre <b>{topic}</b> {schedule}.\nPrimera entrega: <b>{next_run}</b>",
+        }
+        confirm_text = _sub_strings.get(lang, _sub_strings["en"]).format(
+            topic=topic, schedule=schedule_label, next_run=next_run_str
+        )
+        # Clean up Redis key
+        await redis_client.delete(f"news_sub:{pending_id}")
+        return OutgoingMessage(text=confirm_text, chat_id=message.chat_id)
+
     return OutgoingMessage(text="Команда обработана.", chat_id=message.chat_id)
 
 

@@ -113,6 +113,7 @@ INTENT_DOMAIN_MAP: dict[str, Domain] = {
     "price_check": Domain.web,
     "price_alert": Domain.monitor,
     "news_monitor": Domain.monitor,
+    "news_search": Domain.research,
     "custom_event": Domain.monitor,
     # Booking + CRM (Phase 6)
     "create_booking": Domain.booking,

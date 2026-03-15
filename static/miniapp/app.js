@@ -1447,12 +1447,15 @@ async function generateInviteCode(role) {
 }
 
 // ─── Modal helpers ─────────────────────────────────────────────────────────
+function _onModalEsc(e) { if (e.key === 'Escape') closeModal(); }
+
 function openModal(html) {
   document.getElementById('modal-content').innerHTML = html;
   document.getElementById('modal').classList.add('open');
   tg?.BackButton?.offClick(closeModal);
   tg?.BackButton?.show();
   tg?.BackButton?.onClick(closeModal);
+  document.addEventListener('keydown', _onModalEsc);
 }
 function setModalContent(html) {
   document.getElementById('modal-content').innerHTML = html;
@@ -1462,6 +1465,7 @@ function closeModal(evt) {
   document.getElementById('modal').classList.remove('open');
   tg?.BackButton?.hide();
   tg?.BackButton?.offClick(closeModal);
+  document.removeEventListener('keydown', _onModalEsc);
 }
 
 // ─── Init ──────────────────────────────────────────────────────────────────

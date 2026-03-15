@@ -316,6 +316,11 @@ hotel_budget (число без валюты), hotel_platform (если указ
 "собирай новости про Tesla каждый вечер в 20:00"). \
 Обязательно извлечь: news_topic (тема), schedule_time (время доставки, "HH:MM"), \
 schedule_frequency (daily/weekly/once).
+- news_search: немедленный (одноразовый) поиск новостей в интернете по теме прямо сейчас \
+("найди новости про Tesla", "что происходит с Bitcoin", "покажи новости про ИИ", \
+"latest news about Apple", "what's happening with crypto today"). \
+Обязательно извлечь: news_topic (тема поиска). \
+НЕ путать с news_monitor (там есть расписание: "каждый день", "ежедневно", "every morning").
 - custom_event: мониторинг конкретного события/условия из реального мира — бот проверяет \
 каждый час через поиск в интернете и уведомляет один раз при обнаружении \
 ("notify me when iPhone 18 is released", "уведоми меня когда выйдет iPhone 18", \
@@ -517,6 +522,7 @@ task_deadline: текущее время + 10 минут. \
 - "monitor news about", "следи за новостями", "alert me about [topic]" → news_monitor
 - "мониторь [тему] каждый день/еженедельно", "мониторь [X] и [Y] каждый день в HH:MM" → news_monitor \
 (ДАЖЕ если упоминается "календарь" — это дополнительный источник дайджеста, НЕ list_events)
+- "найди новости", "покажи новости о", "latest news about", "what's happening with" (без расписания) → news_search
 - "notify me when [event]", "уведоми когда", "скажи когда выйдет", "следи когда", \
 "watch for [event]", "alert me when [condition]" → custom_event (НЕ news_monitor — здесь одноразовое событие, а не регулярный дайджест)
 
@@ -2064,6 +2070,7 @@ SCOPED_INTENT_DEFS: dict[str, dict[str, str]] = {
         "evening_recap": 'вечерний обзор ("evening recap", "итоги дня")',
         "price_alert": 'мониторинг цены ("мониторь цену", "alert when price")',
         "news_monitor": 'мониторинг новостей ("следи за новостями")',
+        "news_search": 'поиск новостей прямо сейчас ("найди новости", "latest news about")',
     },
     "email": {
         "read_inbox": 'проверить почту ("check email", "проверь почту")',

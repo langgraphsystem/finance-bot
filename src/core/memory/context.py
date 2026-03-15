@@ -140,6 +140,7 @@ QUERY_CONTEXT_MAP: dict[str, dict[str, Any]] = {
     "price_check": {"mem": False, "hist": 3, "sql": False, "sum": False},
     "price_alert": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "news_monitor": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
+    "news_search": {"mem": False, "hist": 3, "sql": False, "sum": False},
     # Booking + CRM intents (Phase 6)
     "create_booking": {"mem": "profile", "hist": 3, "sql": False, "sum": False},
     "list_bookings": {"mem": False, "hist": 2, "sql": False, "sum": False},

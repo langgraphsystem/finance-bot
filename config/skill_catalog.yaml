@@ -354,7 +354,7 @@ domains:
       - morning_brief
 
   research:
-    description: "Web search, quick answers, compare options, maps, YouTube, price check"
+    description: "Web search, quick answers, compare options, maps, YouTube, price check, news search"
     triggers:
       - search
       - find
@@ -378,10 +378,15 @@ domains:
       - войди
       - log in
       - connect to
+      - новости
+      - новости про
+      - latest news
+      - news about
     agent: research
     skills:
       - quick_answer
       - web_search
+      - news_search
       - compare_options
       - maps_search
       - youtube_search
